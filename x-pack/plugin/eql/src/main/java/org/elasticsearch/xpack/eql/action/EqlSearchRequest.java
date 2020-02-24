@@ -26,6 +26,10 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_TYPE;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.IMPLICIT_JOIN_KEY;
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
@@ -34,10 +38,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         false, true, false);
 
     private QueryBuilder query = null;
-    private String timestampField = "@timestamp";
-    private String eventTypeField = "event.category";
-    private String implicitJoinKeyField = "agent.id";
-    private int fetchSize = 50;
+    private String timestampField = FIELD_TIMESTAMP;
+    private String eventTypeField = FIELD_EVENT_TYPE;
+    private String implicitJoinKeyField = IMPLICIT_JOIN_KEY;
+    private int fetchSize = FETCH_SIZE;
     private SearchAfterBuilder searchAfterBuilder;
     private String rule;
 
@@ -91,6 +95,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             }
         }
 
+        if (indicesOptions == null) {
+            validationException = addValidationError("indicesOptions is null", validationException);
+        }
+
         if (rule == null || rule.isEmpty()) {
             validationException = addValidationError("rule is null or empty", validationException);
         }
@@ -108,7 +116,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
 
         if (fetchSize <= 0) {
-            validationException = addValidationError("size must be more than 0", validationException);
+            validationException = addValidationError("size must be greater than 0", validationException);
         }
 
         return validationException;
@@ -270,6 +278,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    public EqlSearchRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override

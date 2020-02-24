@@ -47,13 +47,14 @@ public class FunctionNode extends IRNode {
 
     /* ---- end tree structure, begin node data ---- */
 
-    private String name;
-    private Class<?> returnType;
-    private List<Class<?>> typeParameters = new ArrayList<>();
-    private List<String> parameterNames = new ArrayList<>();
-    private boolean isSynthetic;
-    private boolean doesMethodEscape;
-    private int maxLoopCounter;
+    protected String name;
+    Class<?> returnType;
+    List<Class<?>> typeParameters = new ArrayList<>();
+    List<String> parameterNames = new ArrayList<>();
+    protected boolean isStatic;
+    protected boolean hasVarArgs;
+    protected boolean isSynthetic;
+    protected int maxLoopCounter;
 
     public void setName(String name) {
         this.name = name;
@@ -87,20 +88,28 @@ public class FunctionNode extends IRNode {
         return parameterNames;
     }
 
+    public void setStatic(boolean isStatic) {
+        this.isStatic = isStatic;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
+    public void setVarArgs(boolean hasVarArgs) {
+        this.hasVarArgs = hasVarArgs;
+    }
+
+    public boolean hasVarArgs() {
+        return hasVarArgs;
+    }
+
     public void setSynthetic(boolean isSythetic) {
         this.isSynthetic = isSythetic;
     }
 
     public boolean isSynthetic() {
         return isSynthetic;
-    }
-
-    public void setMethodEscape(boolean doesMethodEscape) {
-        this.doesMethodEscape = doesMethodEscape;
-    }
-
-    public boolean doesMethodEscape() {
-        return doesMethodEscape;
     }
 
     public void setMaxLoopCounter(int maxLoopCounter) {
@@ -115,7 +124,17 @@ public class FunctionNode extends IRNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
-        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
+        int access = Opcodes.ACC_PUBLIC;
+
+        if (isStatic) {
+            access |= Opcodes.ACC_STATIC;
+        } else {
+            scopeTable.defineInternalVariable(Object.class, "this");
+        }
+
+        if (hasVarArgs) {
+            access |= Opcodes.ACC_VARARGS;
+        }
 
         if (isSynthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
@@ -147,15 +166,6 @@ public class FunctionNode extends IRNode {
         }
 
         blockNode.write(classWriter, methodWriter, globals, scopeTable.newScope());
-
-        if (doesMethodEscape == false) {
-            if (returnType == void.class) {
-                methodWriter.returnValue();
-            } else {
-                throw new IllegalStateException("not all paths provide a return value " +
-                        "for method [" + name + "] with [" + typeParameters.size() + "] parameters");
-            }
-        }
 
         methodWriter.endMethod();
     }

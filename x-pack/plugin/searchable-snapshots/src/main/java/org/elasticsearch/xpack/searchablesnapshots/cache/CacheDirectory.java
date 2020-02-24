@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,6 +67,22 @@ public class CacheDirectory extends FilterDirectory {
 
     private CacheKey createCacheKey(String fileName) {
         return new CacheKey(snapshotId, indexId, shardId, fileName);
+    }
+
+    public SnapshotId getSnapshotId() {
+        return snapshotId;
+    }
+
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public Map<String, IndexInputStats> getStats() {
+        return Collections.unmodifiableMap(stats);
     }
 
     // pkg private for tests

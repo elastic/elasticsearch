@@ -89,7 +89,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
 
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
@@ -115,10 +116,10 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             return emptyList();
         }
 
-        return Arrays.asList(new RestSqlQueryAction(restController),
-                new RestSqlTranslateAction(restController),
-                new RestSqlClearCursorAction(restController),
-                new RestSqlStatsAction(restController));
+        return Arrays.asList(new RestSqlQueryAction(),
+                new RestSqlTranslateAction(),
+                new RestSqlClearCursorAction(),
+                new RestSqlStatsAction());
     }
 
     @Override

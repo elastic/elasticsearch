@@ -153,11 +153,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, int length) throws IOException {
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
         final InputStream inputStream = readBlob(blobName);
         long skipped = inputStream.skip(position); // NORELEASE
         assert skipped == position;
         return org.elasticsearch.common.io.Streams.limitStream(inputStream, length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that are cheap to close early, so we can tell consumers to request as much data as possible.
+        return Long.MAX_VALUE;
     }
 
     @Override

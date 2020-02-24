@@ -12,19 +12,32 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
@@ -42,17 +55,6 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
-import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.RegexQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
-import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -130,6 +132,34 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("value", tq.value());
     }
 
+    public void testAliasAndGroupByResolution(){
+        LogicalPlan p = plan("SELECT COUNT(*) AS c FROM test WHERE ABS(int) > 0 GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        var pc = ((Aggregate) p).child();
+        assertTrue(pc instanceof Filter);
+        Expression condition = ((Filter) pc).condition();
+        assertEquals(((GreaterThan) condition).functionName(), "GREATERTHAN");
+        List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.get(0).resolved());
+        var agg = ((Aggregate) p).aggregates();
+        assertEquals((agg.get(0)).name(), "c");
+        assertEquals(((Count) ((Alias) agg.get(0)).child()).functionName(), "COUNT");
+    }
+    public void testLiteralWithGroupBy(){
+        LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.size() == 1);
+        assertTrue(groupings.get(0).resolved());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        var aggs = ((Aggregate) p).aggregates();
+        assertTrue(aggs.size() == 2);
+        assertEquals((aggs.get(0)).name(), "t");
+        assertTrue(((Alias) aggs.get(0)).child() instanceof Literal);
+        assertEquals(((Alias) aggs.get(0)).child().toString(), "1");
+        assertEquals(((Alias) aggs.get(1)).child().toString(), "2");
+    }
+
     public void testTermEqualityNotAnalyzed() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE int = 5");
         assertTrue(p instanceof Project);
@@ -200,7 +230,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Line 1:43: Comparisons against variables are not (currently) supported; offender [int] in [>]", ex.getMessage());
     }
 
@@ -445,7 +475,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) like '%a%'", ex.getMessage());
     }
 
@@ -455,7 +485,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) RLIKE '.*a.*'", ex.getMessage());
     }
 
@@ -995,6 +1025,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
+    }
+
+    public void testGroupByHistogramWithScalarsQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int), HISTOGRAM(date, INTERVAL 5 YEARS - INTERVAL 6 MONTHS) AS h " +
+                                         "FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(2, eqe.output().size());
+        assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
+        assertEquals(INTEGER, eqe.output().get(0).dataType());
+        assertEquals("h", eqe.output().get(1).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(1).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\"," +
+                        "\"order\":\"asc\",\"fixed_interval\":\"139968000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
     public void testGroupByYearQueryTranslator() {

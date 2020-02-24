@@ -342,7 +342,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ml",
                         licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+                        RemoteClusterLicenseChecker::isAllowedByLicense));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
@@ -368,10 +368,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final DatafeedManager datafeedManager;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedManager datafeedManager) {
+        public StartDatafeedPersistentTasksExecutor(DatafeedManager datafeedManager, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.datafeedManager = datafeedManager;
-            this.resolver = new IndexNameExpressionResolver();
+            this.resolver = resolver;
         }
 
         @Override

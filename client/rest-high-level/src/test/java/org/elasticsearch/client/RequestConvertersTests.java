@@ -154,21 +154,17 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExists() throws IOException {
-        doTestSourceExists((index, id) -> new GetRequest(index, id));
-    }
-
-    public void testSourceExistsWithType() throws IOException {
-        doTestSourceExists((index, id) -> new GetRequest(index, id));
+        doTestSourceExists((index, id) -> new GetSourceRequest(index, id));
     }
 
     public void testGetSource() throws IOException {
         doTestGetSource((index, id) -> new GetSourceRequest(index, id));
     }
 
-    private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
+    private static void doTestSourceExists(BiFunction<String, String, GetSourceRequest> requestFunction) throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        final GetRequest getRequest = requestFunction.apply(index, id);
+        final GetSourceRequest getRequest = requestFunction.apply(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -1413,11 +1409,6 @@ public class RequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
-        if (hasFields) {
-            assertThat(request.getParameters(), hasKey("fields"));
-            String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
-            assertArrayEquals(tvRequest.getFields(), requestFields);
-        }
         for (Map.Entry<String, String> param : expectedParams.entrySet()) {
             assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
         }

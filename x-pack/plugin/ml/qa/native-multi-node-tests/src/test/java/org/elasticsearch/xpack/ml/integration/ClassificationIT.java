@@ -34,7 +34,6 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,10 +60,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final String NESTED_FIELD = "outer-field.inner-field";
     private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
     private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
-    private static final List<Boolean> BOOLEAN_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(false, true));
-    private static final List<Double> NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0));
-    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(10, 20));
-    private static final List<String> KEYWORD_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList("cat", "dog"));
+    private static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
+    private static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
+    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
+    private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
 
     private String jobId;
     private String sourceIndex;
@@ -481,7 +480,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Now calling the _delete_expired_data API should remove unused state
         assertThat(deleteExpiredData().isDeleted(), is(true));
 
-        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state").execute().actionGet();
+        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state*").execute().actionGet();
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 

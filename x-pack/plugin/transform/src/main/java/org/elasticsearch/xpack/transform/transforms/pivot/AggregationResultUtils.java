@@ -16,15 +16,19 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
+import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,6 +50,8 @@ public final class AggregationResultUtils {
         tempMap.put(ScriptedMetric.class.getName(), new ScriptedMetricAggExtractor());
         tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
+        tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
+        tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -59,12 +65,14 @@ public final class AggregationResultUtils {
      * @param stats stats collector
      * @return a map containing the results of the aggregation in a consumable way
      */
-    public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-                                                                                 GroupConfig groups,
-                                                                                 Collection<AggregationBuilder> aggregationBuilders,
-                                                                                 Collection<PipelineAggregationBuilder> pipelineAggs,
-                                                                                 Map<String, String> fieldTypeMap,
-                                                                                 TransformIndexerStats stats) {
+    public static Stream<Map<String, Object>> extractCompositeAggregationResults(
+        CompositeAggregation agg,
+        GroupConfig groups,
+        Collection<AggregationBuilder> aggregationBuilders,
+        Collection<PipelineAggregationBuilder> pipelineAggs,
+        Map<String, String> fieldTypeMap,
+        TransformIndexerStats stats
+    ) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
             Map<String, Object> document = new HashMap<>();
@@ -82,15 +90,14 @@ public final class AggregationResultUtils {
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
             aggNames.addAll(pipelineAggs.stream().map(PipelineAggregationBuilder::getName).collect(Collectors.toList()));
 
-            for (String aggName: aggNames) {
+            for (String aggName : aggNames) {
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
                 // This indicates not that the value contained in the `aggResult` is null, but that the `aggResult` is not
                 // present at all in the `bucket.getAggregations`. This could occur in the case of a `bucket_selector` agg, which
                 // does not calculate a value, but instead manipulates other results.
                 if (aggResult != null) {
-                    final String fieldType = fieldTypeMap.get(aggName);
                     AggValueExtractor extractor = getExtractor(aggResult);
-                    updateDocument(document, aggName, extractor.value(aggResult, fieldType));
+                    updateDocument(document, aggName, extractor.value(aggResult, fieldTypeMap, ""));
                 }
             }
 
@@ -109,15 +116,20 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoCentroid.class.getName());
         } else if (aggregation instanceof GeoBounds) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoBounds.class.getName());
+        } else if (aggregation instanceof Percentiles) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
+        } else if (aggregation instanceof SingleBucketAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
-            throw new AggregationExtractionException("unsupported aggregation [{}] with name [{}]",
+            throw new AggregationExtractionException(
+                "unsupported aggregation [{}] with name [{}]",
                 aggregation.getType(),
-                aggregation.getName());
+                aggregation.getName()
+            );
         }
     }
-
 
     @SuppressWarnings("unchecked")
     static void updateDocument(Map<String, Object> document, String fieldName, Object value) {
@@ -132,23 +144,23 @@ public final class AggregationResultUtils {
             if (i == fieldTokens.length - 1) {
                 if (internalMap.containsKey(token)) {
                     if (internalMap.get(token) instanceof Map) {
-                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]",
-                            fieldName);
+                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]", fieldName);
                     } else {
-                        throw new AggregationExtractionException("duplicate key value pairs key [{}] old value [{}] duplicate value [{}]",
+                        throw new AggregationExtractionException(
+                            "duplicate key value pairs key [{}] old value [{}] duplicate value [{}]",
                             fieldName,
                             internalMap.get(token),
-                            value);
+                            value
+                        );
                     }
                 }
                 internalMap.put(token, value);
             } else {
                 if (internalMap.containsKey(token)) {
                     if (internalMap.get(token) instanceof Map) {
-                        internalMap = (Map<String, Object>)internalMap.get(token);
+                        internalMap = (Map<String, Object>) internalMap.get(token);
                     } else {
-                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]",
-                            fieldName);
+                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]", fieldName);
                     }
                 } else {
                     Map<String, Object> newMap = new HashMap<>();
@@ -166,21 +178,22 @@ public final class AggregationResultUtils {
     }
 
     interface AggValueExtractor {
-        Object value(Aggregation aggregation, String fieldType);
+        Object value(Aggregation aggregation, Map<String, String> fieldTypeMap, String lookupFieldPrefix);
     }
 
     static class SingleValueAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
-            SingleValue aggregation = (SingleValue)agg;
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            SingleValue aggregation = (SingleValue) agg;
             // If the double is invalid, this indicates sparse data
             if (Numbers.isValidDouble(aggregation.value()) == false) {
                 return null;
             }
+
+            String fieldType = fieldTypeMap.get(lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName());
             // If the type is numeric or if the formatted string is the same as simply making the value a string,
-            //    gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
-            if (isNumericType(fieldType) ||
-                aggregation.getValueAsString().equals(String.valueOf(aggregation.value()))){
+            // gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
+            if (isNumericType(fieldType) || aggregation.getValueAsString().equals(String.valueOf(aggregation.value()))) {
                 return aggregation.value();
             } else {
                 return aggregation.getValueAsString();
@@ -188,18 +201,58 @@ public final class AggregationResultUtils {
         }
     }
 
+    static class PercentilesAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            Percentiles aggregation = (Percentiles) agg;
+
+            HashMap<String, Double> percentiles = new HashMap<>();
+
+            for (Percentile p : aggregation) {
+                percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+            }
+
+            return percentiles;
+        }
+    }
+
+    static class SingleBucketAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            SingleBucketAggregation aggregation = (SingleBucketAggregation) agg;
+
+            if (aggregation.getAggregations().iterator().hasNext() == false) {
+                return aggregation.getDocCount();
+            }
+
+            HashMap<String, Object> nested = new HashMap<>();
+            for (Aggregation subAgg : aggregation.getAggregations()) {
+                nested.put(
+                    subAgg.getName(),
+                    getExtractor(subAgg).value(
+                        subAgg,
+                        fieldTypeMap,
+                        lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
+                    )
+                );
+            }
+
+            return nested;
+        }
+    }
+
     static class ScriptedMetricAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
-            ScriptedMetric aggregation = (ScriptedMetric)agg;
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            ScriptedMetric aggregation = (ScriptedMetric) agg;
             return aggregation.aggregation();
         }
     }
 
     static class GeoCentroidAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
-            GeoCentroid aggregation = (GeoCentroid)agg;
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            GeoCentroid aggregation = (GeoCentroid) agg;
             // if the account is `0` iff there is no contained centroid
             return aggregation.count() > 0 ? aggregation.centroid().toString() : null;
         }
@@ -207,8 +260,8 @@ public final class AggregationResultUtils {
 
     static class GeoBoundsAggExtractor implements AggValueExtractor {
         @Override
-        public Object value(Aggregation agg, String fieldType) {
-            GeoBounds aggregation = (GeoBounds)agg;
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            GeoBounds aggregation = (GeoBounds) agg;
             if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
                 return null;
             }
@@ -216,30 +269,41 @@ public final class AggregationResultUtils {
             // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
                 geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PointBuilder.TYPE.shapeName());
-                geoShape.put(ShapeParser.FIELD_COORDINATES.getPreferredName(),
-                    Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
-            // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
+                geoShape.put(
+                    ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                    Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat())
+                );
+                // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
-                geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), LineStringBuilder.TYPE.shapeName());
-                geoShape.put(ShapeParser.FIELD_COORDINATES.getPreferredName(),
-                    Arrays.asList(
-                        new Double[]{aggregation.topLeft().getLon(), aggregation.topLeft().getLat()},
-                        new Double[]{aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat()}));
-            } else {
-            // neither points are equal, we have a polygon that is a square
-                geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
-                final GeoPoint tl = aggregation.topLeft();
-                final GeoPoint br = aggregation.bottomRight();
-                geoShape.put(ShapeParser.FIELD_COORDINATES.getPreferredName(),
-                    Collections.singletonList(Arrays.asList(
-                        new Double[]{tl.getLon(), tl.getLat()},
-                        new Double[]{br.getLon(), tl.getLat()},
-                        new Double[]{br.getLon(), br.getLat()},
-                        new Double[]{tl.getLon(), br.getLat()},
-                        new Double[]{tl.getLon(), tl.getLat()})));
-            }
+                    geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), LineStringBuilder.TYPE.shapeName());
+                    geoShape.put(
+                        ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                        Arrays.asList(
+                            new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
+                            new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
+                        )
+                    );
+                } else {
+                    // neither points are equal, we have a polygon that is a square
+                    geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
+                    final GeoPoint tl = aggregation.topLeft();
+                    final GeoPoint br = aggregation.bottomRight();
+                    geoShape.put(
+                        ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                        Collections.singletonList(
+                            Arrays.asList(
+                                new Double[] { tl.getLon(), tl.getLat() },
+                                new Double[] { br.getLon(), tl.getLat() },
+                                new Double[] { br.getLon(), br.getLat() },
+                                new Double[] { tl.getLon(), br.getLat() },
+                                new Double[] { tl.getLon(), tl.getLat() }
+                            )
+                        )
+                    );
+                }
             return geoShape;
         }
     }
+
 }

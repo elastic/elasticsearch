@@ -70,6 +70,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -181,7 +182,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testSourceExists() throws IOException {
+    // used deprecated API existsSource(GetRequest, RequestOptions)
+    // see test `testSourceExists` with new API tests
+    public void testDeprecatedSourceExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "id");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
@@ -200,6 +203,25 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             GetRequest getRequest = new GetRequest("index", "does_not_exist").version(1);
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+    }
+
+    public void testSourceExists() throws IOException {
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        IndexRequest index = new IndexRequest("index").id("id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "id");
+            assertTrue(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        {
+            GetSourceRequest getRequest = new GetSourceRequest("index", "does_not_exist");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
@@ -230,7 +252,11 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             GetRequest getRequest = new GetRequest(noSourceIndex, "1");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+            // used deprecated API existsSource(GetRequest, RequestOptions)
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+            // used new API existsSource(GetSourceRequest, RequestOptions)
+            GetSourceRequest getSourceRequest = new GetSourceRequest(noSourceIndex, "1");
+            assertFalse(execute(getSourceRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
 
@@ -1043,16 +1069,16 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}, \"field2\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
                     new BulkRequest()
                         .add(new IndexRequest(sourceIndex).id("1")
-                            .source(Collections.singletonMap("field", "value1"), XContentType.JSON))
+                            .source(Map.of("field", "value1", "field2", "hello world"), XContentType.JSON))
                         .add(new IndexRequest(sourceIndex).id("2")
-                            .source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                            .source(Map.of("field", "value2", "field2", "foo var"), XContentType.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -1097,5 +1123,35 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         }
 
+        {
+            // test the behavior of fields param
+            MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
+            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "1");
+            tvRequest1.setFields("field");
+            mtvRequest.add(tvRequest1);
+
+            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "2");
+            tvRequest2.setFields("field2");
+            mtvRequest.add(tvRequest2);
+
+            TermVectorsRequest tvRequest3 = new TermVectorsRequest(sourceIndex, "2");
+            tvRequest3.setFields("field", "field2");
+            mtvRequest.add(tvRequest3);
+
+            MultiTermVectorsResponse mtvResponse =
+                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+            List<List<String>> expectedRespFields = List.of(List.of("field"), List.of("field2"), List.of("field", "field2"));
+            List<TermVectorsResponse> responses = mtvResponse.getTermVectorsResponses();
+            assertEquals(expectedRespFields.size(), responses.size());
+            for (int i = 0; i < responses.size(); i++) {
+                TermVectorsResponse tvResponse = responses.get(i);
+                assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+                assertTrue(tvResponse.getFound());
+                assertEquals(expectedRespFields.get(i).size(), tvResponse.getTermVectorsList().size());
+                assertEquals(
+                    expectedRespFields.get(i),
+                    tvResponse.getTermVectorsList().stream().map(tv -> tv.getFieldName()).collect(Collectors.toList()));
+            }
+        }
     }
 }

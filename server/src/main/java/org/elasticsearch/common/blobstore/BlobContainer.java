@@ -61,7 +61,25 @@ public interface BlobContainer {
      * @throws NoSuchFileException if the blob does not exist
      * @throws IOException         if the blob can not be read.
      */
-    default InputStream readBlob(final String blobName, final long position, final int length) throws IOException {
+    default InputStream readBlob(final String blobName, final long position, final long length) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE
+    }
+
+    /**
+     * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.
+     *
+     * Some blob containers have nontrivial costs attached to each readBlob call, so it is a good idea for consumers to speculatively
+     * request more data than they need right now and to re-use this stream for future needs if possible.
+     *
+     * Also, some blob containers return streams that are expensive to close before the stream has been fully consumed, and the cost may
+     * depend on the length of the data that was left unconsumed. For these containers it's best to bound the cost of a partial read by
+     * bounding the length of the data requested.
+     *
+     * @return a hint to consumers regarding the length of data to request if there is a good chance that future reads can be satisfied from
+     * the same stream.
+     *
+     */
+    default long readBlobPreferredLength() {
         throw new UnsupportedOperationException(); // NORELEASE
     }
 

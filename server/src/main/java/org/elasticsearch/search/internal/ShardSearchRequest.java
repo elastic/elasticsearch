@@ -179,9 +179,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         preference = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-            rawBottomSortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            rawBottomSortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        } else {
             rawBottomSortValues = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
@@ -220,6 +223,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalArray(Lucene::writeSortValue, rawBottomSortValues);
         }
     }

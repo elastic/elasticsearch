@@ -130,14 +130,12 @@ public class ScriptScoreQuery extends Query {
                 }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
                 Scorer scorer = new ScriptScorer(this, makeScoreScript(context),
-                    subQueryWeight.scorer(context), subQueryScoreMode, boost, explanationHolder);
+                    subQueryWeight.scorer(context), subQueryScoreMode, 1f, explanationHolder);
                 int newDoc = scorer.iterator().advance(doc);
                 assert doc == newDoc; // subquery should have already matched above
-                float score = scorer.score(); // score already computed with boost
+                float score = scorer.score(); // score without boost
 
                 Explanation explanation = explanationHolder.get(score, needsScore ? subQueryExplanation : null);
-
-
                 if (explanation == null) {
                     // no explanation provided by user; give a simple one
                     String desc = "script score function, computed with script:\"" + script + "\"";
@@ -148,11 +146,9 @@ public class ScriptScoreQuery extends Query {
                         explanation = Explanation.match(score, desc);
                     }
                 }
-                if (boost != 1.0f) {
-                    List<Explanation> subs = new ArrayList<>();
-                    subs.addAll(Arrays.asList(explanation.getDetails()));
-                    subs.add(Explanation.match(boost, "boost"));
-                    explanation = Explanation.match(explanation.getValue(), explanation.getDescription(), subs);
+                if (boost != 1f) {
+                    explanation = Explanation.match(boost * explanation.getValue().floatValue(), "Boosted score, product of:",
+                        Explanation.match(boost, "boost"), explanation);
                 }
                 if (minScore != null && minScore > explanation.getValue().floatValue()) {
                     explanation = Explanation.noMatch("Score value is too low, expected at least " + minScore +
@@ -232,12 +228,12 @@ public class ScriptScoreQuery extends Query {
         public float score() throws IOException {
             int docId = docID();
             scoreScript.setDocument(docId);
-            float score = (float) scoreScript.execute(explanation) * boost;
-            if (score == Float.NEGATIVE_INFINITY || Float.isNaN(score)) {
-                throw new ElasticsearchException(
-                    "script_score query returned an invalid score [" + score + "] for doc [" + docId + "].");
+            float score = (float) scoreScript.execute(explanation);
+            if (score < 0f || Float.isNaN(score)) {
+                throw new IllegalArgumentException("script_score script returned an invalid score [" + score + "] " +
+                    "for doc [" + docId + "]. Must be a non-negative score!");
             }
-            return score;
+            return score * boost;
         }
 
         @Override
@@ -278,12 +274,12 @@ public class ScriptScoreQuery extends Query {
         public float score() throws IOException {
             int docId = docID();
             scoreScript.setDocument(docId);
-            float score = (float) scoreScript.execute(explanation) * boost;
-            if (score == Float.NEGATIVE_INFINITY || Float.isNaN(score)) {
-                throw new ElasticsearchException(
-                    "script_score query returned an invalid score [" + score + "] for doc [" + docId + "].");
+            float score = (float) scoreScript.execute(explanation);
+            if (score < 0f || Float.isNaN(score)) {
+                throw new IllegalArgumentException("script_score script returned an invalid score [" + score + "] " +
+                    "for doc [" + docId + "]. Must be a non-negative score!");
             }
-            return score;
+            return score * boost;
         }
         @Override
         public int docID() {

@@ -156,8 +156,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
-                        + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses "
-                        + "used to filter numeric fields");
+                        + "settings as they can only be applied to string fields. Use an array of numeric " +
+                        "values for include/exclude clauses used to filter numeric fields");
                 }
 
                 if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {

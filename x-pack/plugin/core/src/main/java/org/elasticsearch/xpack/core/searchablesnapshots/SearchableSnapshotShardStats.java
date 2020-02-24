@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.IndexId;
@@ -134,15 +135,15 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter contiguousReads;
         private final Counter nonContiguousReads;
         private final Counter cachedBytesRead;
-        private final Counter cachedBytesWritten;
-        private final Counter directBytesRead;
+        private final TimedCounter cachedBytesWritten;
+        private final TimedCounter directBytesRead;
 
         public CacheIndexInputStats(String fileName, long fileLength, long openCount, long innerCount, long closeCount,
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
                                     Counter contiguousReads, Counter nonContiguousReads,
-                                    Counter cachedBytesRead, Counter cachedBytesWritten,
-                                    Counter directBytesRead) {
+                                    Counter cachedBytesRead, TimedCounter cachedBytesWritten,
+                                    TimedCounter directBytesRead) {
             this.fileName = fileName;
             this.fileLength = fileLength;
             this.openCount = openCount;
@@ -172,8 +173,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.contiguousReads = new Counter(in);
             this.nonContiguousReads = new Counter(in);
             this.cachedBytesRead = new Counter(in);
-            this.cachedBytesWritten = new Counter(in);
-            this.directBytesRead = new Counter(in);
+            this.cachedBytesWritten = new TimedCounter(in);
+            this.directBytesRead = new TimedCounter(in);
         }
 
         @Override
@@ -243,11 +244,11 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return cachedBytesRead;
         }
 
-        public Counter getCachedBytesWritten() {
+        public TimedCounter getCachedBytesWritten() {
             return cachedBytesWritten;
         }
 
-        public Counter getDirectBytesRead() {
+        public TimedCounter getDirectBytesRead() {
             return directBytesRead;
         }
 
@@ -395,4 +396,56 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return Objects.hash(count, total, min, max);
         }
     }
+
+    public static class TimedCounter extends Counter {
+
+        private final long totalNanoseconds;
+
+        public TimedCounter(long count, long total, long min, long max, long totalNanoseconds) {
+            super(count, total, min, max);
+            this.totalNanoseconds = totalNanoseconds;
+        }
+
+        TimedCounter(StreamInput in) throws IOException {
+            super(in);
+            totalNanoseconds = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVLong(totalNanoseconds);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("count", getCount());
+                builder.field("sum", getTotal());
+                builder.field("min", getMin());
+                builder.field("max", getMax());
+                builder.field("time", TimeValue.timeValueNanos(totalNanoseconds));
+                builder.field("time_in_nanos", totalNanoseconds);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            TimedCounter that = (TimedCounter) o;
+            return totalNanoseconds == that.totalNanoseconds;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), totalNanoseconds);
+        }
+    }
+
+
 }

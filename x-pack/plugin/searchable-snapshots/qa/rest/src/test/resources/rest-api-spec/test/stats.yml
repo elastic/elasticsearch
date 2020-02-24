@@ -167,11 +167,15 @@ teardown:
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.sum: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.min: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.time_in_nanos: 0 }
+  - is_true:   indices.docs.shards.0.0.files.0.cached_bytes_written.time
 
   - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.count: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.sum: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.min: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.time_in_nanos: 0 }
+  - is_true:   indices.docs.shards.0.0.files.0.direct_bytes_read.time
 
   - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.count: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.sum: 0 }

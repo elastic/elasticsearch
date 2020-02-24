@@ -645,7 +645,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 indexWriter.close();
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized

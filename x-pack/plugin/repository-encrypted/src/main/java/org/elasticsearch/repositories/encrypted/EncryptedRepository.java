@@ -523,9 +523,11 @@ public final class EncryptedRepository extends BlobStoreRepository {
          */
         @Override
         public InputStream readBlob(String blobName) throws IOException {
-            // TODO this requires two concurrent readBlob operations and it's technically possible that the storage server has concurrent
-            //  connections handling limit which gets saturated with only the first connection of the pair, thereby hampering progress,
-            //  when connections start timing out on read until the pair connection for an existing live connection succeeds
+            // this requires two concurrent readBlob connections so it's possible that, under lab conditions, the storage service
+            // is saturated only by the first read connection of the pair, so that the second read connection (for the metadata) can not be
+            // fulfilled. In this case the second connection will time-out which will trigger the closing of the first one, therefore
+            // allowing other pair connections to complete. In this situation the restore process should slowly make headway, albeit under
+            // read-timeout exceptions
             final InputStream encryptedDataInputStream = delegatedBlobContainer.readBlob(blobName);
             try {
                 // read the metadata identifier (fixed length) which is prepended to the encrypted blob

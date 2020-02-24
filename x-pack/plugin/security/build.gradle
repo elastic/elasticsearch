@@ -59,6 +59,7 @@ dependencies {
   compile "com.nimbusds:oauth2-oidc-sdk:7.0.2"
   compile "com.nimbusds:nimbus-jose-jwt:8.6"
   compile "com.nimbusds:lang-tag:1.4.4"
+  compile "com.sun.mail:jakarta.mail:1.6.3"
   compile "net.jcip:jcip-annotations:1.0"
   compile "net.minidev:json-smart:2.3"
   compile "net.minidev:accessors-smart:1.2"
@@ -457,12 +458,14 @@ thirdPartyAudit.ignoreMissingClasses(
   'javax.xml.bind.JAXBException',
   'javax.xml.bind.Unmarshaller',
   'javax.xml.bind.UnmarshallerHandler',
-  // Optional dependencies of oauth2-oidc-sdl
+  // Optional dependencies of oauth2-oidc-sdk
   'com.nimbusds.common.contenttype.ContentType',
-  'javax.mail.internet.AddressException',
-  'javax.mail.internet.ContentType',
-  'javax.mail.internet.InternetAddress',
-  'javax.mail.internet.ParameterList'
+  'javax.activation.ActivationDataFlavor',
+  'javax.activation.DataContentHandler',
+  'javax.activation.DataHandler',
+  'javax.activation.DataSource',
+  'javax.activation.FileDataSource',
+  'javax.activation.FileTypeMap'
 )
 
 

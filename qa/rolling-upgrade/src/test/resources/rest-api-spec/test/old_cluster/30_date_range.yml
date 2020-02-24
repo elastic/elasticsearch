@@ -47,7 +47,7 @@
       reason: change of warning message
   - do:
       warnings:
-        - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. Prefix your date format with '8' to use the new specifier."
+        - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. Prefix your date format with '8' to use the new specifier."
       indices.create:
         index: joda_for_range
         body:

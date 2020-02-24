@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -39,6 +40,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -137,6 +139,19 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.Dynamic
     );
 
+    /**
+     * Node attributes for transform, automatically created and retrievable via cluster state.
+     * These attributes should never be set directly, use the node setting counter parts instead.
+     */
+    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.enabled";
+    public static final String TRANSFORM_REMOTE_ENABLED_NODE_ATTR = "transform.remote_connect";
+
+    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting(
+        "node.transform",
+        XPackSettings.TRANSFORM_ENABLED,
+        Property.NodeScope
+    );
+
     public Transform(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
@@ -222,8 +237,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             return emptyList();
         }
 
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool",
-            false);
+        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
+            settings,
+            TASK_THREAD_POOL_NAME,
+            4,
+            4,
+            "transform.task_thread_pool",
+            false
+        );
 
         return Collections.singletonList(indexing);
     }
@@ -302,7 +323,26 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(NUM_FAILURE_RETRIES_SETTING);
+        return Collections.unmodifiableList(Arrays.asList(TRANSFORM_ENABLED, NUM_FAILURE_RETRIES_SETTING));
+    }
+
+    @Override
+    public Settings additionalSettings() {
+        String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
+        String transformRemoteEnabledNodeAttribute = "node.attr." + TRANSFORM_REMOTE_ENABLED_NODE_ATTR;
+
+        if (settings.get(transformEnabledNodeAttribute) != null || settings.get(transformRemoteEnabledNodeAttribute) != null) {
+            throw new IllegalArgumentException(
+                "Directly setting transform node attributes is not permitted," + " please use the documented node settings instead"
+            );
+        }
+
+        Settings.Builder additionalSettings = Settings.builder();
+
+        additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED.get(settings));
+        additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
+
+        return additionalSettings.build();
     }
 
     @Override

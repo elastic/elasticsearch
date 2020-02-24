@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -49,8 +50,10 @@ import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
 
@@ -98,11 +101,69 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(
-            clusterState,
-            (node) -> node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
-        );
-        return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) -> nodeCanRunThisTransform(node, params, null));
+
+        if (discoveryNode == null) {
+            Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
+            for (DiscoveryNode node : clusterState.getNodes()) {
+                nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
+            }
+            String reason = "Not starting transform ["
+                + params.getId()
+                + "], reasons ["
+                + explainWhyAssignmentFailed.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))
+                + "]";
+
+            logger.debug(reason);
+            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+        }
+
+        return new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
+    }
+
+    public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
+        // data node?
+        if (node.isDataNode() == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "not a data node");
+            }
+            return false;
+        }
+
+        // version of the transform run on a node that has at least the same version
+        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
+            if (explain != null) {
+                explain.put(
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
+                );
+            }
+            return false;
+        }
+
+        // checks based on node attributes, introduced in 7.7
+        if (node.getVersion().onOrAfter(Version.V_7_7_0)) {
+            final Map<String, String> nodeAttributes = node.getAttributes();
+
+            // transform enabled?
+            if (Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_ENABLED_NODE_ATTR)) == false) {
+                if (explain != null) {
+                    explain.put(node.getId(), "transform not enabled");
+                }
+                return false;
+            }
+
+            // does the transform require a remote and remote is enabled?
+            if (params.requiresRemote() == true
+                && Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR)) == false) {
+                if (explain != null) {
+                    explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
+                }
+                return false;
+            }
+        }
+        // we found no reason that the transform can not run on this node
+        return true;
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {

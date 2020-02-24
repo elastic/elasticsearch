@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -19,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -34,6 +35,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
+    private final Logger logger = LogManager.getLogger();
+
     private final SecurityContext securityContext;
     private final String field;
     private final Set<Property> properties;
@@ -41,13 +44,20 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     public
     SetSecurityUserProcessor(String tag, SecurityContext securityContext, String field, Set<Property> properties) {
         super(tag);
-        this.securityContext = Objects.requireNonNull(securityContext, "security context must be provided");
+        this.securityContext = securityContext;
+        if (this.securityContext == null) {
+            logger.warn("Creating processor [{}] (tag [{}]) on field [{}] but no security context is available" +
+                " - this processor will fail at runtime if it is used", TYPE, tag, field);
+        }
         this.field = field;
         this.properties = properties;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        if (this.securityContext == null) {
+            throw new IllegalStateException("No security context available (is security enabled on this cluster?)");
+        }
         Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             throw new IllegalStateException("No user authenticated, only use this processor via authenticated user");

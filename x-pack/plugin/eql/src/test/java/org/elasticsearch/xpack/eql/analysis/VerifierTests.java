@@ -69,6 +69,11 @@ public class VerifierTests extends ESTestCase {
         accept("foo where true");
     }
 
+    public void testQueryStartsWithNumber() {
+        assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
+        assertEquals("1:1: no viable alternative at input ''42''", errorParsing("'42' where true"));
+    }
+
     public void testMissingColumn() {
         assertEquals("1:11: Unknown column [xxx]", error("foo where xxx == 100"));
     }

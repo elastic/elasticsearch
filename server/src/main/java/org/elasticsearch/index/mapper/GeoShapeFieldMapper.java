@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
@@ -71,12 +72,36 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), docValues(), context.indexSettings(),
+                multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
         protected boolean defaultDocValues(Version indexCreated) {
             return dataHandler.defaultDocValues(indexCreated);
+        }
+
+        public Builder docValues(boolean hasDocValues) {
+            // TODO(talevy): see how to best make this pluggable with the DataHandler work
+            if (dataHandler.supportsDocValues() == false && hasDocValues) {
+                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
+                    + "] does not support doc_values");
+            }
+            return (Builder)super.docValues(hasDocValues);
+        }
+
+        protected Explicit<Boolean> docValues() {
+            // TODO(talevy): see how to best make this pluggable with the DataHandler work
+            // although these values can be true, an ElasticsearchParseException
+            // prevents this Explicit(true,true) path to ever occur in practice
+            if (dataHandler.supportsDocValues()) {
+                if (docValuesSet && fieldType.hasDocValues()) {
+                    return new Explicit<>(true, true);
+                } else if (docValuesSet) {
+                    return new Explicit<>(false, true);
+                }
+            }
+            return AbstractGeometryFieldMapper.Defaults.DOC_VALUES;
         }
 
         @Override
@@ -117,9 +142,9 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, docValues, indexSettings,
             multiFields, copyTo);
     }
 
@@ -163,11 +188,17 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public abstract Indexer newIndexer(boolean orientation, MappedFieldType fieldType);
         public abstract QueryProcessor newQueryProcessor();
         public abstract boolean defaultDocValues(Version indexCreatedVersion);
+        public abstract boolean supportsDocValues();
     }
 
     static {
         DATA_HANDLER_FACTORIES.put(Defaults.DATA_HANDLER.value(), () ->
             new DataHandler() {
+                @Override
+                public boolean supportsDocValues() {
+                    return false;
+                }
+
                 @Override
                 public boolean defaultDocValues(Version indexCreatedVersion) {
                     return false;

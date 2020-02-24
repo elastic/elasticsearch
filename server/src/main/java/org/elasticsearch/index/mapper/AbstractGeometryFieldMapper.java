@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -52,7 +53,8 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
 
 /**
- * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
+ * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeF￼ nknize added >feature :Analytics/Geo v8.0.0 v7.7.0 labels 2 days ago
+ieldMapper}
  */
 public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 
@@ -67,9 +69,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
+        public static final Explicit<Boolean> DOC_VALUES = new Explicit<>(false, false);
     }
-
-    protected static List<ParserHandler> PARSER_EXTENSIONS = new ArrayList<>();
 
     /**
      * Interface representing an preprocessor in geo-shape indexing pipeline
@@ -117,15 +118,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         /** default builder - used for external mapper*/
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
-        }
-
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                       boolean coerce, boolean ignoreMalformed, Orientation orientation, boolean ignoreZ) {
-            super(name, fieldType, defaultFieldType);
-            this.coerce = coerce;
-            this.ignoreMalformed = ignoreMalformed;
-            this.orientation = orientation;
-            this.ignoreZValue = ignoreZ;
         }
 
         public Builder coerce(boolean coerce) {
@@ -187,6 +179,27 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return this;
         }
 
+        public T docValues(boolean hasDocValues) {
+            // TODO(talevy): see how to best make this pluggable with the DataHandler work
+            if (hasDocValues) {
+                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
+                    + "] does not support doc_values");
+            }
+            return super.docValues(hasDocValues);
+        }
+
+        protected Explicit<Boolean> docValues() {
+            // TODO(talevy): see how to best make this pluggable with the DataHandler work
+            // although these values can be true, an ElasticsearchParseException
+            // prevents this Explicit(true,true) path to ever occur in practice
+            if (docValuesSet && fieldType.hasDocValues()) {
+                return new Explicit<>(true, true);
+            } else if (docValuesSet) {
+                return new Explicit<>(false, true);
+            }
+            return Defaults.DOC_VALUES;
+        }
+
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
@@ -225,7 +238,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Map<String, Object> params = new HashMap<>();
             boolean parsedDeprecatedParameters = false;
-            boolean parsedExtension = false;
             params.put(DEPRECATED_PARAMETERS_KEY, new DeprecatedParameters());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -249,19 +261,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                         XContentMapValues.nodeBooleanValue(fieldNode,
                             name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
-                } else if (PARSER_EXTENSIONS.isEmpty() == false) {
-                    for (ParserHandler parser : PARSER_EXTENSIONS) {
-                        if (parser.parse(iterator, fieldName, fieldNode, params, parserContext.indexVersionCreated())) {
-                            parsedExtension = true;
-                            break;
-                        }
-                    }
+                } else if (TypeParsers.DOC_VALUES.equals(fieldName)) {
+                    params.put(TypeParsers.DOC_VALUES, XContentMapValues.nodeBooleanValue(fieldNode, name + "." + TypeParsers.DOC_VALUES));
+                    iterator.remove();
                 }
             }
             if (parsedDeprecatedParameters == false) {
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
             Builder builder = newBuilder(name, params);
+
+            if (params.containsKey(TypeParsers.DOC_VALUES)) {
+                builder.docValues((Boolean) params.get(TypeParsers.DOC_VALUES));
+            }
 
             if (params.containsKey(Names.COERCE.getPreferredName())) {
                 builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));
@@ -277,12 +289,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
             if (params.containsKey(Names.ORIENTATION.getPreferredName())) {
                 builder.orientation((Orientation)params.get(Names.ORIENTATION.getPreferredName()));
-            }
-
-            if (parsedExtension) {
-                for (ParserHandler parser : PARSER_EXTENSIONS) {
-                    parser.config(params, builder);
-                }
             }
 
             return builder;
@@ -369,15 +375,17 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected Explicit<Boolean> coerce;
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
+    protected Explicit<Boolean> docValues;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                          Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                                          Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
+        this.docValues = docValues;
     }
 
     @Override
@@ -392,6 +400,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
         if (gsfm.ignoreZValue.explicit()) {
             this.ignoreZValue = gsfm.ignoreZValue;
+        }
+        if (gsfm.docValues.explicit()) {
+            this.docValues = gsfm.docValues;
         }
     }
 
@@ -416,8 +427,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         if (includeDefaults || ignoreZValue.explicit()) {
             builder.field(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
         }
-        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
-            doXContentDocValues(builder, includeDefaults);
+
+        if (includeDefaults || docValues.explicit()) {
+            builder.field(TypeParsers.DOC_VALUES, docValues.value());
         }
     }
 
@@ -431,6 +443,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     public Explicit<Boolean> ignoreZValue() {
         return ignoreZValue;
+    }
+
+    public Explicit<Boolean> docValues() {
+        return docValues;
     }
 
     public Orientation orientation() {
@@ -470,21 +486,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
             context.addIgnoredField(fieldType().name());
         }
-    }
-
-    public static void registerParserExtensions(List<ParserHandler> parserExtensions) {
-        PARSER_EXTENSIONS.addAll(parserExtensions);
-    }
-
-    public interface ParserHandler {
-        boolean parse(Iterator<Map.Entry<String, Object>> iterator, String name, Object node, Map<String, Object> params,
-                      Version indexCreatedVersion);
-        @SuppressWarnings("rawtypes")
-        void config(Map<String, Object> params, Builder builder);
-    }
-
-    public interface ParserExtension {
-        List<ParserHandler> getParserExtensions();
     }
 
 }

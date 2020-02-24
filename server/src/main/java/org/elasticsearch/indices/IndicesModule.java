@@ -139,10 +139,6 @@ public class IndicesModule extends AbstractModule {
                 plugin.getClass().getClassLoader())) {
                 GeoShapeFieldMapper.registerDataHandlers(geoExtension.getDataHandlerFactories());
             }
-            for (AbstractGeometryFieldMapper.ParserExtension geoParserExtension :
-                ServiceLoader.load(AbstractGeometryFieldMapper.ParserExtension.class, plugin.getClass().getClassLoader())) {
-                GeoShapeFieldMapper.registerParserExtensions(geoParserExtension.getParserExtensions());
-            }
             if (plugin instanceof MapperPlugin) {
                 for (Map.Entry<String, Mapper.TypeParser> entry : ((MapperPlugin)plugin).getMappers().entrySet()) {
                     if (mappers.put(entry.getKey(), entry.getValue()) != null) {

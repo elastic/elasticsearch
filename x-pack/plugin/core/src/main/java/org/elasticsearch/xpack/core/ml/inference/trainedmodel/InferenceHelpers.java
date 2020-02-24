@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -96,5 +98,20 @@ public final class InferenceHelpers {
             }
         }
         return null;
+    }
+
+    public static Map<String, Double> decodeFeatureImportances(Map<String, String> processedFeatureToOriginalFeatureMap,
+                                                               Map<String, Double> featureImportances) {
+        if (processedFeatureToOriginalFeatureMap == null || processedFeatureToOriginalFeatureMap.isEmpty()) {
+            return featureImportances;
+        }
+
+        Map<String, Double> originalFeatureImportance = new HashMap<>();
+        featureImportances.forEach((feature, importance) -> {
+            String featureName = processedFeatureToOriginalFeatureMap.getOrDefault(feature, feature);
+            originalFeatureImportance.compute(featureName, (f, v1) -> v1 == null ? importance : v1 + importance);
+        });
+
+        return originalFeatureImportance;
     }
 }

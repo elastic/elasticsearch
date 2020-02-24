@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ShapPath;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.utils.Statistics;
@@ -45,6 +46,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
@@ -87,6 +89,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     private final TargetType targetType;
     private final List<String> classificationLabels;
     private final CachedSupplier<Double> highestOrderCategory;
+    // populated lazily when feature importance is calculated
+    private double[] nodeEstimates;
+    private Integer maxDepth;
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
@@ -121,7 +126,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
         if (config.isTargetTypeSupported(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
@@ -130,22 +135,24 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         List<Double> features = featureNames.stream()
             .map(f -> InferenceHelpers.toDouble(MapHelper.dig(f, fields)))
             .collect(Collectors.toList());
-        return infer(features, config);
-    }
 
-    private InferenceResults infer(List<Double> features, InferenceConfig config) {
+        Map<String, Double> featureImportance = config.requestingImportance() ?
+            featureImportance(features, featureDecoderMap) :
+            Collections.emptyMap();
+
         TreeNode node = nodes.get(0);
         while(node.isLeaf() == false) {
             node = nodes.get(node.compare(features));
         }
-        return buildResult(node.getLeafValue(), config);
+
+        return buildResult(node.getLeafValue(), featureImportance, config);
     }
 
-    private InferenceResults buildResult(double[] value, InferenceConfig config) {
+    private InferenceResults buildResult(double[] value, Map<String, Double> featureImportance, InferenceConfig config) {
         assert value != null && value.length > 0;
         // Indicates that the config is useless and the caller just wants the raw value
         if (config instanceof NullInferenceConfig) {
-            return new RawInferenceResults(value);
+            return new RawInferenceResults(value, featureImportance);
         }
         switch (targetType) {
             case CLASSIFICATION:
@@ -158,9 +165,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 return new ClassificationInferenceResults(topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),
                     topClasses.v2(),
+                    featureImportance,
                     config);
             case REGRESSION:
-                return new RegressionInferenceResults(value[0], config);
+                return new RegressionInferenceResults(value[0], config, featureImportance);
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }
@@ -274,9 +282,135 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     @Override
+    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+        if (nodes.stream().allMatch(n -> n.getNumberSamples() == 0)) {
+            throw ExceptionsHelper.badRequestException("[tree_structure.number_samples] must be greater than zero for feature importance");
+        }
+        List<Double> features = featureNames.stream()
+            .map(f -> InferenceHelpers.toDouble(MapHelper.dig(f, fields)))
+            .collect(Collectors.toList());
+        return featureImportance(features, featureDecoder);
+    }
+
+    private Map<String, Double> featureImportance(List<Double> fieldValues, Map<String, String> featureDecoder) {
+        calculateNodeEstimatesIfNeeded();
+        double[] featureImportance = new double[fieldValues.size()];
+        int arrSize = ((this.maxDepth + 1) * (this.maxDepth + 2))/2;
+        ShapPath.PathElement[] elements = new ShapPath.PathElement[arrSize];
+        for (int i = 0; i < arrSize; i++) {
+            elements[i] = new ShapPath.PathElement();
+        }
+        double[] scale = new double[arrSize];
+        ShapPath initialPath = new ShapPath(elements, scale);
+        shapRecursive(fieldValues, this.nodeEstimates, initialPath, 0, 1.0, 1.0, -1, featureImportance, 0);
+        return InferenceHelpers.decodeFeatureImportances(featureDecoder,
+            IntStream.range(0, featureImportance.length)
+                .boxed()
+                .collect(Collectors.toMap(featureNames::get, i -> featureImportance[i])));
+    }
+
+    private void calculateNodeEstimatesIfNeeded() {
+        if (this.nodeEstimates != null && this.maxDepth != null) {
+            return;
+        }
+        synchronized (this) {
+            if (this.nodeEstimates != null && this.maxDepth != null) {
+                return;
+            }
+            double[] estimates = new double[nodes.size()];
+            this.maxDepth = fillNodeEstimates(estimates, 0, 0);
+            this.nodeEstimates = estimates;
+        }
+    }
+
+    /**
+     * Note, this is a port from https://github.com/elastic/ml-cpp/blob/master/lib/maths/CTreeShapFeatureImportance.cc
+     *
+     * If improvements in performance or accuracy have been found, it is probably best that the changes are implemented on the native
+     * side first and then ported to the Java side.
+     */
+    private void shapRecursive(List<Double> processedFeatures,
+                               double[] nodeValues,
+                               ShapPath parentSplitPath,
+                               int nodeIndex,
+                               double parentFractionZero,
+                               double parentFractionOne,
+                               int parentFeatureIndex,
+                               double[] featureImportance,
+                               int nextIndex) {
+        ShapPath splitPath = new ShapPath(parentSplitPath, nextIndex);
+        TreeNode currNode = nodes.get(nodeIndex);
+        nextIndex = splitPath.extend(parentFractionZero, parentFractionOne, parentFeatureIndex, nextIndex);
+        if (currNode.isLeaf()) {
+            double leafValue = nodeValues[nodeIndex];
+            for (int i = 1; i < nextIndex; ++i) {
+                double scale = splitPath.sumUnwoundPath(i, nextIndex);
+                int inputColumnIndex = splitPath.featureIndex(i);
+                featureImportance[inputColumnIndex] += scale * (splitPath.fractionOnes(i) - splitPath.fractionZeros(i)) * leafValue;
+            }
+        } else {
+            int hotIndex = currNode.compare(processedFeatures);
+            int coldIndex = hotIndex == currNode.getLeftChild() ? currNode.getRightChild() : currNode.getLeftChild();
+
+            double incomingFractionZero = 1.0;
+            double incomingFractionOne = 1.0;
+            int splitFeature = currNode.getSplitFeature();
+            int pathIndex = splitPath.findFeatureIndex(splitFeature, nextIndex);
+            if (pathIndex > -1) {
+                incomingFractionZero = splitPath.fractionZeros(pathIndex);
+                incomingFractionOne = splitPath.fractionOnes(pathIndex);
+                nextIndex = splitPath.unwind(pathIndex, nextIndex);
+            }
+
+            double hotFractionZero = nodes.get(hotIndex).getNumberSamples() / (double)currNode.getNumberSamples();
+            double coldFractionZero = nodes.get(coldIndex).getNumberSamples() / (double)currNode.getNumberSamples();
+            shapRecursive(processedFeatures, nodeValues, splitPath,
+                hotIndex, incomingFractionZero * hotFractionZero,
+                incomingFractionOne, splitFeature, featureImportance, nextIndex);
+            shapRecursive(processedFeatures, nodeValues, splitPath,
+                coldIndex, incomingFractionZero * coldFractionZero,
+                0.0, splitFeature, featureImportance, nextIndex);
+        }
+    }
+
+    /**
+     * This recursively populates the provided {@code double[]} with the node estimated values
+     *
+     * Used when calculating feature importance.
+     * @param nodeEstimates Array to update in place with the node estimated values
+     * @param nodeIndex Current node index
+     * @param depth Current depth
+     * @return The current max depth
+     */
+    private int fillNodeEstimates(double[] nodeEstimates, int nodeIndex, int depth) {
+        TreeNode node = nodes.get(nodeIndex);
+        if (node.isLeaf()) {
+            // TODO multi-value????
+            nodeEstimates[nodeIndex] = node.getLeafValue()[0];
+            return 0;
+        }
+
+        int depthLeft = fillNodeEstimates(nodeEstimates, node.getLeftChild(), depth + 1);
+        int depthRight = fillNodeEstimates(nodeEstimates, node.getRightChild(), depth + 1);
+        long leftWeight = nodes.get(node.getLeftChild()).getNumberSamples();
+        long rightWeight = nodes.get(node.getRightChild()).getNumberSamples();
+        long divisor = leftWeight + rightWeight;
+        double averageValue = divisor == 0 ?
+            0.0 :
+            (leftWeight * nodeEstimates[node.getLeftChild()] + rightWeight * nodeEstimates[node.getRightChild()]) / divisor;
+        nodeEstimates[nodeIndex] = averageValue;
+        return Math.max(depthLeft, depthRight) + 1;
+    }
+
+    @Override
     public long estimatedNumOperations() {
         // Grabbing the features from the doc + the depth of the tree
         return (long)Math.ceil(Math.log(nodes.size())) + featureNames.size();
+    }
+
+    @Override
+    public boolean supportsFeatureImportance() {
+        return true;
     }
 
     /**

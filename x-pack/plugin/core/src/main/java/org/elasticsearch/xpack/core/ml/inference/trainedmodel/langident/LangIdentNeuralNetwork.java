@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -103,7 +104,11 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
+        if (config.requestingImportance()) {
+            throw ExceptionsHelper.badRequestException("[{}] model does not supports feature importance",
+                NAME.getPreferredName());
+        }
         if (config instanceof ClassificationConfig == false) {
             throw ExceptionsHelper.badRequestException("[{}] model only supports classification",
                 NAME.getPreferredName());
@@ -137,6 +142,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         return new ClassificationInferenceResults(topClasses.v1(),
             LANGUAGE_NAMES.get(topClasses.v1()),
             topClasses.v2(),
+            Collections.emptyMap(),
             classificationConfig);
     }
 
@@ -156,6 +162,16 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         numOps += softmaxLayer.getBias().length; // adding bias
         numOps += softmaxLayer.getWeights().length; // multiplying softmax weights
         return numOps;
+    }
+
+    @Override
+    public boolean supportsFeatureImportance() {
+        return false;
+    }
+
+    @Override
+    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+        throw new UnsupportedOperationException("[lang_ident] does not support feature importance");
     }
 
     @Override

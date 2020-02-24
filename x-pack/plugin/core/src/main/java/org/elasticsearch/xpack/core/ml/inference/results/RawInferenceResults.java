@@ -10,18 +10,27 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
 
 public class RawInferenceResults implements InferenceResults {
 
     public static final String NAME = "raw";
 
     private final double[] value;
-    public RawInferenceResults(double[] value) {
+    private final Map<String, Double> featureImportance;
+
+    public RawInferenceResults(double[] value, Map<String, Double> featureImportance) {
         this.value = value;
+        this.featureImportance = featureImportance;
     }
 
     public double[] getValue() {
         return value;
+    }
+
+    public Map<String, Double> getFeatureImportance() {
+        return featureImportance;
     }
 
     @Override
@@ -34,12 +43,13 @@ public class RawInferenceResults implements InferenceResults {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
         RawInferenceResults that = (RawInferenceResults) object;
-        return Arrays.equals(value, that.value);
+        return Arrays.equals(value, that.value)
+            && Objects.equals(featureImportance, that.featureImportance);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(value);
+        return Objects.hash(Arrays.hashCode(value), featureImportance);
     }
 
     @Override

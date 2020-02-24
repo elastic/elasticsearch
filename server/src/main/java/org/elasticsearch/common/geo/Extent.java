@@ -115,29 +115,31 @@ public class Extent {
                 posRight = Integer.MIN_VALUE;
                 break;
             case POSITIVE_SET:
-                posRight = input.readVInt();
-                posLeft =  Math.toIntExact(posRight - input.readVLong());
+                posLeft = input.readVInt();
+                posRight =  Math.toIntExact(input.readVLong() + posLeft);
                 negLeft = Integer.MAX_VALUE;
                 negRight = Integer.MIN_VALUE;
                 break;
             case NEGATIVE_SET:
-                negRight = input.readInt();
+                negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
                 posLeft = Integer.MAX_VALUE;
                 posRight = Integer.MIN_VALUE;
                 break;
             case CROSSES_LAT_AXIS:
-                posRight = input.readInt();
-                negLeft = Math.toIntExact(posRight - input.readVLong());
+                posRight = input.readVInt();
+                negLeft = -input.readVInt();
                 posLeft = 0;
                 negRight = 0;
                 break;
-            default:
-                posRight = input.readVInt();
-                posLeft =  Math.toIntExact(posRight - input.readVLong());
-                negRight = input.readInt();
+            case ALL_SET:
+                posLeft = input.readVInt();
+                posRight =  Math.toIntExact(input.readVLong() + posLeft);
+                negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
                 break;
+            default:
+                throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
         }
         extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
     }
@@ -165,23 +167,25 @@ public class Extent {
         switch (type) {
             case NONE_SET : break;
             case POSITIVE_SET:
-                output.writeVInt(this.posRight);
+                output.writeVInt(this.posLeft);
                 output.writeVLong((long) this.posRight - this.posLeft);
                 break;
             case NEGATIVE_SET:
-                output.writeInt(this.negRight);
+                output.writeVInt(-this.negRight);
                 output.writeVLong((long) this.negRight - this.negLeft);
                 break;
             case CROSSES_LAT_AXIS:
-                output.writeInt(this.posRight);
-                output.writeVLong((long) this.posRight - this.negLeft);
-                break;
-            default:
                 output.writeVInt(this.posRight);
+                output.writeVInt(-this.negLeft);
+                break;
+            case ALL_SET:
+                output.writeVInt(this.posLeft);
                 output.writeVLong((long) this.posRight - this.posLeft);
-                output.writeInt(this.negRight);
+                output.writeVInt(-this.negRight);
                 output.writeVLong((long) this.negRight - this.negLeft);
                 break;
+            default:
+                throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
         }
     }
 

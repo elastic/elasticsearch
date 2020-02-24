@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -32,8 +33,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -254,8 +253,7 @@ final class DefaultSearchContext extends SearchContext {
             originalQuery = Queries.newMatchAllQuery();
         }
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            // TODO why isn't this just a BoostQuery?
-            originalQuery = new FunctionScoreQuery(originalQuery, new WeightFactorFunction(queryBoost));
+            originalQuery = new BoostQuery(originalQuery, queryBoost);
         }
         this.query = buildFilteredQuery(originalQuery);
         if (rewrite) {

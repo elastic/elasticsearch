@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.NamedQuery;
+import org.elasticsearch.index.query.NamedSpanQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -35,6 +39,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -49,6 +54,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private SortAndFormats sort;
     private Query originalQuery;
     private Query query;
+    private final List<Query> namedQueries = new ArrayList<>();
 
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
@@ -206,6 +212,16 @@ public class SubSearchContext extends FilteredSearchContext {
             this.query = parser.apply(query);
             this.originalQuery = this.query;
         }
+        this.namedQueries.clear();
+        this.query.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                if (parent instanceof NamedQuery || parent instanceof NamedSpanQuery) {
+                    SubSearchContext.this.namedQueries.add(parent);
+                }
+                return super.getSubVisitor(occur, parent);
+            }
+        });
         return this;
     }
 
@@ -222,6 +238,21 @@ public class SubSearchContext extends FilteredSearchContext {
     public void setQuery(Query query) {
         this.originalQuery = query;
         this.query = query;
+        this.namedQueries.clear();
+        this.query.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                if (parent instanceof NamedQuery || parent instanceof NamedSpanQuery) {
+                    SubSearchContext.this.namedQueries.add(parent);
+                }
+                return super.getSubVisitor(occur, parent);
+            }
+        });
+    }
+
+    @Override
+    public List<Query> getNamedQueries() {
+        return this.namedQueries;
     }
 
     @Override

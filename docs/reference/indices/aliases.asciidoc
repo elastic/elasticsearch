@@ -135,7 +135,6 @@ for the alias's indexing operations.
 See <<aliases-routing>> for an example.
 
 `search_routing`::
-`index_routing`::
 (Optional, string)
 Custom <<mapping-routing-field, routing value>> used
 for the alias's search operations.

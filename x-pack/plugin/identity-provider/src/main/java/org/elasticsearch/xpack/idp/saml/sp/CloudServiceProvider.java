@@ -15,6 +15,7 @@ import org.opensaml.security.x509.X509Credential;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Map;
 
 
 public class CloudServiceProvider implements SamlServiceProvider {
@@ -22,9 +23,9 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final String entityid;
     private final URL assertionConsumerService;
     private final ReadableDuration authnExpiry;
+    private final ServiceProviderPrivileges privileges;
     private final String nameIdPolicyFormat;
     private final X509Credential signingCredential;
-    private final ServiceProviderPrivileges privileges;
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
@@ -42,10 +43,10 @@ public class CloudServiceProvider implements SamlServiceProvider {
         }
         this.nameIdPolicyFormat = nameIdPolicyFormat;
         this.authnExpiry = Duration.standardMinutes(5);
+        this.privileges = new ServiceProviderPrivileges("cloud-idp", "service$" + entityId, "action:sso", Map.of());
         this.signingCredential = signingCredential;
         this.signLogoutRequests = signLogoutRequests;
         this.signAuthnRequests = signAuthnRequests;
-        this.privileges = privileges;
 
     }
 

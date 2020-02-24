@@ -1,0 +1,138 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.idp.saml.sp;
+
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
+import org.hamcrest.Matchers;
+import org.opensaml.saml.saml2.core.NameID;
+import org.opensaml.security.x509.X509Credential;
+
+import java.io.IOException;
+import java.security.cert.X509Certificate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
+
+    public void testValidationFailuresForMissingFields() throws Exception {
+        final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
+        doc.setDocId(randomAlphaOfLength(16));
+        final ValidationException validationException = doc.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.validationErrors(), not(emptyIterable()));
+        assertThat(validationException.validationErrors(), Matchers.containsInAnyOrder(
+            "field [name] is required, but was [null]",
+            "field [entity_id] is required, but was [null]",
+            "field [acs] is required, but was [null]",
+            "field [created] is required, but was [null]",
+            "field [last_modified] is required, but was [null]",
+            "field [privileges.resource] is required, but was [null]",
+            "field [attributes.principal] is required, but was [null]"
+        ));
+    }
+
+    public void testValidationSucceedsWithMinimalFields() throws Exception {
+        final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
+        doc.setDocId(randomAlphaOfLength(16));
+        doc.setName(randomAlphaOfLengthBetween(8, 12));
+        doc.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
+        doc.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
+        doc.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
+        doc.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
+        doc.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        final ValidationException validationException = doc.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testXContentRoundTripWithMinimalFields() throws Exception {
+        final SamlServiceProviderDocument doc1 = new SamlServiceProviderDocument();
+        doc1.setDocId(randomAlphaOfLength(16));
+        doc1.setName(randomAlphaOfLengthBetween(8, 12));
+        doc1.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
+        doc1.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
+        doc1.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
+        doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
+        doc1.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+
+        final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
+        assertThat(assertXContentRoundTrip(doc2), equalTo(doc1));
+    }
+
+    public void testXContentRoundTripWithAllFields() throws Exception {
+        final List<X509Credential> credentials = readCredentials();
+        final List<X509Certificate> certificates = credentials.stream()
+            .map(X509Credential::getEntityCertificate)
+            .collect(Collectors.toUnmodifiableList());
+        final List<X509Certificate> spCertificates = randomSubsetOf(certificates);
+        final List<X509Certificate> idpCertificates = randomSubsetOf(certificates);
+        final List<X509Certificate> idpMetadataCertificates = randomSubsetOf(certificates);
+
+        final SamlServiceProviderDocument doc1 = new SamlServiceProviderDocument();
+        doc1.setDocId(randomAlphaOfLength(16));
+        doc1.setName(randomAlphaOfLengthBetween(8, 12));
+        doc1.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
+        doc1.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
+        doc1.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
+        doc1.setNameIdFormats(randomSubsetOf(List.of(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL)));
+        doc1.setAuthenticationExpiryMillis(randomLongBetween(100, 5_000_000));
+        doc1.certificates.setServiceProviderX509SigningCertificates(spCertificates);
+        doc1.certificates.setIdentityProviderX509SigningCertificates(idpCertificates);
+        doc1.certificates.setIdentityProviderX509MetadataSigningCertificates(idpMetadataCertificates);
+
+        doc1.privileges.setApplication(randomAlphaOfLengthBetween(6, 24));
+        doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
+        doc1.privileges.setLoginAction(randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
+        final Map<String, String> groupActions = new HashMap<>();
+        for (int i = randomIntBetween(1, 6); i > 0; i--) {
+            groupActions.put(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
+        }
+        doc1.privileges.setGroupActions(groupActions);
+
+        doc1.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.attributeNames.setEmail("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.attributeNames.setName("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.attributeNames.setGroups("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+
+        final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
+        assertThat(assertXContentRoundTrip(doc2), equalTo(doc1));
+    }
+
+    private SamlServiceProviderDocument assertXContentRoundTrip(SamlServiceProviderDocument obj1) throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final boolean humanReadable = randomBoolean();
+        final BytesReference bytes1 = XContentHelper.toXContent(obj1, xContentType, humanReadable);
+        try (XContentParser parser = XContentHelper.createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes1, xContentType)) {
+            final SamlServiceProviderDocument obj2 = SamlServiceProviderDocument.fromXContent(obj1.docId, parser);
+            assertThat(obj2, equalTo(obj1));
+
+            final BytesReference bytes2 = XContentHelper.toXContent(obj2, xContentType, humanReadable);
+            assertThat(bytes2, equalTo(bytes1));
+
+            return obj2;
+        }
+    }
+
+}

@@ -44,6 +44,12 @@ include::common-options.asciidoc[]
 Specifies the field to which the inference prediction is written. Defaults to 
 `predicted_value`.
 
+`num_top_feature_importance_values`::::
+(Optional, integer)
+Specifies the maximum number of
+{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
 
 [discrete]
 [[inference-processor-classification-opt]]
@@ -63,6 +69,12 @@ Specifies the number of top class predictions to return. Defaults to 0.
 Specifies the field to which the top classes are written. Defaults to 
 `top_classes`.
 
+`num_top_feature_importance_values`::::
+(Optional, integer)
+Specifies the maximum number of
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
 
 [discrete]
 [[inference-processor-config-example]]

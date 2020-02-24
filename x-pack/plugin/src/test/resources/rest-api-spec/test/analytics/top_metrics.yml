@@ -1,5 +1,8 @@
 ---
 "sort by long field":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       bulk:
         index: test
@@ -56,6 +59,9 @@
 
 ---
 "sort by double field":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       indices.create:
         index: test
@@ -106,6 +112,9 @@
 
 ---
 "sort by scaled float field":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       indices.create:
         index: test
@@ -156,6 +165,9 @@
 
 ---
 "sort by keyword field fails":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
   - do:
       bulk:
         index: test
@@ -179,6 +191,9 @@
 
 ---
 "sort by score":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
   - do:
       bulk:
         index: test
@@ -236,6 +251,9 @@
 
 ---
 "sort by string script fails":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
   - do:
       bulk:
         index: test

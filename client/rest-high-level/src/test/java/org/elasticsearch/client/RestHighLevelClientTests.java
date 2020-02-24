@@ -881,6 +881,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we

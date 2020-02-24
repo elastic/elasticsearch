@@ -26,9 +26,4 @@ testClusters.integTest {
   // This means the security plugin is loaded and all feature are permitted, but they are not enabled
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'false'
-
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
-  user username: "admin_user", password: "admin-password"
-  user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 }
-

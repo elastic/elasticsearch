@@ -30,7 +30,8 @@ to achieve this.
 First, we need to create a list of our safe domains. Those lists are called 
 _filters_ in {ml}. Filters can be shared across {anomaly-jobs}.
 
-We create our filter using the {ref}/ml-put-filter.html[put filter API]:
+You can create a filter in **Anomaly Detection > Settings > Filter Lists** in 
+{kib} or by using the {ref}/ml-put-filter.html[put filter API]:
 
 [source,console]
 ----------------------------------
@@ -43,7 +44,7 @@ PUT _ml/filters/safe_domains
 // TEST[skip:needs-licence]
 
 Now, we can create our {anomaly-job} specifying a scope that uses the
-`safe_domains`  filter for the `highest_registered_domain` field:
+`safe_domains` filter for the `highest_registered_domain` field:
 
 [source,console]
 ----------------------------------
@@ -74,7 +75,8 @@ PUT _ml/anomaly_detectors/dns_exfiltration_with_rule
 // TEST[skip:needs-licence]
 
 As time advances and we see more data and more results, we might encounter new 
-domains that we want to add in the filter. We can do that by using the 
+domains that we want to add in the filter. We can do that in the
+**Anomaly Detection > Settings > Filter Lists** in {kib} using the 
 {ref}/ml-update-filter.html[update filter API]:
 
 [source,console]
@@ -217,7 +219,7 @@ for some time. After observing its results we decide that we can employ
 rules in order to get rid of some uninteresting results. We can use
 the {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the
 rule we added will only be in effect for any results created from the moment we
-added  the rule onwards. Past results will remain unaffected.
+added the rule onwards. Past results will remain unaffected.
 
 [[ml-custom-rules-filtering]]
 ==== Using custom rules vs. filtering data

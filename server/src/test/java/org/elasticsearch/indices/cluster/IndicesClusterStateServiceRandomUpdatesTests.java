@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BatchedShardExecutor;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.node.NodeClient;
@@ -516,7 +517,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 null,
                 primaryReplicaSyncer,
                 RetentionLeaseSyncer.EMPTY,
-                client) {
+                client,
+                new BatchedShardExecutor((op, r) -> true, (op) -> true, threadPool)) {
             @Override
             protected void updateGlobalCheckpointForShard(final ShardId shardId) {}
         };

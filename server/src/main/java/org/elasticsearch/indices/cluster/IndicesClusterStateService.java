@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BatchedShardExecutor;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -110,6 +111,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private static final ActionListener<Void> SHARD_STATE_ACTION_LISTENER = ActionListener.wrap(() -> {});
 
     private final Settings settings;
+    private final BatchedShardExecutor batchedShardExecutor;
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
@@ -138,7 +140,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final NodeClient client) {
+            final NodeClient client,
+            final BatchedShardExecutor batchedShardExecutor) {
         this(
                 settings,
                 (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
@@ -153,7 +156,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 snapshotShardsService,
                 primaryReplicaSyncer,
                 retentionLeaseSyncer,
-                client);
+                client,
+                batchedShardExecutor);
     }
 
     // for tests
@@ -171,9 +175,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final NodeClient client) {
+            final NodeClient client,
+            final BatchedShardExecutor batchedShardExecutor) {
         this.settings = settings;
-        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
+        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService,
+            batchedShardExecutor);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -185,6 +191,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.retentionLeaseSyncer = retentionLeaseSyncer;
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
         this.client = client;
+        this.batchedShardExecutor = batchedShardExecutor;
     }
 
     @Override

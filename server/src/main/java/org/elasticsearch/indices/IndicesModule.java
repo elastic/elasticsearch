@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.bulk.BatchedShardExecutor;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -244,6 +245,7 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
+        bind(BatchedShardExecutor.class).asEagerSingleton();
     }
 
     /**

@@ -31,8 +31,6 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.action.update.UpdateHelper;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -65,11 +63,10 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
     @Inject
     public TransportBatchedShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                           MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper,
-                                           ActionFilters actionFilters) {
+                                           BatchedShardExecutor batchedShardExecutor, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, true, false);
-        this.batchedShardExecutor = new BatchedShardExecutor(clusterService, threadPool, updateHelper, mappingUpdatedAction);
+        this.batchedShardExecutor = batchedShardExecutor;
     }
 
     @Override

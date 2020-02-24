@@ -202,11 +202,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
             closeShards(shard);
             closed = true;
 
-            BulkShardRequest request2 = bulkShardRequest(shard, 1);
-            PlainActionFuture<BatchedShardExecutor.WriteResult> writeListener = PlainActionFuture.newFuture();
-            batchedShardExecutor.primary(request2, shard, writeListener, noop());
-            expectThrows(AlreadyClosedException.class, writeListener::actionGet);
-
+            batchedShardExecutor.afterIndexShardClosed(shard.shardId(), shard, Settings.EMPTY);
             assertBusy(() -> assertNull(batchedShardExecutor.getShardState(shard)));
         } finally {
             if (closed == false) {

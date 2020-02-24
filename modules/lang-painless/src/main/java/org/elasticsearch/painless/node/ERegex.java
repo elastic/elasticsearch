@@ -98,8 +98,7 @@ public final class ERegex extends AExpression {
         try {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
             statementExpressionNode.setLocation(location);
-            statementExpressionNode.setMethodEscape(true);
-            statementExpressionNode.setNoop(true);
+            statementExpressionNode.setPop(false);
 
             BlockNode blockNode = classNode.getClinitNode().getBlockNode();
             blockNode.addStatementNode(statementExpressionNode);

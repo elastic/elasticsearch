@@ -201,7 +201,7 @@ as standard (flat) fields. Defaults to `false`.
 
 `include_in_root`::
 (Optional, boolean)
-If `true`, all fields in the nested object are also added to the topmost
+If `true`, all fields in the nested object are also added to the root
 document as standard (flat) fields. Defaults to `false`.
 
 [float]

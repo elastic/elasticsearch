@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
 import org.junit.Before;
@@ -50,8 +51,22 @@ public class WildcardFieldMapperTests extends ESTestCase {
         wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
         super.setUp();
     }
+    
+    public void testIllegalDocValuesArgument() {
+        Builder ft = new WildcardFieldMapper.Builder("test");
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> ft.docValues(false));
+        assertEquals("The field [test] cannot have doc values = false", e.getMessage());
+    }        
 
-    public void testVersusKeywordField() throws IOException {
+    public void testIllegalIndexedArgument() {
+        Builder ft = new WildcardFieldMapper.Builder("test");
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> ft.index(false));
+        assertEquals("The field [test] cannot have index = false", e.getMessage());
+    }        
+    
+    public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setMergePolicy(newTieredMergePolicy(random()));

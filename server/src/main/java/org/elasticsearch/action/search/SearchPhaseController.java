@@ -686,7 +686,9 @@ public final class SearchPhaseController {
         public TopDocs getBufferTopDocs() {
             if (hasTopDocs) {
                 synchronized (this) {
-                    return topDocsBuffer[0];
+                    if (numReducePhases > 0) {
+                        return topDocsBuffer[0];
+                    }
                 }
             }
             return null;

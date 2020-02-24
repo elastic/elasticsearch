@@ -110,9 +110,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         if (searchPhaseResults instanceof SearchPhaseController.QueryPhaseResultConsumer == false) {
             return () -> null;
         }
-        int size = getTopDocsSize(request);
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-        if (size == 0
+        if (topDocsSize == 0
                 || fieldSort == null
                 || fieldSort.canRewriteToMatchNone() == false) {
             return () -> null;

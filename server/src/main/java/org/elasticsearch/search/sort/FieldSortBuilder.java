@@ -360,8 +360,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Returns whether all values of the given {@link QueryShardContext#getIndexReader()} are within the
      * primary sort value provided in the <code>rawBottomSortValues</code>.
      */
-    public boolean isBottomSortWithinShard(QueryShardContext context,
-                                           Object[] rawBottomSortValues) {
+    public boolean isBottomSortWithinShard(QueryShardContext context, Object[] rawBottomSortValues) {
         if (rawBottomSortValues == null || rawBottomSortValues.length == 0) {
             return true;
         }

@@ -132,10 +132,10 @@ two shards that are heavily indexing.
 === Use {ccr} to prevent searching from stealing resources from indexing
 
 With a single cluster, indexing and searching typically compete for resources.
-By setting up two clusters, configuring {ccr} to replicate data from one cluster
-to the other one, and routing all searches to the cluster that has the follower
-indices, search activity will no longer steal resources from indexing on the
-cluster that hosts the leader indices.
+By setting up two clusters, configuring <<xpack-ccr,{ccr}>> to replicate data
+from one cluster to the other one, and routing all searches to the cluster that
+has the follower indices, search activity will no longer steal resources from
+indexing on the cluster that hosts the leader indices.
 
 [float]
 === Additional optimizations

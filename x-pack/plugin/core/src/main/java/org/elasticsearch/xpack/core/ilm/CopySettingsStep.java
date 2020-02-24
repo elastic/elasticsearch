@@ -30,8 +30,8 @@ public class CopySettingsStep extends AsyncActionStep {
 
     public CopySettingsStep(StepKey key, StepKey nextStepKey, Client client, String indexPrefix, String... settingsKeys) {
         super(key, nextStepKey, client);
-        Objects.nonNull(indexPrefix);
-        Objects.nonNull(settingsKeys);
+        Objects.requireNonNull(indexPrefix);
+        Objects.requireNonNull(settingsKeys);
         this.indexPrefix = indexPrefix;
         this.settingsKeys = settingsKeys;
     }

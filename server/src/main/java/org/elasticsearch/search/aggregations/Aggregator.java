@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -130,14 +131,22 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * Validates the "key" portion of a sort on this aggregation.
-     * <p>
-     * The default implementation throws an exception but we override it on aggregations that support sorting.
+     * Builds a comparator that compares two buckets aggregated by this {@linkplain Aggregator}.
      */
-    public void validateSortPathKey(String key) {
+    public BucketComparator bucketComparator(String key, SortOrder order) {
         throw new IllegalArgumentException("Buckets can only be sorted on a sub-aggregator path " +
                 "that is built out of zero or more single-bucket aggregations within the path and a final " +
                 "single-bucket or a metrics aggregation at the path end.");
+    }
+    /**
+     * Compare two buckets by their ordinal.
+     */
+    @FunctionalInterface
+    public interface BucketComparator {
+        /**
+         * Compare two buckets by their ordinal.
+         */
+        int compare(long lhs, long rhs);
     }
 
     /**

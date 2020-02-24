@@ -98,14 +98,14 @@ public final class ERegex extends AExpression {
         try {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
             statementExpressionNode.setLocation(location);
-            statementExpressionNode.setPop(false);
 
             BlockNode blockNode = classNode.getClinitNode().getBlockNode();
             blockNode.addStatementNode(statementExpressionNode);
 
             MemberFieldStoreNode memberFieldStoreNode = new MemberFieldStoreNode();
             memberFieldStoreNode.setLocation(location);
-            memberFieldStoreNode.setExpressionType(Pattern.class);
+            memberFieldStoreNode.setExpressionType(void.class);
+            memberFieldStoreNode.setFieldType(Pattern.class);
             memberFieldStoreNode.setName(name);
             memberFieldStoreNode.setStatic(true);
 

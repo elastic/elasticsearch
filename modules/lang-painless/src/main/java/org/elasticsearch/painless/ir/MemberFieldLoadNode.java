@@ -25,6 +25,10 @@ import org.elasticsearch.painless.symbol.ScopeTable;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
+/**
+ * Represents reading a value from a member field from
+ * the main class.
+ */
 public class MemberFieldLoadNode extends ExpressionNode {
 
     /* ---- begin node data ---- */

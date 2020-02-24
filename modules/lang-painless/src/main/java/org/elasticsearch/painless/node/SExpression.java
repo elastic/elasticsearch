@@ -82,7 +82,6 @@ public final class SExpression extends AStatement {
             statementExpressionNode.setExpressionNode(expression.write(classNode));
 
             statementExpressionNode.setLocation(location);
-            statementExpressionNode.setPop(true);
 
             return statementExpressionNode;
         }

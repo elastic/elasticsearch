@@ -37,27 +37,12 @@ public class StatementExpressionNode extends StatementNode {
         return expressionNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    private boolean doPop;
-
-    public void setPop(boolean doPop) {
-        this.doPop = doPop;
-    }
-
-    public boolean doPop() {
-        return doPop;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
         expressionNode.write(classWriter, methodWriter, scopeTable);
-
-        if (doPop) {
-            methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
-        }
+        methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
     }
 }

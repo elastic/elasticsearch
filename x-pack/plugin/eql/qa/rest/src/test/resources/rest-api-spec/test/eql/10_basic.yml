@@ -23,5 +23,5 @@ setup:
 
   - match: {timed_out: false}
   - match: {took: 0}
-  - match: {hits.total.value: 0}
+  - match: {hits.total.value: 1}
 

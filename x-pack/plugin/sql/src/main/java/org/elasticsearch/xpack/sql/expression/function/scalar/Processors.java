@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFu
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.SqlConverter;

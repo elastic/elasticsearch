@@ -28,16 +28,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class DimensionalShapeTypeTests extends ESTestCase {
 
     public void testValidOrdinals() {
-        assertThat(DimensionalShapeType.values().length, equalTo(9));
+        assertThat(DimensionalShapeType.values().length, equalTo(3));
         assertThat(DimensionalShapeType.POINT.ordinal(), equalTo(0));
-        assertThat(DimensionalShapeType.MULTIPOINT.ordinal(), equalTo(1));
-        assertThat(DimensionalShapeType.LINESTRING.ordinal(), equalTo(2));
-        assertThat(DimensionalShapeType.MULTILINESTRING.ordinal(), equalTo(3));
-        assertThat(DimensionalShapeType.POLYGON.ordinal(), equalTo(4));
-        assertThat(DimensionalShapeType.MULTIPOLYGON.ordinal(), equalTo(5));
-        assertThat(DimensionalShapeType.GEOMETRYCOLLECTION_POINTS.ordinal(), equalTo(6));
-        assertThat(DimensionalShapeType.GEOMETRYCOLLECTION_LINES.ordinal(), equalTo(7));
-        assertThat(DimensionalShapeType.GEOMETRYCOLLECTION_POLYGONS.ordinal(), equalTo(8));
+        assertThat(DimensionalShapeType.LINE.ordinal(), equalTo(1));
+        assertThat(DimensionalShapeType.POLYGON.ordinal(), equalTo(2));
     }
 
     public void testSerialization() {

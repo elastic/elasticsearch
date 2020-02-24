@@ -556,7 +556,7 @@ public class InternalEngine extends Engine {
         return historyUUID;
     }
 
-    @Override
+    /** returns the force merge uuid for the engine */
     public String getForceMergeUUID() {
         return forceMergeUUID;
     }

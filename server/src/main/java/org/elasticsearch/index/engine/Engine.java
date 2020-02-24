@@ -47,7 +47,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.FieldMemoryStats;
@@ -175,10 +174,6 @@ public abstract class Engine implements Closeable {
 
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
-
-    /** returns the force merge uuid for the engine */
-    @Nullable
-    public abstract String getForceMergeUUID();
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
@@ -1070,13 +1065,6 @@ public abstract class Engine implements Closeable {
      * Rolls the translog generation and cleans unneeded.
      */
     public abstract void rollTranslogGeneration() throws EngineException;
-
-    /**
-     * Force merges to 1 segment
-     */
-    public void forceMerge(boolean flush) throws IOException {
-        forceMerge(flush, 1, false, false, false, ForceMergeRequest.FORCE_MERGE_UUID_NA_VALUE);
-    }
 
     /**
      * Triggers a forced merge on this engine

@@ -339,7 +339,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
             // now, optimize and wait for merges, see that we have no merge flag
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
 
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -349,7 +349,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             final boolean flush = randomBoolean();
             final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-            engine.forceMerge(flush);
+            engine.forceMerge(flush, 1, false, false, false, UUIDs.randomBase64UUID());
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
             }
@@ -5013,7 +5013,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.flush();
                 }
                 if (rarely()) {
-                    engine.forceMerge(true);
+                    engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
                 }
             }
             MapperService mapperService = createMapperService();
@@ -5092,7 +5092,7 @@ public class InternalEngineTests extends EngineTestCase {
                     equalTo(engine.getMinRetainedSeqNo()));
             }
             if (rarely()) {
-                engine.forceMerge(randomBoolean());
+                engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
             }
             try (Closeable ignored = engine.acquireHistoryRetentionLock()) {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
@@ -5410,7 +5410,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(softDeletesEngine.getVersionMap().keySet(), empty());
                 softDeletesEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 if (randomBoolean()) {
-                    softDeletesEngine.forceMerge(randomBoolean());
+                    engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
                 }
                 assertThat(getDocIds(softDeletesEngine, true), equalTo(docs));
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(softDeletesEngine, createMapperService());
@@ -5613,7 +5613,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.delete(new Engine.Delete("0", newUid("0"), primaryTerm.get()));
             engine.refresh("test");
             // now we have 2 segments since we now added a tombstone plus the old segment with the delete
@@ -5632,7 +5632,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                 IndexReader reader = searcher.getIndexReader();

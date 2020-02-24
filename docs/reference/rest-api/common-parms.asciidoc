@@ -576,7 +576,7 @@ Defaults to 100.
 end::scroll_size[]
 
 tag::search_timeout[]
-`search_timeout`::
+`timeout`::
 (Optional, <<time-units, time units>>)
 Explicit timeout for each search request.
 Defaults to no timeout.

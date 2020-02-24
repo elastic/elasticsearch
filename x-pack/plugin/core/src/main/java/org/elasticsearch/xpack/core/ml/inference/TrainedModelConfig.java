@@ -243,7 +243,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         // The model license does not matter, this is the highest licensed level
-        if (licenseState.isActive() && XPackLicenseState.isPlatinumOrTrialOperationMode(licenseState.getOperationMode())) {
+        if (licenseState.isActive() && XPackLicenseState.isAllowedByOperationMode(
+            licenseState.getOperationMode(), License.OperationMode.PLATINUM, true)) {
             return true;
         }
 
@@ -279,7 +280,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         // We don't store the definition in the same document as the configuration
         if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
-            if (params.paramAsBoolean(DECOMPRESS_DEFINITION, true)) {
+            if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
                 builder.field(DEFINITION.getPreferredName(), definition);
             } else {
                 builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedString());
@@ -370,6 +371,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.tags = config.getTags();
             this.metadata = config.getMetadata();
             this.input = config.getInput();
+            this.estimatedOperations = config.estimatedOperations;
+            this.estimatedHeapMemory = config.estimatedHeapMemory;
+            this.licenseLevel = config.licenseLevel.description();
         }
 
         public Builder setModelId(String modelId) {

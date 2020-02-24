@@ -21,12 +21,18 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -214,16 +220,63 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         }
         indexRandom(true, true, true, builders);
 
-        String block = randomFrom(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE);
         try {
-            enableIndexBlock("test", block);
+            enableIndexBlock("test", SETTING_READ_ONLY);
             assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
-                    matcher().deleted(0).failures(docs));
+                matcher().deleted(0).failures(docs));
         } finally {
-            disableIndexBlock("test", block);
+            disableIndexBlock("test", SETTING_READ_ONLY);
         }
 
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+    }
+
+    public void testDeleteByQueryOnReadOnlyAllowDeleteIndex() throws Exception {
+        createIndex("test");
+
+        final int docs = randomIntBetween(1, 50);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < docs; i++) {
+            builders.add(client().prepareIndex("test", "test").setId(Integer.toString(i)).setSource("field", 1));
+        }
+        indexRandom(true, true, true, builders);
+
+        // Because the index level read_only_allow_delete block can be automatically released by disk allocation decider,
+        // so we should test both case of disk allocation decider is enabled and disabled
+        boolean diskAllocationDeciderEnabled = randomBoolean();
+        try {
+            // When a read_only_allow_delete block is set on the index,
+            // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
+            enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
+            if (diskAllocationDeciderEnabled) {
+                InternalTestCluster internalTestCluster = internalCluster();
+                InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
+                    .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
+                ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
+                // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
+                threadPool.schedule(infoService::refresh, TimeValue.timeValueMillis(randomIntBetween(1, 100)), ThreadPool.Names.MANAGEMENT);
+                // The delete by query request will be executed successfully because the block will be released
+                assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
+                    matcher().deleted(docs));
+            } else {
+                // Disable the disk allocation decider to ensure the read_only_allow_delete block cannot be released
+                setDiskAllocationDeciderEnabled(false);
+                // The delete by query request will not be executed successfully because the block cannot be released
+                assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
+                        .setMaxRetries(2).setRetryBackoffInitialTime(TimeValue.timeValueMillis(50)).get(),
+                    matcher().deleted(0).failures(docs));
+            }
+        } finally {
+            disableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
+            if (diskAllocationDeciderEnabled == false) {
+                setDiskAllocationDeciderEnabled(true);
+            }
+        }
+        if (diskAllocationDeciderEnabled) {
+            assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+        } else {
+            assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+        }
     }
 
     public void testSlices() throws Exception {
@@ -315,4 +368,12 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertThat(response, matcher().deleted(0).slices(hasSize(0)));
     }
 
+    /** Enables or disables the cluster disk allocation decider **/
+    private void setDiskAllocationDeciderEnabled(boolean value) {
+        Settings settings = value ? Settings.builder().putNull(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
+            Settings.builder().put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+    }
 }

@@ -267,7 +267,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.license.XPackLicenseState.FIPS_ALLOWED_LICENSE_OPERATION_MODES;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -385,9 +384,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         try {
-            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry);
+            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
+                expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -396,7 +397,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry) throws Exception {
+                                        NamedXContentRegistry xContentRegistry,
+                                        IndexNameExpressionResolver expressionResolver) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -506,7 +508,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
-            getLicenseState());
+            getLicenseState(), expressionResolver);
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -1087,7 +1089,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             if (inFipsMode) {
                 License license = LicenseService.getLicense(state.metaData());
                 if (license != null &&
-                    FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
                         "] license. It is only allowed with a Platinum or Trial license.");
 

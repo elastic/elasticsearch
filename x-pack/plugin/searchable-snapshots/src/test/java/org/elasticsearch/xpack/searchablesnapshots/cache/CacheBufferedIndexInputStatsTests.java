@@ -29,7 +29,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assert
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.randomCacheRangeSize;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -139,17 +138,6 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectReadNanoseconds().longValue(), equalTo(0L));
 
-                final IndexInputStats.LinearModel fetchedBytesLinearModel = inputStats.getFetchedBytesLinearModel();
-                if (inputStats.getCachedBytesWritten().min() == inputStats.getCachedBytesWritten().max()) {
-                    // reads were all the same size and took the same amount of time, which is not enough to build a linear model
-                    assertThat(fetchedBytesLinearModel.slope, equalTo(Double.NaN));
-                    assertThat(fetchedBytesLinearModel.intercept, equalTo(Double.NaN));
-                } else {
-                    // multiple reads of different sizes but they all took the same amount of time
-                    assertThat(fetchedBytesLinearModel.slope, closeTo(0.0, 1.0e-5));
-                    assertThat(fetchedBytesLinearModel.intercept, closeTo(FAKE_CLOCK_ADVANCE_NANOS, 1.0));
-                }
-
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -196,17 +184,6 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                 assertCounter(inputStats.getCachedBytesWritten(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getCachedBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getCachedBytesWrittenNanoseconds().longValue(), equalTo(0L));
-
-                final IndexInputStats.LinearModel fetchedBytesLinearModel = inputStats.getFetchedBytesLinearModel();
-                if (inputStats.getDirectBytesRead().min() == inputStats.getDirectBytesRead().max()) {
-                    // reads were all the same size and took the same amount of time, which is not enough to build a linear model
-                    assertThat(fetchedBytesLinearModel.slope, equalTo(Double.NaN));
-                    assertThat(fetchedBytesLinearModel.intercept, equalTo(Double.NaN));
-                } else {
-                    // multiple reads of different sizes but they all took the same amount of time
-                    assertThat(fetchedBytesLinearModel.slope, closeTo(0.0, 1.0e-5));
-                    assertThat(fetchedBytesLinearModel.intercept, closeTo(FAKE_CLOCK_ADVANCE_NANOS, 1.0));
-                }
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -314,37 +291,6 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         });
     }
 
-    public void testLinearModel() {
-        final IndexInputStats.LinearModelAccumulator linearModelAccumulator = new IndexInputStats.LinearModelAccumulator();
-        // rounding errors make it hard to assert the accuracy of the results and can arise if we have to deal with numbers that are vastly
-        // different in scale, so choose numbers within two orders of magnitude of a fixed 'scale':
-        final double scale = Math.pow(10.0, randomDoubleBetween(-5.0, 5.0, true));
-
-        // in practice we are only really expecting positive slopes and intercepts; by using only positive numbers in this test we avoid
-        // subtractive cancellation from introducing rounding errors that cause spurious failures
-        final double expectedSlope = randomPositiveDoubleOfScale(scale);
-        final double expectedIntercept = randomPositiveDoubleOfScale(scale);
-
-        final int pointCount = randomIntBetween(10, 100);
-        for (int i = 0; i < pointCount; i++) {
-            final double x = randomPositiveDoubleOfScale(scale);
-            final double y = x * expectedSlope + expectedIntercept;
-            linearModelAccumulator.addPoint(x, y);
-        }
-
-        final IndexInputStats.LinearModel model = linearModelAccumulator.getModel();
-        assertCloseTo(model.slope, expectedSlope);
-        assertCloseTo(model.intercept, expectedIntercept);
-    }
-
-    private double randomPositiveDoubleOfScale(double scale) {
-        return scale * Math.pow(10.0, randomDoubleBetween(-2.0, 2.0, true));
-    }
-
-    private static void assertCloseTo(double expected, double actual) {
-        assertThat(expected, closeTo(actual, Math.abs(actual * 1.0e-4)));
-    }
-
     public void testComputesDownloadRate() throws Exception {
         // this test engineers two reads of different sizes which take different lengths of time and uses this to assert
         // that the linear download rate model gives a reasonable result
@@ -387,16 +333,6 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                     assertThat(stats.getCachedBytesWritten().max(), equalTo(rangeSize.getBytes()));
                     assertThat(stats.getCachedBytesWritten().min(), equalTo(length - rangeSize.getBytes()));
                     assertThat(stats.getCachedBytesWrittenNanoseconds().sum(), equalTo(5 * hundredMillis));
-
-                    // expected values come from solving these equations directly:
-                    // 200ms == min * slope + intercept
-                    // 300ms == max * slope + intercept
-                    final double expectedSlope = hundredMillis / (2.0 * rangeSize.getBytes() - length);
-                    final double expectedIntercept = 3 * hundredMillis - rangeSize.getBytes() * expectedSlope;
-
-                    final IndexInputStats.LinearModel fetchedBytesLinearModel = stats.getFetchedBytesLinearModel();
-                    assertThat(fetchedBytesLinearModel.slope, closeTo(expectedSlope, 1.0e-5));
-                    assertThat(fetchedBytesLinearModel.intercept, closeTo(expectedIntercept, TimeValue.timeValueMillis(1).nanos()));
 
                 } catch (IOException e) {
                     throw new AssertionError(e);

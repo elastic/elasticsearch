@@ -263,6 +263,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                                  Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
         validateRepositoryPasswordHash(userMetadata, listener::onFailure);
         if (userMetadata != null && userMetadata.containsKey(PASSWORD_HASH_RESERVED_USER_METADATA_KEY)) {
+            // remove the repository password hash from the snapshot metadata, after all repository password verifications
+            // have completed, so that the hash is not displayed in the API response to the user
             userMetadata.remove(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,

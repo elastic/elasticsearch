@@ -22,7 +22,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -32,6 +31,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.junit.After;
@@ -46,6 +47,9 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -71,21 +75,16 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static final byte[] BUFFER = new byte[1024];
 
     private static HttpServer httpServer;
+    private static ExecutorService executorService;
     private Map<String, HttpHandler> handlers;
-
-    private static final Logger log = LogManager.getLogger();
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.setExecutor(r -> {
-            Thread runThread = new Thread(r);
-            runThread.setUncaughtExceptionHandler((t, e) -> {
-                log.error("Error in execution on mock http server IO thread", e);
-                Thread.currentThread().getUncaughtExceptionHandler().uncaughtException(t, e);
-            });
-            runThread.start();
-        });
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]");
+        executorService = EsExecutors.newScaling(ESMockAPIBasedRepositoryIntegTestCase.class.getName(), 0, 2, 60, TimeUnit.SECONDS,
+                threadFactory, new ThreadContext(Settings.EMPTY));
+        httpServer.setExecutor(executorService);
         httpServer.start();
     }
 
@@ -98,6 +97,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @AfterClass
     public static void stopHttpServer() {
         httpServer.stop(0);
+        executorService.shutdown();
         httpServer = null;
     }
 

@@ -94,10 +94,13 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                             " must not be equal to " + REPOSITORY_TYPE_NAME);
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
+                if (null == factory) {
+                    throw new IllegalArgumentException("Unsupported delegate type " + DELEGATE_TYPE.getKey());
+                }
                 Repository delegatedRepository = factory.create(new RepositoryMetaData(metaData.name(),
                         delegateType, metaData.settings()));
                 if (false == (delegatedRepository instanceof BlobStoreRepository) || delegatedRepository instanceof EncryptedRepository) {
-                    throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
+                    throw new IllegalArgumentException("Unsupported delegate type " + DELEGATE_TYPE.getKey());
                 }
                 final char[] repositoryPassword = cachedRepositoryPasswords.get(metaData.name());
                 if (repositoryPassword == null) {

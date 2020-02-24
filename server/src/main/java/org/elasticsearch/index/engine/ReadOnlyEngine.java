@@ -252,6 +252,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public String getForceMergeUUID() {
+        return lastCommittedSegmentInfos.userData.get(Engine.FORCE_MERGE_UUID_KEY);
+    }
+
+    @Override
     public long getWritingBytes() {
         return 0;
     }

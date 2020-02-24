@@ -111,6 +111,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
@@ -173,6 +174,10 @@ public abstract class Engine implements Closeable {
 
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
+
+    /** returns the force merge uuid for the engine */
+    @Nullable
+    public abstract String getForceMergeUUID();
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();

@@ -14,12 +14,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
@@ -76,17 +74,9 @@ public final class SchemaUtil {
             .forEach((destinationFieldName, group) -> { fieldNamesForGrouping.put(destinationFieldName, group.getField()); });
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            if (agg instanceof ValuesSourceAggregationBuilder) {
-                ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
-                aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
-                aggregationTypes.putAll(Aggregations.getAggregationOutputTypes(valueSourceAggregation));
-            } else if (agg instanceof ScriptedMetricAggregationBuilder || agg instanceof MultiValuesSourceAggregationBuilder) {
-                aggregationTypes.putAll(Aggregations.getAggregationOutputTypes(agg));
-            } else {
-                // execution should not reach this point
-                listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
-                return;
-            }
+            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = Aggregations.getAggregationInputAndOutputTypes(agg);
+            aggregationSourceFieldNames.putAll(inputAndOutputTypes.v1());
+            aggregationTypes.putAll(inputAndOutputTypes.v2());
         }
 
         // For pipeline aggs, since they are referencing other aggregations in the payload, they do not have any

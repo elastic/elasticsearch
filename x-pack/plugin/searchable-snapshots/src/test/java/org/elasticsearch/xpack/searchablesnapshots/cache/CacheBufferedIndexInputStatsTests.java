@@ -23,7 +23,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
@@ -39,6 +38,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
     private static final int MAX_FILE_LENGTH = 10_000;
+
+    /**
+     * These tests simulate the passage of time with a clock that advances 100ms each time it is read.
+     */
     private static final long FAKE_CLOCK_ADVANCE_NANOS = TimeValue.timeValueMillis(100).nanos();
 
     public void testOpenCount() throws Exception {
@@ -293,8 +296,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
     private static void executeTestCase(CacheService cacheService, TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
-        String fileName = randomAlphaOfLength(10);
-
+        final String fileName = randomAlphaOfLength(10);
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);

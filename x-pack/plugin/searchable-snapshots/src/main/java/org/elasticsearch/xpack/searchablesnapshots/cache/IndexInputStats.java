@@ -210,5 +210,4 @@ public class IndexInputStats {
             return value;
         }
     }
-
 }

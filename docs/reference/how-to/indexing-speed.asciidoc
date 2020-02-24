@@ -67,9 +67,9 @@ may incur data loss, so it is important that the data lives elsewhere so that
 this initial load can be retried in case of an issue. Once the initial load is
 finished, you can set `index.number_of_replicas` back to its original value.
 
-If a `index.refresh_interval` is configured in the index settings, it may
-further help to unset it during this initial load and setting it back to its
-original value once the initial load is finished.
+If `index.refresh_interval` is configured in the index settings, it may further
+help to unset it during this initial load and setting it back to its original
+value once the initial load is finished.
 
 [float]
 === Disable swapping

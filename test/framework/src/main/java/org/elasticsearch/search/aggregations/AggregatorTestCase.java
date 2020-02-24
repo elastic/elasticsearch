@@ -605,6 +605,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52681")
     public void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();

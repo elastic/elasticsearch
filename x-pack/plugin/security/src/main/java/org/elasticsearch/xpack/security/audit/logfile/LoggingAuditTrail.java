@@ -136,27 +136,33 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
             RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString());
     public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.include"),
-            DEFAULT_EVENT_INCLUDES, Function.identity(), Property.NodeScope, Property.Dynamic);
+            DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
+            Property.NodeScope, Property.Dynamic);
     public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.exclude"),
-            Collections.emptyList(), Function.identity(), Property.NodeScope, Property.Dynamic);
+            Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
+            Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
     // particular field, as well as events with that particular field missing
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
-            "users",
-            (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
-            "realms",
-            (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
-            "roles",
-            (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
-    private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES = Setting.affixKeySetting(FILTER_POLICY_PREFIX,
-            "indices",
-            (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS =
+            Setting.affixKeySetting(FILTER_POLICY_PREFIX, "users",
+                    (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
+                            value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS =
+            Setting.affixKeySetting(FILTER_POLICY_PREFIX, "realms",
+                    (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
+                            value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES =
+            Setting.affixKeySetting(FILTER_POLICY_PREFIX, "roles",
+                    (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
+                            value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES =
+            Setting.affixKeySetting(FILTER_POLICY_PREFIX, "indices",
+                    (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
+                            value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
 
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
 

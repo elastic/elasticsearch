@@ -145,6 +145,7 @@ public class ValuesSourceConfig {
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
     private ZoneId timeZone;
+    private LongSupplier now;
 
 
     /**
@@ -179,6 +180,7 @@ public class ValuesSourceConfig {
         this.unmapped = unmapped;
         this.script = script;
         this.scriptValueType = scriptValueType;
+        this.now = queryShardContext::nowInMillis;
 
     }
 
@@ -235,11 +237,10 @@ public class ValuesSourceConfig {
 
     /**
      * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
-     * @param now - Should provide the current time in milliseconds.  Used for parsing some missing values.
      * @return - A {@link ValuesSource} ready to be read from by an aggregator
      */
     @Nullable
-    public ValuesSource toValuesSource(LongSupplier now) {
+    public ValuesSource toValuesSource() {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(

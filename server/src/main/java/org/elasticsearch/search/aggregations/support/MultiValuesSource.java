@@ -39,7 +39,7 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
                                         QueryShardContext context) {
             values = new HashMap<>(valuesSourceConfigs.size());
             for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
-                final ValuesSource valuesSource = entry.getValue().toValuesSource(context::nowInMillis);
+                final ValuesSource valuesSource = entry.getValue().toValuesSource();
                 if (valuesSource instanceof ValuesSource.Numeric == false) {
                     throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() +
                         "is not supported for multi-valued aggregation");

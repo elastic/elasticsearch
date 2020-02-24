@@ -40,7 +40,6 @@ import java.util.Comparator;
 
 public class IpRangeAggregatorTests extends AggregatorTestCase {
 
-
     private static boolean isInRange(BytesRef value, BytesRef from, BytesRef to) {
         if ((to == null || to.compareTo(value) > 0) && (from == null || from.compareTo(value) <= 0)) {
             return true;

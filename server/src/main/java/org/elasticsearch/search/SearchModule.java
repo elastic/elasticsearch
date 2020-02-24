@@ -398,7 +398,8 @@ public class SearchModule {
                 RareTermsAggregationBuilder::parse)
                     .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
                     .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
-                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new));
+                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new)
+                    .setAggregatorRegistrar(RareTermsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
                 SignificantTermsAggregationBuilder::parse)
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)

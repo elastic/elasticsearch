@@ -140,9 +140,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             AnomalyDetectorsIndex.configIndexName()};
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(String resultsWriteIndex, ClusterState clusterState) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
-        String[] indices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(),
+    static List<String> verifyIndicesPrimaryShardsAreActive(String resultsWriteIndex, ClusterState clusterState,
+                                                            IndexNameExpressionResolver expressionResolver) {
+        String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(),
             indicesOfInterest(resultsWriteIndex));
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
@@ -347,6 +347,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final AutodetectProcessManager autodetectProcessManager;
         private final MlMemoryTracker memoryTracker;
         private final Client client;
+        private final IndexNameExpressionResolver expressionResolver;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
@@ -356,11 +357,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker,
-                                              Client client) {
+                                              Client client, IndexNameExpressionResolver expressionResolver) {
             super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.client = Objects.requireNonNull(client);
+            this.expressionResolver = Objects.requireNonNull(expressionResolver);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
@@ -391,7 +393,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             String jobId = params.getJobId();
             String resultsWriteAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-            List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsWriteAlias, clusterState);
+            List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsWriteAlias, clusterState, expressionResolver);
             if (unavailableIndices.size() != 0) {
                 String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
                     String.join(",", unavailableIndices) + "]";

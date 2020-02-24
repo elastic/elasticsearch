@@ -112,6 +112,9 @@
 
 ---
 "sort by scaled float field":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       indices.create:
         index: test

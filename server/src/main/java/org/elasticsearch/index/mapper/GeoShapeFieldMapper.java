@@ -67,12 +67,22 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), docValues(), context.indexSettings(),
+                multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
         public boolean defaultDocValues(Version indexCreated) {
             return Version.V_8_0_0.onOrBefore(indexCreated);
+        }
+
+        protected Explicit<Boolean> docValues() {
+            if (docValuesSet && fieldType.hasDocValues()) {
+                return new Explicit<>(true, true);
+            } else if (docValuesSet) {
+                return new Explicit<>(false, true);
+            }
+            return new Explicit<>(fieldType.hasDocValues(), false);
         }
 
         protected void setupFieldType(BuilderContext context) {
@@ -131,9 +141,9 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, docValues, indexSettings,
             multiFields, copyTo);
     }
 

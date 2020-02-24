@@ -30,6 +30,45 @@ process where process.name == "svchost.exe"
 ----
 
 [discrete]
+[[eql-syntax-event-types]]
+==== Event types
+
+In {es}, an event type is a valid, indexed value of the
+<<eql-required-fields,event type field>>. You can set the event type field using
+the `event_type_field` parameter of the EQL search API. By default, this
+parameter uses the `event.category` field from the
+{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)].
+
+[discrete]
+[[eql-syntax-match-any-event-type]]
+===== Match any event type
+
+To match events of any type, use the `any` keyword.
+
+For example, the following EQL query matches any event with a
+`network.protocol` field value of `http`:
+
+[source,eql]
+----
+any where network.protocol == "http"
+----
+
+[discrete]
+[[eql-syntax-event-types-starting-with-digits]]
+===== Event types starting with digits
+
+EQL queries cannot start with a digit. To match event types starting with a
+digit, use the `any` keyword with a condition for the event type field.
+
+For example, the following EQL query uses `event_type` as the event type field.
+The query only matches `42_process` events:
+
+[source,eql]
+----
+any where event_type === `42_process`
+----
+
+[discrete]
 [[eql-syntax-conditions]]
 ==== Conditions
 
@@ -159,7 +198,7 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 
 [discrete]
 [[eql-syntax-wildcards]]
-===== Wildcards 
+===== Wildcards
 
 You can use the wildcard operator (`*`) within a string to match specific
 patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
@@ -172,8 +211,29 @@ field != "example*wildcard"
 ----
 
 [discrete]
+[[eql-syntax-match-any-condition]]
+===== Match any condition
+
+To match events solely on event type, use the `where true` condition.
+
+For example, the following EQL query matches any `file` events:
+
+[source,eql]
+----
+file where true
+----
+
+To match any event, you can combine the `any` keyword with the `where true`
+condition:
+
+[source,eql]
+----
+any where true
+----
+
+[discrete]
 [[eql-syntax-escaped-characters]]
-===== Escaped characters 
+===== Escaped characters
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).

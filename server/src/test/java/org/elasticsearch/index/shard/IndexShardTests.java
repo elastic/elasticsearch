@@ -4109,13 +4109,17 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         final String initialForceMergeUUID = shard.getEngine().getForceMergeUUID();
         assertThat(initialForceMergeUUID, nullValue());
-        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+        final ForceMergeRequest firstForceMergeRequest = new ForceMergeRequest().maxNumSegments(1);
+        shard.forceMerge(firstForceMergeRequest);
         final String secondForceMergeUUID = shard.getEngine().getForceMergeUUID();
         assertThat(secondForceMergeUUID, notNullValue());
-        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+        assertThat(secondForceMergeUUID, equalTo(firstForceMergeRequest.forceMergeUUID()));
+        final ForceMergeRequest secondForceMergeRequest = new ForceMergeRequest().maxNumSegments(1);
+        shard.forceMerge(secondForceMergeRequest);
         final String thirdForceMergeUUID = shard.getEngine().getForceMergeUUID();
         assertThat(thirdForceMergeUUID, notNullValue());
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
+        assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
     }
 }

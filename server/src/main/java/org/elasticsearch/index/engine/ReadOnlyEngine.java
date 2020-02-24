@@ -387,7 +387,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           boolean upgrade, boolean upgradeOnlyAncientSegments) {
+                           boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
     }
 
     @Override

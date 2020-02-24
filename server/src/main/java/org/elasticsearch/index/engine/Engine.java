@@ -47,6 +47,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.FieldMemoryStats;
@@ -1074,14 +1075,15 @@ public abstract class Engine implements Closeable {
      * Force merges to 1 segment
      */
     public void forceMerge(boolean flush) throws IOException {
-        forceMerge(flush, 1, false, false, false);
+        forceMerge(flush, 1, false, false, false, ForceMergeRequest.FORCE_MERGE_UUID_NA_VALUE);
     }
 
     /**
      * Triggers a forced merge on this engine
      */
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                                        boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
+                                    boolean upgrade, boolean upgradeOnlyAncientSegments,
+                                    String forceMergeUUID) throws EngineException, IOException;
 
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the

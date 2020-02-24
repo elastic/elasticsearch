@@ -61,7 +61,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -1819,7 +1818,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, IOException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments,
+                           final String forceMergeUUID) throws EngineException, IOException {
         if (onlyExpungeDeletes && maxNumSegments >= 0) {
             throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
         }
@@ -1854,7 +1854,7 @@ public class InternalEngine extends Engine {
                     indexWriter.maybeMerge();
                 } else {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
-                    forceMergeUUID = UUIDs.randomBase64UUID();
+                    this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
                     flush(false, true);

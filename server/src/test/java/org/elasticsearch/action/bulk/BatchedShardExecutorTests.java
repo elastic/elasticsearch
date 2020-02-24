@@ -74,6 +74,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
 
         try {
             BatchedShardExecutor batchedShardExecutor = new BatchedShardExecutor(primaryHandler(), replicaHandler(), threadPool);
+            batchedShardExecutor.afterIndexShardCreated(shard);
 
             int numberOfOps = randomIntBetween(10, 20);
             CountDownLatch flushedLatch = new CountDownLatch(numberOfOps);
@@ -107,6 +108,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
 
         try {
             BatchedShardExecutor batchedShardExecutor = new BatchedShardExecutor(primaryHandler(), replicaHandler(), threadPool);
+            batchedShardExecutor.afterIndexShardCreated(shard);
 
             int numberOfOps = randomIntBetween(200, 400);
             CountDownLatch flushedLatch = new CountDownLatch(numberOfOps);
@@ -134,6 +136,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
 
         try {
             BatchedShardExecutor batchedShardExecutor = new BatchedShardExecutor(primaryHandler(), replicaHandler(), threadPool);
+            batchedShardExecutor.afterIndexShardCreated(shard);
 
             int numberOfOps = randomIntBetween(200, 400);
             CountDownLatch flushedLatch = new CountDownLatch(numberOfOps);
@@ -167,6 +170,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
                 throw new AlreadyClosedException(primaryOp.getIndexShard().shardId() + " engine is closed", new IOException());
             };
             BatchedShardExecutor batchedShardExecutor = new BatchedShardExecutor(primaryHandler, replicaHandler(), threadPool);
+            batchedShardExecutor.afterIndexShardCreated(shard);
 
 
             BulkShardRequest request = bulkShardRequest(shard, 0);
@@ -187,6 +191,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
         boolean closed = false;
         try {
             BatchedShardExecutor batchedShardExecutor = new BatchedShardExecutor(primaryHandler(), replicaHandler(), threadPool);
+            batchedShardExecutor.afterIndexShardCreated(shard);
 
             CountDownLatch flushedLatch = new CountDownLatch(1);
             AtomicInteger successfulWrites = new AtomicInteger();
@@ -202,7 +207,7 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
             closeShards(shard);
             closed = true;
 
-            batchedShardExecutor.afterIndexShardClosed(shard.shardId(), shard, Settings.EMPTY);
+            batchedShardExecutor.beforeIndexShardClosed(shard.shardId(), shard, Settings.EMPTY);
             assertBusy(() -> assertNull(batchedShardExecutor.getShardState(shard)));
         } finally {
             if (closed == false) {
@@ -217,6 +222,8 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
 
         try {
             BatchedShardExecutor batchedShardExecutor = new BatchedShardExecutor(primaryHandler(), replicaHandler(), threadPool);
+            batchedShardExecutor.afterIndexShardCreated(primary);
+            batchedShardExecutor.afterIndexShardCreated(replica);
 
             int numberOfOps = randomIntBetween(200, 400);
             CountDownLatch primaryFlushedLatch = new CountDownLatch(numberOfOps);

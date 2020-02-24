@@ -81,6 +81,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -489,6 +490,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                                                                         final Supplier<MockIndicesService> indicesServiceSupplier) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
+        ThreadPool.Info info = new ThreadPool.Info(ThreadPool.Names.WRITE, ThreadPool.ThreadPoolType.FIXED, 1);
+        when(threadPool.info(eq(ThreadPool.Names.WRITE))).thenReturn(info);
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, mock(Transport.class), threadPool,

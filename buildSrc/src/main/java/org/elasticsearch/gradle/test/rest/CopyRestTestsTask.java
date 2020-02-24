@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  */
 public class CopyRestTestsTask extends DefaultTask {
     private static final Logger logger = Logging.getLogger(CopyRestTestsTask.class);
-    private static final String copyTo = "rest-api-spec/test";
+    private static final String COPY_TO = "rest-api-spec/test";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
@@ -62,7 +62,6 @@ public class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
 
     public CopyRestTestsTask() {
-        // TODO: blow up if internal and requested x-pack
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
     }
@@ -99,7 +98,7 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), copyTo);
+        return new File(getTestSourceSet().getOutput().getResourcesDir(), COPY_TO);
     }
 
     @TaskAction
@@ -124,7 +123,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 project.copy(c -> {
                     c.from(project.zipTree(coreConfig.getSingleFile()));
                     c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                    c.include(includeCore.get().stream().map(prefix -> copyTo + "/" + prefix + "*/**").collect(Collectors.toList()));
+                    c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
                 });
             }
         }
@@ -142,5 +141,4 @@ public class CopyRestTestsTask extends DefaultTask {
     private SourceSet getTestSourceSet() {
         return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
     }
-
 }

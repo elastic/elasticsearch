@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  */
 public class CopyRestApiTask extends DefaultTask {
     private static final Logger logger = Logging.getLogger(CopyRestApiTask.class);
-    private static final String copyTo = "rest-api-spec/api";
+    private static final String COPY_TO = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
@@ -65,7 +65,6 @@ public class CopyRestApiTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
 
     public CopyRestApiTask() {
-        // TODO: blow up if internal and requested x-pack
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
     }
@@ -104,7 +103,7 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), copyTo);
+        return new File(getTestSourceSet().getOutput().getResourcesDir(), COPY_TO);
     }
 
     @TaskAction
@@ -118,7 +117,6 @@ public class CopyRestApiTask extends DefaultTask {
                 c.into(getOutputDir());
                 c.include(corePatternSet.getIncludes());
             });
-
         } else {
             logger.info(
                 "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
@@ -128,7 +126,7 @@ public class CopyRestApiTask extends DefaultTask {
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
                 c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                c.include(includeCore.get().stream().map(prefix -> copyTo + "/" + prefix + "*/**").collect(Collectors.toList()));
+                c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
             });
         }
         // only copy x-pack specs if explicitly instructed

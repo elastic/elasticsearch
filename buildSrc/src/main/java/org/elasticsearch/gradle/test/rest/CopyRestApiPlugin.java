@@ -27,20 +27,16 @@ import org.gradle.api.provider.Provider;
 
 import java.util.Map;
 
-//TODO: clean up this doc!
 /**
  * <p>
  * Gradle plugin to help configure {@link CopyRestApiTask}'s and {@link CopyRestTestsTask} that copies the artifacts needed for the Rest API
  * spec and YAML based rest tests.
  * </p>
-
- * <p>This task supports copying either the Rest YAML tests (.yml), or the Rest API specification (.json).</p>
- * <br>
  * <strong>Rest API specification:</strong> <br>
- * When the {@link CopyRestApiPlugin} has been applied this task will automatically copy the Rest API specification
- * if there are any Rest YAML tests present (either in source, or output) or if `restApi.includeCore` or `restApi.includeXpack` has been
- * explicitly declared through the 'restResources' extension. <br>
- * This task supports copying only a subset of the Rest API specification through the use of the custom extension.<br>
+ * When the {@link CopyRestApiPlugin} has been applied the {@link CopyRestApiTask} will automatically copy the core Rest API specification
+ * if there are any Rest YAML tests present in source, or copied from {@link CopyRestTestsTask} output. X-pack specs must be explicitly
+ * declared to be copied.
+ * <br>
  * <i>For example:</i>
  * <pre>
  * restResources {
@@ -49,8 +45,9 @@ import java.util.Map;
  *   }
  * }
  * </pre>
- * Will copy any of the the x-pack specs that start with enrich*. The core API specs will also be copied iff the project also has
- * Rest YAML tests. To help optimize the build cache, it is recommended to explicitly declare which specs your project depends on.
+ * Will copy the entire core Rest API specifications (assuming the project has tests) and any of the the X-pack specs starting with enrich*.
+ * It is recommended (but not required) to also explicitly declare which core specs your project depends on to help optimize the caching
+ * behavior.
  * <i>For example:</i>
  * <pre>
  * restResources {
@@ -62,17 +59,21 @@ import java.util.Map;
  * </pre>
  * <br>
  * <strong>Rest YAML tests :</strong> <br>
- * When the {@link CopyRestApiPlugin} has been applied this task can copy the Rest YAML tests iff explicitly configured with
- * `includeCore` or `includeXpack` through the `restResources.restTests` extension.
+ * When the {@link CopyRestApiPlugin} has been applied the {@link CopyRestTestsTask} will copy the Rest YAML tests if explicitly
+ * configured with `includeCore` or `includeXpack` through the `restResources.restTests` extension.
  * <i>For example:</i>
  * <pre>
  * restResources {
+ *  restApi {
+ *      includeXpack 'graph'
+ *   }
  *   restTests {
  *     includeXpack 'graph'
  *   }
  * }
  * </pre>
- * Will copy any of the the x-pack tests that start with graph.
+ * Will copy any of the the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
+ * Rest API specification.
  *
  * @see CopyRestApiTask
  * @see CopyRestTestsTask
@@ -99,7 +100,6 @@ public class CopyRestApiPlugin implements Plugin<Project> {
                     dependency = project.getDependencies().project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), dependency);
                     task.dependsOn(task.xpackConfig);
-
                 } else {
                     Dependency dependency = project.getDependencies()
                         .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());

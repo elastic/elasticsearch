@@ -41,6 +41,10 @@
       ]
     },
     "params":{
+      "analyzer": {
+        "type" : "string",
+        "description" : "The analyzer to use for the query string"
+      },
       "analyze_wildcard": {
         "type" : "boolean",
         "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"

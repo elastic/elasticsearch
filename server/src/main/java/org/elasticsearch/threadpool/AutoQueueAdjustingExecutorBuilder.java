@@ -67,11 +67,13 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         final String frameSizeKey = settingsKey(prefix, "auto_queue_frame_size");
         final String targetedResponseTimeKey = settingsKey(prefix, "target_response_time");
         this.targetedResponseTimeSetting = Setting.timeSetting(targetedResponseTimeKey, TimeValue.timeValueSeconds(1),
-                TimeValue.timeValueMillis(10), Setting.Property.NodeScope);
+                TimeValue.timeValueMillis(10), Setting.Property.NodeScope, Setting.Property.Deprecated);
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, initialQueueSize, Setting.Property.NodeScope);
         // These temp settings are used to validate the min and max settings below
-        Setting<Integer> tempMaxQueueSizeSetting = Setting.intSetting(maxSizeKey, maxQueueSize, Setting.Property.NodeScope);
-        Setting<Integer> tempMinQueueSizeSetting = Setting.intSetting(minSizeKey, minQueueSize, Setting.Property.NodeScope);
+        Setting<Integer> tempMaxQueueSizeSetting = Setting.intSetting(maxSizeKey, maxQueueSize, Setting.Property.NodeScope,
+            Setting.Property.Deprecated);
+        Setting<Integer> tempMinQueueSizeSetting = Setting.intSetting(minSizeKey, minQueueSize, Setting.Property.NodeScope,
+            Setting.Property.Deprecated);
 
         this.minQueueSizeSetting = new Setting<>(
             minSizeKey,
@@ -126,8 +128,9 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
                     }
 
                 },
-                Setting.Property.NodeScope);
-        this.frameSizeSetting = Setting.intSetting(frameSizeKey, frameSize, 100, Setting.Property.NodeScope);
+                Setting.Property.NodeScope, Setting.Property.Deprecated);
+        this.frameSizeSetting = Setting.intSetting(frameSizeKey, frameSize, 100, Setting.Property.NodeScope, Setting.Property.Deprecated,
+            Setting.Property.Deprecated);
     }
 
     @Override

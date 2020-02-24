@@ -97,7 +97,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists:
-        index: ".ml-state"
+        index: ".ml-state-000001"
   - is_true: ''
 
   - do:
@@ -117,7 +117,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - gt: {count: 0}
 
   - do:
@@ -186,7 +186,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-job2_categorizer_state#1
         body:
           key: value
@@ -195,7 +195,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-job2_categorizer_state#2
         body:
           key: value
@@ -216,7 +216,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 4}
 
   - do:
@@ -298,28 +298,28 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
@@ -436,7 +436,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists:
-        index: ".ml-state"
+        index: ".ml-state-000001"
   - is_true: ''
 
   - do:
@@ -450,7 +450,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
@@ -505,7 +505,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-quantiles-job_quantiles
         body:
           state: quantile-state
@@ -525,7 +525,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
 ---
@@ -571,7 +571,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-state-job_model_state_123#1
         body:
           state: new-model-state
@@ -580,7 +580,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-state-job_model_state_123#2
         body:
           state: more-new-model-state
@@ -589,7 +589,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-state-job_categorizer_state#1
         body:
           state: new-categorizer-state
@@ -598,7 +598,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: index-layout-state-job_categorizer_state#2
         body:
           state: more-new-categorizer-state
@@ -625,7 +625,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
 ---
@@ -635,7 +635,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
-        index: .ml-state
+        index: .ml-state-000001
 
   - do:
       ml.put_job:
@@ -678,7 +678,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists:
-        index: ".ml-state"
+        index: ".ml-state-000001"
   - is_true: ''
 
   - do:
@@ -691,6 +691,6 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 

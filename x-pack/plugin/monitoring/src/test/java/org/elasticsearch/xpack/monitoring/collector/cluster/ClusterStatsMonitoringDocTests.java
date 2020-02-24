@@ -57,6 +57,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -92,14 +93,16 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);
         clusterState = mock(ClusterState.class);
+        final License.OperationMode operationMode = randomFrom(License.OperationMode.values());
         license = License.builder()
                          .uid(randomAlphaOfLength(5))
-                         .type(randomFrom(License.OperationMode.values()).name())
+                         .type(operationMode.name().toLowerCase(Locale.ROOT))
                          .issuer(randomAlphaOfLength(5))
                          .issuedTo(randomAlphaOfLength(5))
                          .issueDate(timestamp)
                          .expiryDate(timestamp + randomIntBetween(1, 10) * 1_000L)
-                         .maxNodes(randomIntBetween(1, 5))
+                         .maxNodes(License.OperationMode.ENTERPRISE == operationMode ? -1 : randomIntBetween(1, 5))
+                         .maxResourceUnits(License.OperationMode.ENTERPRISE == operationMode ? randomIntBetween(1, 42) : -1)
                          .build();
 
         final DiscoveryNode masterNode = masterNode();

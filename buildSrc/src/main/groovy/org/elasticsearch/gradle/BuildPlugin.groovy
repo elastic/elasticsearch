@@ -32,7 +32,6 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.testclusters.TestDistribution
 import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
@@ -83,8 +82,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
-import static org.elasticsearch.gradle.tool.DockerUtils.assertDockerIsAvailable
-import static org.elasticsearch.gradle.tool.DockerUtils.getDockerPath
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -184,51 +181,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
         }
-    }
-
-    static void requireDocker(final Task task) {
-        final Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
-
-        if (rootProject.hasProperty('requiresDocker') == false) {
-            /*
-             * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
-             * that register as requiring Docker. We will add a delayed execution that when the task graph is ready if any such tasks are
-             * in the task graph, then we check two things:
-             *  - the Docker binary is available
-             *  - we can execute a Docker command that requires privileges
-             *
-             *  If either of these fail, we fail the build.
-             */
-
-            // check if the Docker binary exists and record its path
-            final String dockerBinary = getDockerPath().orElse(null)
-
-            final boolean buildDocker
-            final String buildDockerProperty = System.getProperty("build.docker")
-            if (buildDockerProperty == null) {
-                buildDocker = dockerBinary != null
-            } else if (buildDockerProperty == "true") {
-                buildDocker = true
-            } else if (buildDockerProperty == "false") {
-                buildDocker = false
-            } else {
-                throw new IllegalArgumentException(
-                        "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
-            }
-
-            ext.set('buildDocker', buildDocker)
-            ext.set('requiresDocker', [])
-            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
-
-                if (tasks.isEmpty() == false) {
-                    assertDockerIsAvailable(task.project, tasks)
-                }
-            }
-        }
-
-        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */

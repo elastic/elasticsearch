@@ -1646,24 +1646,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * required generation
      */
     public void trimUnreferencedReaders() throws IOException {
-        // move most of the data to disk to reduce the time the lock is held
+        // first check under read lock if any readers can be trimmed
+        try (ReleasableLock ignored = readLock.acquire()) {
+            if (closed.get()) {
+                // we're shutdown potentially on some tragic event, don't delete anything
+                return;
+            }
+            if (getMinReferencedGen() == getMinFileGeneration()) {
+                return;
+            }
+        }
+
+        // move most of the data to disk to reduce the time the write lock is held
         sync();
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {
                 // we're shutdown potentially on some tragic event, don't delete anything
                 return;
             }
-            long minReferencedGen = Math.min(
-                deletionPolicy.getMinTranslogGenRequiredByLocks(),
-                minGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, current, readers));
-            assert minReferencedGen >= getMinFileGeneration() :
-                "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] but the lowest gen available is ["
-                    + getMinFileGeneration() + "]";
-            assert minReferencedGen <= currentFileGeneration() :
-                "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] which is higher than the current generation ["
-                    + currentFileGeneration() + "]";
-
-
+            final long minReferencedGen = getMinReferencedGen();
             for (Iterator<TranslogReader> iterator = readers.iterator(); iterator.hasNext(); ) {
                 TranslogReader reader = iterator.next();
                 if (reader.getGeneration() >= minReferencedGen) {
@@ -1688,6 +1689,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             closeOnTragicEvent(ex);
             throw ex;
         }
+    }
+
+    private long getMinReferencedGen() {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
+        long minReferencedGen = Math.min(
+            deletionPolicy.getMinTranslogGenRequiredByLocks(),
+            minGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, current, readers));
+        assert minReferencedGen >= getMinFileGeneration() :
+            "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] but the lowest gen available is ["
+                + getMinFileGeneration() + "]";
+        assert minReferencedGen <= currentFileGeneration() :
+            "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] which is higher than the current generation ["
+                + currentFileGeneration() + "]";
+        return minReferencedGen;
     }
 
     /**

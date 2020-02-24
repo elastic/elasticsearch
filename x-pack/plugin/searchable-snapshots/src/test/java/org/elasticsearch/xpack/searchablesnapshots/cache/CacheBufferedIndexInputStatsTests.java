@@ -291,55 +291,6 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         });
     }
 
-    public void testComputesDownloadRate() throws Exception {
-        // this test engineers two reads of different sizes which take different lengths of time and uses this to assert
-        // that the linear download rate model gives a reasonable result
-
-        // range size is at least the buffer size so that filling the buffer doesn't require fetching multiple ranges
-        final int minRangeSize = Math.max(BufferedIndexInput.BUFFER_SIZE, BufferedIndexInput.MERGE_BUFFER_SIZE);
-
-        // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(minRangeSize, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
-
-        // file contains a range and a half, so that we have reads of different sizes
-        final byte[] fileContent = new byte[(int)(rangeSize.getBytes() * 1.5)];
-        final CacheService cacheService = new CacheService(new ByteSizeValue(1, ByteSizeUnit.GB), rangeSize);
-
-        final AtomicLong clockIncrement = new AtomicLong();
-        final AtomicLong currentTime = new AtomicLong();
-
-        executeTestCase(cacheService, "test", fileContent, () -> currentTime.addAndGet(clockIncrement.get()),
-            (fileName, ignored, cacheDirectory) -> {
-                try (IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()))) {
-                    final long length = input.length();
-                    final byte[] buffer = new byte[1];
-
-                    final long hundredMillis = TimeValue.timeValueMillis(100).nanos();
-
-                    // read the whole of the first range in 300ms
-                    clockIncrement.set(3 * hundredMillis);
-                    input.readBytes(buffer, 0, 1);
-
-                    // read the whole of the last range, which is ~half the size of the first, in 200ms
-                    clockIncrement.set(2 * hundredMillis);
-                    input.seek(length - 1);
-                    input.readBytes(buffer, 0, 1);
-
-                    final IndexInputStats stats = cacheDirectory.getStats(fileName);
-
-                    // we really did perform 2 reads, one of a whole range and one of the remainder:
-                    assertThat(stats.getCachedBytesWritten().count(), equalTo(2L));
-                    assertThat(stats.getCachedBytesWritten().total(), equalTo(length));
-                    assertThat(stats.getCachedBytesWritten().max(), equalTo(rangeSize.getBytes()));
-                    assertThat(stats.getCachedBytesWritten().min(), equalTo(length - rangeSize.getBytes()));
-                    assertThat(stats.getCachedBytesWrittenNanoseconds().sum(), equalTo(5 * hundredMillis));
-
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            });
-    }
-
     /**
      * Creates a fake clock which advances 100ms every time is read.
      */
@@ -349,13 +300,8 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
     }
 
     private static void executeTestCase(CacheService cacheService, TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
-        executeTestCase(cacheService, getFakeClock(), test);
-    }
-
-    private static void executeTestCase(CacheService cacheService, LongSupplier currentTimeNanosSupplier,
-                                        TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
-        executeTestCase(cacheService, randomAlphaOfLength(10), fileContent, currentTimeNanosSupplier, test);
+        executeTestCase(cacheService, randomAlphaOfLength(10), fileContent, getFakeClock(), test);
     }
 
     private static void executeTestCase(CacheService cacheService, String fileName, byte[] fileContent,

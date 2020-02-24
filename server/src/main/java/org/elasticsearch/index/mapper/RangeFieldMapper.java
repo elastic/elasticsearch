@@ -52,9 +52,18 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
-import static org.elasticsearch.index.query.RangeQueryBuilder.*;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {

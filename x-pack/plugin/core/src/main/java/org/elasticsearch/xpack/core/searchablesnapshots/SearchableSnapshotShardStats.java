@@ -408,13 +408,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         TimedCounter(StreamInput in) throws IOException {
             super(in);
-            totalNanoseconds = in.readVLong();
+            totalNanoseconds = in.readZLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(totalNanoseconds);
+            out.writeZLong(totalNanoseconds);
         }
 
         @Override

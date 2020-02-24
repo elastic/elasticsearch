@@ -3,18 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
-import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -26,7 +22,6 @@ import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
-import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
@@ -46,69 +41,62 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
-public final class SamlUtils {
-    private static final String SAML_MARSHALLING_ERROR_STRING = "_unserializable_";
-    private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final Logger LOGGER = LogManager.getLogger();
-    private static XMLObjectBuilderFactory builderFactory = null;
+/**
+ * Utility object for constructing new objects and values in a SAML 2.0 / OpenSAML context
+ */
+public class SamlFactory {
 
-    private SamlUtils() {
-    }
+    private final XMLObjectBuilderFactory builderFactory;
+    private final SecureRandom random;
+    private static final Logger LOGGER = LogManager.getLogger(SamlFactory.class);
 
-    /**
-     * This is needed in order to initialize the underlying OpenSAML library.
-     * It must be called before doing anything that potentially interacts with OpenSAML (whether in server code, or in tests).
-     * The initialization happens within do privileged block as the underlying Apache XML security library has a permission check.
-     * The initialization happens with a specific context classloader as OpenSAML loads resources from its jar file.
-     */
-    public static void initialize() {
-        if (INITIALISED.compareAndSet(false, true)) {
-            // We want to force these classes to be loaded _before_ we fiddle with the context classloader
-            LoggerFactory.getLogger(InitializationService.class);
-            SpecialPermission.check();
-            try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                    LOGGER.debug("Initializing OpenSAML");
-                    try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
-                        InitializationService.initialize();
-                    }
-                    LOGGER.debug("Initialized OpenSAML");
-                    return null;
-                });
-            } catch (PrivilegedActionException e) {
-                throw new ElasticsearchSecurityException("failed to set context classloader for SAML IdP", e);
-            }
-        }
+    public SamlFactory() {
+        SamlInit.initialize();
         builderFactory = XMLObjectProviderRegistrySupport.getBuilderFactory();
+        random = new SecureRandom();
     }
 
-    public static String secureIdentifier() {
+    public <T extends XMLObject> T object(Class<T> type, QName elementName) {
+        final XMLObject obj = builderFactory.getBuilder(elementName).buildObject(elementName);
+        return cast(type, elementName, obj);
+    }
+
+    public <T extends XMLObject> T object(Class<T> type, QName elementName, QName schemaType) {
+        final XMLObject obj = builderFactory.getBuilder(schemaType).buildObject(elementName, schemaType);
+        return cast(type, elementName, obj);
+    }
+
+    private <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
+        if (type.isInstance(obj)) {
+            return type.cast(obj);
+        } else {
+            throw new IllegalArgumentException("Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass()
+                + " not " + type);
+        }
+    }
+
+    public String secureIdentifier() {
         return randomNCName(20);
     }
 
-    private static String randomNCName(int numberBytes) {
+    private String randomNCName(int numberBytes) {
         final byte[] randomBytes = new byte[numberBytes];
-        SECURE_RANDOM.nextBytes(randomBytes);
+        random.nextBytes(randomBytes);
         // NCNames (https://www.w3.org/TR/xmlschema-2/#NCName) can't start with a number, so start them all with "_" to be safe
         return "_".concat(MessageDigests.toHexString(randomBytes));
     }
 
-    public static <T extends XMLObject> T buildObject(Class<T> type, QName elementName) {
+    public <T extends XMLObject> T buildObject(Class<T> type, QName elementName) {
         final XMLObject obj = builderFactory.getBuilder(elementName).buildObject(elementName);
         if (type.isInstance(obj)) {
             return type.cast(obj);
@@ -118,7 +106,7 @@ public final class SamlUtils {
         }
     }
 
-    public static String toString(Element element, boolean pretty) {
+    public String toString(Element element, boolean pretty) {
         try {
             StringWriter writer = new StringWriter();
             print(element, writer, pretty);
@@ -128,7 +116,7 @@ public final class SamlUtils {
         }
     }
 
-    public static <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
+    public <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
         try {
             UnmarshallerFactory unmarshallerFactory = getUnmarshallerFactory();
             Unmarshaller unmarshaller = unmarshallerFactory.getUnmarshaller(element);
@@ -147,7 +135,7 @@ public final class SamlUtils {
         }
     }
 
-    static void print(Element element, Writer writer, boolean pretty) throws TransformerException {
+    void print(Element element, Writer writer, boolean pretty) throws TransformerException {
         final Transformer serializer = getHardenedXMLTransformer();
         if (pretty) {
             serializer.setOutputProperty(OutputKeys.INDENT, "yes");
@@ -155,28 +143,28 @@ public final class SamlUtils {
         serializer.transform(new DOMSource(element), new StreamResult(writer));
     }
 
-    public static String getXmlContent(SAMLObject object){
+    public String getXmlContent(SAMLObject object){
         return getXmlContent(object, false);
     }
 
-    public static String getXmlContent(SAMLObject object, boolean prettyPrint) {
+    public String getXmlContent(SAMLObject object, boolean prettyPrint) {
         try {
             return toString(XMLObjectSupport.marshall(object), prettyPrint);
         } catch (MarshallingException e) {
             LOGGER.info("Error marshalling SAMLObject ", e);
-            return SAML_MARSHALLING_ERROR_STRING;
+            return "_unserializable_";
         }
     }
 
-    public static boolean elementNameMatches(Element element, String namespace, String localName) {
+    public boolean elementNameMatches(Element element, String namespace, String localName) {
         return localName.equals(element.getLocalName()) && namespace.equals(element.getNamespaceURI());
     }
 
-    public static String text(Element dom, int length) {
+    public String text(Element dom, int length) {
         return text(dom, length, 0);
     }
 
-    public static String text(XMLObject xml, int prefixLength, int suffixLength) {
+    public String text(XMLObject xml, int prefixLength, int suffixLength) {
         final Element dom = xml.getDOM();
         if (dom == null) {
             return null;
@@ -184,7 +172,7 @@ public final class SamlUtils {
         return text(dom, prefixLength, suffixLength);
     }
 
-    public static String text(XMLObject xml, int length) {
+    public String text(XMLObject xml, int length) {
         return text(xml, length, 0);
     }
 
@@ -207,7 +195,7 @@ public final class SamlUtils {
         }
     }
 
-    public static String describeCredentials(List<Credential> credentials) {
+    public String describeCredentials(List<Credential> credentials) {
         return credentials.stream()
             .map(c -> {
                 if (c == null) {
@@ -229,7 +217,7 @@ public final class SamlUtils {
             .collect(Collectors.joining(","));
     }
 
-    public static Element toDomElement(XMLObject object) {
+    public Element toDomElement(XMLObject object) {
         try {
             return XMLObjectSupport.marshall(object);
         } catch (MarshallingException e) {
@@ -239,14 +227,14 @@ public final class SamlUtils {
 
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
-    public static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
+    public Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
         final TransformerFactory tfactory = TransformerFactory.newInstance();
         tfactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
         tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
         tfactory.setAttribute("indent-number", 2);
         Transformer transformer = tfactory.newTransformer();
-        transformer.setErrorListener(new ErrorListener());
+        transformer.setErrorListener(new SamlFactory.TransformerErrorListener());
         return transformer;
     }
 
@@ -288,16 +276,34 @@ public final class SamlUtils {
         // We ship our own xsd files for schema validation since we do not trust anyone else.
         dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaSource", resolveSchemaFilePaths(schemaFiles));
         DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
-        documentBuilder.setErrorHandler(new ErrorHandler());
+        documentBuilder.setErrorHandler(new SamlFactory.DocumentBuilderErrorHandler());
         return documentBuilder;
     }
+
+    public String getJavaAlorithmNameFromUri(String sigAlg) {
+        switch (sigAlg) {
+            case "http://www.w3.org/2000/09/xmldsig#dsa-sha1":
+                return "SHA1withDSA";
+            case "http://www.w3.org/2000/09/xmldsig#dsa-sha256":
+                return "SHA256withDSA";
+            case "http://www.w3.org/2000/09/xmldsig#rsa-sha1":
+                return "SHA1withRSA";
+            case "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256":
+                return "SHA256withRSA";
+            case "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256":
+                return "SHA256withECDSA";
+            default:
+                throw new IllegalArgumentException("Unsupported signing algorithm identifier: " + sigAlg);
+        }
+    }
+
 
     private static String[] resolveSchemaFilePaths(String[] relativePaths) {
 
         return Arrays.stream(relativePaths).
             map(file -> {
                 try {
-                    return SamlUtils.class.getResource(file).toURI().toString();
+                    return SamlFactory.class.getResource(file).toURI().toString();
                 } catch (URISyntaxException e) {
                     LOGGER.warn("Error resolving schema file path", e);
                     return null;
@@ -305,7 +311,7 @@ public final class SamlUtils {
             }).filter(Objects::nonNull).toArray(String[]::new);
     }
 
-    private static class ErrorHandler implements org.xml.sax.ErrorHandler {
+    private static class DocumentBuilderErrorHandler implements org.xml.sax.ErrorHandler {
         /**
          * Enabling schema validation with `setValidating(true)` in our
          * DocumentBuilderFactory requires that we provide our own
@@ -330,7 +336,7 @@ public final class SamlUtils {
         }
     }
 
-    private static class ErrorListener implements javax.xml.transform.ErrorListener {
+    private static class TransformerErrorListener implements javax.xml.transform.ErrorListener {
 
         @Override
         public void warning(TransformerException e) throws TransformerException {
@@ -350,3 +356,4 @@ public final class SamlUtils {
     }
 
 }
+

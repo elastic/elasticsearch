@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.opensaml.saml.saml2.core.Response;
 
 import java.io.IOException;
@@ -52,6 +52,7 @@ public class TransportSamlInitiateSingleSignOnAction
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
         final ThreadContext threadContext = threadPool.getThreadContext();
+        final SamlFactory samlFactory = new SamlFactory();
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         try {
             // TODO: Adjust this once secondary auth code is merged in master and use the authentication object of the user
@@ -66,11 +67,11 @@ public class TransportSamlInitiateSingleSignOnAction
                 return;
             }
             final UserServiceAuthentication user = buildUserFromAuthentication(serviceAccountAuthentication, sp);
-            final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
+            final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
                 Clock.systemUTC(), idp);
             final Response response = builder.build(user, null);
             listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
-                SamlUtils.getXmlContent(response),
+                samlFactory.getXmlContent(response),
                 user.getServiceProvider().getEntityId()));
         } catch (IOException e) {
             listener.onFailure(new IllegalArgumentException(e.getMessage()));

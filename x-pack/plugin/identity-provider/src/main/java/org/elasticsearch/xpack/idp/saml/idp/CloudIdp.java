@@ -49,13 +49,13 @@ public class CloudIdp implements SamlIdentityProvider {
         this.entityId = require(settings, IDP_ENTITY_ID);
         this.ssoEndpoints.put(SAML2_REDIRECT_BINDING_URI, require(settings, IDP_SSO_REDIRECT_ENDPOINT));
         if (settings.hasValue(IDP_SSO_POST_ENDPOINT.getKey())) {
-            this.ssoEndpoints.put(SAML2_POST_BINDING_URI, settings.get(IDP_SSO_POST_ENDPOINT.getKey()));
+            this.ssoEndpoints.put(SAML2_POST_BINDING_URI, IDP_SSO_POST_ENDPOINT.get(settings));
         }
         if (settings.hasValue(IDP_SLO_POST_ENDPOINT.getKey())) {
-            this.sloEndpoints.put(SAML2_POST_BINDING_URI, settings.get(IDP_SLO_POST_ENDPOINT.getKey()));
+            this.sloEndpoints.put(SAML2_POST_BINDING_URI, IDP_SLO_POST_ENDPOINT.get(settings));
         }
         if (settings.hasValue(IDP_SLO_REDIRECT_ENDPOINT.getKey())) {
-            this.sloEndpoints.put(SAML2_REDIRECT_BINDING_URI, settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
+            this.sloEndpoints.put(SAML2_REDIRECT_BINDING_URI, IDP_SLO_REDIRECT_ENDPOINT.get(settings));
         }
         this.signingCredential = buildSigningCredential(env, settings);
         this.registeredServiceProviders = gatherRegisteredServiceProviders();

@@ -21,19 +21,21 @@ import org.w3c.dom.Element;
 public class SamlObjectSigner {
 
     private final SamlIdentityProvider idp;
+    private final SamlFactory samlFactory;
 
-    public SamlObjectSigner(SamlIdentityProvider idp) {
+    public SamlObjectSigner(SamlFactory samlFactory, SamlIdentityProvider idp) {
+        this.samlFactory = samlFactory;
         this.idp = idp;
-        SamlUtils.initialize();
+        SamlInit.initialize();
     }
 
     public Element sign(SignableXMLObject object) {
-        final Signature signature = SamlUtils.buildObject(Signature.class, Signature.DEFAULT_ELEMENT_NAME);
+        final Signature signature = samlFactory.buildObject(Signature.class, Signature.DEFAULT_ELEMENT_NAME);
         signature.setSigningCredential(idp.getSigningCredential());
         signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
         signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
         object.setSignature(signature);
-        Element element = SamlUtils.toDomElement(object);
+        Element element = samlFactory.toDomElement(object);
         try {
             Signer.signObject(signature);
         } catch (SignatureException e) {

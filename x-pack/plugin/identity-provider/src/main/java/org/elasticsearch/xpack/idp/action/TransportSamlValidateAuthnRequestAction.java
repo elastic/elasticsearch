@@ -15,6 +15,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.idp.saml.authn.SamlAuthnRequestValidator;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
 public class TransportSamlValidateAuthnRequestAction extends HandledTransportAction<SamlValidateAuthnRequestRequest,
     SamlValidateAuthnRequestResponse> {
@@ -32,7 +33,8 @@ public class TransportSamlValidateAuthnRequestAction extends HandledTransportAct
     protected void doExecute(Task task, SamlValidateAuthnRequestRequest request,
                              ActionListener<SamlValidateAuthnRequestResponse> listener) {
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
-        final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(idp);
+        final SamlFactory samlFactory = new SamlFactory();
+        final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(samlFactory, idp);
         try {
             validator.processQueryString(request.getQueryString(), listener);
         } catch (Exception e) {

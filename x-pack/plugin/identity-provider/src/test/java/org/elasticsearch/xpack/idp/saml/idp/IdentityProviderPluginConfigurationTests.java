@@ -48,10 +48,10 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         CloudIdp idp = new CloudIdp(env, settings);
         Assert.assertThat(idp.getEntityId(), equalTo("urn:elastic:cloud:idp"));
-        Assert.assertThat(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), equalTo("https://idp.org/sso/redirect"));
-        Assert.assertThat(idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI), equalTo("https://idp.org/sso/post"));
-        Assert.assertThat(idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI), equalTo("https://idp.org/slo/redirect"));
-        Assert.assertThat(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI), equalTo("https://idp.org/slo/post"));
+        Assert.assertThat(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/sso/redirect"));
+        Assert.assertThat(idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/sso/post"));
+        Assert.assertThat(idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/slo/redirect"));
+        Assert.assertThat(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/slo/post"));
     }
 
     public void testInvalidSsoEndpoint() {
@@ -63,7 +63,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> new CloudIdp(env, settings));
         Assert.assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
-        Assert.assertThat(e.getMessage(), Matchers.containsString("Not a valid URI"));
+        Assert.assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
     }
 
     public void testCreateSigningCredentialFromPemFiles() throws Exception {

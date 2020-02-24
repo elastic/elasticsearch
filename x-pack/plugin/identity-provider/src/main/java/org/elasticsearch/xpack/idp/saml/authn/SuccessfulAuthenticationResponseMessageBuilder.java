@@ -11,12 +11,10 @@ import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.opensaml.core.xml.XMLObject;
-import org.opensaml.core.xml.XMLObjectBuilderFactory;
-import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -39,7 +37,6 @@ import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 
-import javax.xml.namespace.QName;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Set;
@@ -51,31 +48,31 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
     private final Clock clock;
     private final SamlIdentityProvider idp;
-    private final XMLObjectBuilderFactory builderFactory;
+    private final SamlFactory samlFactory;
 
-    public SuccessfulAuthenticationResponseMessageBuilder(Clock clock, SamlIdentityProvider idp) {
-        SamlUtils.initialize();
+    public SuccessfulAuthenticationResponseMessageBuilder(SamlFactory samlFactory, Clock clock, SamlIdentityProvider idp) {
+        SamlInit.initialize();
+        this.samlFactory = samlFactory;
         this.clock = clock;
         this.idp = idp;
-        this.builderFactory = XMLObjectProviderRegistrySupport.getBuilderFactory();
     }
 
     public Response build(UserServiceAuthentication user, @Nullable AuthnRequest request) {
         final DateTime now = now();
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
-        final Response response = object(Response.class, Response.DEFAULT_ELEMENT_NAME);
-        response.setID(SamlUtils.secureIdentifier());
+        final Response response = samlFactory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
+        response.setID(samlFactory.secureIdentifier());
         if (request != null) {
             response.setInResponseTo(request.getID());
         }
         response.setIssuer(buildIssuer());
         response.setIssueInstant(now);
         response.setStatus(buildStatus());
-        response.setDestination(serviceProvider.getAssertionConsumerService());
+        response.setDestination(serviceProvider.getAssertionConsumerService().toString());
 
-        final Assertion assertion = object(Assertion.class, Assertion.DEFAULT_ELEMENT_NAME);
-        assertion.setID(SamlUtils.secureIdentifier());
+        final Assertion assertion = samlFactory.object(Assertion.class, Assertion.DEFAULT_ELEMENT_NAME);
+        assertion.setID(samlFactory.secureIdentifier());
         assertion.setIssuer(buildIssuer());
         assertion.setIssueInstant(now);
         assertion.setConditions(buildConditions(now, serviceProvider));
@@ -91,13 +88,13 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     }
 
     private Conditions buildConditions(DateTime now, SamlServiceProvider serviceProvider) {
-        final Audience spAudience = object(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
+        final Audience spAudience = samlFactory.object(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
         spAudience.setAudienceURI(serviceProvider.getEntityId());
 
-        final AudienceRestriction restriction = object(AudienceRestriction.class, AudienceRestriction.DEFAULT_ELEMENT_NAME);
+        final AudienceRestriction restriction = samlFactory.object(AudienceRestriction.class, AudienceRestriction.DEFAULT_ELEMENT_NAME);
         restriction.getAudiences().add(spAudience);
 
-        final Conditions conditions = object(Conditions.class, Conditions.DEFAULT_ELEMENT_NAME);
+        final Conditions conditions = samlFactory.object(Conditions.class, Conditions.DEFAULT_ELEMENT_NAME);
         conditions.setNotBefore(now);
         conditions.setNotOnOrAfter(now.plus(serviceProvider.getAuthnExpiry()));
         conditions.getAudienceRestrictions().add(restriction);
@@ -111,23 +108,23 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     private Subject buildSubject(DateTime now, UserServiceAuthentication user, AuthnRequest request) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
-        final NameID nameID = object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
+        final NameID nameID = samlFactory.object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
         nameID.setFormat(NameIDType.PERSISTENT);
         nameID.setValue(user.getPrincipal());
 
-        final Subject subject = object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
+        final Subject subject = samlFactory.object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
         subject.setNameID(nameID);
 
-        final SubjectConfirmationData data = object(SubjectConfirmationData.class,
+        final SubjectConfirmationData data = samlFactory.object(SubjectConfirmationData.class,
             SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
         if (request != null) {
             data.setInResponseTo(request.getID());
         }
         data.setNotBefore(now);
         data.setNotOnOrAfter(now.plus(serviceProvider.getAuthnExpiry()));
-        data.setRecipient(serviceProvider.getAssertionConsumerService());
+        data.setRecipient(serviceProvider.getAssertionConsumerService().toString());
 
-        final SubjectConfirmation confirmation = object(SubjectConfirmation.class, SubjectConfirmation.DEFAULT_ELEMENT_NAME);
+        final SubjectConfirmation confirmation = samlFactory.object(SubjectConfirmation.class, SubjectConfirmation.DEFAULT_ELEMENT_NAME);
         confirmation.setMethod(SubjectConfirmation.METHOD_BEARER);
         confirmation.setSubjectConfirmationData(data);
 
@@ -137,12 +134,12 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
     private AuthnStatement buildAuthnStatement(DateTime now, UserServiceAuthentication user) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
-        final AuthnStatement statement = object(AuthnStatement.class, AuthnStatement.DEFAULT_ELEMENT_NAME);
+        final AuthnStatement statement = samlFactory.object(AuthnStatement.class, AuthnStatement.DEFAULT_ELEMENT_NAME);
         statement.setAuthnInstant(now);
         statement.setSessionNotOnOrAfter(now.plus(serviceProvider.getAuthnExpiry()));
 
-        final AuthnContext context = object(AuthnContext.class, AuthnContext.DEFAULT_ELEMENT_NAME);
-        final AuthnContextClassRef classRef = object(AuthnContextClassRef.class, AuthnContextClassRef.DEFAULT_ELEMENT_NAME);
+        final AuthnContext context = samlFactory.object(AuthnContext.class, AuthnContext.DEFAULT_ELEMENT_NAME);
+        final AuthnContextClassRef classRef = samlFactory.object(AuthnContextClassRef.class, AuthnContextClassRef.DEFAULT_ELEMENT_NAME);
         classRef.setAuthnContextClassRef(resolveAuthnClass(user.getAuthenticationMethods(), user.getNetworkControls()));
         context.setAuthnContextClassRef(classRef);
         statement.setAuthnContext(context);
@@ -174,7 +171,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
     private AttributeStatement buildAttributes(UserServiceAuthentication user) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
-        final AttributeStatement statement = object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
+        final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
         final Attribute groups = buildAttribute(serviceProvider.getAttributeNames().groups, "groups", user.getGroups());
         if (groups != null) {
             statement.getAttributes().add(groups);
@@ -189,12 +186,12 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (values.isEmpty()) {
             return null;
         }
-        final Attribute attribute = object(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
+        final Attribute attribute = samlFactory.object(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
         attribute.setName(formalName);
         attribute.setFriendlyName(friendlyName);
         attribute.setNameFormat(Attribute.URI_REFERENCE);
         for (String val : values) {
-            final XSString string = object(XSString.class, AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
+            final XSString string = samlFactory.object(XSString.class, AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
             string.setValue(val);
             attribute.getAttributeValues().add(string);
         }
@@ -202,37 +199,18 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     }
 
     private Issuer buildIssuer() {
-        final Issuer issuer = object(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
+        final Issuer issuer = samlFactory.object(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(this.idp.getEntityId());
         return issuer;
     }
 
     private Status buildStatus() {
-        final StatusCode code = object(StatusCode.class, StatusCode.DEFAULT_ELEMENT_NAME);
+        final StatusCode code = samlFactory.object(StatusCode.class, StatusCode.DEFAULT_ELEMENT_NAME);
         code.setValue(StatusCode.SUCCESS);
 
-        final Status status = object(Status.class, Status.DEFAULT_ELEMENT_NAME);
+        final Status status = samlFactory.object(Status.class, Status.DEFAULT_ELEMENT_NAME);
         status.setStatusCode(code);
 
         return status;
-    }
-
-    public <T extends XMLObject> T object(Class<T> type, QName elementName) {
-        final XMLObject obj = builderFactory.getBuilder(elementName).buildObject(elementName);
-        return cast(type, elementName, obj);
-    }
-
-    public <T extends XMLObject> T object(Class<T> type, QName elementName, QName schemaType) {
-        final XMLObject obj = builderFactory.getBuilder(schemaType).buildObject(elementName, schemaType);
-        return cast(type, elementName, obj);
-    }
-
-    private <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
-        if (type.isInstance(obj)) {
-            return type.cast(obj);
-        } else {
-            throw new IllegalArgumentException("Object for element " + elementName.getLocalPart() + " is of type " + obj.getClass()
-                + " not " + type);
-        }
     }
 }

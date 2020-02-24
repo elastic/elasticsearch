@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.idp.saml.idp;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.opensaml.security.x509.X509Credential;
 
-
 /**
  * SAML 2.0 configuration information about this IdP
  */

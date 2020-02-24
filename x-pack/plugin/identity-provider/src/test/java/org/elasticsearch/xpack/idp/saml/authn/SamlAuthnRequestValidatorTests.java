@@ -12,7 +12,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -28,6 +29,7 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
 import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -46,27 +48,28 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
 
     private SamlAuthnRequestValidator validator;
     private SamlIdentityProvider idp;
+    private SamlFactory samlFactory = new SamlFactory();
 
     @Before
     public void setupValidator() throws Exception {
-        SamlUtils.initialize();
+        SamlInit.initialize();
         idp = Mockito.mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn("https://cloud.elastic.co/saml/init");
         final SamlServiceProvider sp1 = Mockito.mock(SamlServiceProvider.class);
         when(sp1.getEntityId()).thenReturn("https://sp1.kibana.org");
-        when(sp1.getAssertionConsumerService()).thenReturn("https://sp1.kibana.org/saml/acs");
+        when(sp1.getAssertionConsumerService()).thenReturn(new URL("https://sp1.kibana.org/saml/acs"));
         when(sp1.getNameIDPolicyFormat()).thenReturn(TRANSIENT);
         when(sp1.shouldSignAuthnRequests()).thenReturn(false);
         final SamlServiceProvider sp2 = Mockito.mock(SamlServiceProvider.class);
         when(sp2.getEntityId()).thenReturn("https://sp2.kibana.org");
-        when(sp2.getAssertionConsumerService()).thenReturn("https://sp2.kibana.org/saml/acs");
+        when(sp2.getAssertionConsumerService()).thenReturn(new URL("https://sp2.kibana.org/saml/acs"));
         when(sp2.getNameIDPolicyFormat()).thenReturn(PERSISTENT);
         when(sp2.getSigningCredential()).thenReturn(readCredentials("RSA", 4096));
         when(sp2.shouldSignAuthnRequests()).thenReturn(true);
         when(idp.getRegisteredServiceProvider("https://sp1.kibana.org")).thenReturn(sp1);
         when(idp.getRegisteredServiceProvider("https://sp2.kibana.org")).thenReturn(sp2);
-        validator = new SamlAuthnRequestValidator(idp);
+        validator = new SamlAuthnRequestValidator(samlFactory, idp);
     }
 
     public void testValidAuthnRequest() throws Exception {
@@ -239,12 +242,12 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
     }
 
     private AuthnRequest buildAuthnRequest(String entityId, String acs, String destination, String nameIdFormat) {
-        final Issuer issuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
+        final Issuer issuer = samlFactory.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(entityId);
-        final NameIDPolicy nameIDPolicy = SamlUtils.buildObject(NameIDPolicy.class, NameIDPolicy.DEFAULT_ELEMENT_NAME);
+        final NameIDPolicy nameIDPolicy = samlFactory.buildObject(NameIDPolicy.class, NameIDPolicy.DEFAULT_ELEMENT_NAME);
         nameIDPolicy.setFormat(nameIdFormat);
-        final AuthnRequest authnRequest = SamlUtils.buildObject(AuthnRequest.class, AuthnRequest.DEFAULT_ELEMENT_NAME);
-        authnRequest.setID(SamlUtils.secureIdentifier());
+        final AuthnRequest authnRequest = samlFactory.buildObject(AuthnRequest.class, AuthnRequest.DEFAULT_ELEMENT_NAME);
+        authnRequest.setID(samlFactory.secureIdentifier());
         authnRequest.setIssuer(issuer);
         authnRequest.setIssueInstant(now());
         authnRequest.setAssertionConsumerServiceURL(acs);
@@ -289,7 +292,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         Deflater deflater = new Deflater(Deflater.DEFLATED, true);
         try (ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
              DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)) {
-            String messageStr = SamlUtils.toString(XMLObjectSupport.marshall(message), false);
+            String messageStr = samlFactory.toString(XMLObjectSupport.marshall(message), false);
             deflaterStream.write(messageStr.getBytes(StandardCharsets.UTF_8));
             deflaterStream.finish();
             return base64Encode(bytesOut.toByteArray());

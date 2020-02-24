@@ -13,11 +13,14 @@ import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+
 
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityid;
-    private final String assertionConsumerService;
+    private final URL assertionConsumerService;
     private final ReadableDuration authnExpiry;
     private final String nameIdPolicyFormat;
     private final X509Credential signingCredential;
@@ -32,7 +35,11 @@ public class CloudServiceProvider implements SamlServiceProvider {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
         this.entityid = entityId;
-        this.assertionConsumerService = assertionConsumerService;
+        try {
+            this.assertionConsumerService = new URL(assertionConsumerService);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid URL for Assertion Consumer Service", e);
+        }
         this.nameIdPolicyFormat = nameIdPolicyFormat;
         this.authnExpiry = Duration.standardMinutes(5);
         this.signingCredential = signingCredential;
@@ -53,7 +60,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public String getAssertionConsumerService() {
+    public URL getAssertionConsumerService() {
         return assertionConsumerService;
     }
 

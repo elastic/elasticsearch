@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
+import java.net.URL;
+
 /**
  * SAML 2.0 configuration information about a specific service provider
  */
@@ -19,7 +21,7 @@ public interface SamlServiceProvider {
 
     String getNameIDPolicyFormat();
 
-    String getAssertionConsumerService();
+    URL getAssertionConsumerService();
 
     ReadableDuration getAuthnExpiry();
 

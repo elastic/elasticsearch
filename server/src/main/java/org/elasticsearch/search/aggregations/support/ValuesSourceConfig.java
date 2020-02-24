@@ -209,12 +209,12 @@ public class ValuesSourceConfig {
         return this.scriptValueType;
     }
 
-    public ValuesSourceConfig format(final DocValueFormat format) {
+    private ValuesSourceConfig format(final DocValueFormat format) {
         this.format = format;
         return this;
     }
 
-    public ValuesSourceConfig missing(final Object missing) {
+    private ValuesSourceConfig missing(final Object missing) {
         this.missing = missing;
         return this;
     }
@@ -223,7 +223,7 @@ public class ValuesSourceConfig {
         return this.missing;
     }
 
-    public ValuesSourceConfig timezone(final ZoneId timeZone) {
+    private ValuesSourceConfig timezone(final ZoneId timeZone) {
         this.timeZone = timeZone;
         return this;
     }

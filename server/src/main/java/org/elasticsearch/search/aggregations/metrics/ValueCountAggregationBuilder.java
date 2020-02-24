@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -50,6 +51,10 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new ValueCountAggregationBuilder(aggregationName), null);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        ValueCountAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     public ValueCountAggregationBuilder(String name) {

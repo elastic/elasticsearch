@@ -54,7 +54,7 @@ public class ValuesSourceRegistry {
      * different worker threads.  Thus we want to optimize the read case to be thread safe and fast, which the immutable
      * collections do well.  Using immutable collections requires a copy on write mechanic, thus the somewhat non-intuitive
      * implementation of this method.
-     * @param aggregationName The name of the family of aggregations, typically found via ValuesSourceAggregationBuilder.getType()
+     * @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
      * @param appliesTo A predicate which accepts the resolved {@link ValuesSourceType} and decides if the given aggregator can be applied
      *                  to that type.
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
@@ -75,7 +75,7 @@ public class ValuesSourceRegistry {
     /**
      * Register a ValuesSource to Aggregator mapping.  This version provides a convenience method for mappings that only apply to a single
      * {@link ValuesSourceType}, to allow passing in the type and auto-wrapping it in a predicate
-     *  @param aggregationName The name of the family of aggregations, typically found via ValuesSourceAggregationBuilder.getType()
+     *  @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
      * @param valuesSourceType The ValuesSourceType this mapping applies to.
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
      *                           from the aggregation standard set of parameters
@@ -87,7 +87,7 @@ public class ValuesSourceRegistry {
     /**
      * Register a ValuesSource to Aggregator mapping.  This version provides a convenience method for mappings that only apply to a known
      * list of {@link ValuesSourceType}, to allow passing in the type and auto-wrapping it in a predicate
-     *  @param aggregationName The name of the family of aggregations, typically found via ValuesSourceAggregationBuilder.getType()
+     *  @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
      * @param valuesSourceTypes The ValuesSourceTypes this mapping applies to.
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
      *                           from the aggregation standard set of parameters
@@ -101,6 +101,19 @@ public class ValuesSourceRegistry {
             }
             return false;
         }, aggregatorSupplier);
+    }
+
+    /**
+     * Register an aggregator that applies to any values source type.  This is a convenience method for aggregations that do not care at all
+     * about the types of their inputs.  Aggregations using this version of registration should not make any other registrations, as the
+     * aggregator registered using this function will be applied in all cases.
+     *
+     * @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
+     * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
+     *                           from the aggregation standard set of parameters.
+     */
+    public void registerAny(String aggregationName, AggregatorSupplier aggregatorSupplier) {
+        register(aggregationName, (ignored) -> true, aggregatorSupplier);
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,

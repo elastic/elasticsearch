@@ -177,17 +177,20 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public void updateState(DataFrameAnalyticsState state, @Nullable String reason) {
-        DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(state, getAllocationId(), reason);
+    public void setFailed(String reason) {
+        DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED,
+                getAllocationId(), reason);
         updatePersistentTaskState(
             newTaskState,
             ActionListener.wrap(
                 updatedTask -> {
-                    auditor.info(getParams().getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE, state));
-                    LOGGER.info("[{}] Successfully updated task state to [{}] with reason [{}]", getParams().getId(), state, reason);
+                    String message = Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON,
+                            DataFrameAnalyticsState.FAILED, reason);
+                    auditor.info(getParams().getId(), message);
+                    LOGGER.info("[{}] {}", getParams().getId(), message);
                 },
                 e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
-                    getParams().getId(), state, reason), e)
+                    getParams().getId(), DataFrameAnalyticsState.FAILED, reason), e)
             )
         );
     }

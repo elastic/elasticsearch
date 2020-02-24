@@ -1382,6 +1382,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getError(), equalTo("alias [" + alias + "] missing"));
+            assertThat(getAliasesResponse.getException(), nullValue());
         }
         createIndex(index, Settings.EMPTY);
         client().performRequest(new Request(HttpPut.METHOD_NAME, index + "/_alias/" + alias));
@@ -1389,7 +1390,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index");
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
+            assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(getAliasesResponse.getError(), nullValue());
             assertThat(getAliasesResponse.getException().getMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
@@ -1397,6 +1400,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index").aliases(alias);
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
+            assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
@@ -1405,13 +1409,17 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices("non_existent_index*");
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
+            assertThat(getAliasesResponse.status(), equalTo(RestStatus.OK));
             assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
+            assertThat(getAliasesResponse.getException(), nullValue());
+            assertThat(getAliasesResponse.getError(), nullValue());
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index).aliases(alias, "non_existent_alias");
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(getAliasesResponse.getError(), equalTo("alias [non_existent_alias] missing"));
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
             assertThat(getAliasesResponse.getAliases().get(index).size(), equalTo(1));
@@ -1430,6 +1438,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
              }
             }
             */
+        }
+        {
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest().aliases("non_existent_alias*");
+            GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
+                highLevelClient().indices()::getAliasAsync);
+            assertThat(getAliasesResponse.status(), equalTo(RestStatus.OK));
+            assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
         }
     }
 

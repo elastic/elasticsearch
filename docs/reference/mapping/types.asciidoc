@@ -7,7 +7,7 @@ document:
 [float]
 === Core datatypes
 
-string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard`>>
+string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard_keyword,`wildcard-keyword`>>
 <<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::       `date`
 <<date_nanos>>:: `date_nanos`

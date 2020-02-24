@@ -136,7 +136,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                     (length < rangeSize.getBytes()) ? lessThanOrEqualTo(length) : lessThanOrEqualTo(rangeSize.getBytes()));
 
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
-                assertThat(inputStats.getDirectReadNanoseconds().longValue(), equalTo(0L));
+                assertThat(inputStats.getDirectBytesReadNanoseconds().longValue(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -177,7 +177,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                     } else {
                         assertCounter(inputStats.getDirectBytesRead(), expectedTotal, expectedCount, minRead, maxRead);
                     }
-                    assertThat(inputStats.getDirectReadNanoseconds().longValue(), equalTo(currentCount * FAKE_CLOCK_ADVANCE_NANOS));
+                    assertThat(inputStats.getDirectBytesReadNanoseconds().longValue(), equalTo(currentCount * FAKE_CLOCK_ADVANCE_NANOS));
                 }
 
                 // cache file has never been written nor read
@@ -235,7 +235,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
                 assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
-                assertThat(inputStats.getDirectReadNanoseconds().longValue(), equalTo(0L));
+                assertThat(inputStats.getDirectBytesReadNanoseconds().longValue(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -283,7 +283,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
                 assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
-                assertThat(inputStats.getDirectReadNanoseconds().longValue(), equalTo(0L));
+                assertThat(inputStats.getDirectBytesReadNanoseconds().longValue(), equalTo(0L));
 
             } catch (IOException e) {
                 throw new AssertionError(e);

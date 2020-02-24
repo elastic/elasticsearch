@@ -39,7 +39,7 @@ public class IndexInputStats {
     private final Counter nonContiguousReads = new Counter();
 
     private final Counter directBytesRead = new Counter();
-    private final LongAdder directReadNanoseconds = new LongAdder();
+    private final LongAdder directBytesReadNanoseconds = new LongAdder();
 
     private final Counter cachedBytesRead = new Counter();
     private final Counter cachedBytesWritten = new Counter();
@@ -78,7 +78,7 @@ public class IndexInputStats {
 
     public void addDirectBytesRead(int bytesRead, long nanoseconds) {
         directBytesRead.add(bytesRead);
-        directReadNanoseconds.add(nanoseconds);
+        directBytesReadNanoseconds.add(nanoseconds);
     }
 
     public void incrementBytesRead(long previousPosition, long currentPosition, int bytesRead) {
@@ -151,8 +151,8 @@ public class IndexInputStats {
         return directBytesRead;
     }
 
-    LongAdder getDirectReadNanoseconds() {
-        return directReadNanoseconds;
+    LongAdder getDirectBytesReadNanoseconds() {
+        return directBytesReadNanoseconds;
     }
 
     public Counter getCachedBytesRead() {

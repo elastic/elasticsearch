@@ -10,8 +10,6 @@ dependencies {
   testCompile project(':client:rest-high-level')
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
 forbiddenPatterns {
   exclude '**/system_key'
 }

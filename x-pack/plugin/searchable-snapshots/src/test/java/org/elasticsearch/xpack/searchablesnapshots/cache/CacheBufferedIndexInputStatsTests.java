@@ -291,31 +291,19 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         });
     }
 
-    /**
-     * Creates a fake clock which advances 100ms every time is read.
-     */
-    private static LongSupplier getFakeClock() {
-        final AtomicLong fakeClock = new AtomicLong();
-        return () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
-    }
-
     private static void executeTestCase(CacheService cacheService, TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
-        executeTestCase(cacheService, randomAlphaOfLength(10), fileContent, getFakeClock(), test);
-    }
-
-    private static void executeTestCase(CacheService cacheService, String fileName, byte[] fileContent,
-                                        LongSupplier currentTimeNanosSupplier,
-                                        TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
+        String fileName = randomAlphaOfLength(10);
 
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
+        final AtomicLong fakeClock = new AtomicLong();
 
         try (CacheService ignored = cacheService;
              Directory directory = newDirectory();
              CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId,
-                 currentTimeNanosSupplier)
+                 () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS))
         ) {
             cacheService.start();
             assertThat(cacheDirectory.getStats(fileName), nullValue());

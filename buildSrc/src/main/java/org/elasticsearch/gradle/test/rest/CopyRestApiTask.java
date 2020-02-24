@@ -111,14 +111,14 @@ public class CopyRestApiTask extends DefaultTask {
         Project project = getProject();
         // always copy the core specs if the task executes
         if (BuildParams.isInternal()) {
-            logger.info("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
+            logger.debug("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(coreConfig.getSingleFile());
                 c.into(getOutputDir());
                 c.include(corePatternSet.getIncludes());
             });
         } else {
-            logger.info(
+            logger.debug(
                 "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
                 project.getPath(),
                 VersionProperties.getElasticsearch()
@@ -131,7 +131,7 @@ public class CopyRestApiTask extends DefaultTask {
         }
         // only copy x-pack specs if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
-            logger.info("X-pack rest specs for project [{}] will be copied to the test resources.", project.getPath());
+            logger.debug("X-pack rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());

@@ -147,7 +147,7 @@ public class BuildParams {
     }
 
     public static class MutableBuildParams {
-        public static MutableBuildParams INSTANCE = new MutableBuildParams();
+        private static MutableBuildParams INSTANCE = new MutableBuildParams();
 
         private MutableBuildParams() {}
 

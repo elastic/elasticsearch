@@ -107,7 +107,7 @@ public class CopyRestTestsTask extends DefaultTask {
         // only copy core tests if explicitly instructed
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
-                logger.info("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
+                logger.debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
                     c.from(coreConfig.getSingleFile());
                     c.into(getOutputDir());
@@ -115,7 +115,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 });
 
             } else {
-                logger.info(
+                logger.debug(
                     "Rest tests for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
                     project.getPath(),
                     VersionProperties.getElasticsearch()
@@ -129,7 +129,7 @@ public class CopyRestTestsTask extends DefaultTask {
         }
         // only copy x-pack tests if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
-            logger.info("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
+            logger.debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());

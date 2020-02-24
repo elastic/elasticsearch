@@ -164,30 +164,9 @@ If `true`, the request does *not* return an error if a wildcard expression or
 This parameter also applies to <<indices-aliases,index aliases>> that point to a
 missing or closed index.
 
-`expand_wildcards`:::
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
---
-(Optional, string)
-Controls what kind of indices that wildcard
-expressions can expand to. Valid values are:
-
-`all`::
-Expand to open and closed indices.
-
-`open`::
-Expand only to open indices.
-
-`closed`::
-Expand only to closed indices.
-
-`hidden`::
-Expansion of wildcards will include hidden indices.
-
-`none`::
-Wildcard expressions are not accepted.
-
 Defaults to `open`.
---
 
 `ignore_unavailable`:::
 (Optional, boolean) If `true`, documents from missing or closed indices are not
@@ -200,12 +179,12 @@ expressions are supported. You can specify multiple indices as an array.
 
 `preference`:::
 (Optional, string)
-Node or shard used to perform the search.
+Node or shard used to perform the search. Random by default.
 
 `request_cache`:::
 (Optional, boolean)
-If `true`, the request cache can be used for this search.
-See <<shard-request-cache>>.
+If `true`, the request cache can be used for this search. Defaults to
+index-level settings. See <<shard-request-cache>>.
 
 `routing`:::
 (Optional, string)

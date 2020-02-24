@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -133,18 +134,25 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
         if (config.isTargetTypeSupported(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
-        List<Double> inferenceResults = this.models.stream().map(model -> {
-            InferenceResults results = model.infer(fields, NullInferenceConfig.INSTANCE);
-            assert results instanceof SingleValueInferenceResults;
-            return ((SingleValueInferenceResults)results).value();
-        }).collect(Collectors.toList());
+        List<Double> inferenceResults = new ArrayList<>(this.models.size());
+        List<Map<String, Double>> featureInfluence = new ArrayList<>();
+        NullInferenceConfig subModelInferenceConfig = new NullInferenceConfig(config.requestingImportance());
+        this.models.forEach(model -> {
+            InferenceResults result = model.infer(fields, subModelInferenceConfig, Collections.emptyMap());
+            assert result instanceof SingleValueInferenceResults;
+            SingleValueInferenceResults inferenceResult = (SingleValueInferenceResults) result;
+            inferenceResults.add(inferenceResult.value());
+            if (config.requestingImportance()) {
+                featureInfluence.add(inferenceResult.getFeatureImportance());
+            }
+        });
         List<Double> processed = outputAggregator.processValues(inferenceResults);
-        return buildResults(processed, config);
+        return buildResults(processed, featureInfluence, config, featureDecoderMap);
     }
 
     @Override
@@ -152,14 +160,20 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return targetType;
     }
 
-    private InferenceResults buildResults(List<Double> processedInferences, InferenceConfig config) {
+    private InferenceResults buildResults(List<Double> processedInferences,
+                                          List<Map<String, Double>> featureInfluence,
+                                          InferenceConfig config,
+                                          Map<String, String> featureDecoderMap) {
         // Indicates that the config is useless and the caller just wants the raw value
         if (config instanceof NullInferenceConfig) {
-            return new RawInferenceResults(outputAggregator.aggregate(processedInferences));
+            return new RawInferenceResults(outputAggregator.aggregate(processedInferences),
+                InferenceHelpers.decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)));
         }
         switch(targetType) {
             case REGRESSION:
-                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences), config);
+                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences),
+                    config,
+                    InferenceHelpers.decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)));
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
                 assert classificationWeights == null || processedInferences.size() == classificationWeights.length;
@@ -172,6 +186,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 return new ClassificationInferenceResults((double)topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),
                     topClasses.v2(),
+                    InferenceHelpers.decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)),
                     config);
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
@@ -207,7 +222,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
+        if (featureNames.isEmpty() == false) {
+            builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
+        }
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
         NamedXContentObjectHelper.writeNamedObjects(builder,
             params,
@@ -291,6 +308,27 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return (long)Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
     }
 
+    @Override
+    public boolean supportsFeatureImportance() {
+        return models.stream().allMatch(TrainedModel::supportsFeatureImportance);
+    }
+
+    Map<String, Double> featureImportance(Map<String, Object> fields) {
+        return featureImportance(fields, Collections.emptyMap());
+    }
+
+    @Override
+    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+        Map<String, Double> collapsed = mergeFeatureImportances(models.stream()
+            .map(trainedModel -> trainedModel.featureImportance(fields, Collections.emptyMap()))
+            .collect(Collectors.toList()));
+        return InferenceHelpers.decodeFeatureImportances(featureDecoder, collapsed);
+    }
+
+    private static Map<String, Double> mergeFeatureImportances(List<Map<String, Double>> featureImportances) {
+        return featureImportances.stream().collect(HashMap::new, (a, b) -> b.forEach((k, v) -> a.merge(k, v, Double::sum)), Map::putAll);
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -327,8 +365,9 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         private double[] classificationWeights;
         private boolean modelsAreOrdered;
 
-        private Builder (boolean modelsAreOrdered) {
+        private Builder(boolean modelsAreOrdered) {
             this.modelsAreOrdered = modelsAreOrdered;
+            this.featureNames = Collections.emptyList();
         }
 
         private static Builder builderForParser() {

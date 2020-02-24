@@ -79,7 +79,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -136,6 +136,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.positiveTimeSetting("search.max_keep_alive", timeValueHours(24), Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("search.keep_alive_interval", timeValueMinutes(1), Property.NodeScope);
+    public static final Setting<Boolean> ALLOW_EXPENSIVE_QUERIES =
+        Setting.boolSetting("search.allow_expensive_queries", true, Property.NodeScope, Property.Dynamic);
 
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
@@ -372,6 +374,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (rewritten.canReturnNullResponseIfMatchNoDocs()
                             && canRewriteToMatchNone(rewritten.source())
                             && rewritten.source().query() instanceof MatchNoneQueryBuilder) {
+                        assert request.scroll() == null : "must always create search context for scroll requests";
                         onMatchNoDocs(context, listener);
                     } else {
                         // fork the execution in the search thread pool and wraps the searcher
@@ -693,22 +696,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DefaultSearchContext createSearchContext(SearchRewriteContext rewriteContext, TimeValue timeout) {
-        final ShardSearchRequest request = rewriteContext.request;
-        final Engine.Searcher searcher = rewriteContext.searcher;
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
-                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
         boolean success = false;
         try {
+            final ShardSearchRequest request = rewriteContext.request;
+            final Engine.Searcher searcher = rewriteContext.searcher;
+            IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(request.shardId().getId());
+            SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
+                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
             DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
                 searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout, fetchPhase);
             success = true;
             return searchContext;
         } finally {
             if (success == false) {
-                // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
-                // leak a searcher and this can have severe implications (unable to obtain shard lock exceptions).
+                // we handle the case where `IndicesService#indexServiceSafe`or `IndexService#getShard`, or the DefaultSearchContext
+                // constructor throws an exception since we would otherwise leak a searcher and this can have severe implications
+                // (unable to obtain shard lock exceptions).
                 IOUtils.closeWhileHandlingException(rewriteContext.searcher);
             }
         }
@@ -879,11 +883,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            List<DocValueFieldsContext.FieldAndFormat> docValueFields = new ArrayList<>();
-            for (DocValueFieldsContext.FieldAndFormat format : source.docValueFields()) {
+            List<FetchDocValuesContext.FieldAndFormat> docValueFields = new ArrayList<>();
+            for (FetchDocValuesContext.FieldAndFormat format : source.docValueFields()) {
                 Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(format.field);
                 for (String fieldName: fieldNames) {
-                   docValueFields.add(new DocValueFieldsContext.FieldAndFormat(fieldName, format.format));
+                   docValueFields.add(new FetchDocValuesContext.FieldAndFormat(fieldName, format.format));
                 }
             }
             int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
@@ -893,7 +897,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         + "] but was [" + docValueFields.size() + "]. This limit can be set by changing the ["
                         + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
             }
-            context.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
+            context.docValuesContext(new FetchDocValuesContext(docValueFields));
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

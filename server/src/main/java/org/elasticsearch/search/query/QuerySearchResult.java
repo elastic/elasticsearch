@@ -71,7 +71,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isNull = in.readBoolean();
         } else {
             isNull = false;
@@ -92,13 +92,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.isNull = isNull;
     }
 
-    private static final QuerySearchResult nullInstance = new QuerySearchResult(true);
-
     /**
      * Returns an instance that contains no response.
      */
     public static QuerySearchResult nullInstance() {
-        return nullInstance;
+        return new QuerySearchResult(true);
     }
 
     /**
@@ -342,7 +340,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(isNull);
         }
         if (isNull == false) {

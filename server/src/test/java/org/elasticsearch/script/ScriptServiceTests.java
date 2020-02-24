@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -61,7 +60,6 @@ public class ScriptServiceTests extends ESTestCase {
     public void setup() throws IOException {
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "10000/1m")
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
         for (int i = 0; i < 20; ++i) {
@@ -96,32 +94,6 @@ public class ScriptServiceTests extends ESTestCase {
         };
         clusterSettings = new ClusterSettings(finalSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         scriptService.registerClusterSettingsListeners(clusterSettings);
-    }
-
-    // even though circuit breaking is allowed to be configured per minute, we actually weigh this over five minutes
-    // simply by multiplying by five, so even setting it to one, requires five compilations to break
-    public void testCompilationCircuitBreaking() throws Exception {
-        buildScriptService(Settings.EMPTY);
-        scriptService.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
-        scriptService.checkCompilationLimit(); // should pass
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Tuple.tuple(2, TimeValue.timeValueMinutes(1)));
-        scriptService.checkCompilationLimit(); // should pass
-        scriptService.checkCompilationLimit(); // should pass
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        int count = randomIntBetween(5, 50);
-        scriptService.setMaxCompilationRate(Tuple.tuple(count, TimeValue.timeValueMinutes(1)));
-        for (int i = 0; i < count; i++) {
-            scriptService.checkCompilationLimit(); // should pass
-        }
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Tuple.tuple(0, TimeValue.timeValueMinutes(1)));
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationRate(Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)));
-        int largeLimit = randomIntBetween(1000, 10000);
-        for (int i = 0; i < largeLimit; i++) {
-            scriptService.checkCompilationLimit();
-        }
     }
 
     public void testMaxCompilationRateSetting() throws Exception {

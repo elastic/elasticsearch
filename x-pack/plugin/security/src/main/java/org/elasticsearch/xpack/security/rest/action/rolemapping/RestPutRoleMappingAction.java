@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -22,6 +19,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -33,17 +32,22 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutRoleMappingAction.class));
-
-    public RestPutRoleMappingAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestPutRoleMappingAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/role_mapping/{name}", this,
-            POST, "/_xpack/security/role_mapping/{name}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_security/role_mapping/{name}", this,
-            PUT, "/_xpack/security/role_mapping/{name}", deprecationLogger);
+        return List.of(
+            new ReplacedRoute(POST, "/_security/role_mapping/{name}", POST, "/_xpack/security/role_mapping/{name}"),
+            new ReplacedRoute(PUT, "/_security/role_mapping/{name}", PUT, "/_xpack/security/role_mapping/{name}")
+        );
     }
 
     @Override

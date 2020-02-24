@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -38,6 +37,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -51,14 +51,16 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
             new ParseField("secure_settings_password"));
     }
 
-    public RestReloadSecureSettingsAction(RestController controller) {
-        controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
-        controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
-    }
-
     @Override
     public String getName() {
         return "nodes_reload_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_nodes/reload_secure_settings"),
+            new Route(POST, "/_nodes/{nodeId}/reload_secure_settings"));
     }
 
     @Override

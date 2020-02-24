@@ -18,6 +18,7 @@
  */
 
 
+import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -33,6 +34,7 @@ import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
+  id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
   id "com.diffplug.gradle.spotless" version "3.24.2" apply false
 }
@@ -215,8 +217,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/51875" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -512,7 +514,9 @@ gradle.projectsEvaluated {
 
 allprojects {
   tasks.register('resolveAllDependencies') {
-    dependsOn tasks.matching { it.name == "pullFixture" }
+    if (project.path.contains("fixture")) {
+      dependsOn tasks.withType(ComposePull)
+    }
     doLast {
       configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
     }

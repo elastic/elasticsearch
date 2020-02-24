@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -210,6 +211,10 @@ public class CompositeRolesStore {
         }
         if (XPackSecurityUser.is(user)) {
             roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            return;
+        }
+        if (AsyncSearchUser.is(user)) {
+            roleActionListener.onResponse(AsyncSearchUser.ROLE);
             return;
         }
 

@@ -348,16 +348,20 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
                 builder.field("count", count);
                 builder.field("sum", total);
                 builder.field("min", min);
                 builder.field("max", max);
+                innerToXContent(builder, params);
             }
             builder.endObject();
             return builder;
+        }
+
+        void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         }
 
         public long getCount() {
@@ -418,26 +422,25 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("count", getCount());
-                builder.field("sum", getTotal());
-                builder.field("min", getMin());
-                builder.field("max", getMax());
-                builder.field("time", TimeValue.timeValueNanos(totalNanoseconds));
-                builder.field("time_in_nanos", totalNanoseconds);
+        void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            if (builder.humanReadable()) {
+                builder.field("time", TimeValue.timeValueNanos(totalNanoseconds).toString());
             }
-            builder.endObject();
-            return builder;
+            builder.field("time_in_nanos", totalNanoseconds);
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-            TimedCounter that = (TimedCounter) o;
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            if (super.equals(other) == false) {
+                return false;
+            }
+            TimedCounter that = (TimedCounter) other;
             return totalNanoseconds == that.totalNanoseconds;
         }
 

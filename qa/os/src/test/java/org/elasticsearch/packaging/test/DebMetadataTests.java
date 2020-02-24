@@ -24,6 +24,7 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.util.regex.Pattern;
 
@@ -37,6 +38,7 @@ public class DebMetadataTests extends PackagingTestCase {
         assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
+    @Ignore // awaits fix: https://github.com/elastic/elasticsearch/issues/52554
     public void test05CheckLintian() {
         String extraArgs = "";
         if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {

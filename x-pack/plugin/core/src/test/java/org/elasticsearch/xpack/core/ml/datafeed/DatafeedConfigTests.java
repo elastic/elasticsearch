@@ -584,6 +584,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 equalTo(7 * millisInDay + 1));
     }
 
+    public void testBuild_GivenDateHistogramWithMoreThanCalendarWeek() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> createDatafeedWithDateHistogram("month"));
+
+        assertThat(e.getMessage(), containsString("When specifying a date_histogram calendar interval [month]"));
+    }
+
     public void testDefaultChunkingConfig_GivenAggregations() {
         assertThat(createDatafeedWithDateHistogram("1s").getChunkingConfig(),
                 equalTo(ChunkingConfig.newManual(TimeValue.timeValueSeconds(1000))));

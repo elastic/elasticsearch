@@ -94,14 +94,11 @@ public class ValuesSourceConfig {
                  * pattern.  In this case, we're going to end up using the EMPTY variant of the ValuesSource, and possibly applying a user
                  * specified missing value.
                  */
-                // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
                 if (userValueTypeHint != null) {
                     valuesSourceType = userValueTypeHint.getValuesSourceType();
                 } else {
                     valuesSourceType = defaultValueSourceType;
                 }
-                // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.
-                // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
                 unmapped = true;
                 if (userValueTypeHint != null) {
                     // todo do we really need this for unmapped?

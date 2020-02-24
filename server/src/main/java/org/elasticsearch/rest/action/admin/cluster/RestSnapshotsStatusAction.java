@@ -29,8 +29,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.snapshotsStatusRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -41,10 +39,10 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_snapshot/{repository}/{snapshot}/_status"),
             new Route(GET, "/_snapshot/{repository}/_status"),
-            new Route(GET, "/_snapshot/_status")));
+            new Route(GET, "/_snapshot/_status"));
     }
 
     @Override

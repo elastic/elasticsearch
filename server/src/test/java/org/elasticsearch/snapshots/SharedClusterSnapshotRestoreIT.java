@@ -125,7 +125,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1607,7 +1607,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get());
         expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
                 .prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getSnapshots("test-repo"));
-        assertThrows(client().admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
+        assertRequestBuilderThrows(client().admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
             SnapshotMissingException.class);
 
         createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -2018,11 +2018,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(getSnapshotsResponse.getSnapshots("readonly-repo").size(), equalTo(1));
 
         logger.info("--> try deleting snapshot");
-        assertThrows(client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"), RepositoryException.class,
+        assertRequestBuilderThrows(client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"), RepositoryException.class,
             "cannot delete snapshot from a readonly repository");
 
         logger.info("--> try making another snapshot");
-        assertThrows(client.admin().cluster().prepareCreateSnapshot("readonly-repo", "test-snap-2")
+        assertRequestBuilderThrows(client.admin().cluster().prepareCreateSnapshot("readonly-repo", "test-snap-2")
                 .setWaitForCompletion(true).setIndices("test-idx"),
             RepositoryException.class,
             "cannot create snapshot in a readonly repository");
@@ -2388,7 +2388,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .build();
 
         logger.info("--> try restoring while changing the number of shards - should fail");
-        assertThrows(client.admin().cluster()
+        assertRequestBuilderThrows(client.admin().cluster()
                 .prepareRestoreSnapshot("test-repo", "test-snap")
                 .setIgnoreIndexSettings("index.analysis.*")
                 .setIndexSettings(newIncorrectIndexSettings)
@@ -2399,7 +2399,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .put(newIndexSettings)
             .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
             .build();
-        assertThrows(client.admin().cluster()
+        assertRequestBuilderThrows(client.admin().cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setIgnoreIndexSettings("index.analysis.*")
             .setIndexSettings(newIncorrectReplicasIndexSettings)

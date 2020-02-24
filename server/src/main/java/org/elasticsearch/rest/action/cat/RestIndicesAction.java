@@ -62,7 +62,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -72,9 +71,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/indices"),
-            new Route(GET, "/_cat/indices/{index}")));
+            new Route(GET, "/_cat/indices/{index}"));
     }
 
     @Override

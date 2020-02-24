@@ -137,7 +137,7 @@ integTest.runner {
     'ml/inference_crud/Test get given missing trained model',
     'ml/inference_crud/Test get given expression without matches and allow_no_match is false',
     'ml/inference_crud/Test put ensemble with empty models',
-    'ml/inference_crud/Test put ensemble with tree where tree has empty feature-names',
+    'ml/inference_crud/Test put ensemble with tree where tree has out of bounds feature_names index',
     'ml/inference_crud/Test put model with empty input.field_names',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',

@@ -28,17 +28,15 @@ import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cluster/stats"),
-            new Route(GET, "/_cluster/stats/nodes/{nodeId}")));
+            new Route(GET, "/_cluster/stats/nodes/{nodeId}"));
     }
 
     @Override

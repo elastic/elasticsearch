@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 
 import java.util.concurrent.TimeUnit
@@ -76,14 +77,8 @@ buildScan {
         value 'Git Branch', branch
         tag branch
       }
-      if (System.getenv('GIT_COMMIT')) {
-        value 'Git Commit ID', System.getenv('GIT_COMMIT')
-        link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('GIT_COMMIT')}"
-        background {
-          def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
-          value 'Git Changes', changes
-        }
-      }
+      value 'Git Commit ID', BuildParams.gitRevision
+      link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
     }
   } else {
     tag 'LOCAL'

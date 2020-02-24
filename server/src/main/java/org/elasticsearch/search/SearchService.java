@@ -79,7 +79,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -883,11 +883,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            List<DocValueFieldsContext.FieldAndFormat> docValueFields = new ArrayList<>();
-            for (DocValueFieldsContext.FieldAndFormat format : source.docValueFields()) {
+            List<FetchDocValuesContext.FieldAndFormat> docValueFields = new ArrayList<>();
+            for (FetchDocValuesContext.FieldAndFormat format : source.docValueFields()) {
                 Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(format.field);
                 for (String fieldName: fieldNames) {
-                   docValueFields.add(new DocValueFieldsContext.FieldAndFormat(fieldName, format.format));
+                   docValueFields.add(new FetchDocValuesContext.FieldAndFormat(fieldName, format.format));
                 }
             }
             int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
@@ -897,7 +897,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         + "] but was [" + docValueFields.size() + "]. This limit can be set by changing the ["
                         + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
             }
-            context.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
+            context.docValuesContext(new FetchDocValuesContext(docValueFields));
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

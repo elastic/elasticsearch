@@ -16,8 +16,6 @@ restResources {
   }
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
 forbiddenPatterns {
   exclude '**/system_key'
 }

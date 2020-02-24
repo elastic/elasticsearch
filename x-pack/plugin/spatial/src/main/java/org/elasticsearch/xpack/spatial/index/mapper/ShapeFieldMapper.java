@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYShape;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -53,7 +54,16 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
         public ShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new ShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), docValues(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+        }
+
+        public ShapeFieldMapper.Builder docValues(boolean hasDocValues) {
+            super.docValues(hasDocValues);
+            if (hasDocValues) {
+                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
+                    + "] does not support doc-values");
+            }
+            return this;
         }
 
         @Override
@@ -116,9 +126,9 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
 
     public ShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                            Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                             MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, docValues, indexSettings,
             multiFields, copyTo);
     }
 

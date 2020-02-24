@@ -197,6 +197,16 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             return (GeoShapeFieldType)fieldType;
         }
 
+        public Builder docValues(boolean hasDocValues) {
+            super.docValues(hasDocValues);
+            if (hasDocValues) {
+                throw new ElasticsearchParseException("geo_shape field [" + name
+                    + "] indexed using prefix-trees do not support doc_values");
+            }
+            // doc-values already set to `false`
+            return this;
+        }
+
         private void setupFieldTypeDeprecatedParameters(BuilderContext context) {
             GeoShapeFieldType ft = fieldType();
             if (deprecatedParameters.strategy != null) {
@@ -292,7 +302,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             setupFieldType(context);
 
             return new LegacyGeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
+                coerce(context), orientation(), ignoreZValue(), docValues(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -318,6 +328,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
             setStored(false);
             setStoreTermVectors(false);
             setOmitNorms(true);
+            setHasDocValues(false);
         }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
@@ -470,10 +481,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
 
     public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
-            multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, docValues,
+            indexSettings, multiFields, copyTo);
     }
 
     @Override

@@ -60,7 +60,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertTrue(geoShapeFieldMapper.fieldType.hasDocValues());
+        assertFalse(geoShapeFieldMapper.docValues().explicit());
+        assertTrue(geoShapeFieldMapper.docValues().value());
+        assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
     /**
@@ -214,6 +216,45 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(ignoreMalformed.value(), equalTo(false));
     }
 
+    /**
+     * Test that doc_values parameter correctly parses
+     */
+    public void testDocValues() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("doc_values", true)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        assertTrue(((GeoShapeFieldMapper)fieldMapper).docValues().explicit());
+        assertTrue(((GeoShapeFieldMapper)fieldMapper).docValues().value());
+        boolean hasDocValues = ((GeoShapeFieldMapper)fieldMapper).fieldType().hasDocValues();
+        assertTrue(hasDocValues);
+
+        // explicit false doc_values
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("doc_values", "false")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        assertTrue(((GeoShapeFieldMapper)fieldMapper).docValues().explicit());
+        assertFalse(((GeoShapeFieldMapper)fieldMapper).docValues().value());
+        hasDocValues = ((GeoShapeFieldMapper)fieldMapper).fieldType().hasDocValues();
+        assertFalse(hasDocValues);
+    }
 
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];
@@ -283,7 +324,24 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
                 AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+            assertTrue(serialized, serialized.contains("\"doc_values\":true"));
         }
+    }
+
+    public void testSerializeDocValues() throws IOException {
+        boolean docValues = randomBoolean();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("doc_values", docValues)
+            .endObject().endObject()
+            .endObject().endObject());
+        DocumentMapper mapper = parser.parse("type1", new CompressedXContent(mapping));
+        String serialized = toXContentString((GeoShapeFieldMapper) mapper.mappers().getMapper("location"));
+        assertTrue(serialized, serialized.contains("\"orientation\":\"" +
+            AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+        assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
 
     public String toXContentString(GeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {

@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -249,7 +250,12 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
      */
     public Comparator<Bucket> bucketComparator(AggregationPath path, boolean asc) {
 
-        final Aggregator aggregator = path.resolveAggregator(this);
+        Aggregator agg = path.resolveAggregator(this);
+        // TODO Move this method into Aggregator or AggregationPath.
+        if (agg instanceof ProfilingAggregator) {
+            agg = ProfilingAggregator.unwrap(agg);
+        }
+        final Aggregator aggregator = agg;
         final String key = path.lastPathElement().key;
 
         if (aggregator instanceof SingleBucketAggregator) {

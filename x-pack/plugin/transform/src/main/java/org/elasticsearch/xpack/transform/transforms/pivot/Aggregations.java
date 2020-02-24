@@ -6,15 +6,19 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,7 +56,6 @@ public final class Aggregations {
         "date_range",
         "diversified_sampler",
         "extended_stats", // https://github.com/elastic/elasticsearch/issues/51925
-        "filter", // https://github.com/elastic/elasticsearch/issues/52151
         "filters",
         "geo_distance",
         "geohash_grid",
@@ -102,7 +105,8 @@ public final class Aggregations {
         WEIGHTED_AVG("weighted_avg", DYNAMIC),
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
-        PERCENTILES("percentiles", DOUBLE);
+        PERCENTILES("percentiles", DOUBLE),
+        FILTER("filter", LONG);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -146,28 +150,68 @@ public final class Aggregations {
         AggregationType agg = AggregationType.valueOf(aggregationType.toUpperCase(Locale.ROOT));
 
         if (agg.getTargetMapping().equals(SOURCE)) {
+
+            if (sourceType == null) {
+                // this should never happen and would mean a bug in the calling code, the error is logged in {@link
+                // org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil#resolveMappings()}
+                return null;
+            }
+
             // scaled float requires an additional parameter "scaling_factor", which we do not know, therefore we fallback to float
             if (sourceType.equals(SCALED_FLOAT)) {
                 return FLOAT;
             }
+
             return sourceType;
         }
 
         return agg.getTargetMapping();
     }
 
-    public static Map<String, String> getAggregationOutputTypes(AggregationBuilder agg) {
+    public static Tuple<Map<String, String>, Map<String, String>> getAggregationInputAndOutputTypes(AggregationBuilder agg) {
         if (agg instanceof PercentilesAggregationBuilder) {
             PercentilesAggregationBuilder percentilesAgg = (PercentilesAggregationBuilder) agg;
 
             // note: eclipse does not like p -> agg.getType()
             // the merge function (p1, p2) -> p1 ignores duplicates
-            return Arrays.stream(percentilesAgg.percentiles())
-                .mapToObj(OutputFieldNameConverter::fromDouble)
-                .collect(Collectors.toMap(p -> agg.getName() + "." + p, p -> { return agg.getType(); }, (p1, p2) -> p1));
+            return new Tuple<>(
+                Collections.emptyMap(),
+                Arrays.stream(percentilesAgg.percentiles())
+                    .mapToObj(OutputFieldNameConverter::fromDouble)
+                    .collect(Collectors.toMap(p -> agg.getName() + "." + p, p -> { return agg.getType(); }, (p1, p2) -> p1))
+            );
         }
-        // catch all
-        return Collections.singletonMap(agg.getName(), agg.getType());
+
+        if (agg instanceof ValuesSourceAggregationBuilder) {
+            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
+            return new Tuple<>(
+                Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
+                Collections.singletonMap(agg.getName(), agg.getType())
+            );
+        }
+
+        // does the agg have sub aggregations?
+        if (agg.getSubAggregations().size() > 0) {
+            HashMap<String, String> outputTypes = new HashMap<>();
+            HashMap<String, String> inputTypes = new HashMap<>();
+
+            for (AggregationBuilder subAgg : agg.getSubAggregations()) {
+                Tuple<Map<String, String>, Map<String, String>> subAggregationTypes = getAggregationInputAndOutputTypes(subAgg);
+
+                for (Entry<String, String> subAggOutputType : subAggregationTypes.v2().entrySet()) {
+                    outputTypes.put(String.join(".", agg.getName(), subAggOutputType.getKey()), subAggOutputType.getValue());
+                }
+
+                for (Entry<String, String> subAggInputType : subAggregationTypes.v1().entrySet()) {
+                    inputTypes.put(String.join(".", agg.getName(), subAggInputType.getKey()), subAggInputType.getValue());
+                }
+            }
+
+            return new Tuple<>(inputTypes, outputTypes);
+        }
+
+        // catch all in case no special handling required
+        return new Tuple<>(Collections.emptyMap(), Collections.singletonMap(agg.getName(), agg.getType()));
     }
 
 }

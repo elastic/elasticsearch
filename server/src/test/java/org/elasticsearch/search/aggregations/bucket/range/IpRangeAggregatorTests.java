@@ -35,28 +35,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Comparator;
 
 public class IpRangeAggregatorTests extends AggregatorTestCase {
-
-    private static InetAddress randomIp(boolean v4) {
-        try {
-            if (v4) {
-                byte[] ipv4 = new byte[4];
-                random().nextBytes(ipv4);
-                return InetAddress.getByAddress(ipv4);
-            } else {
-                byte[] ipv6 = new byte[16];
-                random().nextBytes(ipv6);
-                return InetAddress.getByAddress(ipv6);
-            }
-        } catch (UnknownHostException e) {
-            throw new AssertionError();
-        }
-    }
-
 
     private static boolean isInRange(BytesRef value, BytesRef from, BytesRef to) {
         if ((to == null || to.compareTo(value) > 0) && (from == null || from.compareTo(value) <= 0)) {

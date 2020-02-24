@@ -257,9 +257,13 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         // Random strings, as we will not validate the token here
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
-        assertThat(logoutResponse.getEndSessionUrl(), containsString("https://op.example.org/logout?id_token_hint="));
-        assertThat(logoutResponse.getEndSessionUrl(),
-            containsString("&post_logout_redirect_uri=https%3A%2F%2Frp.elastic.co%2Fsucc_logout&state="));
+        final String endSessionUrl = logoutResponse.getEndSessionUrl();
+        final Map<String, String> parameters = new HashMap<>();
+        RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
+        assertThat(parameters.size(), equalTo(3));
+        assertThat(parameters, hasKey("id_token_hint"));
+        assertThat(parameters, hasKey("post_logout_redirect_uri"));
+        assertThat(parameters, hasKey("state"));
     }
 
     public void testBuildLogoutResponseFromEndsessionEndpointWithExistingParameters() throws Exception {

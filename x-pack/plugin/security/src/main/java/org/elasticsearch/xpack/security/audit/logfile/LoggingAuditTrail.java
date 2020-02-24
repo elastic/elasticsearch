@@ -136,10 +136,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
             RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString());
     public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.include"),
-            DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
+            DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, Collections.emptyList()),
             Property.NodeScope, Property.Dynamic);
     public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.exclude"),
-            Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
+            Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(Collections.emptyList(), value),
             Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);

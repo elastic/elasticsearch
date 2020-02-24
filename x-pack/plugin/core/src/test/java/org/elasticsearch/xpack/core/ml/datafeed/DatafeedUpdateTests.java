@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -56,22 +57,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpdate> {
-
-    @AwaitsFix(bugUrl = "Tests need to be updated to use calendar/fixed interval explicitly")
-    public void testIntervalWarnings() {
-        /*
-        Placeholder test for visibility.  Datafeeds use calendar and fixed intervals through the deprecated
-        methods.  The randomized creation + final superclass tests made it impossible to add warning assertions,
-        so warnings have been disabled on this test.
-
-        When fixed, `enableWarningsCheck()` should be removed.
-         */
-    }
-
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
 
     @Override
     protected DatafeedUpdate createTestInstance() {
@@ -157,7 +142,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         "    \"buckets\": {\n" +
         "      \"date_histogram\": {\n" +
         "        \"field\": \"time\",\n" +
-        "        \"interval\": \"360s\",\n" +
+        "        \"fixed_interval\": \"360s\",\n" +
         "        \"time_zone\": \"UTC\"\n" +
         "      },\n" +
         "      \"aggregations\": {\n" +
@@ -171,7 +156,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         "    \"buckets2\": {\n" +
         "      \"date_histogram\": {\n" +
         "        \"field\": \"time\",\n" +
-        "        \"interval\": \"360s\",\n" +
+        "        \"fixed_interval\": \"360s\",\n" +
         "        \"time_zone\": \"UTC\"\n" +
         "      },\n" +
         "      \"aggregations\": {\n" +
@@ -196,7 +181,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_failBecauseTargetDatafeedHasDifferentId() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed, null));
+        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2")
+            .apply(datafeed, null));
     }
 
     public void testApply_failBecauseJobIdChanged() {
@@ -212,14 +198,16 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             .setJobId("bar")
             .build();
         ElasticsearchStatusException ex = expectThrows(
-            ElasticsearchStatusException.class, () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap()));
+            ElasticsearchStatusException.class,
+            () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap()));
         assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ex.getMessage(), equalTo(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
     }
 
     public void testApply_givenEmptyUpdate() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build()
+            .apply(datafeed, Collections.emptyMap());
         assertThat(datafeed, equalTo(updatedDatafeed));
     }
 
@@ -317,7 +305,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 new Script("params.bytes > 0 ? params.bytes : null"));
         DateHistogramAggregationBuilder dateHistogram =
             AggregationBuilders.dateHistogram("histogram_buckets")
-                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
+                .field("timestamp").fixedInterval(new DateHistogramInterval("300000ms")).timeZone(ZoneOffset.UTC)
                 .subAggregation(maxTime)
                 .subAggregation(avgAggregationBuilder)
                 .subAggregation(derivativePipelineAggregationBuilder)
@@ -400,7 +388,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             } else {
                 AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
                 String timeField = randomAlphaOfLength(10);
-                aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
+                DateHistogramInterval interval = new DateHistogramInterval(between(10000, 3600000) + "ms");
+                aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).fixedInterval(interval)
                     .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
                 builder.setAggregations(AggProvider.fromParsedAggs(aggBuilder));
                 if (instance.getScriptFields().isEmpty() == false) {

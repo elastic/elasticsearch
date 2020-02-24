@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
+public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<TrainedModelConfig> {
 
     private boolean lenient;
 
@@ -310,5 +310,15 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             })
             .assertToXContentEquivalence(true)
             .test();
+    }
+
+    @Override
+    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
+        if (version.before(Version.V_7_7_0)) {
+            TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
+            builder.setDefaultFieldMap(null);
+            return builder.build();
+        }
+        return instance;
     }
 }

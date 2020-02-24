@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -57,9 +58,11 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -67,7 +70,9 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -86,6 +91,7 @@ public class TrainedModelProvider {
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
+    private static final int MAX_NODE_STATS_SIZE = 10_000;
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -356,7 +362,7 @@ public class TrainedModelProvider {
         }
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
 
-        request.indices(InferenceIndexConstants.INDEX_PATTERN);
+        request.indices(InferenceIndexConstants.INDEX_PATTERN, MlStatsIndex.indexPattern());
         QueryBuilder query = QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         request.setQuery(query);
         request.setRefresh(true);
@@ -451,6 +457,145 @@ public class TrainedModelProvider {
                 idsListener::onFailure
             ),
             client::search);
+    }
+
+    public void getInferenceStats(String[] modelIds, ActionListener<List<InferenceStats>> listener) {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        Arrays.stream(modelIds).map(this::buildStatsSearchRequest).forEach(multiSearchRequest::add);
+        if (multiSearchRequest.requests().isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            multiSearchRequest,
+            ActionListener.<MultiSearchResponse>wrap(
+                responses -> {
+                    List<InferenceStats> allStats = new ArrayList<>(modelIds.length);
+                    int modelIndex = 0;
+                    assert responses.getResponses().length == modelIds.length :
+                        "mismatch between search response size and models requested";
+                    for (MultiSearchResponse.Item response : responses.getResponses()) {
+                        if (response.isFailure()) {
+                            logger.error(new ParameterizedMessage("search failed for models [{}]",
+                                    Strings.arrayToCommaDelimitedString(modelIds)),
+                                response.getFailure());
+                            listener.onFailure(ExceptionsHelper.serverError("Searching for stats for models [{}] failed",
+                                response.getFailure(),
+                                Strings.arrayToCommaDelimitedString(modelIds)));
+                            return;
+                        }
+                        try {
+                            InferenceStats inferenceStats = handleMultiNodeStatsResponse(response.getResponse(), modelIds[modelIndex++]);
+                            if (inferenceStats != null) {
+                                allStats.add(inferenceStats);
+                            }
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
+                        }
+                    }
+                    listener.onResponse(allStats);
+                },
+                listener::onFailure
+            ),
+            client::multiSearch);
+    }
+
+    private SearchRequest buildStatsSearchRequest(String modelId) {
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
+            .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME));
+        return new SearchRequest(MlStatsIndex.indexPattern())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
+            .allowPartialSearchResults(false)
+            .source(SearchSourceBuilder.searchSource()
+                .size(MAX_NODE_STATS_SIZE)
+                .query(queryBuilder)
+                .sort(SortBuilders.fieldSort(InferenceStats.TIMESTAMP.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType("long")));
+    }
+
+    private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
+        if (response.getHits().getHits().length == 0) {
+            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
+            return null;
+        }
+        Set<String> observedNodes = new HashSet<>();
+        Instant latestTimeStamp = null;
+        InferenceStats.Accumulator accumulator = new InferenceStats.Accumulator(modelId, null);
+        for (SearchHit searchHit : response.getHits().getHits()) {
+            BytesReference source = searchHit.getSourceRef();
+            try(XContentParser parser = XContentHelper.createParser(
+                xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE,
+                source,
+                XContentType.JSON
+            )) {
+                InferenceStats stats = InferenceStats.PARSER.apply(parser, null);
+                if (latestTimeStamp == null) {
+                    latestTimeStamp = stats.getTimeStamp();
+                }
+                if (observedNodes.contains(stats.getNodeId()) == false) {
+                    accumulator.merge(stats);
+                    observedNodes.add(stats.getNodeId());
+                }
+            } catch (Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage("[{}] statistics failed to be parsed", modelId), e);
+                throw ExceptionsHelper.serverError("Failed to parse stats for [{}]", e, modelId);
+            }
+        }
+        return accumulator.currentStats(latestTimeStamp);
+    }
+
+    public void getInferenceStats(String modelId,
+                                  String nodeId,
+                                  ActionListener<InferenceStats> listener) {
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
+            .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME))
+            .filter(QueryBuilders.termQuery(InferenceStats.NODE_ID.getPreferredName(), nodeId));
+        SearchRequest searchRequest = new SearchRequest(MlStatsIndex.indexPattern())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
+            .source(SearchSourceBuilder.searchSource()
+                .size(1)
+                .query(queryBuilder)
+                .sort(SortBuilders.fieldSort(InferenceStats.TIMESTAMP.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType("long")));
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(
+                response -> {
+                    if (response.getHits().getHits().length == 0) {
+                        logger.trace("[{}] [{}] no previous statistics found", modelId, nodeId);
+                        listener.onResponse(InferenceStats.emptyStats(modelId, nodeId));
+                        return;
+                    }
+                    assert response.getHits().getHits().length == 1;
+                    SearchHit searchHit = response.getHits().getHits()[0];
+                    BytesReference source = searchHit.getSourceRef();
+                    try(XContentParser parser = XContentHelper.createParser(
+                        xContentRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        source,
+                        XContentType.JSON
+                    )) {
+                        listener.onResponse(InferenceStats.PARSER.apply(parser, null));
+                    } catch (Exception e) {
+                        logger.error(
+                            () -> new ParameterizedMessage("[{}] [{}] statistics failed to be parsed", modelId, nodeId), e);
+                        listener.onFailure(e);
+                    }
+                },
+                listener::onFailure
+            ),
+            client::search);
+
     }
 
     static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs) {

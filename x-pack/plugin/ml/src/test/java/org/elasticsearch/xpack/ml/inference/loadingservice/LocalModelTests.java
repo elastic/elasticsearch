@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceRes
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -25,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
+import org.mockito.ArgumentMatcher;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,10 +41,18 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class LocalModelTests extends ESTestCase {
 
     public void testClassificationInfer() throws Exception {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
@@ -51,7 +63,9 @@ public class LocalModelTests extends ESTestCase {
         Model model = new LocalModel(modelId,
             definition,
             new TrainedModelInput(inputFields),
-            Collections.singletonMap("field.foo", "field.foo.keyword"));
+            Collections.singletonMap("field.foo", "field.foo.keyword"),
+            InferenceStats.emptyStats(modelId, "node_id"),
+            modelStatsService);
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
@@ -61,11 +75,13 @@ public class LocalModelTests extends ESTestCase {
         SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0"));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(1L));
 
         ClassificationInferenceResults classificationResult =
             (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(1));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(2L));
 
         // Test with labels
         definition = new TrainedModelDefinition.Builder()
@@ -75,23 +91,31 @@ public class LocalModelTests extends ESTestCase {
         model = new LocalModel(modelId,
             definition,
             new TrainedModelInput(inputFields),
-            Collections.singletonMap("field.foo", "field.foo.keyword"));
+            Collections.singletonMap("field.foo", "field.foo.keyword"),
+            InferenceStats.emptyStats(modelId, "node_id"),
+            modelStatsService);
         result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(1L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(1));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(2L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(2));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(3L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfig(-1));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(4L));
     }
 
     public void testRegression() throws Exception {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
@@ -100,7 +124,9 @@ public class LocalModelTests extends ESTestCase {
         Model model = new LocalModel("regression_model",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
-            Collections.singletonMap("bar", "bar.keyword"));
+            Collections.singletonMap("bar", "bar.keyword"),
+            InferenceStats.emptyStats("regression_model", "node_id"),
+            modelStatsService);
 
         Map<String, Object> fields = new HashMap<>() {{
             put("foo", 1.0);
@@ -119,12 +145,19 @@ public class LocalModelTests extends ESTestCase {
     }
 
     public void testAllFieldsMissing() throws Exception {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields), null);
+        Model model = new LocalModel("regression_model",
+            trainedModelDefinition,
+            new TrainedModelInput(inputFields),
+            null,
+            InferenceStats.emptyStats("regression_model", "node_id"),
+            modelStatsService);
 
         Map<String, Object> fields = new HashMap<>() {{
             put("something", 1.0);
@@ -135,8 +168,101 @@ public class LocalModelTests extends ESTestCase {
         WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, RegressionConfig.EMPTY_PARAMS);
         assertThat(results.getWarning(),
             equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
+        assertThat(model.getLatestStats().getMissingAllFieldsCount(), equalTo(1L));
     }
 
+    public void testInferPersistsStatsAfterTimeWindow() throws Exception {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        String modelId = "classification_model";
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
+        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setTrainedModel(buildClassification(false))
+            .build();
+
+        TestTimeSupplier supplier = new TestTimeSupplier(0L, TimeValue.timeValueMinutes(2).nanos());
+        Model model = new LocalModel(modelId,
+            definition,
+            new TrainedModelInput(inputFields),
+            null,
+            InferenceStats.emptyStats(modelId, "node_id"),
+            modelStatsService,
+            supplier::getTime
+            );
+        Map<String, Object> fields = new HashMap<>() {{
+            put("field.foo", 1.0);
+            put("field.bar", 0.5);
+            put("categorical", "dog");
+        }};
+
+        SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
+        assertThat(result.value(), equalTo(0.0));
+        assertThat(result.valueAsString(), is("0"));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(1L));
+        verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+            @Override
+            public boolean matches(Object o) {
+                return ((InferenceStats)o).getInferenceCount() == 1L;
+            }
+        }));
+    }
+
+    public void testInferPersistsStatsAfterNumberOfCalls() throws Exception {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        String modelId = "classification_model";
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
+        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setTrainedModel(buildClassification(false))
+            .build();
+
+        TestTimeSupplier supplier = new TestTimeSupplier(0L, 1L);
+        Model model = new LocalModel(modelId,
+            definition,
+            new TrainedModelInput(inputFields),
+            null,
+            InferenceStats.emptyStats(modelId, "node_id"),
+            modelStatsService,
+            supplier::getTime
+        );
+        Map<String, Object> fields = new HashMap<>() {{
+            put("field.foo", 1.0);
+            put("field.bar", 0.5);
+            put("categorical", "dog");
+        }};
+
+        for(int i = 0; i < 100; i++) {
+            getSingleValue(model, fields, new ClassificationConfig(0));
+        }
+        SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
+        assertThat(result.value(), equalTo(0.0));
+        assertThat(result.valueAsString(), is("0"));
+        assertThat(model.getLatestStats().getInferenceCount(), equalTo(101L));
+        verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+            @Override
+            public boolean matches(Object o) {
+                return ((InferenceStats)o).getInferenceCount() == 99L;
+            }
+        }));
+    }
+
+    private static class TestTimeSupplier {
+        private volatile long initialTime;
+        private long step;
+
+        TestTimeSupplier(long initialTime, long step) {
+            this.initialTime = initialTime;
+            this.step = step;
+        }
+
+        Long getTime() {
+            long toReturn = initialTime;
+            initialTime += step;
+            return toReturn;
+        }
+    }
     private static SingleValueInferenceResults getSingleValue(Model model,
                                                               Map<String, Object> fields,
                                                               InferenceConfig config) throws Exception {

@@ -15,6 +15,24 @@
       },
       "peak_usage_bytes" : {
         "type" : "long"
+      },
+      "model_id": {
+        "type": "keyword"
+      },
+      "node_id": {
+        "type": "keyword"
+      },
+      "inference_count": {
+        "type": "long"
+      },
+      "total_time_spent_millis": {
+        "type": "long"
+      },
+      "failure_count": {
+        "type": "long"
+      },
+      "missing_all_fields_count": {
+        "type": "long"
       }
     }
   }

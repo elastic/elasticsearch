@@ -54,13 +54,13 @@ POST /_ingest/pipeline/my-pipeline-id/_simulate
 [[simulate-pipeline-api-request]]
 ==== {api-request-title}
 
-POST /_ingest/pipeline/<pipeline>/_simulate
+`POST /_ingest/pipeline/<pipeline>/_simulate`
 
-GET /_ingest/pipeline/<pipeline>/_simulate
+`GET /_ingest/pipeline/<pipeline>/_simulate`
 
-POST /_ingest/pipeline/_simulate
+`POST /_ingest/pipeline/_simulate`
 
-GET /_ingest/pipeline/_simulate
+`GET /_ingest/pipeline/_simulate`
 
 
 [[simulate-pipeline-api-desc]]

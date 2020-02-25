@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
+import static java.nio.file.StandardOpenOption.APPEND;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -72,7 +73,7 @@ public class CertGenCliTests extends PackagingTestCase {
         lines.add("  - name: \"mynode\"");
         lines.add("    ip:");
         lines.add("      - \"127.0.0.1\"");
-        Files.write(instancesFile, lines);
+        Files.write(instancesFile, lines, APPEND);
 
         installation.executables().certgenTool.run("--in " + instancesFile + " --out " + certificatesFile);
 
@@ -118,7 +119,7 @@ public class CertGenCliTests extends PackagingTestCase {
             "xpack.security.http.ssl.enabled: true"
         );
 
-        Files.write(installation.config("elasticsearch.yml"), yaml);
+        Files.write(installation.config("elasticsearch.yml"), yaml, APPEND);
 
         assertWhileRunning(
             () -> ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), null, null, installation.config("certs/ca/ca.crt"))

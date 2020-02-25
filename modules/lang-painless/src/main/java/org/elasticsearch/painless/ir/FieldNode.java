@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScopeTable;
@@ -33,7 +32,6 @@ public class FieldNode extends IRNode {
     private int modifiers;
     private Class<?> fieldType;
     private String name;
-    private Object instance;
 
     public void setModifiers(int modifiers) {
         this.modifiers = modifiers;
@@ -63,18 +61,10 @@ public class FieldNode extends IRNode {
         return name;
     }
 
-    public void setInstance(Object instance) {
-        this.instance = instance;
-    }
-
-    public Object getInstance() {
-        return instance;
-    }
-
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         classWriter.getClassVisitor().visitField(
                 ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
     }

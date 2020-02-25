@@ -69,7 +69,6 @@ public final class SFunction extends ANode {
 
     org.objectweb.asm.commons.Method method;
 
-    private ScriptRoot scriptRoot;
     private boolean methodEscape;
 
     public SFunction(Location location, String rtnType, String name,
@@ -121,7 +120,6 @@ public final class SFunction extends ANode {
     }
 
     void analyze(ScriptRoot scriptRoot) {
-        this.scriptRoot = scriptRoot;
         FunctionScope functionScope = newFunctionScope(returnType);
 
         for (int index = 0; index < typeParameters.size(); ++index) {
@@ -210,12 +208,12 @@ public final class SFunction extends ANode {
         functionNode.setBlockNode(blockNode);
 
         functionNode.setLocation(location);
-        functionNode.setScriptRoot(scriptRoot);
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(paramNameStrs);
         functionNode.setStatic(isStatic);
+        functionNode.setVarArgs(false);
         functionNode.setSynthetic(synthetic);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 

@@ -27,6 +27,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -166,16 +167,23 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected void assertReduced(InternalTopMetrics reduced, List<InternalTopMetrics> inputs) {
         InternalTopMetrics first = inputs.get(0);
-        InternalTopMetrics winner = inputs.stream()
+        Optional<InternalTopMetrics> winner = inputs.stream()
                 .filter(tm -> tm.isMapped())
-                .min((lhs, rhs) -> first.getSortOrder().reverseMul() * lhs.getSortValue().compareTo(rhs.getSortValue()))
-                .get();
+                .min((lhs, rhs) -> first.getSortOrder().reverseMul() * lhs.getSortValue().compareTo(rhs.getSortValue()));
+
         assertThat(reduced.getName(), equalTo(first.getName()));
-        assertThat(reduced.getSortValue(), equalTo(winner.getSortValue()));
-        assertThat(reduced.getSortFormat(), equalTo(winner.getSortFormat()));
         assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
-        assertThat(reduced.getMetricValue(), equalTo(winner.getMetricValue()));
         assertThat(reduced.getMetricName(), equalTo(first.getMetricName()));
+        if (winner.isPresent()) {
+            assertThat(reduced.getSortValue(), equalTo(winner.get().getSortValue()));
+            assertThat(reduced.getSortFormat(), equalTo(winner.get().getSortFormat()));
+            assertThat(reduced.getMetricValue(), equalTo(winner.get().getMetricValue()));
+        } else {
+            // Reduced only unmapped metrics
+            assertThat(reduced.getSortValue(), equalTo(first.getSortValue()));
+            assertThat(reduced.getSortFormat(), equalTo(first.getSortFormat()));
+            assertThat(reduced.getMetricValue(), equalTo(first.getMetricValue()));
+        }
     }
 
     private static SortValue randomSortValue() {

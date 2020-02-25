@@ -118,11 +118,29 @@ Which returns:
 ----
 // TESTRESPONSE
 
+The default `size` is 1. The maximum default size is `10` because the aggregation's
+working storage is "dense", meaning we allocate `size` slots for every bucket. `10`
+is a *very* conservative default maximum and you can raise it if you need to by
+changing the `top_metrics_max_size` index setting. But know that large sizes can
+take a fair bit of memory, especially if they are inside of an aggregation which
+makes many buckes like a large
+<<search-aggregations-metrics-top-metrics-example-terms, terms aggregation>>.
+
+[source,console]
+----
+POST /test/_settings
+{
+  "top_metrics_max_size": 100
+}
+----
+// TEST[continued]
+
 NOTE: If `size` is more than `1` the `top_metrics` aggregation can't be the target of a sort.
 
 
 ==== Examples
 
+[[search-aggregations-metrics-top-metrics-example-terms]]
 ===== Use with terms
 
 This aggregation should be quite useful inside of <<search-aggregations-bucket-terms-aggregation, `terms`>>

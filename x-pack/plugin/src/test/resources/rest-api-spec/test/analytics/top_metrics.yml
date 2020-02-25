@@ -446,3 +446,68 @@
   - match: { aggregations.ip.buckets.1.key: 192.168.0.1 }
   - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 2 }
   - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+
+---
+"size is index setting":
+  - skip:
+      version: " - 8.0.0"
+      reason: "backport to 7.0.0 pending"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      catch: bad_request
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                size: 100
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          top_metrics_max_size: 100
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                size: 100
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3] }
+  - match: { aggregations.tm.top.1.metrics.v: 1.0 }
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.2.sort: [1] }

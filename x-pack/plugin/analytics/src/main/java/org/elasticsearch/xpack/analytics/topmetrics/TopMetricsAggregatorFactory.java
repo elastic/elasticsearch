@@ -31,7 +31,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
      * there can be a *huge* number of buckets
      */
     public static final Setting<Integer> MAX_BUCKET_SIZE =
-        Setting.intSetting("index.top_metrics_max_bucket", 10, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.top_metrics_max_size", 10, 1, Property.Dynamic, Property.IndexScope);
 
     private final List<SortBuilder<?>> sortBuilders;
     private final int size;

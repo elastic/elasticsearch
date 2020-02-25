@@ -53,7 +53,7 @@ public interface AliasOrIndex {
     /**
      * @return whether this alias/index is hidden or not
      */
-    Boolean isHidden();
+    boolean isHidden();
 
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
@@ -76,9 +76,9 @@ public interface AliasOrIndex {
             return Collections.singletonList(concreteIndex);
         }
 
-        @Override @Nullable
-        public Boolean isHidden() {
-            return concreteIndex.getSettings().getAsBoolean(INDEX_HIDDEN_SETTING.getKey(), null);
+        @Override
+        public boolean isHidden() {
+            return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
     }
 
@@ -90,13 +90,13 @@ public interface AliasOrIndex {
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
         private final SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
-        private final Boolean isHidden;
+        private final boolean isHidden;
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
             this.referenceIndexMetaDatas = new ArrayList<>();
             this.referenceIndexMetaDatas.add(indexMetaData);
-            this.isHidden = aliasMetaData.isHidden();
+            this.isHidden = aliasMetaData.isHidden() == null ? false : aliasMetaData.isHidden();
         }
 
         @Override
@@ -119,8 +119,8 @@ public interface AliasOrIndex {
             return writeIndex.get();
         }
 
-        @Override @Nullable
-        public Boolean isHidden() {
+        @Override
+        public boolean isHidden() {
             return isHidden;
         }
 

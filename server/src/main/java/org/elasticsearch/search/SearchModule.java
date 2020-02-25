@@ -344,17 +344,22 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
             WeightedAvgAggregationBuilder::parse).addResultReader(InternalWeightedAvg::new));
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder::parse)
-                .addResultReader(InternalSum::new));
+            .addResultReader(InternalSum::new)
+            .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder::parse)
-                .addResultReader(InternalMin::new));
+                .addResultReader(InternalMin::new)
+                .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder::parse)
-                .addResultReader(InternalMax::new));
+                .addResultReader(InternalMax::new)
+                .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(StatsAggregationBuilder.NAME, StatsAggregationBuilder::new, StatsAggregationBuilder::parse)
                 .addResultReader(InternalStats::new));
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
                 ExtendedStatsAggregationBuilder::parse).addResultReader(InternalExtendedStats::new));
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,
-                ValueCountAggregationBuilder::parse).addResultReader(InternalValueCount::new));
+                ValueCountAggregationBuilder::parse)
+                    .addResultReader(InternalValueCount::new)
+                    .setAggregatorRegistrar(ValueCountAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(PercentilesAggregationBuilder.NAME, PercentilesAggregationBuilder::new,
                 PercentilesAggregationBuilder::parse)
                     .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)
@@ -398,7 +403,8 @@ public class SearchModule {
                 RareTermsAggregationBuilder::parse)
                     .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
                     .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
-                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new));
+                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new)
+                    .setAggregatorRegistrar(RareTermsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
                 SignificantTermsAggregationBuilder::parse)
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)

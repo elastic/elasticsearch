@@ -1,8 +1,5 @@
 ---
 "sort by long field":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       bulk:
         index: test
@@ -11,7 +8,7 @@
           - '{"index": {}}'
           - '{"s": 1, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2, "v": 1}'
+          - '{"s": 2, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3, "v": 2.71828}'
 
@@ -59,9 +56,6 @@
 
 ---
 "sort by double field":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       indices.create:
         index: test
@@ -79,7 +73,7 @@
           - '{"index": {}}'
           - '{"s": 1.0, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2.0, "v": 1}'
+          - '{"s": 2.0, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3.0, "v": 2.71828}'
 
@@ -129,7 +123,7 @@
           - '{"index": {}}'
           - '{"s": 1, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2, "v": 1}'
+          - '{"s": 2, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3, "v": 2.71828}'
 
@@ -163,8 +157,9 @@
 ---
 "sort by keyword field fails":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
+      features: default_shards
+      reason: The failure message isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -189,8 +184,8 @@
 ---
 "sort by score":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
+      features: default_shards
+      reason: Scores aren't predictable with many shards
   - do:
       bulk:
         index: test
@@ -199,7 +194,7 @@
           - '{"index": {}}'
           - '{"s": "big cat", "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": "cat", "v": 1}'
+          - '{"s": "cat", "v": 1.0}'
           - '{"index": {}}'
           - '{"s": "the small dog", "v": 2.71828}'
 
@@ -249,8 +244,9 @@
 ---
 "sort by string script fails":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
+      features: default_shards
+      reason: The failure message isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test

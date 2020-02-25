@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.function.grouping;
 
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -28,6 +29,8 @@ public class Histogram extends GroupingFunction {
 
     private final Literal interval;
     private final ZoneId zoneId;
+    public static String YEAR_INTERVAL = DateHistogramInterval.YEAR.toString();
+    public static String MONTH_INTERVAL = DateHistogramInterval.MONTH.toString();
 
     public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
         super(source, field, Collections.singletonList(interval));

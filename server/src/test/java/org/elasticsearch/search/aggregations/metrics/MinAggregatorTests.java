@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -259,6 +261,20 @@ public class MinAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testIpField() throws IOException {
+        final String fieldName = "IP_field";
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field(fieldName);
+
+        MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
+        fieldType.setName(fieldName);
+
+        boolean v4 = randomBoolean();
+        expectThrows(IllegalArgumentException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+        }, min -> fail("expected an exception"), fieldType));
+    }
+
     public void testUnmappedWithMissingField() throws IOException {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("does_not_exist").missing(0L);
 
@@ -287,7 +303,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalMin>) min -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
+        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [min]", e.getMessage());
     }
 
     public void testBadMissingField() {

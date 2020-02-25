@@ -67,7 +67,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class EncryptedRepository extends BlobStoreRepository {
@@ -271,11 +270,15 @@ public final class EncryptedRepository extends BlobStoreRepository {
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
                                  Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
-        validateRepositoryPasswordHash(userMetadata, listener::onFailure);
-        if (userMetadata != null && userMetadata.containsKey(PASSWORD_HASH_RESERVED_USER_METADATA_KEY)) {
+        try {
+            validateRepositoryPasswordHash(userMetadata);
             // remove the repository password hash from the snapshot metadata, after all repository password verifications
             // have completed, so that the hash is not displayed in the API response to the user
+            userMetadata = new HashMap<>(userMetadata);
             userMetadata.remove(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
+        } catch (Exception passValidationException) {
+            listener.onFailure(passValidationException);
+            return;
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
                 includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
@@ -285,7 +288,12 @@ public final class EncryptedRepository extends BlobStoreRepository {
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
                               Map<String, Object> userMetadata, ActionListener<String> listener) {
-        validateRepositoryPasswordHash(userMetadata, listener::onFailure);
+        try {
+            validateRepositoryPasswordHash(userMetadata);
+        } catch (Exception passValidationException) {
+            listener.onFailure(passValidationException);
+            return;
+        }
         super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, repositoryMetaVersion,
                 userMetadata, listener);
     }
@@ -771,25 +779,28 @@ public final class EncryptedRepository extends BlobStoreRepository {
     }
 
     /**
-     * Called before every snapshot operation on every node to validate that the snapshot metadata contains a password hash
-     * that matches up with the repository password on the local node.
+     * Called before the shard snapshot and finalize operations, on the data and master nodes. This validates that the repository
+     * password hash of the master node that started the snapshot operation matches with the repository password on the data nodes.
      *
      * @param snapshotUserMetadata the snapshot metadata to verify
-     * @param exception the exception handler to call when the repository password check fails
+     * @throws RepositoryException if the repository password on the local node mismatches or cannot be verified from the
+     * master's password hash from {@code snapshotUserMetadata}
      */
-    private void validateRepositoryPasswordHash(Map<String, Object> snapshotUserMetadata, Consumer<Exception> exception) {
-        Object repositoryPasswordHash = snapshotUserMetadata.get(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
+    private void validateRepositoryPasswordHash(Map<String, Object> snapshotUserMetadata) throws RepositoryException {
+        if (snapshotUserMetadata == null) {
+            throw new RepositoryException(metadata.name(), "Unexpected fatal internal error",
+                    new IllegalStateException("Null snapshot metadata"));
+        }
+        final Object repositoryPasswordHash = snapshotUserMetadata.get(PASSWORD_HASH_RESERVED_USER_METADATA_KEY);
         if (repositoryPasswordHash == null || (false == repositoryPasswordHash instanceof String)) {
-            exception.accept(new RepositoryException(metadata.name(), "Unexpected fatal internal error",
-                    new IllegalStateException("Snapshot metadata does not contain the repository password hash as a String")));
-            return;
+            throw new RepositoryException(metadata.name(), "Unexpected fatal internal error",
+                    new IllegalStateException("Snapshot metadata does not contain the repository password hash as a String"));
         }
         if (false == passwordHashVerifier.verify((String) repositoryPasswordHash)) {
-            exception.accept(new RepositoryException(metadata.name(),
+            throw new RepositoryException(metadata.name(),
                     "Repository password mismatch. The local node's value of the keystore secure setting [" +
                             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metadata.name()).getKey() +
-                            "] is different from the elected master node, which started the snapshot operation"));
-            return;
+                            "] is different from the elected master node, which started the snapshot operation");
         }
     }
 

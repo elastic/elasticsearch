@@ -21,37 +21,20 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Type;
 
-public class FieldNode extends IRNode {
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
+
+/**
+ * Represents reading a value from a member field from
+ * the main class.
+ */
+public class MemberFieldLoadNode extends ExpressionNode {
 
     /* ---- begin node data ---- */
 
-    private int modifiers;
-    private Class<?> fieldType;
-    private String name;
-
-    public void setModifiers(int modifiers) {
-        this.modifiers = modifiers;
-    }
-
-    public int getModifiers(int modifiers) {
-        return modifiers;
-    }
-
-    public void setFieldType(Class<?> fieldType) {
-        this.fieldType = fieldType;
-    }
-
-    public Class<?> getFieldType() {
-        return fieldType;
-    }
-
-    public String getFieldCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(fieldType);
-    }
+    protected String name;
+    protected boolean isStatic;
 
     public void setName(String name) {
         this.name = name;
@@ -61,11 +44,25 @@ public class FieldNode extends IRNode {
         return name;
     }
 
+    public void setStatic(boolean isStatic) {
+        this.isStatic = isStatic;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+        methodWriter.writeDebugInfo(location);
+
+        if (isStatic) {
+            methodWriter.getStatic(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
+        } else {
+            methodWriter.loadThis();
+            methodWriter.getField(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
+        }
     }
 }

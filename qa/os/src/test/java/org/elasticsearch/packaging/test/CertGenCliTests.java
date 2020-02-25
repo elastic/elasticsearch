@@ -30,13 +30,13 @@ import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
-import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.escapePath;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -61,17 +61,18 @@ public class CertGenCliTests extends PackagingTestCase {
         install();
     }
 
-    public void test20Help() throws Exception {
+    public void test20Help() {
         Shell.Result result = installation.executables().certgenTool.run("--help");
         assertThat(result.stdout, containsString("Simplifies certificate creation"));
     }
 
     public void test30Generate() throws Exception {
-        Files.write(instancesFile, Arrays.asList(
-            "instances:",
-            "  - name: \"mynode\"",
-            "    ip:",
-            "      - \"127.0.0.1\""));
+        final List<String> lines = new ArrayList<>();
+        lines.add("instances:");
+        lines.add("  - name: \"mynode\"");
+        lines.add("    ip:");
+        lines.add("      - \"127.0.0.1\"");
+        Files.write(instancesFile, lines);
 
         installation.executables().certgenTool.run("--in " + instancesFile + " --out " + certificatesFile);
 
@@ -100,20 +101,27 @@ public class CertGenCliTests extends PackagingTestCase {
     public void test40RunWithCert() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
-        
-        append(installation.config("elasticsearch.yml"), String.join("\n",
-            "node.name: mynode",
-            "xpack.security.transport.ssl.key: " + escapePath(installation.config("certs/mynode/mynode.key")),
-            "xpack.security.transport.ssl.certificate: " + escapePath(installation.config("certs/mynode/mynode.crt")),
-            "xpack.security.transport.ssl.certificate_authorities: [\"" + escapePath(installation.config("certs/ca/ca.crt")) + "\"]",
-            "xpack.security.http.ssl.key: " + escapePath(installation.config("certs/mynode/mynode.key")),
-            "xpack.security.http.ssl.certificate: "+ escapePath(installation.config("certs/mynode/mynode.crt")),
-            "xpack.security.http.ssl.certificate_authorities: [\"" + escapePath(installation.config("certs/ca/ca.crt")) + "\"]",
-            "xpack.security.transport.ssl.enabled: true",
-            "xpack.security.http.ssl.enabled: true"));
 
-        assertWhileRunning(() -> {
-            ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), null, null, installation.config("certs/ca/ca.crt"));
-        });
+        final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
+        final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
+        final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
+
+        List<String> yaml = List.of(
+            "node.name: mynode",
+            "xpack.security.transport.ssl.key: " + keyPath,
+            "xpack.security.transport.ssl.certificate: " + certPath,
+            "xpack.security.transport.ssl.certificate_authorities: [\"" + caCertPath + "\"]",
+            "xpack.security.http.ssl.key: " + keyPath,
+            "xpack.security.http.ssl.certificate: " + certPath,
+            "xpack.security.http.ssl.certificate_authorities: [\"" + caCertPath + "\"]",
+            "xpack.security.transport.ssl.enabled: true",
+            "xpack.security.http.ssl.enabled: true"
+        );
+
+        Files.write(installation.config("elasticsearch.yml"), yaml);
+
+        assertWhileRunning(
+            () -> ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), null, null, installation.config("certs/ca/ca.crt"))
+        );
     }
 }

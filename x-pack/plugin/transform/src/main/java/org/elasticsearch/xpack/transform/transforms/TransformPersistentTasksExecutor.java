@@ -142,7 +142,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         // checks based on node attributes, introduced in 7.7
-        if (node.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (node.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
             final Map<String, String> nodeAttributes = node.getAttributes();
 
             // transform enabled?

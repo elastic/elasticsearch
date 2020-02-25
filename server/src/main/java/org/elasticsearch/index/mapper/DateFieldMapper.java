@@ -391,7 +391,10 @@ public final class DateFieldMapper extends FieldMapper {
                     ? dateMathParser
                     : forcedDateParser;
             boolean[] nowUsed = new boolean[1];
-            LongSupplier nowSupplier = () -> { nowUsed[0] = true; return context.nowInMillis(); };
+            LongSupplier nowSupplier = () -> {
+                nowUsed[0] = true;
+                return context.nowInMillis();
+            };
             long l, u;
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;

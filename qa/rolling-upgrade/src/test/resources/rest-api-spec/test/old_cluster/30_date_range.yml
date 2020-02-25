@@ -4,7 +4,6 @@
       features: "warnings"
       version: "6.8.1 -"
       reason: change of warning message
-
   - do:
       warnings:
         - "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
@@ -43,8 +42,8 @@
 "Create index with joda style index that is incompatible with java.time (>6.1)":
   - skip:
       features: "warnings"
-      version: " - 6.8.0"
-      reason: change of warning message
+      version: " - 6.8.0, 7.0.0 -"
+      reason: change of warning message, we skip 7 becase this format will be considered java
   - do:
       warnings:
         - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. Prefix your date format with '8' to use the new specifier."
@@ -82,7 +81,7 @@
 ---
 "Create index with java style index in 6":
   - skip:
-      version: " - 6.7.99"
+      version: " - 6.7.99, 7.0.0 -"
       reason: java.time patterns are allowed since 6.8
   - do:
       indices.create:

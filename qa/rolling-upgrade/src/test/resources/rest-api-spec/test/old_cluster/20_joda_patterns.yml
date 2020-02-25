@@ -2,7 +2,7 @@
 "Create index with joda style index that is incompatible with java.time. (6.0)":
   - skip:
       features: "warnings"
-      version: "6.8.1 -"
+      version: "6.8.1 -
       reason: change of warning message
 
   - do:
@@ -43,8 +43,8 @@
 "Create index with joda style index that is incompatible with java.time (>6.1)":
   - skip:
       features: "warnings"
-      version: " - 6.8.0"
-      reason: change of warning message
+      version: " - 6.8.0, 7.0.0 -"
+      reason: change of warning message, we skip 7 becase this format will be considered java
   - do:
       warnings:
         - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. Prefix your date format with '8' to use the new specifier."

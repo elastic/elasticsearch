@@ -38,6 +38,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -91,16 +92,27 @@ public class ILMHistoryStore implements Closeable {
                                 .collect(Collectors.joining("\n"))), e);
                         throw new ElasticsearchException(e);
                     }
+                    if (logger.isTraceEnabled()) {
+                        logger.info("about to index: {}",
+                            request.requests().stream()
+                                .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
+                                .map(Objects::toString)
+                                .collect(Collectors.joining(",")));
+                    }
                 }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                     long items = request.numberOfActions();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("indexed [{}] items into ILM history index [{}]", items,
+                        logger.trace("indexed [{}] items into ILM history index [{}], items: {}", items,
                             Arrays.stream(response.getItems())
                                 .map(BulkItemResponse::getIndex)
                                 .distinct()
+                                .collect(Collectors.joining(",")),
+                            request.requests().stream()
+                                .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
+                                .map(Objects::toString)
                                 .collect(Collectors.joining(",")));
                     }
                     if (response.hasFailures()) {

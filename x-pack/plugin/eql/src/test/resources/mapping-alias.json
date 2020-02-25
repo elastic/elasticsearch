@@ -1,0 +1,17 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "user_name" : {
+            "type" : "keyword"
+        },
+        "user_domain" : {
+            "type" : "keyword"
+        },
+        "user_name_alias": {
+            "type": "alias",
+            "path": "user_name"
+        }
+    }
+}

@@ -536,7 +536,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52148")
     public void testSeqNoCollision() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
@@ -567,19 +566,15 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
             logger.info("--> Promote replica1 as the primary");
             shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
-            // We roll a new translog generation and trim operations that are above the global checkpoint during primary-replica resync.
-            // If the `initOperations` is empty, then the stale operation on the replica2 will be discarded as it is the only operation
-            // in a translog file. Otherwise, the stale op will be retained along with initOperations but will be skipped in snapshot.
-            int staleOps = initOperations.isEmpty() ? 0 : 1;
             shards.index(new IndexRequest(index.getName()).id("d2").source("{}", XContentType.JSON));
             final Translog.Operation op2;
             try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
-                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1 + staleOps));
+                assertThat(snapshot.totalOperations(), equalTo(1));
                 op2 = snapshot.next();
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
-                assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.skippedOperations(), equalTo(staleOps));
+                assertNull(snapshot.next());
+                assertThat(snapshot.skippedOperations(), equalTo(0));
             }
 
             // Make sure that peer-recovery transfers all but non-overridden operations.

@@ -63,7 +63,7 @@ For example, the following `daily` schedule triggers once every day at 5:00 PM:
   "trigger" : {
     "schedule" : {
       "daily" : {
-        "at": {
+        "at" : {
           "hour" : 17,
           "minute" : 0
         }

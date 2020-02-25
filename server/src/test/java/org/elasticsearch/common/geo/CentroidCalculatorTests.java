@@ -28,6 +28,8 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -38,6 +40,7 @@ import static org.elasticsearch.common.geo.DimensionalShapeType.LINE;
 import static org.elasticsearch.common.geo.DimensionalShapeType.POINT;
 import static org.elasticsearch.common.geo.DimensionalShapeType.POLYGON;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CentroidCalculatorTests extends ESTestCase {
@@ -51,6 +54,36 @@ public class CentroidCalculatorTests extends ESTestCase {
         assertThat(calculator.sumWeight(), equalTo(1.0));
         assertThat(calculator.getDimensionalShapeType(), equalTo(POINT));
     }
+
+    public void testPolygonWithSmallTrianglesOfZeroWeight() throws Exception {
+            Geometry geometry = new WellKnownText(false, new GeographyValidator(true))
+                .fromWKT("POLYGON((-4.385064 55.2259599,-4.385056 55.2259224,-4.3850466 55.2258994,-4.3849755 55.2258574," +
+                    "-4.3849339 55.2258589,-4.3847033 55.2258742,-4.3846805 55.2258818,-4.3846282 55.2259132,-4.3846215 55.2259247," +
+                    "-4.3846121 55.2259683,-4.3846147 55.2259798,-4.3846369 55.2260157,-4.3846472 55.2260241," +
+                    "-4.3846697 55.2260409,-4.3846952 55.2260562,-4.384765 55.22608,-4.3848199 55.2260861,-4.3848481 55.2260845," +
+                    "-4.3849245 55.2260761,-4.3849393 55.22607,-4.3849996 55.2260432,-4.3850131 55.2260364,-4.3850426 55.2259989," +
+                    "-4.385064 55.2259599),(-4.3850104 55.2259583,-4.385005 55.2259752,-4.384997 55.2259892,-4.3849339 55.2259981," +
+                    "-4.3849272 55.2259308,-4.3850016 55.2259262,-4.385005 55.2259377,-4.3850104 55.2259583)," +
+                    "(-4.3849996 55.2259193,-4.3847502 55.2259331,-4.3847548 55.2258921,-4.3848012 55.2258895," +
+                    "-4.3849219 55.2258811,-4.3849514 55.2258818,-4.3849728 55.2258933,-4.3849996 55.2259193)," +
+                    "(-4.3849917 55.2259984,-4.3849849 55.2260103,-4.3849771 55.2260192,-4.3849701 55.2260019,-4.3849917 55.2259984)," +
+                    "(-4.3846608 55.2259374,-4.384663 55.2259316,-4.3846711 55.2259201,-4.3846992 55.225904," +
+                    "-4.384718 55.2258941,-4.3847434 55.2258927,-4.3847314 55.2259407,-4.3849098 55.2259316,-4.3849098 55.2259492," +
+                    "-4.3848843 55.2259515,-4.3849017 55.2260119,-4.3849567 55.226005,-4.3849701 55.2260272,-4.3849299 55.2260486," +
+                    "-4.3849192 55.2260295,-4.384883 55.2260188,-4.3848776 55.2260119,-4.3848441 55.2260149,-4.3848441 55.2260226," +
+                    "-4.3847864 55.2260241,-4.384722 55.2259652,-4.3847053 55.2259706,-4.384683 55.225954,-4.3846608 55.2259374)," +
+                    "(-4.3846541 55.2259549,-4.384698 55.2259883,-4.3847173 55.2259828,-4.3847743 55.2260333,-4.3847891 55.2260356," +
+                    "-4.3848146 55.226031,-4.3848199 55.2260409,-4.3848387 55.2260417,-4.3848494 55.2260593,-4.3848092 55.2260616," +
+                    "-4.3847623 55.2260539,-4.3847341 55.2260432,-4.3847046 55.2260279,-4.3846738 55.2260062,-4.3846496 55.2259844," +
+                    "-4.3846429 55.2259737,-4.3846523 55.2259714,-4.384651 55.2259629,-4.3846541 55.2259549)," +
+                    "(-4.3846608 55.2259374,-4.3846559 55.2259502,-4.3846541 55.2259549,-4.3846608 55.2259374))");
+            CentroidCalculator calculator = new CentroidCalculator(geometry);
+            assertThat(calculator.getX(), closeTo( -4.3848, 1e-4));
+            assertThat(calculator.getY(), closeTo(55.22595, 1e-4));
+            assertThat(calculator.sumWeight(), closeTo(0, 1e-5));
+            assertThat(calculator.getDimensionalShapeType(), equalTo(POLYGON));
+    }
+
 
     public void testLine() {
         double[] y = new double[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };

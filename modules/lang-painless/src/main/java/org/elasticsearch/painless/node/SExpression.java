@@ -50,7 +50,7 @@ public final class SExpression extends AStatement {
         expression.read = lastSource && !isVoid;
         expression.analyze(scriptRoot, scope);
 
-        if (!lastSource && !expression.statement) {
+        if ((lastSource == false || isVoid) && expression.statement == false) {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 

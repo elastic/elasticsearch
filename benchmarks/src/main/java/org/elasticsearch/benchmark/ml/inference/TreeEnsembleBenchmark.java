@@ -85,7 +85,7 @@ public class TreeEnsembleBenchmark {
         smallDoc = Map.of("foo", 10.0, "bar", 4.0);
 
         xContentRegistry = xContentRegistry();
-        airBnbModel = readLargeModel("/Users/dkyle/Development/inference/models/airbnb-ashville/trimmed_trainedmodel.json");
+        airBnbModel = readLargeModel("/path/to/model.json");
 
         ensemble = buildRandomEnsemble(List.of("foo", "bar", "baz", "coo"), numTrees, treeDepth);
     }

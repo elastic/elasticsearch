@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
@@ -399,16 +398,6 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             if (modelsAreOrdered == false && trainedModels != null && trainedModels.size() > 1) {
                 throw ExceptionsHelper.badRequestException("[trained_models] needs to be an array of objects");
             }
-
-            int totalNodes = 0;
-            logger.info("[{}] models", trainedModels.size());
-            for (TrainedModel model: trainedModels) {
-                Tree tree = (Tree)model;
-                logger.info("tree nodes [{}], features[{}]", tree.getNodes().size(), tree.getFeatureNames().size());
-                totalNodes += tree.getNodes().size();
-            }
-
-            logger.info("[{}] nodes", totalNodes);
 
             return new Ensemble(featureNames, trainedModels, outputAggregator, targetType, classificationLabels, classificationWeights);
         }

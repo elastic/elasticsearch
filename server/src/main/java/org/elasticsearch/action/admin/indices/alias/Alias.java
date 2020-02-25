@@ -284,7 +284,10 @@ public class Alias implements Writeable, ToXContentFragment {
         }
 
         builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
-        builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+
+        if (isHidden != null) {
+            builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+        }
 
         builder.endObject();
         return builder;

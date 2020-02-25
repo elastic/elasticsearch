@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
-import java.io.Closeable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.internal.io.IOUtils;
+
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
-import java.util.Arrays;
 import java.util.Objects;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
 
 /**
  * A {@code ChainingInputStream} concatenates multiple component input streams into a
@@ -132,25 +131,13 @@ public abstract class ChainingInputStream extends InputStream {
 
             @Override
             public void close() throws IOException {
-                IOException IOExceptions = null;
+                Exception superException = null;
                 try {
                     super.close();
-                } catch (IOException e) {
-                    IOExceptions = e;
-                }
-                for (Closeable closeable : Arrays.asList(first, second)) {
-                    try {
-                        closeable.close();
-                    } catch (IOException e) {
-                        if (IOExceptions != null) {
-                            IOExceptions.addSuppressed(e);
-                        } else {
-                            IOExceptions = e;
-                        }
-                    }
-                }
-                if (IOExceptions != null) {
-                    throw IOExceptions;
+                } catch (Exception e) {
+                    superException = e;
+                } finally {
+                    IOUtils.close(superException, first, second);
                 }
             }
         };

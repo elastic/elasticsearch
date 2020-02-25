@@ -6,6 +6,8 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.core.internal.io.IOUtils;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.NoSuchPaddingException;
@@ -173,8 +175,14 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
 
     @Override
     public void close() throws IOException {
-        super.close();
-        source.close();
+        Exception superException = null;
+        try {
+            super.close();
+        } catch (IOException e) {
+            superException = e;
+        } finally {
+            IOUtils.close(superException, source);
+        }
     }
 
     private static Cipher getPacketEncryptionCipher(SecretKey secretKey, byte[] packetIv) throws IOException {

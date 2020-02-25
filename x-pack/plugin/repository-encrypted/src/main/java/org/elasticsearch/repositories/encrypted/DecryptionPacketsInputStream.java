@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.core.internal.io.IOUtils;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -125,8 +127,14 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
 
     @Override
     public void close() throws IOException {
-        super.close();
-        source.close();
+        Exception superException = null;
+        try {
+            super.close();
+        } catch (IOException e) {
+            superException = e;
+        } finally {
+            IOUtils.close(superException, source);
+        }
     }
 
     private int decrypt(PrefixInputStream packetInputStream) throws IOException {

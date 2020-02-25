@@ -399,6 +399,7 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 blobNameAndMetaId = MetadataIdentifier.parseFromMetadataBlobName(metadataBlobName);
             } catch (IllegalArgumentException e) {
                 // ignore invalid metadata blob names, which most likely have been created externally
+                logger.warn("Unrecognized blob name for metadata [" + metadataBlobName + "]", e);
                 continue;
             }
             if (false == allDataBlobs.containsKey(blobNameAndMetaId.v1()) &&

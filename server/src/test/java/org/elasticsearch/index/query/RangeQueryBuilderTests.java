@@ -565,35 +565,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertEquals(ShapeRelation.INTERSECTS, builder.relation());
     }
 
-    public void testConvertNowRangeToMatchAll() throws IOException {
-        RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
-        DateTime queryFromValue = new DateTime(2019, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime queryToValue = new DateTime(2020, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        if (randomBoolean()) {
-            query.from("now");
-            query.to(queryToValue);
-        } else if (randomBoolean()) {
-            query.from(queryFromValue);
-            query.to("now");
-        } else {
-            query.from("now");
-            query.to("now+1h");
-        }
-        QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-
-        queryShardContext = new QueryShardContext(queryShardContext) {
-
-            @Override
-            public boolean convertNowRangeToMatchAll() {
-                return true;
-            }
-        };
-        rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-    }
-
     public void testTypeField() throws IOException {
         RangeQueryBuilder builder = QueryBuilders.rangeQuery("_type")
             .from("value1");

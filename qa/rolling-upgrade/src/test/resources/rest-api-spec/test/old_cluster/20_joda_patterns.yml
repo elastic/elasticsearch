@@ -2,7 +2,7 @@
 "Create index with joda style index that is incompatible with java.time. (6.0)":
   - skip:
       features: "warnings"
-      version: "6.8.1 -
+      version: "6.8.1 -"
       reason: change of warning message
 
   - do:

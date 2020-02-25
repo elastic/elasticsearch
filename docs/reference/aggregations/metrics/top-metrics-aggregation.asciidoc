@@ -128,7 +128,7 @@ makes many buckes like a large
 
 [source,console]
 ----
-POST /test/_settings
+PUT /test/_settings
 {
   "top_metrics_max_size": 100
 }

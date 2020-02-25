@@ -58,8 +58,8 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // While we technically could serialize this would out.writeTimeValue(...), that would
-        // doing the song and dance around backwards compatibility for this value. Since in this
-        // case the deserialized version is not displayed to a user, it's okay to simply use
+        // required doing the song and dance around backwards compatibility for this value. Since
+        // in this case the deserialized version is not displayed to a user, it's okay to simply use
         // milliseconds. It's possible to lose precision if someone were to say, specify 50
         // nanoseconds, however, in that case, their max age is indistinguishable from 0
         // milliseconds regardless.

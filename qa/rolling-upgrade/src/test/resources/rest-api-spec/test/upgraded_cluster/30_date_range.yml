@@ -5,7 +5,7 @@
         refresh: true
         body:
           - '{"index": {"_index": "joda_for_range"}}'
-          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-11T00:00+01:00"}}'
+          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-01T00:00+01:00"}}'
 
   - do:
       search:

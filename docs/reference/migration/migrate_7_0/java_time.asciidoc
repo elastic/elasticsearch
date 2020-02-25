@@ -131,4 +131,4 @@ For dates before 1970, use a date format containing a year.
 [float]
 ==== Migration Guide
 You can find a detailed migration guide here
-include::migrate_7_0/migrate_to_java_time.asciidoc[]
+include::migrate_to_java_time.asciidoc[]

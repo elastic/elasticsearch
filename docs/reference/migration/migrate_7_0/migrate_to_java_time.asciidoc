@@ -1,13 +1,13 @@
 === Java Time Migration Guide
 
 Since version 7.0 Elasticsearch is using java.time as an underlying implementation of dates parsing, formatting and calculations.
-java.time is many aspects very similar to joda-time which we previously used. However there are some differences and this guide is meant to
-help to become compatible.
+java.time is in many aspects very similar to joda-time which we previously used. However there are some differences and this guide is meant to
+help you to become compatible.
 
 ==== Identifying if you are affected
 You are only affected if you have used any custom date formats in your mappings, pipelines or templates.
 Most of the custom date formats are compatible, but with some there is a change of meaning or missing. More on that below.
-A custom format could be specified on a date field like this:
+A custom format is specified on a date field like this:
 [source,console]
 --------------------------------------------------
 PUT my_index
@@ -25,7 +25,7 @@ PUT my_index
 See more on:
 https://www.elastic.co/guide/en/elasticsearch/reference/current/date.html#multiple-date-formats
 
-To make sure if any of the date formats is deprecated you should run deprecation API or kibana upgrade assistant.
+To make sure if any of the date formats is deprecated run deprecation API or kibana upgrade assistant.
 * <<migration-api-deprecation>>
 include::apis/deprecation.asciidoc[]
 
@@ -36,16 +36,16 @@ This index has date fields with deprecated formats: [[type: doc, field: param2, 
 --------------------------------------------------
 
 ==== Incompatible formats
-If your pattern contains literals below, that means your format is incompatible and needs to be changed.
+If a pattern contains literals below, that means the pattern is incompatible and needs to be changed.
 
-===== Y - in 6.8 meaning Year of era. It should be replaced to y in 7.0 This is an big change as in 7.0 Y means week-based-year.
+===== Y - in 6.8 meaning Year of era. It should be replaced to y in 7.0 This is a big change because in 7.0 'Y' means week-based-year.
 If you don't update your date pattern, you will have problems with search results, parsing and date calculations.
 example:
 YYYY-MM-dd should become yyyy-MM-dd
 
 ====== The difference between year-of-era and week based year
 For pattern YYYY-ww and date 2019-01-01T00:00:00.000Z  will give 2019-01
-For pattern YYYY-ww and date 2018-12-31T00:00:00.000Z  will give 2019-01 (counter intuitive) because there  is >4 days of that year 2019 on that week
+For pattern YYYY-ww and date 2018-12-31T00:00:00.000Z  will give 2019-01 (counter intuitive) because there is >4 days of that week in 2019
 
 ===== y - in 6.8 meaning year. It should be replaced to 'u' in 7.0. This is a subtle change, but worth fixing.
 As previously stated 'y' means year-of-era. 'u' means year. The difference is that year can contain non positive values, whereas 'y' can not. //clarify 0 year
@@ -81,7 +81,7 @@ yyyy-MM-dd'T'hh:mm:ssXXXXX
 If you expect all these combination to occur in your data you need to combine these patterns in 7.0
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXXX||yyyy-MM-dd'T'hh:mm:ssXXXXX
 
-The same applies if you expected your pattern to occur without a colon:
+The same applies if you expect your pattern to occur without a colon:
 Pattern YYYY-MM-dd'T'hh:mm:ssZ accepting these dates:
 2010-01-01T01:02:03Z
 2010-01-01T01:02:03+01
@@ -115,19 +115,147 @@ E vs c. E means day-of-week vs c is for localized day-of-week. The difference is
 'z' time zone text. Will print 'Z' for Zulu given UTC timezone.
 //todo expand
 
+==== Test with your data
+All of the examples above should be tested with real data. It is likely that you do not need the flexibility joda was giving.
+If you expected your timezone to only be in +01:00 form (XXX in java, ZZ in joda),
+then there is no need to create a new java pattern with so many alternatives.
+
+Consider using this date debugging site for assistance https://esddd.herokuapp.com/
+
 ==== Migrating affected mappings
 Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping
 and reindex your data to it.
-You can howeve update your pipelines or templates.
+You can however update your pipelines or templates. Remember to look for templates you use with tools outside ES.
+If you specified a custom date format there, then you need to update it too.
 
-- Create new_index_1 with mappings changed with the format set to 8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis as required
+===== Example migration procedure
+Let's assume that you have an index with a date field and custom format
+[source,console]
+----
+GET /my_index_1/_mapping
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+  "my_index_1" : {
+    "mappings" : {
+      "properties" : {
+         "datetime": {
+           "type": "date",
+           "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+         }
+      }
+    }
+  }
+}
+----
+
+
+- Create my_index_2 with mappings changed with the format set to 8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis
+[source,console]
+--------------------------
+PUT my_index_2
+{
+  "mappings": {
+    "properties": {
+      "datetime": {
+        "type": "date",
+        "format": "8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis"
+      }
+    }
+  }
+}
+--------------------------
+
 - Reindex the deprecated format index to new_index_1
-- repoint aliases??
+POST _reindex
+{
+  "source": {
+    "index": "my_index_1"
+  },
+  "dest": {
+    "index": "my_index_2"
+  }
+}
+----
+// NOTCONSOLE
 
-- upgrade pipeline
+- If you were using aliases, update them to a new index
+[source,console]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "remove" : { "index" : "my_index_1", "alias" : "my_index" } },
+        { "add" : { "index" : "my_index_2", "alias" : "my_index" } }
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+===== Update before upgrading to ES7.
+- update pipeline
+If your pipelines were using a joda style patterns, they also have to be updated. There is no need to create a new pipeline.
+Just update the already existing one.
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/mypipeline
+{
+  "description": "Pipeline for routing data to specific index",
+  "processors": [
+    {
+      "date": {
+        "field": "createdTime",
+        "formats": [
+         "8uuuu-w"
+        ]
+      },
+      "date_index_name": {
+        "field": "@timestamp",
+        "date_rounding": "d",
+        "index_name_prefix": "x-",
+        "index_name_format": "8uuuu-w"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 - upgrade template
+If your tempalte was using joda date pattern it also should be updated before upgrading to ES7.
+[source,console]
+--------------------------------------------------
+PUT _template/template_1
+{
+  "index_patterns": [
+    "te*",
+    "bar*"
+  ],
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "_source": {
+      "enabled": false
+    },
+    "properties": {
+      "host_name": {
+        "type": "keyword"
+      },
+      "created_at": {
+        "type": "date",
+        "format": "EEE MMM dd HH:mm:ss Z yyyy"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
 
 - Upgrade to 7.x
 
-//todo
-on templates outside ES
+===== External templates
+Revisit other templates from elastic stack where you used a custom date pattern.

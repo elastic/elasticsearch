@@ -1078,6 +1078,30 @@ public class QueryTranslatorTests extends ESTestCase {
                     + "\"fixed_interval\":\"12960000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
+    public void testGroupByOneDayHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 DAY) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+    
+    public void testGroupByMoreDaysHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL '1 5' DAY TO HOUR) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"fixed_interval\":\"104400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+
     public void testGroupByYearAndScalarsQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT YEAR(CAST(date + INTERVAL 5 months AS DATE)) FROM test GROUP BY 1");
         assertEquals(EsQueryExec.class, p.getClass());

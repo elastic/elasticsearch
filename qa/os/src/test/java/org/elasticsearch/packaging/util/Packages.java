@@ -304,9 +304,8 @@ public class Packages {
          * for Elasticsearch logs and storing it in class state.
          */
         public void clear() {
-            cursor = sh.run(
-                "sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'"
-            ).stdout.trim();
+            final String script = "sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'";
+            cursor = sh.run(script).stdout.trim();
         }
 
         /**

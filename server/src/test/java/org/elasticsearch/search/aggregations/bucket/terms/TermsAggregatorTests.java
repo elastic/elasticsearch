@@ -1252,7 +1252,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
                         () -> createAggregator(termsAgg, indexSearcher, fieldType));
-                    assertEquals("Invalid aggregator order path [script]. The provided aggregation [script] " +
+                    assertEquals("Invalid aggregation order path [script]. The provided aggregation [script] " +
                         "either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
                         e.getMessage());
                 }

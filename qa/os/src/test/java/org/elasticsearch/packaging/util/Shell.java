@@ -223,7 +223,7 @@ public class Shell {
     }
 
     public String toString() {
-        return String.format(" env = [%s] workingDirectory = [%s]", env, workingDirectory);
+        return String.format(Locale.ROOT, " env = [%s] workingDirectory = [%s]", env, workingDirectory);
     }
 
     public static class Result {
@@ -242,7 +242,7 @@ public class Shell {
         }
 
         public String toString() {
-            return String.format("exitCode = [%d] stdout = [%s] stderr = [%s]", exitCode, stdout.trim(), stderr.trim());
+            return String.format(Locale.ROOT, "exitCode = [%d] stdout = [%s] stderr = [%s]", exitCode, stdout.trim(), stderr.trim());
         }
     }
 

@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -90,6 +91,7 @@ public class Archives {
                 throw new IllegalStateException("Distribution " + distribution + " is not supported on linux");
             }
             installCommand = String.format(
+                Locale.ROOT,
                 "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; [IO.Compression.ZipFile]::ExtractToDirectory('%s', '%s')",
                 distributionFile,
                 baseInstallPath
@@ -238,6 +240,7 @@ public class Archives {
 
         // requires the "expect" utility to be installed
         String script = String.format(
+            Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
                 + "spawn -ignore HUP sudo -E -u %s %s -d -p %s \n"
                 + "expect \"Elasticsearch keystore password:\"\n"

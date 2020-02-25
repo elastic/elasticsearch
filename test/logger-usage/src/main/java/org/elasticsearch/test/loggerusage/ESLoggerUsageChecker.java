@@ -188,7 +188,7 @@ public class ESLoggerUsageChecker {
         private final Predicate<String> methodsToCheck;
 
         ClassChecker(Consumer<WrongLoggerUsage> wrongUsageCallback, Predicate<String> methodsToCheck) {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             this.wrongUsageCallback = wrongUsageCallback;
             this.methodsToCheck = methodsToCheck;
         }
@@ -222,7 +222,7 @@ public class ESLoggerUsageChecker {
         private boolean ignoreChecks;
 
         MethodChecker(String className, int access, String name, String desc, Consumer<WrongLoggerUsage> wrongUsageCallback) {
-            super(Opcodes.ASM5, new MethodNode(access, name, desc, null, null));
+            super(Opcodes.ASM7, new MethodNode(access, name, desc, null, null));
             this.className = className;
             this.wrongUsageCallback = wrongUsageCallback;
         }
@@ -503,6 +503,10 @@ public class ESLoggerUsageChecker {
     }
 
     private static final class PlaceHolderStringInterpreter extends BasicInterpreter {
+        PlaceHolderStringInterpreter() {
+            super(Opcodes.ASM7);
+        }
+
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             if (insnNode.getOpcode() == Opcodes.LDC) {
@@ -527,6 +531,10 @@ public class ESLoggerUsageChecker {
     }
 
     private static final class ArraySizeInterpreter extends BasicInterpreter {
+        ArraySizeInterpreter() {
+            super(Opcodes.ASM7);
+        }
+
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             switch (insnNode.getOpcode()) {

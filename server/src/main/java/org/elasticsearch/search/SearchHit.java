@@ -48,9 +48,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.fetch.subphase.matches.MatchesResult;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.matches.NamedQueries;
+import org.elasticsearch.search.fetch.subphase.matches.MatchesResult;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -278,16 +277,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 entry.getValue().writeTo(out);
             }
         }
-    }
-
-    // for BWC only
-    private List<String> findNamedQueries() {
-        for (MatchesResult result : matches) {
-            if (result instanceof NamedQueries) {
-                return ((NamedQueries)result).getNamedQueries();
-            }
-        }
-        return Collections.emptyList();
     }
 
     public int docId() {

@@ -163,7 +163,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return seeds.isEmpty() == false;
         } else {
-            String address = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            String address = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return Strings.isEmpty(address) == false;
         }
     }
@@ -176,7 +176,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 .getConcreteSettingForNamespace(clusterAlias));
             return seeds.isEmpty() == false;
         } else {
-            String address = (String) settings.get(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS
+            String address = (String) settings.get(ProxyConnectionStrategy.PROXY_ADDRESS
                 .getConcreteSettingForNamespace(clusterAlias));
             return Strings.isEmpty(address) == false;
         }

@@ -291,7 +291,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE
                         .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> addressesSetting = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS
+                    Setting<?> addressesSetting = ProxyConnectionStrategy.PROXY_ADDRESS
                         .getConcreteSettingForNamespace("cluster-alias");
                     Setting<?> socketConnections = ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
                         .getConcreteSettingForNamespace("cluster-alias");
@@ -320,7 +320,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
-            new Tuple<>(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS, "192.168.0.1:8080"),
+            new Tuple<>(ProxyConnectionStrategy.PROXY_ADDRESS, "192.168.0.1:8080"),
             new Tuple<>(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
 
         RemoteConnectionStrategy.ConnectionStrategy sniff = RemoteConnectionStrategy.ConnectionStrategy.SNIFF;

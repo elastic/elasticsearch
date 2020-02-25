@@ -107,7 +107,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             }
 
             if (percent == previousPercent) {
-                throw new IllegalArgumentException("percent [" + percent + "] has been specified twice: [" + name + "]");
+                throw new IllegalArgumentException("percent [" + percent + "] has been specified twice: [" + aggName + "]");
             }
             previousPercent = percent;
         }

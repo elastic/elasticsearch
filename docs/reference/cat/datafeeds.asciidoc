@@ -109,8 +109,8 @@ query parameter.
 `search.bucket_avg`::
 include::{docdir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
 +
-To retrieve this information, specify the `sba` or `bucketTimeMin` column in the
-`h` query parameter.
+To retrieve this information, specify the `sba` or `searchBucketAvg` column in
+the `h` query parameter.
   
 `search.count`::
 include::{docdir}/ml/ml-shared.asciidoc[tag=search-count]

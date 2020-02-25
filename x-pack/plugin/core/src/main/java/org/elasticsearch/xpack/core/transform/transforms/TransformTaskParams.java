@@ -33,7 +33,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
     private final Boolean requiresRemote;
 
     public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-            a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2], (String) a[3]));
+            a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TransformField.ID);
@@ -42,10 +42,10 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REQUIRES_REMOTE);
     }
 
-    private TransformTaskParams(String transformId, String version, String frequency, String remote) {
+    private TransformTaskParams(String transformId, String version, String frequency, Boolean remote) {
         this(transformId, version == null ? null : Version.fromString(version),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
-                    Boolean.parseBoolean(remote)
+                    remote
                     );
     }
 
@@ -68,7 +68,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         } else {
             this.frequency = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
             this.requiresRemote = in.readBoolean();
         } else {
             this.requiresRemote = false;
@@ -94,7 +94,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalTimeValue(frequency);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
             out.writeBoolean(requiresRemote);
         }
     }

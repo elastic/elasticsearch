@@ -42,12 +42,14 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
+    static final int MAX_FIELD_LENGTH = 100;
     static WildcardFieldMapper wildcardFieldType;
 
     @Override
     @Before
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
+        builder.ignoreAbove(MAX_FIELD_LENGTH);        
         wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
         super.setUp();
     }
@@ -64,7 +66,32 @@ public class WildcardFieldMapperTests extends ESTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> ft.index(false));
         assertEquals("The field [test] cannot have index = false", e.getMessage());
-    }        
+    }
+    
+    public void testTooBigKeywordField() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        
+        // Create a string that is too large and will not be indexed
+        String docContent = randomABString(MAX_FIELD_LENGTH + 1);
+        createDocs(docContent, iw);
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+
+        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
+        TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
+        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+                
+        reader.close();
+        dir.close();        
+    }
+    
     
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
@@ -75,7 +102,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         int numDocs = 100;
         HashSet<String> values = new HashSet<>();
         for (int i = 0; i < numDocs; i++) {
-            String docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH));
+            String docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
             if (values.contains(docContent) == false) {
                 createDocs(docContent, iw);
                 values.add(docContent);
@@ -130,7 +157,6 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 Settings.EMPTY);
     }
 
-    static final int MAX_FIELD_LENGTH = 100;
 
     static String randomABString(int minLength) {
         StringBuilder sb = new StringBuilder();

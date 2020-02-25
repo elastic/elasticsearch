@@ -539,15 +539,13 @@ public class WildcardFieldMapper extends FieldMapper {
                 value =  parser.textOrNull();
             }
         }
-
-        if (value == null || value.length() > ignoreAbove) {
-            return;
-        }
-        
         createFields(value, fields);        
     }   
     
     void createFields(String value, List<IndexableField>fields) {
+        if (value == null || value.length() > ignoreAbove) {
+            return;
+        }
         KeywordTokenizer kt = new KeywordTokenizer(256);
         kt.setReader(new StringReader(TOKEN_START_OR_END_CHAR+ value +TOKEN_START_OR_END_CHAR));
         TokenFilter filter = new TaperedNgramTokenFilter(kt, fieldType().numChars);

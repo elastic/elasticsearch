@@ -80,7 +80,7 @@ public class CacheDirectoryTests extends ESTestCase {
 
     private CacheDirectory newCacheDirectory(Directory directory, CacheService cacheService, Path cacheDir) throws IOException {
         return new CacheDirectory(directory, cacheService, cacheDir, new SnapshotId("_na","_na"), new IndexId("_na", "_na"),
-            new ShardId("_na", "_na", 0), () -> 0L);
+            new ShardId("_na", "_na", 0), Settings.EMPTY, () -> 0L);
     }
 
     private void assertListOfFiles(Path cacheDir, Matcher<Integer> matchNumberOfFiles, Matcher<Long> matchSizeOfFiles) throws IOException {

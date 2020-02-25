@@ -63,6 +63,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final BlobStoreIndexShardSnapshot snapshot;
     private final BlobContainer blobContainer;
 
+    public static final IOContext CACHED_READ = new IOContext();
+    public static final IOContext NON_CACHED_READ = new IOContext();
+
     SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
         super(new SingleInstanceLockFactory());
         this.snapshot = Objects.requireNonNull(snapshot);
@@ -94,7 +97,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), blobContainer.readBlobPreferredLength(),
+        final boolean cachedRead = context == CACHED_READ;
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), blobContainer.readBlobPreferredLength(cachedRead),
             BufferedIndexInput.BUFFER_SIZE);
     }
 
@@ -170,7 +174,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
             final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
             directory = new CacheDirectory(directory, cache, cacheDir, snapshotId, indexId, shardPath.getShardId(),
-                currentTimeNanosSupplier);
+                indexSettings.getSettings(), currentTimeNanosSupplier);
         }
         directory = new InMemoryNoOpCommitDirectory(directory);
 

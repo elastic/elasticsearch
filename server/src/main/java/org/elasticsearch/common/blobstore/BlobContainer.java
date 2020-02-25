@@ -78,8 +78,9 @@ public interface BlobContainer {
      * @return a hint to consumers regarding the length of data to request if there is a good chance that future reads can be satisfied from
      * the same stream.
      *
+     * @param cachedRead whether the read is to be cached
      */
-    default long readBlobPreferredLength() {
+    default long readBlobPreferredLength(boolean cachedRead) {
         throw new UnsupportedOperationException(); // NORELEASE
     }
 

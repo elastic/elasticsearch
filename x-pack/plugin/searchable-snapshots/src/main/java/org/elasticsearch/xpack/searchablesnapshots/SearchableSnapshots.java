@@ -76,6 +76,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
     public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
         Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
+    // The file extensions that are blacklisted from the cache
+    public static final Setting<List<String>> SNAPSHOT_CACHE_BLACKLIST_SETTING =
+        Setting.listSetting("index.store.snapshot.cache.blacklist", Collections.emptyList(), Function.identity(),
+            Setting.Property.IndexScope, Setting.Property.NodeScope);
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
@@ -96,6 +100,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_CACHE_ENABLED_SETTING,
+            SNAPSHOT_CACHE_BLACKLIST_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
         );

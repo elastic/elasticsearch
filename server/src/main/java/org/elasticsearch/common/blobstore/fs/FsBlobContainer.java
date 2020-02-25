@@ -161,7 +161,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public long readBlobPreferredLength() {
+    public long readBlobPreferredLength(boolean cachedRead) {
         // This container returns streams that are cheap to close early, so we can tell consumers to request as much data as possible.
         return Long.MAX_VALUE;
     }

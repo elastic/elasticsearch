@@ -11,6 +11,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -47,7 +48,7 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
 
                 final Path cacheDir = createTempDir();
                 try (CacheDirectory cacheDirectory
-                         = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardId, () -> 0L)) {
+                         = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardId, Settings.EMPTY, () -> 0L)) {
                     try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());

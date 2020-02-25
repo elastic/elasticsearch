@@ -434,7 +434,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
              Directory directory = newDirectory();
              CacheDirectory cacheDirectory =
                  new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId,
-                     () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS)) {
+                         Settings.EMPTY, () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS)) {
                      @Override
                      IndexInputStats createIndexInputStats(long fileLength) {
                          if (seekingThreshold == null) {

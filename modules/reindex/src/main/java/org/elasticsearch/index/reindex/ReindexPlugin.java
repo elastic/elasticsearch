@@ -112,7 +112,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         this.scriptService.set(scriptService);
         this.reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
         namedXContentRegistry.set(xContentRegistry);

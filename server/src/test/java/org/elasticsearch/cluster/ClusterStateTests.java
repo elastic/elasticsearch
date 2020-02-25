@@ -57,7 +57,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -693,9 +692,9 @@ public class ClusterStateTests extends ESTestCase {
             "          }\n" +
             "        },\n" +
             "        \"mappings\" : {\n" +
-            "            \"type\" : {\n" +
-            "              \"key\" : \"value\"\n" +
-            "            }\n" +
+            "          \"type\" : {\n" +
+            "            \"key\" : \"value\"\n" +
+            "          }\n" +
             "        },\n" +
             "        \"aliases\" : [ ],\n" +
             "        \"primary_terms\" : {\n" +

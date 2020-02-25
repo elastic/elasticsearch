@@ -1283,17 +1283,23 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
 
-            builder.startObject("meta-data");
+            if (context == XContentContext.API) {
+                builder.startObject("metadata");
+            }
+            else {
+                builder.startObject("meta-data");
+                builder.field("version", metaData.version());
+            }
 
-            builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
+            // This is required for some serialization under API context, as some tests in MetaDataTests assert its presenc
             builder.field("cluster_uuid_committed", metaData.clusterUUIDCommitted);
 
             builder.startObject("cluster_coordination");
             metaData.coordinationMetaData().toXContent(builder, params);
             builder.endObject();
 
-            if (!metaData.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && !metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
                 metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
@@ -1349,7 +1355,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 currentFieldName = parser.currentName();
             }
 
-            if (!"meta-data".equals(parser.currentName())) {
+            if (!"meta-data".equals(parser.currentName()) &&
+                !"metadata".equals(parser.currentName())) {
                 throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
             }
             if (token != XContentParser.Token.START_OBJECT) {

@@ -73,6 +73,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -1186,6 +1187,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            MetaData.XContentContext context = MetaData.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
+
             builder.startObject(indexMetaData.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
@@ -1193,41 +1196,80 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.field(KEY_SETTINGS_VERSION, indexMetaData.getSettingsVersion());
             builder.field(KEY_ALIASES_VERSION, indexMetaData.getAliasesVersion());
             builder.field(KEY_ROUTING_NUM_SHARDS, indexMetaData.getRoutingNumShards());
+
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject(KEY_SETTINGS);
-            indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+            if (context != MetaData.XContentContext.API) {
+                indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+            }
+            else {
+                indexMetaData.getSettings()
+                    .toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", params.param("flat_settings"))));
+            }
             builder.endObject();
 
-            builder.startArray(KEY_MAPPINGS);
-            MappingMetaData mmd = indexMetaData.mapping();
-            if (mmd != null) {
-                if (binary) {
-                    builder.value(mmd.source().compressed());
-                } else {
-                    builder.map(XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), true).v2());
+            if (context != MetaData.XContentContext.API) {
+                builder.startArray(KEY_MAPPINGS);
+                MappingMetaData mmd = indexMetaData.mapping();
+                if (mmd != null) {
+                    if (binary) {
+                        builder.value(mmd.source().compressed());
+                    } else {
+                        builder.map(XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), true).v2());
+                    }
                 }
+                builder.endArray();
             }
-            builder.endArray();
+            else {
+                builder.startObject(KEY_MAPPINGS);
+                MappingMetaData mmd = indexMetaData.mapping();
+                if (mmd != null) {
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(mmd.type());
+                    }
+                    builder.field(mmd.type());
+                    builder.map(mapping);
+                }
+                builder.endObject();
+            }
 
             for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetaData.customData) {
                 builder.field(cursor.key);
                 builder.map(cursor.value);
             }
 
-            builder.startObject(KEY_ALIASES);
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
-                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
+            if (context != MetaData.XContentContext.API) {
+                builder.startObject(KEY_ALIASES);
+                for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
+                    AliasMetaData.Builder.toXContent(cursor.value, builder, params);
+                }
+                builder.endObject();
 
-            builder.startArray(KEY_PRIMARY_TERMS);
-            for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                builder.value(indexMetaData.primaryTerm(i));
+                builder.startArray(KEY_PRIMARY_TERMS);
+                for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+                    builder.value(indexMetaData.primaryTerm(i));
+                }
+                builder.endArray();
             }
-            builder.endArray();
+            else {
+                builder.startArray(KEY_ALIASES);
+                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
+                    builder.value(cursor.value);
+                }
+                builder.endArray();
+
+                builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
+                for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+                    builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
+                }
+                builder.endObject();
+            }
+
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
             for (IntObjectCursor<Set<String>> cursor : indexMetaData.inSyncAllocationIds) {
@@ -1318,7 +1360,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }
                         }
-                    } else if ("warmers".equals(currentFieldName)) {
+                    } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {
+                        LongArrayList list = new LongArrayList();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            }
+                            else if (token == XContentParser.Token.VALUE_NUMBER) {
+                                list.add(parser.longValue());
+                            } else {
+                                throw new IllegalStateException("found a non-numeric value under [" + KEY_PRIMARY_TERMS + "]");
+                            }
+                        }
+                        builder.primaryTerms(list.toArray());
+                    }
+                    else if ("warmers".equals(currentFieldName)) {
                         // TODO: do this in 6.0:
                         // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
                         // ignore: warmers have been removed in 5.0 and are
@@ -1352,7 +1408,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                             }
                         }
                         builder.primaryTerms(list.toArray());
-                    } else {
+                    }
+                    else if (KEY_ALIASES.equals(currentFieldName)) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            builder.putAlias(AliasMetaData.builder(parser.text()).build());
+                        }
+                    }
+                    else {
                         throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }
                 } else if (token.isValue()) {

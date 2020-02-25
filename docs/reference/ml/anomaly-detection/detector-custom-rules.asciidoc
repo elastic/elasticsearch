@@ -76,7 +76,7 @@ PUT _ml/anomaly_detectors/dns_exfiltration_with_rule
 
 As time advances and we see more data and more results, we might encounter new 
 domains that we want to add in the filter. We can do that in the
-**Anomaly Detection > Settings > Filter Lists** in {kib} using the 
+**Anomaly Detection > Settings > Filter Lists** in {kib} by using the 
 {ref}/ml-update-filter.html[update filter API]:
 
 [source,console]

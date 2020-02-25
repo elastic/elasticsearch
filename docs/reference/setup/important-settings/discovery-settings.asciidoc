@@ -58,7 +58,7 @@ cluster.initial_master_nodes: <4>
    - master-node-c
 --------------------------------------------------
 <1> The port is optional and usually defaults to `9300`, but this default can
-    be <<overridden,built-in-hosts-providers>> by certain settings.
+    be <<built-in-hosts-providers,overridden>> by certain settings.
 <2> If a hostname resolves to multiple IP addresses then the node will attempt to
     discover other nodes at all resolved addresses.
 <3> IPv6 addresses must be enclosed in square brackets.

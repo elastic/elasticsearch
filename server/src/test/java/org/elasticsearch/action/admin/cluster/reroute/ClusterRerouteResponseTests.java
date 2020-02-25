@@ -84,6 +84,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    },\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
@@ -93,6 +94,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
@@ -114,7 +120,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          },\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
-                    "          }\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { }\n" +
                     "        }\n" +
                     "      },\n" +
                     "      \"index-graveyard\" : {\n" +
@@ -179,6 +186,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
@@ -188,13 +196,23 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
-                    "              \"max_script_fields\" : \"10\",\n" +
                     "              \"shard\" : {\n" +
                     "                \"check_on_startup\" : \"true\"\n" +
-                    "              }\n" +
+                    "              },\n" +
+                    "              \"number_of_shards\" : \"1\",\n" +
+                    "              \"number_of_replicas\" : \"0\",\n" +
+                    "              \"version\" : {\n" +
+                    "                \"created\" : \"" + Version.CURRENT.id + "\"\n" +
+                    "              },\n" +
+                    "              \"max_script_fields\" : \"10\"\n" +
                     "            }\n" +
                     "          },\n" +
                     "          \"mappings\" : { },\n" +
@@ -204,7 +222,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          },\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
-                    "          }\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { }\n" +
                     "        }\n" +
                     "      },\n" +
                     "      \"index-graveyard\" : {\n" +

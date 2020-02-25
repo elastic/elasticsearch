@@ -165,6 +165,7 @@ public class ClusterStateTests extends ESTestCase {
             "  },\n" +
             "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
+            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 1,\n" +
             "      \"last_committed_config\" : [\n" +
@@ -180,13 +181,16 @@ public class ClusterStateTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
+            "    \"transient_settings\" : {\n" +
+            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
+            "        \"order\" : 0,\n" +
             "        \"index_patterns\" : [\n" +
             "          \"pattern1\",\n" +
             "          \"pattern2\"\n" +
             "        ],\n" +
-            "        \"order\" : 0,\n" +
             "        \"settings\" : {\n" +
             "          \"index\" : {\n" +
             "            \"version\" : {\n" +
@@ -200,11 +204,17 @@ public class ClusterStateTests extends ESTestCase {
             "            \"key2\" : { },\n" +
             "            \"key3\" : { }\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
+            "        \"version\" : 1,\n" +
+            "        \"mapping_version\" : 1,\n" +
+            "        \"settings_version\" : 1,\n" +
+            "        \"aliases_version\" : 1,\n" +
+            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
             "          \"index\" : {\n" +
@@ -232,6 +242,12 @@ public class ClusterStateTests extends ESTestCase {
             "          \"0\" : [\n" +
             "            \"allocationId\"\n" +
             "          ]\n" +
+            "        },\n" +
+            "        \"rollover_info\" : {\n" +
+            "          \"rolloveAlias\" : {\n" +
+            "            \"met_conditions\" : { },\n" +
+            "            \"time\" : 1\n" +
+            "          }\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +
@@ -344,6 +360,7 @@ public class ClusterStateTests extends ESTestCase {
             "  },\n" +
             "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
+            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 1,\n" +
             "      \"last_committed_config\" : [\n" +
@@ -359,13 +376,16 @@ public class ClusterStateTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
+            "    \"transient_settings\" : {\n" +
+            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
+            "        \"order\" : 0,\n" +
             "        \"index_patterns\" : [\n" +
             "          \"pattern1\",\n" +
             "          \"pattern2\"\n" +
             "        ],\n" +
-            "        \"order\" : 0,\n" +
             "        \"settings\" : {\n" +
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
@@ -375,11 +395,17 @@ public class ClusterStateTests extends ESTestCase {
             "            \"key2\" : { },\n" +
             "            \"key3\" : { }\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
+            "        \"version\" : 1,\n" +
+            "        \"mapping_version\" : 1,\n" +
+            "        \"settings_version\" : 1,\n" +
+            "        \"aliases_version\" : 1,\n" +
+            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
             "          \"index.number_of_replicas\" : \"2\",\n" +
@@ -403,6 +429,12 @@ public class ClusterStateTests extends ESTestCase {
             "          \"0\" : [\n" +
             "            \"allocationId\"\n" +
             "          ]\n" +
+            "        },\n" +
+            "        \"rollover_info\" : {\n" +
+            "          \"rolloveAlias\" : {\n" +
+            "            \"met_conditions\" : { },\n" +
+            "            \"time\" : 1\n" +
+            "          }\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +
@@ -516,6 +548,7 @@ public class ClusterStateTests extends ESTestCase {
             "  },\n" +
             "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
+            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 1,\n" +
             "      \"last_committed_config\" : [\n" +
@@ -531,13 +564,16 @@ public class ClusterStateTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
+            "    \"transient_settings\" : {\n" +
+            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
+            "        \"order\" : 0,\n" +
             "        \"index_patterns\" : [\n" +
             "          \"pattern1\",\n" +
             "          \"pattern2\"\n" +
             "        ],\n" +
-            "        \"order\" : 0,\n" +
             "        \"settings\" : {\n" +
             "          \"index\" : {\n" +
             "            \"version\" : {\n" +
@@ -551,11 +587,17 @@ public class ClusterStateTests extends ESTestCase {
             "            \"key2\" : { },\n" +
             "            \"key3\" : { }\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
+            "        \"version\" : 1,\n" +
+            "        \"mapping_version\" : 1,\n" +
+            "        \"settings_version\" : 1,\n" +
+            "        \"aliases_version\" : 1,\n" +
+            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
             "          \"index\" : {\n" +
@@ -583,6 +625,12 @@ public class ClusterStateTests extends ESTestCase {
             "          \"0\" : [\n" +
             "            \"allocationId\"\n" +
             "          ]\n" +
+            "        },\n" +
+            "        \"rollover_info\" : {\n" +
+            "          \"rolloveAlias\" : {\n" +
+            "            \"met_conditions\" : { },\n" +
+            "            \"time\" : 1\n" +
+            "          }\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +
@@ -672,6 +720,7 @@ public class ClusterStateTests extends ESTestCase {
             "  \"nodes\" : { },\n" +
             "  \"metadata\" : {\n" +
             "    \"cluster_uuid\" : \"clusterUUID\",\n" +
+            "    \"cluster_uuid_committed\" : false,\n" +
             "    \"cluster_coordination\" : {\n" +
             "      \"term\" : 0,\n" +
             "      \"last_committed_config\" : [ ],\n" +
@@ -681,13 +730,18 @@ public class ClusterStateTests extends ESTestCase {
             "    \"templates\" : { },\n" +
             "    \"indices\" : {\n" +
             "      \"index\" : {\n" +
+            "        \"version\" : 2,\n" +
+            "        \"mapping_version\" : 1,\n" +
+            "        \"settings_version\" : 1,\n" +
+            "        \"aliases_version\" : 1,\n" +
+            "        \"routing_num_shards\" : 1,\n" +
             "        \"state\" : \"open\",\n" +
             "        \"settings\" : {\n" +
             "          \"index\" : {\n" +
             "            \"number_of_shards\" : \"1\",\n" +
             "            \"number_of_replicas\" : \"2\",\n" +
             "            \"version\" : {\n" +
-                "              \"created\" : \"" + Version.CURRENT.id + "\"\n" +
+            "              \"created\" : \"" + Version.CURRENT.id + "\"\n" +
             "            }\n" +
             "          }\n" +
             "        },\n" +
@@ -702,7 +756,8 @@ public class ClusterStateTests extends ESTestCase {
             "        },\n" +
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [ ]\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"rollover_info\" : { }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -717,7 +772,6 @@ public class ClusterStateTests extends ESTestCase {
             "    \"nodes\" : { }\n" +
             "  }\n" +
             "}", Strings.toString(builder));
-
     }
 
     private ClusterState buildClusterState() throws IOException {
@@ -790,7 +844,6 @@ public class ClusterStateTests extends ESTestCase {
                 .build())
             .build();
     }
-
 
     public static class CustomMetaData extends TestCustomMetaData {
         public static final String TYPE = "custom_md";

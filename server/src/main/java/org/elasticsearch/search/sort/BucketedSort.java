@@ -55,7 +55,7 @@ import static java.util.Collections.emptyList;
  * Every bucket is in one of two states: "gathering" or min/max "heap". While
  * "gathering" the next empty slot is stored in the "root" offset of the
  * bucket and collecting a value is just adding it in the next slot bumping
- * he tracking valu at the root. So collecting values is {@code O(1)}.
+ * the tracking value at the root. So collecting values is {@code O(1)}.
  * Extracting the results in sorted order is {@code O(n * log n)} because,
  * well, sorting is {@code O(n * log n)}. When a bucket has collected
  * {@link #bucketSize} entries it is converted into a min "heap" in

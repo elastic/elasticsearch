@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,8 +22,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -30,25 +30,16 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.UpdateSettingsStep;
 import org.junit.After;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ilm.UpdateSettingsStepTests.SettingsTestingService.INVALID_VALUE;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
-public class UpdateSettingsStepTests extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(SettingsListenerPlugin.class);
-    }
+public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
     private static final SettingsTestingService service = new SettingsTestingService();
 
@@ -56,7 +47,7 @@ public class UpdateSettingsStepTests extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(SettingsTestingService.VALUE);
+            return List.of(SettingsTestingService.VALUE);
         }
 
         @Override
@@ -68,14 +59,15 @@ public class UpdateSettingsStepTests extends ESIntegTestCase {
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            return Collections.singletonList(service);
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                                   IndexNameExpressionResolver expressionResolver) {
+            return List.of(service);
         }
+
     }
-
     public static class SettingsListenerModule extends AbstractModule {
-        private final SettingsTestingService service;
 
+        private final SettingsTestingService service;
         SettingsListenerModule(SettingsTestingService service) {
             this.service = service;
         }
@@ -84,12 +76,12 @@ public class UpdateSettingsStepTests extends ESIntegTestCase {
         protected void configure() {
             bind(SettingsTestingService.class).toInstance(service);
         }
-    }
 
+    }
     static class SettingsTestingService {
+
         public static final String INVALID_VALUE = "INVALID";
         static Setting<String> VALUE = Setting.simpleString("index.test.setting", Property.Dynamic, Property.IndexScope);
-
         public volatile String value;
 
         void setValue(String value) {
@@ -105,21 +97,27 @@ public class UpdateSettingsStepTests extends ESIntegTestCase {
         void resetValues() {
             this.value = "";
         }
-    }
 
+    }
     @After
     public void resetSettingValue() {
         service.resetValues();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(SettingsListenerPlugin.class);
     }
 
     public void testUpdateSettingsStepRetriesOnError() throws InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .build()).get());
 
-        ClusterState state = clusterService().state();
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        ClusterState state = clusterService.state();
         IndexMetaData indexMetaData = state.metaData().index("test");
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class);
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService(), null, logger, threadPool.getThreadContext());
+        ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
 
         CountDownLatch latch = new CountDownLatch(2);
 
@@ -162,11 +160,9 @@ public class UpdateSettingsStepTests extends ESIntegTestCase {
             }
         });
 
-
         latch.await(10, TimeUnit.SECONDS);
 
-        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
-            assertThat(instance.value, is("valid"));
-        }
+        SettingsTestingService instance = getInstanceFromNode(SettingsTestingService.class);
+        assertThat(instance.value, is("valid"));
     }
 }

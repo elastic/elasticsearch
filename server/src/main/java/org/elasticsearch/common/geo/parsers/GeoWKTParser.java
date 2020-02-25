@@ -152,7 +152,7 @@ public class GeoWKTParser {
             return null;
         }
         PointBuilder pt = new PointBuilder(nextNumber(stream), nextNumber(stream));
-        if (isNumberNext(stream) == true) {
+        if (isNumberNext(stream)) {
             GeoPoint.assertZValue(ignoreZValue, nextNumber(stream));
         }
         nextCloser(stream);
@@ -224,7 +224,7 @@ public class GeoWKTParser {
         int coordinatesNeeded = coerce ? 3 : 4;
         if (coordinates.size() >= coordinatesNeeded) {
             if (!coordinates.get(0).equals(coordinates.get(coordinates.size() - 1))) {
-                if (coerce == true) {
+                if (coerce) {
                     coordinates.add(coordinates.get(0));
                 } else {
                     throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
@@ -352,7 +352,7 @@ public class GeoWKTParser {
     }
 
     private static String nextComma(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
-        if (nextWord(stream).equals(COMMA) == true) {
+        if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
         throw new ElasticsearchParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());

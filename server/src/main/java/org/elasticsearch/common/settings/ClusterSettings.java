@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
@@ -270,6 +271,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
             HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
             HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+            HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
+            HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
             HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -387,6 +390,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_KEEPALIVE_SETTING,
             SearchService.KEEPALIVE_INTERVAL_SETTING,
             SearchService.MAX_KEEPALIVE_SETTING,
+            SearchService.ALLOW_EXPENSIVE_QUERIES,
             MultiBucketConsumerService.MAX_BUCKET_SETTING,
             SearchService.LOW_LEVEL_CANCELLATION_SETTING,
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
@@ -466,7 +470,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
             ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
-            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING);
+            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

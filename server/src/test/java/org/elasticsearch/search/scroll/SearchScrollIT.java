@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -53,10 +54,11 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -326,9 +328,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        assertThrows(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+        assertRequestBuilderThrows(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
                 RestStatus.NOT_FOUND);
-        assertThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+        assertRequestBuilderThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
                 RestStatus.NOT_FOUND);
     }
 
@@ -434,9 +436,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
-        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
@@ -484,7 +486,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 
     public void testStringSortMissingAscTerminates() throws Exception {
@@ -614,6 +616,43 @@ public class SearchScrollIT extends ESIntegTestCase {
             (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
         assertNotNull(illegalArgumentException);
         assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (3h) is too large"));
+    }
+
+    /**
+     * Ensures that we always create and retain search contexts on every target shards for a scroll request
+     * regardless whether that query can be written to match_no_docs on some target shards or not.
+     */
+    public void testScrollRewrittenToMatchNoDocs() {
+        final int numShards = randomIntBetween(3, 5);
+        assertAcked(
+            client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
+        client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+        client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
+        client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
+        client().admin().indices().prepareRefresh("test").get();
+        SearchResponse resp = null;
+        try {
+            int totalHits = 0;
+            resp = client().prepareSearch("test")
+                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+                .setMaxConcurrentShardRequests(randomIntBetween(1, 3)) // sometimes fan out shard requests one by one
+                .setSize(randomIntBetween(1, 2))
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .get();
+            assertNoFailures(resp);
+            while (resp.getHits().getHits().length > 0) {
+                totalHits += resp.getHits().getHits().length;
+                resp = client().prepareSearchScroll(resp.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+                assertNoFailures(resp);
+            }
+            assertThat(totalHits, equalTo(2));
+        } finally {
+            if (resp != null && resp.getScrollId() != null) {
+                client().prepareClearScroll().addScrollId(resp.getScrollId()).get();
+            }
+        }
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

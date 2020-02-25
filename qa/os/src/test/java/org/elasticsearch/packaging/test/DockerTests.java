@@ -21,14 +21,11 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker.DockerShell;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -42,28 +39,23 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
-import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
-import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -78,25 +70,15 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
-    protected DockerShell sh;
     private Path tempDir;
 
     @BeforeClass
     public static void filterDistros() {
-        assumeTrue("only Docker", distribution.packaging == Distribution.Packaging.DOCKER);
-
-        ensureImageIsLoaded(distribution);
-    }
-
-    @AfterClass
-    public static void cleanup() {
-        // runContainer also calls this, so we don't need this method to be annotated as `@After`
-        removeContainer();
+        assumeTrue("only Docker", distribution().isDocker());
     }
 
     @Before
     public void setupTest() throws IOException {
-        sh = new DockerShell();
         installation = runContainer(distribution());
         tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
     }
@@ -138,43 +120,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that a keystore can be manually created using the provided CLI tool.
-     */
-    public void test040CreateKeystoreManually() throws InterruptedException {
-        final Installation.Executables bin = installation.executables();
-
-        final Path keystorePath = installation.config("elasticsearch.keystore");
-
-        waitForPathToExist(keystorePath);
-
-        // Move the auto-created one out of the way, or else the CLI prompts asks us to confirm
-        sh.run("mv " + keystorePath + " " + keystorePath + ".bak");
-
-        sh.run(bin.keystoreTool + " create");
-
-        final Result r = sh.run(bin.keystoreTool + " list");
-        assertThat(r.stdout, containsString("keystore.seed"));
-    }
-
-    /**
-     * Check that the default keystore is automatically created
-     */
-    public void test041AutoCreateKeystore() throws Exception {
-        final Path keystorePath = installation.config("elasticsearch.keystore");
-
-        waitForPathToExist(keystorePath);
-
-        assertPermissionsAndOwnership(keystorePath, p660);
-
-        final Installation.Executables bin = installation.executables();
-        final Result result = sh.run(bin.keystoreTool + " list");
-        assertThat(result.stdout, containsString("keystore.seed"));
-    }
-
-    /**
      * Check that the JDK's cacerts file is a symlink to the copy provided by the operating system.
      */
-    public void test042JavaUsesTheOsProvidedKeystore() {
+    public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
         assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
@@ -183,7 +131,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
-    public void test043AmazonCaCertsAreInTheKeystore() {
+    public void test041AmazonCaCertsAreInTheKeystore() {
         final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.lines()
             .anyMatch(line -> line.contains("amazonrootca"));
 
@@ -263,37 +211,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that environment variables can be populated by setting variables with the suffix "_FILE",
-     * which point to files that hold the required values.
-     */
-    public void test080SetEnvironmentVariablesUsingFiles() throws Exception {
-        final String optionsFilename = "esJavaOpts.txt";
-
-        // ES_JAVA_OPTS_FILE
-        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
-
-        Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
-
-        // File permissions need to be secured in order for the ES wrapper to accept
-        // them for populating env var values
-        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
-
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
-        // Restart the container
-        runContainer(distribution(), volumes, envVars);
-
-        waitForElasticsearch(installation);
-
-        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-
-        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
-    }
-
-    /**
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
-    public void test081ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
+    public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
 
@@ -340,7 +260,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed.
      */
-    public void test082SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
+    public void test081SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
         // Test relies on symlinks
@@ -380,22 +300,18 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that environment variables cannot be used with _FILE environment variables.
      */
-    public void test083CannotUseEnvVarsAndFiles() throws Exception {
-        final String optionsFilename = "esJavaOpts.txt";
+    public void test082CannotUseEnvVarsAndFiles() throws Exception {
+        final String passwordFilename = "password.txt";
 
-        // ES_JAVA_OPTS_FILE
-        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+        Files.writeString(tempDir.resolve(passwordFilename), "other_hunter2\n");
 
-        Map<String, String> envVars = Map.of(
-            "ES_JAVA_OPTS",
-            "-XX:+UseCompressedOops",
-            "ES_JAVA_OPTS_FILE",
-            "/run/secrets/" + optionsFilename
-        );
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ELASTIC_PASSWORD", "hunter2");
+        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
-        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
@@ -403,7 +319,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: Both ES_JAVA_OPTS_FILE and ES_JAVA_OPTS are set. These are mutually exclusive.")
+            containsString("ERROR: Both ELASTIC_PASSWORD_FILE and ELASTIC_PASSWORD are set. These are mutually exclusive.")
         );
     }
 
@@ -411,16 +327,15 @@ public class DockerTests extends PackagingTestCase {
      * Check that when populating environment variables by setting variables with the suffix "_FILE",
      * the files' permissions are checked.
      */
-    public void test084EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
-        final String optionsFilename = "esJavaOpts.txt";
+    public void test083EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+        final String passwordFilename = "password.txt";
 
-        // ES_JAVA_OPTS_FILE
-        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+        Files.writeString(tempDir.resolve(passwordFilename), "hunter2\n");
 
-        Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // Set invalid file permissions
-        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p660);
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
@@ -429,7 +344,9 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600")
+            containsString(
+                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
+            )
         );
     }
 
@@ -437,7 +354,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed, and that invalid target permissions are detected.
      */
-    public void test085SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
+    public void test084SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
         // Test relies on symlinks
@@ -486,7 +403,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    public void test086EnvironmentVariablesAreRespectedUnderDockerExec() {
+    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());
@@ -651,21 +568,42 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Java process running inside the container has the expect PID, UID and username.
+     * Check that the Java process running inside the container has the expected UID, GID and username.
      */
-    public void test130JavaHasCorrectPidAndOwnership() {
-        final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+    public void test130JavaHasCorrectOwnership() {
+        final List<String> processes = sh.run("ps -o uid,gid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
 
         assertThat("Expected a single java process", processes, hasSize(1));
 
         final String[] fields = processes.get(0).trim().split("\\s+");
 
         assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo("1000"));
+        assertThat("Incorrect UID", fields[0], equalTo("1000"));
+        assertThat("Incorrect GID", fields[1], equalTo("0"));
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }
 
+    /**
+     * Check that the init process running inside the container has the expected PID, UID, GID and user.
+     * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
+     */
+    public void test131InitProcessHasCorrectPID() {
+        final List<String> processes = sh.run("ps -o pid,uid,gid,user -p 1").stdout.lines().skip(1).collect(Collectors.toList());
+
+        assertThat("Expected a single process", processes, hasSize(1));
+
+        final String[] fields = processes.get(0).trim().split("\\s+");
+
+        assertThat(fields, arrayWithSize(4));
+        assertThat("Incorrect PID", fields[0], equalTo("1"));
+        assertThat("Incorrect UID", fields[1], equalTo("1000"));
+        assertThat("Incorrect GID", fields[2], equalTo("0"));
+        assertThat("Incorrect username", fields[3], equalTo("elasticsearch"));
+    }
+
+    /**
+     * Check that Elasticsearch reports per-node cgroup information.
+     */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 

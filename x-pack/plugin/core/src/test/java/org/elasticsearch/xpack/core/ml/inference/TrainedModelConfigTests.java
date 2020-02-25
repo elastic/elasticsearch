@@ -44,6 +44,8 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +66,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             .setEstimatedHeapMemory(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(),
+                License.OperationMode.ENTERPRISE.description(),
                 License.OperationMode.GOLD.description(),
                 License.OperationMode.BASIC.description()))
             .setTags(tags);
@@ -142,21 +145,21 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             "platinum");
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
-        assertThat(reference.utf8ToString(), containsString("\"definition\""));
+        assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
 
         reference = XContentHelper.toXContent(config,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             false);
         assertThat(reference.utf8ToString(), not(containsString("definition")));
+        assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
 
         reference = XContentHelper.toXContent(config,
             XContentType.JSON,
-            new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "false")),
+            new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "true")),
             false);
-        assertThat(reference.utf8ToString(), not(containsString("\"definition\"")));
-        assertThat(reference.utf8ToString(), containsString("compressed_definition"));
-        assertThat(reference.utf8ToString(), containsString(lazyModelDefinition.getCompressedString()));
+        assertThat(reference.utf8ToString(), containsString("\"definition\""));
+        assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
 
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
@@ -179,7 +182,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
 
-        objectMap.put(TrainedModelConfig.COMPRESSED_DEFINITION.getPreferredName(), lazyModelDefinition.getCompressedString());
+        objectMap.put(TrainedModelConfig.DEFINITION.getPreferredName(), config.getModelDefinition());
 
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(objectMap);
             XContentParser parser = XContentType.JSON
@@ -306,36 +309,63 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
 
     public void testIsAvailableWithLicense() {
         TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
-
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isActive()).thenReturn(false);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
 
+        // Reject everything
+        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
+            invocationOnMock -> {
+                final Object[] arguments = invocationOnMock.getArguments();
+                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
+                return false;
+            }
+        );
+        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
         assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
+        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+        // Basic license always works not matter what
         assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
+    }
 
+    public void testActivePlatinumLicenseAlwaysWorks() {
+        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
+        when(licenseState.isAllowedByLicense(License.OperationMode.PLATINUM)).thenReturn(true);
+
+        // Active Platinum license functions the same as Enterprise license (highest) and should always work
+        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
+            invocationOnMock -> {
+                final Object[] arguments = invocationOnMock.getArguments();
+                assertEquals(License.OperationMode.PLATINUM, arguments[0]);
+                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
+                assertTrue((boolean) arguments[2]);
+                return true;
+            }
+        );
+        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
         assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
         assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
         assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    }
 
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
+    public void testActiveGoldLicenseWillWorkWhenRequiredLevelIsGold() {
+        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.GOLD);
+        // Active Gold license should work when required level is gold
+        when(licenseState.isAllowedByLicense(any(License.OperationMode.class), anyBoolean(), anyBoolean())).thenAnswer(
+            invocationOnMock -> {
+                final Object[] arguments = invocationOnMock.getArguments();
+                assertTrue((boolean) arguments[1]); // ensure the call is made to require active license
+                if (License.OperationMode.PLATINUM == arguments[0] && Boolean.TRUE.equals(arguments[2])) {
+                    return false;
+                } else
+                    return License.OperationMode.GOLD == arguments[0] && Boolean.FALSE.equals(arguments[2]);
+            }
+        );
+        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
         assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
         assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
         assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
     }
-
 }

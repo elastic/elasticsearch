@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -1237,7 +1236,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertFalse((Boolean) healthRsp.get("timed_out"));
     }
 
-    public void testPeerRecoveryRetentionLeases() throws IOException {
+    public void testPeerRecoveryRetentionLeases() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder settings = jsonBuilder();
             settings.startObject();
@@ -1252,11 +1251,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(settings));
             client().performRequest(createIndex);
-            ensureGreen(index);
-        } else {
-            ensureGreen(index);
-            RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index);
         }
+        ensureGreen(index);
+        ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
     }
 
     /**
@@ -1265,7 +1262,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * before we restart the cluster. This is important when we move from translog based to retention leases based
      * peer recoveries.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51274")
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

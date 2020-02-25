@@ -11,6 +11,7 @@ The Java High Level REST Client supports the following Document APIs:
 Single document APIs::
 * <<{upid}-index>>
 * <<{upid}-get>>
+* <<{upid}-get-source>>
 * <<{upid}-exists>>
 * <<{upid}-delete>>
 * <<{upid}-update>>
@@ -28,6 +29,7 @@ Multi-document APIs::
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
+include::document/get-source.asciidoc[]
 include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]

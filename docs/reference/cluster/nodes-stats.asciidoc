@@ -137,6 +137,45 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}
 
+`cluster_name`::
+(string)
+Name of the cluster. Based on the <<cluster.name>> setting.
+
+`nodes.<node_id>.timestamp`::
+(integer)
+Time the node stats were collected for this response. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`nodes.<node_id>.name`::
+(string)
+Human-readable identifier for the node. Based on the <<node.name>> setting.
+
+`nodes.<node_id>.transport_address`::
+(string)
+Host and port for the <<modules-transport,transport layer>>, used for internal
+communication between nodes in a cluster.
+
+`nodes.<node_id>.host`::
+(string)
+Network host for the node, based on the <<network.host>> setting.
+
+`nodes.<node_id>.ip`::
+(string)
+IP address and port for the node.
+
+`nodes.<node_id>.roles`::
+(array of strings)
+Roles assigned to the node. See <<modules-node>>.
+
+`nodes.<node_id>.attributes`::
+(object)
+Object containing a list of attributes for the node.
+
+[NOTE]
+====
+The remaining node statistics are grouped by section. Each statistic is keyed by `nodes.<node_id>`.
+====
+
 [[cluster-nodes-stats-api-response-body-indices]]
 ===== `indices` section
 
@@ -150,13 +189,21 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
 (integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
+`indices.store.size`::
+(<<byte-units,byte value>>)
+Total size of all shards assigned to the node.
+
 `indices.store.size_in_bytes`::
 (integer)
-Size, in bytes, of the store.
+Total size, in bytes, of all shards assigned to the node.
 
 `indices.indexing.index_total`::
 (integer)
 Total number of indexing operations.
+
+`indices.indexing.index_time`::
+(<<time-units,time value>>)
+Total time spent performing indexing operations.
 
 `indices.indexing.index_time_in_millis`::
 (integer)
@@ -174,6 +221,10 @@ Number of failed indexing operations.
 `indices.indexing.delete_total`::
 (integer)
 Total number of deletion operations.
+
+`indices.indexing.delete_time`::
+(<<time-units,time value>>)
+Time spent performing deletion operations.
 
 `indices.indexing.delete_time_in_millis`::
 (integer)
@@ -193,6 +244,10 @@ Total number of noop operations.
 Number of times
 operations were throttled.
 
+`indices.indexing.throttle_time`::
+(<<time-units,time value>>)
+Total time spent throttling operations.
+
 `indices.indexing.throttle_time_in_millis`::
 (integer)
 Total time in milliseconds
@@ -201,6 +256,10 @@ spent throttling operations.
 `indices.get.total`::
 (integer)
 Total number of get operations.
+
+`indices.get.getTime`::
+(<<time-units,time value>>)
+Time spent performing get operations.
 
 `indices.get.time_in_millis`::
 (integer)
@@ -211,6 +270,10 @@ spent performing get operations.
 (integer)
 Total number of successful get operations.
 
+`indices.get.exists_time`::
+(<<time-units,time value>>)
+Time spent performing successful get operations.
+
 `indices.get.exists_time_in_millis`::
 (integer)
 Time in milliseconds
@@ -219,6 +282,10 @@ spent performing successful get operations.
 `indices.get.missing_total`::
 (integer)
 Total number of failed get operations.
+
+`indices.get.missing_time`::
+(<<time-units,time value>>)
+Time spent performing failed get operations.
 
 `indices.get.missing_time_in_millis`::
 (integer)
@@ -237,6 +304,10 @@ Number of open search contexts.
 (integer)
 Total number of query operations.
 
+`indices.search.query_time`::
+(<<time-units,time value>>)
+Time spent performing query operations.
+
 `indices.search.query_time_in_millis`::
 (integer)
 Time in milliseconds
@@ -249,6 +320,10 @@ Number of query operations currently running.
 `indices.search.fetch_total`::
 (integer)
 Total number of fetch operations.
+
+`indices.search.fetch_time`::
+(<<time-units,time value>>)
+Time spent performing fetch operations.
 
 `indices.search.fetch_time_in_millis`::
 (integer)
@@ -263,6 +338,10 @@ Number of fetch operations currently running.
 (integer)
 Total number of scroll operations.
 
+`indices.search.scroll_time`::
+(<<time-units,time value>>)
+Time spent performing scroll operations.
+
 `indices.search.scroll_time_in_millis`::
 (integer)
 Time in milliseconds
@@ -275,6 +354,10 @@ Number of scroll operations currently running.
 `indices.search.suggest_total`::
 (integer)
 Total number of suggest operations.
+
+`indices.search.suggest_time`::
+(<<time-units,time value>>)
+Time spent performing suggest operations.
 
 `indices.search.suggest_time_in_millis`::
 (integer)
@@ -293,6 +376,10 @@ Number of merge operations currently running.
 (integer)
 Number of document merges currently running.
 
+`indices.merges.current_size`::
+(<<byte-units,byte value>>)
+Memory used performing current document merges.
+
 `indices.merges.current_size_in_bytes`::
 (integer)
 Memory, in bytes, used performing current document merges.
@@ -300,6 +387,10 @@ Memory, in bytes, used performing current document merges.
 `indices.merges.total`::
 (integer)
 Total number of merge operations.
+
+`indices.merges.total_time`::
+(<<time-units,time value>>)
+Total time spent performing merge operations.
 
 `indices.merges.total_time_in_millis`::
 (integer)
@@ -310,28 +401,47 @@ spent performing merge operations.
 (integer)
 Total number of merged documents.
 
+`indices.merges.total_size`::
+(<<byte-units,byte value>>)
+Total size of document merges.
+
 `indices.merges.total_size_in_bytes`::
 (integer)
 Total size of document merges in bytes.
+
+`indices.merges.total_stopped_time`::
+(<<time-units,time value>>)
+Total time spent stopping merge operations.
 
 `indices.merges.total_stopped_time_in_millis`::
 (integer)
 Total time in milliseconds
 spent stopping merge operations.
 
+`indices.merges.total_throttled_time`::
+(<<time-units,time value>>)
+Total time spent throttling merge operations.
+
 `indices.merges.total_throttled_time_in_millis`::
 (integer)
 Total time in milliseconds
 spent throttling merge operations.
 
+`indices.merges.total_auto_throttle`::
+(<<byte-units,byte value>>)
+Size of automatically throttled merge operations.
+
 `indices.merges.total_auto_throttle_in_bytes`::
 (integer)
-Total time in milliseconds
-spent automatically throttling merge operations.
+Size, in bytes, of automatically throttled merge operations.
 
 `indices.refresh.total`::
 (integer)
 Total number of refresh operations.
+
+`indices.refresh.total_time`::
+(<<time-units,time value>>)
+Total time spent performing refresh operations.
 
 `indices.refresh.total_time_in_millis`::
 (integer)
@@ -341,6 +451,10 @@ spent performing refresh operations.
 `indices.refresh.external_total`::
 (integer)
 Total number of external refresh operations.
+
+`indices.refresh.external_total_time`::
+(<<time-units,time value>>)
+Total time spent performing external operations.
 
 `indices.refresh.external_total_time_in_millis`::
 (integer)
@@ -359,6 +473,10 @@ Number of flush operations.
 (integer)
 Number of flush periodic operations.
 
+`indices.flush.total_time`::
+(<<time-units,time value>>)
+Total time spent performing flush operations.
+
 `indices.flush.total_time_in_millis`::
 (integer)
 Total time in milliseconds
@@ -372,14 +490,24 @@ Number of active index warmers.
 (integer)
 Total number of index warmers.
 
+`indices.warmer.total_time`::
+(<<time-units,time value>>)
+Total time spent performing index warming operations.
+
 `indices.warmer.total_time_in_millis`::
 (integer)
 Total time in milliseconds
 spent performing index warming operations.
 
+`indices.query_cache.memory_size`::
+(<<byte-units,byte value>>)
+Total amount of memory used for the query cache across all shards assigned to
+the node.
+
 `indices.query_cache.memory_size_in_bytes`::
 (integer)
-Memory, in bytes, used for query cache.
+Total amount of memory, in bytes, used for the query cache across all shards
+assigned to the node.
 
 `indices.query_cache.total_count`::
 (integer)
@@ -407,76 +535,146 @@ in the query cache.
 (integer)
 Number of query cache evictions.
 
+`indices.fielddata.memory_size`::
+(<<byte-units,byte value>>)
+Total amount of memory used for the field data cache across all shards
+assigned to the node.
+
 `indices.fielddata.memory_size_in_bytes`::
 (integer)
-Memory, in bytes, used for fielddata cache.
+Total amount of memory, in bytes, used for the field data cache across all
+shards assigned to the node.
 
 `indices.fielddata.evictions`::
 (integer)
 Number of fielddata evictions.
 
+`indices.completion.size`::
+(<<byte-units,byte value>>)
+Total amount of memory used for completion across all shards assigned to
+the node.
+
 `indices.completion.size_in_bytes`::
 (integer)
-Memory, in bytes, used for completion.
+Total amount of memory, in bytes, used for completion across all shards assigned
+to the node.
 
 `indices.segments.count`::
 (integer)
 Number of segments.
 
+`indices.segments.memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for segments across all shards assigned to the
+node.
+
 `indices.segments.memory_in_bytes`::
 (integer)
-Size, in bytes, of segments.
+Total amount of memory, in bytes, used for segments across all shards assigned
+to the node.
+
+`indices.segments.terms_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for terms across all shards assigned to the node.
 
 `indices.segments.terms_memory_in_bytes`::
 (integer)
-Memory, in bytes, used of terms
-in segments.
+Total amount of memory, in bytes, used for terms across all shards assigned to
+the node.
+
+`indices.segments.stored_fields_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for stored fields across all shards assigned to
+the node.
 
 `indices.segments.stored_fields_memory_in_bytes`::
 (integer)
-Size, in bytes, of stored fields
-in segments.
+Total amount of memory, in bytes, used for stored fields across all shards
+assigned to the node.
+
+`indices.segments.term_vectors_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for term vectors across all shards assigned to
+the node.
 
 `indices.segments.term_vectors_memory_in_bytes`::
 (integer)
-Size, in bytes, of term vectors
-in segments.
+Total amount of memory, in bytes, used for term vectors across all shards
+assigned to the node.
+
+`indices.segments.norms_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for normalization factors across all shards assigned
+to the node.
 
 `indices.segments.norms_memory_in_bytes`::
 (integer)
-Size, in bytes, of normalization factors 
-in segments.
+Total amount of memory, in bytes, used for normalization factors across all
+shards assigned to the node.
+
+`indices.segments.points_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for points across all shards assigned to the node.
 
 `indices.segments.points_memory_in_bytes`::
 (integer)
-Size, in bytes, of points
-in segments.
+Total amount of memory, in bytes, used for points across all shards assigned to
+the node.
+
+`indices.segments.doc_values_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used for doc values across all shards assigned to
+the node.
 
 `indices.segments.doc_values_memory_in_bytes`::
 (integer)
-Size, in bytes, of doc values
-in segments.
+Total amount of memory, in bytes, used for doc values across all shards assigned
+to the node.
+
+`indices.segments.index_writer_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used by all index writers across all shards assigned to
+the node.
 
 `indices.segments.index_writer_memory_in_bytes`::
 (integer)
-Memory, in bytes, used by the index writer.
+Total amount of memory, in bytes, used by all index writers across all shards
+assigned to the node.
+
+`indices.segments.version_map_memory`::
+(<<byte-units,byte value>>)
+Total amount of memory used by all version maps across all shards assigned to
+the node.
 
 `indices.segments.version_map_memory_in_bytes`::
 (integer)
-Memory, in bytes, used by the version map.
+Total amount of memory, in bytes, used by all version maps across all shards
+assigned to the node.
+
+`indices.segments.fixed_bit_set`::
+(<<byte-units,byte value>>)
+Total amount of memory used by fixed bit sets across all shards assigned to
+the node.
++
+Fixed bit sets are used for nested object field types and
+type filters for <<parent-join,join>> fields.
 
 `indices.segments.fixed_bit_set_memory_in_bytes`::
 (integer)
-Memory, in bytes,
-used by fixed bit sets
-for nested object field types
-and type filters
-for <<parent-join,join>> fields.
+Total amount of memory, in bytes, used by fixed bit sets across all shards
+assigned to the node.
++
+Fixed bit sets are used for nested object field types and
+type filters for <<parent-join,join>> fields.
 
 `indices.segments.max_unsafe_auto_id_timestamp`::
 (integer)
-Timestamp of the
-most recent retry request.
+Time of the most recently retried indexing request. Recorded in milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
+
+`indices.segments.file_sizes.size`::
+(<<byte-units,byte value>>)
+Size of the segment file.
 
 `indices.segments.file_sizes.size_in_bytes`::
 (integer)
@@ -491,6 +689,10 @@ Description of the segment file.
 (integer)
 Number of transaction log operations.
 
+`indices.translog.size`::
+(<<byte-units,byte value>>)
+Size of the transaction log.
+
 `indices.translog.size_in_bytes`::
 (integer)
 Size, in bytes, of the transaction log.
@@ -498,6 +700,10 @@ Size, in bytes, of the transaction log.
 `indices.translog.uncommitted_operations`::
 (integer)
 Number of uncommitted transaction log operations.
+
+`indices.translog.uncommitted_size`::
+(<<byte-units,byte value>>)
+Size of uncommitted transaction log operations.
 
 `indices.translog.uncommitted_size_in_bytes`::
 (integer)
@@ -507,6 +713,10 @@ Size, in bytes, of uncommitted transaction log operations.
 (integer)
 Earliest last modified age
 for the transaction log.
+
+`indices.request_cache.memory_size`::
+(<<byte-units,byte value>>)
+Memory used by the request cache.
 
 `indices.request_cache.memory_size_in_bytes`::
 (integer)
@@ -533,6 +743,10 @@ that used an index shard as a source.
 (integer)
 Number of recoveries
 that used an index shard as a target.
+
+`indices.recovery.throttle_time`::
+(<<time-units,time value>>)
+Time by which recovery operations were delayed due to throttling.
 
 `indices.recovery.throttle_time_in_millis`::
 (integer)
@@ -1120,8 +1334,6 @@ Number of compatible differences between published cluster states.
 
 [%collapsible]
 ====
-The `adaptive_selection` statistics are keyed by node. For each node:
-
 `adaptive_selection.outgoing_searches`::
     The number of outstanding search requests from the node these stats are for 
     to the keyed node.

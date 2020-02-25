@@ -99,6 +99,24 @@ tag::bytes[]
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
 
+tag::cluster-health-status[]
+(string)
+Health status of the cluster, based on the state of its primary and replica
+shards. Statuses are:
+
+  `green`:::
+  All shards are assigned.
+
+  `yellow`:::
+  All primary shards are assigned, but one or more replica shards are
+  unassigned. If a node in the cluster fails, some
+  data could be unavailable until that node is repaired.
+
+  `red`:::
+  One or more primary shards are unassigned, so some data is unavailable. This
+  can occur briefly during cluster startup as primary shards are assigned.
+end::cluster-health-status[]
+
 tag::committed[]
 If `true`,
 the segments is synced to disk. Segments that are synced can survive a hard reboot.
@@ -505,6 +523,13 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::node-filter[]
+`<node_filter>`::
+(Optional, string)
+Comma-separated list of <<cluster-nodes,node filters>> used to limit returned
+information. Defaults to all nodes in the cluster.
+end::node-filter[]
+
 tag::node-id[]
 `<node_id>`::
 (Optional, string) Comma-separated list of node IDs or names used to limit
@@ -682,7 +707,7 @@ Defaults to 100.
 end::scroll_size[]
 
 tag::search_timeout[]
-`search_timeout`::
+`timeout`::
 (Optional, <<time-units, time units>>)
 Explicit timeout for each search request.
 Defaults to no timeout.

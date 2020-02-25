@@ -149,7 +149,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             FieldMapper.IGNORE_MALFORMED_SETTING,
             FieldMapper.COERCE_SETTING,
             Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
-            MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
             MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
             MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
@@ -165,6 +164,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.DEFAULT_PIPELINE,
             IndexSettings.FINAL_PIPELINE,
             MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+            IndexSettings.ON_HEAP_ID_TERMS_INDEX,
 
             // validate that built-in similarities don't get redefined
             Setting.groupSetting(

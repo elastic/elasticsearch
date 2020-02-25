@@ -22,7 +22,7 @@ https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[Op
 project].
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene//analysis/miscellaneous/FingerprintFilter.html[FingerprintFilter].
+{lucene-analysis-docs}/miscellaneous/FingerprintFilter.html[FingerprintFilter].
 
 [[analysis-fingerprint-tokenfilter-analyze-ex]]
 ==== Example

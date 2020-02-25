@@ -40,9 +40,11 @@ include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
-ifeval::["{release-state}"=="unreleased"]
+ifdef::permanently-unreleased-branch[]
 
 include::autoscaling/index.asciidoc[]
+
+include::eql/index.asciidoc[]
 
 endif::[]
 

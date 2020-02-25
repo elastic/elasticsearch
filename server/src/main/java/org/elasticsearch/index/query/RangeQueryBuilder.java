@@ -438,7 +438,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             return MappedFieldType.Relation.INTERSECTS;
         }
         final MapperService mapperService = shardContext.getMapperService();
-        final MappedFieldType fieldType = mapperService.fullName(fieldName);
+        final MappedFieldType fieldType = mapperService.fieldType(fieldName);
         if (fieldType == null) {
             // no field means we have no values
             return MappedFieldType.Relation.DISJOINT;
@@ -451,16 +451,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        // Percolator queries get rewritten and pre-processed at index time.
-        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
-        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
-        if (queryRewriteContext.convertNowRangeToMatchAll()) {
-            if ((from() != null && from().toString().contains("now")) ||
-                (to() != null && to().toString().contains("now"))) {
-                return new MatchAllQueryBuilder();
-            }
-        }
-
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:
@@ -491,7 +481,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
             if (fieldNamesFieldType == null) {
                 return new MatchNoDocsQuery("No mappings yet");
             }

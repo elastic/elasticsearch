@@ -22,24 +22,23 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RemoteConnectionManager implements Closeable {
+public class RemoteConnectionManager implements ConnectionManager {
 
     private final String clusterAlias;
-    private final ConnectionManager connectionManager;
+    private final ConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
     private volatile List<Transport.Connection> connections = Collections.emptyList();
 
-    RemoteConnectionManager(String clusterAlias, ConnectionManager connectionManager) {
+    RemoteConnectionManager(String clusterAlias, ConnectionManager delegate) {
         this.clusterAlias = clusterAlias;
-        this.connectionManager = connectionManager;
-        this.connectionManager.addListener(new TransportConnectionListener() {
+        this.delegate = delegate;
+        this.delegate.addListener(new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 addConnection(connection);
@@ -52,22 +51,50 @@ public class RemoteConnectionManager implements Closeable {
         });
     }
 
+    @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               ConnectionManager.ConnectionValidator connectionValidator,
                               ActionListener<Void> listener) throws ConnectTransportException {
-        connectionManager.connectToNode(node, connectionProfile, connectionValidator, listener);
+        delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
     }
 
+    @Override
+    public void addListener(TransportConnectionListener listener) {
+        delegate.addListener(listener);
+    }
+
+    @Override
+    public void removeListener(TransportConnectionListener listener) {
+        delegate.removeListener(listener);
+    }
+
+    @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        connectionManager.openConnection(node, profile, listener);
+        delegate.openConnection(node, profile, listener);
     }
 
-    public Transport.Connection getRemoteConnection(DiscoveryNode node) {
+    @Override
+    public Transport.Connection getConnection(DiscoveryNode node) {
         try {
-            return connectionManager.getConnection(node);
+            return delegate.getConnection(node);
         } catch (NodeNotConnectedException e) {
             return new ProxyConnection(getAnyRemoteConnection(), node);
         }
+    }
+
+    @Override
+    public boolean nodeConnected(DiscoveryNode node) {
+        return delegate.nodeConnected(node);
+    }
+
+    @Override
+    public void disconnectFromNode(DiscoveryNode node) {
+        delegate.disconnectFromNode(node);
+    }
+
+    @Override
+    public ConnectionProfile getConnectionProfile() {
+        return delegate.getConnectionProfile();
     }
 
     public Transport.Connection getAnyRemoteConnection() {
@@ -81,16 +108,19 @@ public class RemoteConnectionManager implements Closeable {
         }
     }
 
-    public ConnectionManager getConnectionManager() {
-        return connectionManager;
-    }
-
+    @Override
     public int size() {
-        return connectionManager.size();
+        return delegate.size();
     }
 
+    @Override
     public void close() {
-        connectionManager.closeNoBlock();
+        delegate.closeNoBlock();
+    }
+
+    @Override
+    public void closeNoBlock() {
+        delegate.closeNoBlock();
     }
 
     private synchronized void addConnection(Transport.Connection addedConnection) {

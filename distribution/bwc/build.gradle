@@ -196,6 +196,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         }
 
         args "-Dbuild.snapshot=true"
+        args "-Dscan.tag.NESTED"
         final LogLevel logLevel = gradle.startParameter.logLevel
         if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
           args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"

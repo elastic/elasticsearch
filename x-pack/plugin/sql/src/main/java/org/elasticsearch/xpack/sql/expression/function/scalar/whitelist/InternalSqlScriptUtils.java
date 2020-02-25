@@ -8,18 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.CaseProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIfProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
@@ -44,6 +36,16 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
@@ -63,6 +65,23 @@ import java.util.Map;
 public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     InternalSqlScriptUtils() {}
+
+
+    //
+    // Logical
+    //
+
+    public static Boolean isNull(Object expression) {
+        return CheckNullOperation.IS_NULL.apply(expression);
+    }
+
+    public static Boolean isNotNull(Object expression) {
+        return CheckNullOperation.IS_NOT_NULL.apply(expression);
+    }
+
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
+    }
 
     //
     // Conditional
@@ -99,19 +118,19 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     // Math
     //
     public static Object add(Object left, Object right) {
-        return BinaryArithmeticOperation.ADD.apply(left, right);
+        return SqlBinaryArithmeticOperation.ADD.apply(left, right);
     }
 
     public static Object div(Object left, Object right) {
-        return BinaryArithmeticOperation.DIV.apply(left, right);
+        return SqlBinaryArithmeticOperation.DIV.apply(left, right);
     }
 
     public static Object mod(Object left, Object right) {
-        return BinaryArithmeticOperation.MOD.apply(left, right);
+        return SqlBinaryArithmeticOperation.MOD.apply(left, right);
     }
 
     public static Object mul(Object left, Object right) {
-        return BinaryArithmeticOperation.MUL.apply(left, right);
+        return SqlBinaryArithmeticOperation.MUL.apply(left, right);
     }
 
     public static Number neg(Number value) {
@@ -119,7 +138,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object sub(Object left, Object right) {
-        return BinaryArithmeticOperation.SUB.apply(left, right);
+        return SqlBinaryArithmeticOperation.SUB.apply(left, right);
     }
 
     public static Number round(Number v, Number s) {
@@ -329,7 +348,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         if (text == null || typeName == null) {
             return null;
         }
-        return new IntervalDayTime(Duration.parse(text), DataType.fromSqlOrEsType(typeName));
+        return new IntervalDayTime(Duration.parse(text), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 
     public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
@@ -337,7 +356,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
             return null;
         }
 
-        return new IntervalYearMonth(Period.parse(text), DataType.fromSqlOrEsType(typeName));
+        return new IntervalYearMonth(Period.parse(text), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 
     public static OffsetTime asTime(String time) {
@@ -477,6 +496,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Object cast(Object value, String typeName) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromSqlOrEsType(typeName));
+        return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 }

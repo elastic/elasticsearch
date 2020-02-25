@@ -116,8 +116,7 @@ public class Regression implements DataFrameAnalysis {
         return trainingPercent;
     }
 
-    @Nullable
-    public Long getRandomizeSeed() {
+    public long getRandomizeSeed() {
         return randomizeSeed;
     }
 
@@ -182,8 +181,8 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
-        return Collections.emptyMap();
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
+        return Collections.emptyList();
     }
 
     @Override
@@ -222,7 +221,7 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(boostedTreeParams, that.boostedTreeParams)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && trainingPercent == that.trainingPercent
-            && randomizeSeed == randomizeSeed;
+            && randomizeSeed == that.randomizeSeed;
     }
 
     @Override

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -15,20 +16,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
-import java.io.IOException;
 import java.util.SortedMap;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -38,6 +31,9 @@ public class AnnotationIndex {
     public static final String WRITE_ALIAS_NAME = ".ml-annotations-write";
     // Exposed for testing, but always use the aliases in non-test code
     public static final String INDEX_NAME = ".ml-annotations-6";
+    public static final String INDEX_PATTERN = ".ml-annotations*";
+
+    private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
     /**
      * Create the .ml-annotations index with correct mappings if it does not already
@@ -63,39 +59,28 @@ public class AnnotationIndex {
             // Create the annotations index if it doesn't exist already.
             if (mlLookup.containsKey(INDEX_NAME) == false) {
 
-                final TimeValue delayedNodeTimeOutSetting;
-                // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-                if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
-                    delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-                } else {
-                    delayedNodeTimeOutSetting = TimeValue.ZERO;
-                }
+                CreateIndexRequest createIndexRequest =
+                    new CreateIndexRequest(INDEX_NAME)
+                        .mapping(annotationsMapping())
+                        .settings(Settings.builder()
+                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                            .put(IndexMetaData.SETTING_INDEX_HIDDEN, true));
 
-                CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
-                try (XContentBuilder annotationsMapping = AnnotationIndex.annotationsMapping()) {
-                    createIndexRequest.mapping(annotationsMapping);
-                    createIndexRequest.settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting));
-
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
-                        ActionListener.<CreateIndexResponse>wrap(
-                            r -> createAliasListener.onResponse(r.isAcknowledged()),
-                            e -> {
-                                // Possible that the index was created while the request was executing,
-                                // so we need to handle that possibility
-                                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                                    // Create the alias
-                                    createAliasListener.onResponse(true);
-                                } else {
-                                    finalListener.onFailure(e);
-                                }
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
+                    ActionListener.<CreateIndexResponse>wrap(
+                        r -> createAliasListener.onResponse(r.isAcknowledged()),
+                        e -> {
+                            // Possible that the index was created while the request was executing,
+                            // so we need to handle that possibility
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                                // Create the alias
+                                createAliasListener.onResponse(true);
+                            } else {
+                                finalListener.onFailure(e);
                             }
-                        ), client.admin().indices()::create);
-                } catch (IOException e) {
-                    finalListener.onFailure(e);
-                }
+                        }
+                    ), client.admin().indices()::create);
                 return;
             }
 
@@ -110,42 +95,8 @@ public class AnnotationIndex {
         finalListener.onResponse(false);
     }
 
-    public static XContentBuilder annotationsMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder()
-            .startObject()
-                .startObject(SINGLE_MAPPING_NAME);
-        ElasticsearchMappings.addMetaInformation(builder);
-        builder.startObject(ElasticsearchMappings.PROPERTIES)
-                        .startObject(Annotation.ANNOTATION.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.TEXT)
-                        .endObject()
-                        .startObject(Annotation.CREATE_TIME.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                        .endObject()
-                        .startObject(Annotation.CREATE_USERNAME.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                        .endObject()
-                        .startObject(Annotation.TIMESTAMP.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                        .endObject()
-                        .startObject(Annotation.END_TIMESTAMP.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                        .endObject()
-                        .startObject(Job.ID.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                        .endObject()
-                        .startObject(Annotation.MODIFIED_TIME.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                        .endObject()
-                        .startObject(Annotation.MODIFIED_USERNAME.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                        .endObject()
-                        .startObject(Annotation.TYPE.getPreferredName())
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-        return builder;
+    public static String annotationsMapping() {
+        return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json",
+            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
     }
 }

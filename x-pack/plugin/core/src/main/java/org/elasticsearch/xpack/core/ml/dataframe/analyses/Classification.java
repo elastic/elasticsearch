@@ -150,8 +150,7 @@ public class Classification implements DataFrameAnalysis {
         return trainingPercent;
     }
 
-    @Nullable
-    public Long getRandomizeSeed() {
+    public long getRandomizeSeed() {
         return randomizeSeed;
     }
 
@@ -243,9 +242,9 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
-        return Collections.singletonMap(dependentVariable, 2L);
+        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, 2));
     }
 
     @SuppressWarnings("unchecked")

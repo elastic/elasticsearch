@@ -45,7 +45,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
     private TransformTaskParams(String transformId, String version, String frequency, Boolean remote) {
         this(transformId, version == null ? null : Version.fromString(version),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
-                    remote
+                    remote == null ? false : remote.booleanValue()
                     );
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.core.ml.inference.utils.SimpleBoundedInputStream;
 
 import java.io.IOException;
@@ -38,8 +37,6 @@ public final class InferenceToXContentCompressor {
 //    private static final long MAX_INFLATED_BYTES = Math.min(
 //        (long)((0.10) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
 //        1_000_000_000); // 1 gb maximum
-
-
     private static final long MAX_INFLATED_BYTES = 1_000_000_000;
 
     private InferenceToXContentCompressor() {}

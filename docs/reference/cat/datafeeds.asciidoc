@@ -1,0 +1,155 @@
+[role="xpack"]
+[testenv="platinum"]
+[[cat-datafeeds]]
+=== cat {dfeeds} API
+++++
+<titleabbrev>cat {dfeeds}</titleabbrev>
+++++
+
+Returns configuration and usage information about {dfeeds}.
+
+[[cat-datafeeds-request]]
+==== {api-request-title}
+
+`GET /_cat/ml/datafeeds/<feed_id>` +
+
+`GET /_cat/ml/datafeeds`
+
+[[cat-datafeeds-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+<<security-privileges>> and {ml-docs}/setup.html[Set up {ml-features}].
+
+////
+[[cat-datafeeds-desc]]
+==== {api-description-title}
+
+TBD: This API returns a maximum of 10,000 {dfeeds}. 
+////
+
+[[cat-datafeeds-path-params]]
+==== {api-path-parms-title}
+
+`<feed_id>`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[[cat-datafeeds-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_datafeeds`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+[[cat-datafeeds-results]]
+==== {api-response-body-title}
+
+`assignment_explanation`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation]
++
+To retrieve this information, specify the `ae` column in the `h` query parameter. 
+
+`bucket.count`:: 
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
++
+To retrieve this information, specify the `bc` or `bucketCount` column in the
+`h` query parameter.
+
+`id`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
++
+To retrieve this information, specify the `id` column in the `h` query parameter.
+  
+`node.address`::
+The network address of the node.
++ 
+include::{docdir}/ml/ml-shared.asciidoc[tag=node]
++
+To retrieve this information, specify the `na` or `nodeAddress` column in the
+`h` query parameter.
+  
+`node.ephemeral_id`::
+The ephemeral ID of the node.
++
+include::{docdir}/ml/ml-shared.asciidoc[tag=node]
++
+To retrieve this information, specify the `ne` or `nodeEphemeralId` column in
+the `h` query parameter.
+  
+`node.id`::
+The unique identifier of the node.
++
+include::{docdir}/ml/ml-shared.asciidoc[tag=node]
++
+To retrieve this information, specify the `ni` or `nodeId` column in the `h`
+query parameter.
+
+`node.name`::
+The node name.
++
+include::{docdir}/ml/ml-shared.asciidoc[tag=node]
++
+To retrieve this information, specify the `nn` or `nodeName` column in the `h`
+query parameter.
+
+`search.bucket_avg`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
++
+To retrieve this information, specify the `sba` or `bucketTimeMin` column in the
+`h` query parameter.
+  
+`search.count`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=search-count]
++
+To retrieve this information, specify the `sc` or `searchCount` column in the
+`h` query parameter.
+
+`search.exp_avg_hour`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
++
+To retrieve this information, specify the `seah` or `searchExpAvgHour` column in
+the `h` query parameter.
+
+`search.time`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=search-time]
++
+To retrieve this information, specify the `st` or `searchTime` column in the `h`
+query parameter.
+
+`state`::
+include::{docdir}/ml/ml-shared.asciidoc[tag=state-datafeed]
++
+To retrieve this information, specify the `s` column in the `h` query parameter. 
+
+[[cat-datafeeds-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _cat/ml/datafeeds?v
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+[source,console-result]
+----
+id                              state bucket.count search.count
+datafeed-high_sum_total_sales stopped 743          7
+datafeed-low_request_rate     stopped 1457         3
+datafeed-response_code_rates  stopped 1460         18
+datafeed-url_scanning         stopped 1460         18
+----
+// TESTRESPONSE[skip:kibana sample data]

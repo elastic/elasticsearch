@@ -86,8 +86,14 @@ public class CacheDirectory extends FilterDirectory {
     }
 
     // pkg private for tests
-    @Nullable IndexInputStats getStats(String name) {
+    @Nullable
+    IndexInputStats getStats(String name) {
         return stats.get(name);
+    }
+
+    // pkg private so tests can override
+    IndexInputStats createIndexInputStats(final long fileLength) {
+        return new IndexInputStats(fileLength);
     }
 
     public void close() throws IOException {
@@ -101,7 +107,7 @@ public class CacheDirectory extends FilterDirectory {
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
         final long fileLength = fileLength(name);
-        return new CacheBufferedIndexInput(name, fileLength, context, stats.computeIfAbsent(name, n -> new IndexInputStats(fileLength)));
+        return new CacheBufferedIndexInput(name, fileLength, context, stats.computeIfAbsent(name, n -> createIndexInputStats(fileLength)));
     }
 
     private class CacheFileReference implements CacheFile.EvictionListener {
@@ -184,6 +190,8 @@ public class CacheDirectory extends FilterDirectory {
 
         // last read position is kept around in order to detect (non)contiguous reads for stats
         private long lastReadPosition;
+        // last seek position is kept around in order to detect forward/backward seeks for stats
+        private long lastSeekPosition;
 
         CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext, IndexInputStats stats) {
             this(new CacheFileReference(fileName, fileLength), ioContext, stats,
@@ -201,6 +209,8 @@ public class CacheDirectory extends FilterDirectory {
             this.end = offset + length;
             this.closed = new AtomicBoolean(false);
             this.isClone = isClone;
+            this.lastReadPosition = this.offset;
+            this.lastSeekPosition = this.offset;
         }
 
         @Override
@@ -260,6 +270,7 @@ public class CacheDirectory extends FilterDirectory {
             assert totalBytesRead == length : "partial read operation, read [" + totalBytesRead + "] bytes of [" + length + "]";
             stats.incrementBytesRead(lastReadPosition, position, totalBytesRead);
             lastReadPosition = position + totalBytesRead;
+            lastSeekPosition = lastReadPosition;
         }
 
         int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
@@ -302,7 +313,9 @@ public class CacheDirectory extends FilterDirectory {
             } else if (pos < 0L) {
                 throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
             }
-            stats.incrementSeeks(getFilePointer(), pos);
+            final long position = pos + this.offset;
+            stats.incrementSeeks(lastSeekPosition, position);
+            lastSeekPosition = position;
         }
 
         @Override

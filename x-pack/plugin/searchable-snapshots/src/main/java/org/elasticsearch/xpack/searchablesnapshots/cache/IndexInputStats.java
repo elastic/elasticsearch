@@ -156,7 +156,7 @@ public class IndexInputStats {
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
-    private boolean isLargeSeek(long delta) {
+    boolean isLargeSeek(long delta) {
         return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
     }
 

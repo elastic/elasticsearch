@@ -64,6 +64,8 @@ public class SearchResponseTests extends ESTestCase {
     static {
         List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(InternalAggregationTestCase.getDefaultNamedXContents());
         namedXContents.addAll(SuggestTests.getDefaultNamedXContents());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        namedXContents.addAll(searchModule.getNamedXContents());
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 

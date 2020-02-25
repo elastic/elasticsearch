@@ -217,15 +217,17 @@ public class SubSearchContext extends FilteredSearchContext {
         this.originalQuery = query;
         this.query = query;
         this.namedQueries.clear();
-        this.query.visit(new QueryVisitor() {
-            @Override
-            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                if (parent instanceof NamedQuery || parent instanceof NamedSpanQuery) {
-                    SubSearchContext.this.namedQueries.add(parent);
+        if (this.query != null) {
+            this.query.visit(new QueryVisitor() {
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    if (parent instanceof NamedQuery || parent instanceof NamedSpanQuery) {
+                        SubSearchContext.this.namedQueries.add(parent);
+                    }
+                    return super.getSubVisitor(occur, parent);
                 }
-                return super.getSubVisitor(occur, parent);
-            }
-        });
+            });
+        }
     }
 
     @Override

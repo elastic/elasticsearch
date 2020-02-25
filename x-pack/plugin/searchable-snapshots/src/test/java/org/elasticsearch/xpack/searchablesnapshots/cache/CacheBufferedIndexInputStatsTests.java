@@ -294,6 +294,132 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         });
     }
 
+    public void testForwardSeeks() throws Exception {
+        // use default cache service settings
+        final CacheService cacheService = new CacheService(Settings.EMPTY);
+
+        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
+            final IOContext ioContext = newIOContext(random());
+            try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
+                IndexInput input = indexInput;
+                if (randomBoolean()) {
+                    final long sliceOffset = randomLongBetween(0L, input.length() - 1L);
+                    final long sliceLength = randomLongBetween(1L, input.length() - sliceOffset);
+                    input = input.slice("slice", sliceOffset, sliceLength);
+                }
+                if (randomBoolean()) {
+                    input = input.clone();
+                }
+
+                final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+                final IndexInputStats.Counter forwardSmallSeeksCounter = inputStats.getForwardSmallSeeks();
+                assertCounter(forwardSmallSeeksCounter, 0L, 0L, 0L, 0L);
+
+                long totalSmallSeeks = 0L;
+                long countSmallSeeks = 0L;
+                long minSmallSeeks = Long.MAX_VALUE;
+                long maxSmallSeeks = Long.MIN_VALUE;
+
+                final IndexInputStats.Counter forwardLargeSeeksCounter = inputStats.getForwardLargeSeeks();
+                assertCounter(forwardLargeSeeksCounter, 0L, 0L, 0L, 0L);
+
+                long totalLargeSeeks = 0L;
+                long countLargeSeeks = 0L;
+                long minLargeSeeks = Long.MAX_VALUE;
+                long maxLargeSeeks = Long.MIN_VALUE;
+
+                while (input.getFilePointer() < input.length()) {
+                    long moveForward = randomLongBetween(1L, input.length() - input.getFilePointer());
+                    input.seek(input.getFilePointer() + moveForward);
+
+                    if (inputStats.isLargeSeek(moveForward)) {
+                        minLargeSeeks = (moveForward < minLargeSeeks) ? moveForward : minLargeSeeks;
+                        maxLargeSeeks = (moveForward > maxLargeSeeks) ? moveForward : maxLargeSeeks;
+                        totalLargeSeeks += moveForward;
+                        countLargeSeeks += 1;
+
+                        assertCounter(forwardLargeSeeksCounter, totalLargeSeeks, countLargeSeeks, minLargeSeeks, maxLargeSeeks);
+
+                    } else {
+                        minSmallSeeks = (moveForward < minSmallSeeks) ? moveForward : minSmallSeeks;
+                        maxSmallSeeks = (moveForward > maxSmallSeeks) ? moveForward : maxSmallSeeks;
+                        totalSmallSeeks += moveForward;
+                        countSmallSeeks += 1;
+
+                        assertCounter(forwardSmallSeeksCounter, totalSmallSeeks, countSmallSeeks, minSmallSeeks, maxSmallSeeks);
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
+    public void testBackwardSeeks() throws Exception {
+        // use default cache service settings
+        final CacheService cacheService = new CacheService(Settings.EMPTY);
+
+        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
+            final IOContext ioContext = newIOContext(random());
+            try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
+                IndexInput input = indexInput;
+                if (randomBoolean()) {
+                    final long sliceOffset = randomLongBetween(0L, input.length() - 1L);
+                    final long sliceLength = randomLongBetween(1L, input.length() - sliceOffset);
+                    input = input.slice("slice", sliceOffset, sliceLength);
+                }
+                if (randomBoolean()) {
+                    input = input.clone();
+                }
+
+                final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+                final IndexInputStats.Counter backwardSmallSeeks = inputStats.getBackwardSmallSeeks();
+                assertCounter(backwardSmallSeeks, 0L, 0L, 0L, 0L);
+
+                long totalSmallSeeks = 0L;
+                long countSmallSeeks = 0L;
+                long minSmallSeeks = Long.MAX_VALUE;
+                long maxSmallSeeks = Long.MIN_VALUE;
+
+                final IndexInputStats.Counter backwardLargeSeeks = inputStats.getBackwardLargeSeeks();
+                assertCounter(backwardLargeSeeks, 0L, 0L, 0L, 0L);
+
+                long totalLargeSeeks = 0L;
+                long countLargeSeeks = 0L;
+                long minLargeSeeks = Long.MAX_VALUE;
+                long maxLargeSeeks = Long.MIN_VALUE;
+
+                input.seek(input.length());
+                assertThat(input.getFilePointer(), equalTo(input.length()));
+
+                do {
+                    long moveBackward = -1L * randomLongBetween(1L, input.getFilePointer());
+                    input.seek(input.getFilePointer() + moveBackward);
+
+                    if (inputStats.isLargeSeek(moveBackward)) {
+                        minLargeSeeks = (moveBackward < minLargeSeeks) ? moveBackward : minLargeSeeks;
+                        maxLargeSeeks = (moveBackward > maxLargeSeeks) ? moveBackward : maxLargeSeeks;
+                        totalLargeSeeks += moveBackward;
+                        countLargeSeeks += 1;
+
+                        assertCounter(backwardLargeSeeks, totalLargeSeeks, countLargeSeeks, minLargeSeeks, maxLargeSeeks);
+
+                    } else {
+                        minSmallSeeks = (moveBackward < minSmallSeeks) ? moveBackward : minSmallSeeks;
+                        maxSmallSeeks = (moveBackward > maxSmallSeeks) ? moveBackward : maxSmallSeeks;
+                        totalSmallSeeks += moveBackward;
+                        countSmallSeeks += 1;
+
+                        assertCounter(backwardSmallSeeks, totalSmallSeeks, countSmallSeeks, minSmallSeeks, maxSmallSeeks);
+                    }
+
+                } while (input.getFilePointer() > 0L);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
     private static void executeTestCase(CacheService cacheService, TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
         final String fileName = randomAlphaOfLength(10);
@@ -302,10 +428,21 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
 
+        final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
+
         try (CacheService ignored = cacheService;
              Directory directory = newDirectory();
-             CacheDirectory cacheDirectory = new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId,
-                 () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS))
+             CacheDirectory cacheDirectory =
+                 new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId,
+                     () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS)) {
+                     @Override
+                     IndexInputStats createIndexInputStats(long fileLength) {
+                         if (seekingThreshold == null) {
+                             return super.createIndexInputStats(fileLength);
+                         }
+                         return new IndexInputStats(fileLength, seekingThreshold);
+                     }
+                 }
         ) {
             cacheService.start();
             assertThat(cacheDirectory.getStats(fileName), nullValue());

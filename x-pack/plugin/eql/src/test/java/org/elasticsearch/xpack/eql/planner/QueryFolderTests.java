@@ -13,12 +13,14 @@ import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
+import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.ql.QlClientException;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.TypesTests.loadMapping;
+import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderTests extends ESTestCase {
 
@@ -38,8 +40,21 @@ public class QueryFolderTests extends ESTestCase {
     private PhysicalPlan plan(String eql) {
         return plan(index, eql);
     }
-
-    public void testBasicPlan() throws Exception {
-        expectThrows(QlClientException.class, "not yet implemented", () -> plan("process where true"));
+    
+    public void testBasicPlan() {
+        PhysicalPlan p = plan("process where true");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(22, eqe.output().size());
+        assertEquals(KEYWORD, eqe.output().get(0).dataType());
+        String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
+        // test query term
+        assertThat(query, containsString("\"term\":{\"event_type\":{\"value\":\"process\""));
+        // test field source extraction
+        assertThat(query, containsString("\"_source\":{\"includes\":["));
+        assertThat(query, containsString("\"pid\""));
+        // test docvalue extraction
+        assertThat(query, containsString("{\"field\":\"command_line\"}"));
+        assertThat(query, containsString("{\"field\":\"timestamp\",\"format\":\"epoch_millis\"}"));
     }
 }

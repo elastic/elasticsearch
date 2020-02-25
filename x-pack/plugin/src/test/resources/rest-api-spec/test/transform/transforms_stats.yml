@@ -247,7 +247,7 @@ teardown:
   - gte: { transforms.0.stats.search_time_in_ms: 0 }
   - lte: { transforms.0.stats.search_total: 1 }
   - match: { transforms.0.stats.search_failures: 0 }
-  - match: { transforms.0.stats.exponential_avg_checkpoint_duration_ms: 0.0 }
+  - is_true: transforms.0.stats.exponential_avg_checkpoint_duration_ms
   - match: { transforms.0.stats.exponential_avg_documents_indexed: 0.0 }
   - match: { transforms.0.stats.exponential_avg_documents_processed: 0.0 }
 

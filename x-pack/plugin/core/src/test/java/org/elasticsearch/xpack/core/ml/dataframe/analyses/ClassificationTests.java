@@ -197,6 +197,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             equalTo(
                 Map.of(
                     "dependent_variable", "foo",
+                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
                     "prediction_field_name", "foo_prediction",
                     "prediction_field_type", "bool")));
@@ -205,6 +206,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             equalTo(
                 Map.of(
                     "dependent_variable", "bar",
+                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
                     "prediction_field_name", "bar_prediction",
                     "prediction_field_type", "int")));
@@ -213,6 +215,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             equalTo(
                 Map.of(
                     "dependent_variable", "baz",
+                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
                     "prediction_field_name", "baz_prediction",
                     "prediction_field_type", "string")));

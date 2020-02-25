@@ -37,9 +37,9 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (boolean) a[1],
             (long) a[2], (Long) a[3], toTaskId((String) a[4]), (Long) a[5], (BulkByScrollResponse) a[6], (ElasticsearchException) a[7],
-            (Integer) a[8], (ScrollableHitSource.Checkpoint) a[9], (float) a[10]));
+            toRestStatus((Integer) a[8]), (ScrollableHitSource.Checkpoint) a[9], (float) a[10]));
 
-    private static final String STATE_TIME_MILLIS = "start_time_epoch_millis";
+    private static final String START_TIME_MILLIS = "start_time_epoch_millis";
     private static final String END_TIME_MILLIS = "end_time_epoch_millis";
     private static final String REINDEX_REQUEST = "request";
     private static final String RESILIENT = "resilient";
@@ -55,7 +55,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(RESILIENT));
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(STATE_TIME_MILLIS));
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(START_TIME_MILLIS));
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ALLOCATION));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(EPHEMERAL_TASK_ID));
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME_MILLIS));
@@ -84,14 +84,6 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     public ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startTimeMillis) {
         this(reindexRequest, resilient, startTimeMillis, null, null, null, null, null, (RestStatus) null, null,
             reindexRequest.getRequestsPerSecond());
-    }
-
-    private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startTimeMillis, @Nullable Long allocationId,
-                                @Nullable TaskId ephemeralTaskId, @Nullable Long endTimeMillis,
-                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                                @Nullable Integer failureStatusCode, ScrollableHitSource.Checkpoint checkpoint, float requestsPerSecond) {
-        this(reindexRequest, resilient, allocationId, startTimeMillis, ephemeralTaskId, endTimeMillis, reindexResponse, exception,
-            failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode), checkpoint, requestsPerSecond);
     }
 
     private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startMillis, @Nullable Long allocationId,
@@ -130,7 +122,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         builder.field(REINDEX_REQUEST);
         reindexRequest.toXContent(builder, params, true);
         builder.field(RESILIENT, resilient);
-        builder.field(STATE_TIME_MILLIS, startTimeMillis);
+        builder.field(START_TIME_MILLIS, startTimeMillis);
         if (allocationId != null) {
             builder.field(ALLOCATION, allocationId);
         }
@@ -167,6 +159,10 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
     private static TaskId toTaskId(String s) {
         return s != null ? new TaskId(s) : null;
+    }
+
+    private static RestStatus toRestStatus(Integer failureStatusCode) {
+        return failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode);
     }
 
     public ReindexRequest getReindexRequest() {

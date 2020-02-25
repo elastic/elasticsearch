@@ -154,11 +154,10 @@ public class SamlAuthnRequestValidator {
                 authnState.put("nameid_format", requestedFormat);
                 // we should not throw an error. Pass this as additional data so that the /saml/init API can
                 // return a SAML response with the appropriate status (3.4.1.1 in the core spec)
-                if (requestedFormat.equals(UNSPECIFIED) == false &&
-                    requestedFormat.equals(sp.getNameIDPolicyFormat()) == false) {
+                if (requestedFormat.equals(UNSPECIFIED) == false && sp.getAllowedNameIdFormats().contains(requestedFormat) == false) {
                     logger.warn(() ->
-                        new ParameterizedMessage("The requested NameID format [{}] doesn't match the allowed NameID format" +
-                            "for this Service Provider is [{}]", requestedFormat, sp.getNameIDPolicyFormat()));
+                        new ParameterizedMessage("The requested NameID format [{}] doesn't match the allowed NameID formats" +
+                            "for this Service Provider are {}", requestedFormat, sp.getAllowedNameIdFormats()));
                     authnState.put("error", "invalid_nameid_policy");
                 }
             }

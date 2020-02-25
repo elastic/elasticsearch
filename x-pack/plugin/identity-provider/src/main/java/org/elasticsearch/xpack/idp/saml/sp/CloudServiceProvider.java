@@ -16,6 +16,7 @@ import org.opensaml.security.x509.X509Credential;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Map;
+import java.util.Set;
 
 
 public class CloudServiceProvider implements SamlServiceProvider {
@@ -24,12 +25,12 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final URL assertionConsumerService;
     private final ReadableDuration authnExpiry;
     private final ServiceProviderPrivileges privileges;
-    private final String nameIdPolicyFormat;
+    private final Set<String> allowedNameIdFormats;
     private final X509Credential signingCredential;
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, String assertionConsumerService, String nameIdPolicyFormat,
+    public CloudServiceProvider(String entityId, String assertionConsumerService, Set<String> allowedNameIdFormats,
                                 ServiceProviderPrivileges privileges, boolean signAuthnRequests, boolean signLogoutRequests,
                                 @Nullable X509Credential signingCredential) {
         if (Strings.isNullOrEmpty(entityId)) {
@@ -41,7 +42,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException("Invalid URL for Assertion Consumer Service", e);
         }
-        this.nameIdPolicyFormat = nameIdPolicyFormat;
+        this.allowedNameIdFormats = Set.copyOf(allowedNameIdFormats);
         this.authnExpiry = Duration.standardMinutes(5);
         this.privileges = new ServiceProviderPrivileges("cloud-idp", "service$" + entityId, "action:sso", Map.of());
         this.signingCredential = signingCredential;
@@ -56,8 +57,8 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public String getNameIDPolicyFormat() {
-        return nameIdPolicyFormat;
+    public Set<String> getAllowedNameIdFormats() {
+        return allowedNameIdFormats;
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.util.Set;
 
 /**
  * SAML 2.0 configuration information about a specific service provider
@@ -19,7 +20,7 @@ import java.net.URL;
 public interface SamlServiceProvider {
     String getEntityId();
 
-    String getNameIDPolicyFormat();
+    Set<String> getAllowedNameIdFormats();
 
     URL getAssertionConsumerService();
 

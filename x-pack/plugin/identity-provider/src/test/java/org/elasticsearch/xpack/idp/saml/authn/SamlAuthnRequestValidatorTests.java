@@ -33,6 +33,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Set;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -59,12 +60,12 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         final SamlServiceProvider sp1 = Mockito.mock(SamlServiceProvider.class);
         when(sp1.getEntityId()).thenReturn("https://sp1.kibana.org");
         when(sp1.getAssertionConsumerService()).thenReturn(new URL("https://sp1.kibana.org/saml/acs"));
-        when(sp1.getNameIDPolicyFormat()).thenReturn(TRANSIENT);
+        when(sp1.getAllowedNameIdFormats()).thenReturn(Set.of(TRANSIENT));
         when(sp1.shouldSignAuthnRequests()).thenReturn(false);
         final SamlServiceProvider sp2 = Mockito.mock(SamlServiceProvider.class);
         when(sp2.getEntityId()).thenReturn("https://sp2.kibana.org");
         when(sp2.getAssertionConsumerService()).thenReturn(new URL("https://sp2.kibana.org/saml/acs"));
-        when(sp2.getNameIDPolicyFormat()).thenReturn(PERSISTENT);
+        when(sp2.getAllowedNameIdFormats()).thenReturn(Set.of(PERSISTENT));
         when(sp2.getSigningCredential()).thenReturn(readCredentials("RSA", 4096));
         when(sp2.shouldSignAuthnRequests()).thenReturn(true);
         when(idp.getRegisteredServiceProvider("https://sp1.kibana.org")).thenReturn(sp1);

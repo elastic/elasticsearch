@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
@@ -36,6 +35,7 @@ import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_POST_EN
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_REDIRECT_ENDPOINT;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class CloudIdp implements SamlIdentityProvider {
 
@@ -145,7 +145,7 @@ public class CloudIdp implements SamlIdentityProvider {
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
         registeredSps.put("https://sp.some.org",
-            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", NameID.TRANSIENT, null, false,
+            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", Set.of(TRANSIENT), null, false,
                 false, null));
         return registeredSps;
     }

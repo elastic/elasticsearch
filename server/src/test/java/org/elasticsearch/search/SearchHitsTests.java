@@ -84,7 +84,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                                                     boolean transportSerialization) {
         SearchHit[] hits = new SearchHit[size];
         for (int i = 0; i < hits.length; i++) {
-            hits[i] = SearchHitTests.createTestItem(xContentType, withOptionalInnerHits, transportSerialization);
+            hits[i] = SearchHitTests.createTestItem(xContentType, withOptionalInnerHits, transportSerialization, true);
         }
         return hits;
     }

@@ -85,10 +85,11 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
-        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget, false);
     }
 
-    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
+    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits,
+                                           boolean transportSerialization, boolean includeMatchDetails) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
         NestedIdentity nestedIdentity = null;
@@ -133,7 +134,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             }
             hit.highlightFields(highlightFields);
         }
-        if (randomBoolean()) {  // TODO add terms as well?
+        if (includeMatchDetails && randomBoolean()) {  // TODO add terms as well?
             int size = randomIntBetween(0, 5);
             List<String> matchedQueries = new ArrayList<>();
             for (int i = 0; i < size; i++) {
@@ -171,7 +172,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     @Override
     protected SearchHit createTestInstance() {
-        return createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean());
+        return createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean(), randomBoolean());
     }
 
     @Override
@@ -186,7 +187,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
-        SearchHit searchHit = createTestItem(xContentType, true, false);
+        SearchHit searchHit = createTestItem(xContentType, true, false, true);
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         SearchHit parsed;
@@ -210,10 +211,10 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
      */
     public void testFromXContentLenientParsing() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
-        SearchHit searchHit = createTestItem(xContentType, true, true);
+        SearchHit searchHit = createTestItem(xContentType, true, true, false);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
-                || path.contains("match_details") || path.contains("inner_hits"));
+                || path.contains("inner_hits"));
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;

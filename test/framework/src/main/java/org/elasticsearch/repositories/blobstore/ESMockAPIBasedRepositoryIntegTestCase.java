@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -97,7 +98,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @AfterClass
     public static void stopHttpServer() {
         httpServer.stop(0);
-        executorService.shutdown();
+        ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         httpServer = null;
     }
 

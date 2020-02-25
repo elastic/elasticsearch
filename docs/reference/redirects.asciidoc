@@ -91,16 +91,6 @@ See <<transform-resource>>.
 
 See <<transform-resource>>.
 
-[role="exclude",id="configuring-monitoring"]
-=== Configuring monitoring
-
-See <<monitoring-overview>>.
-
-[role="exclude",id="es-monitoring"]
-=== Monitoring {es}
-
-See <<monitor-elasticsearch-cluster>>.
-
 [role="exclude",id="docker-cli-run"]
 === Docker Run
 

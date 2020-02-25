@@ -1,10 +1,17 @@
 [float]
 [[breaking_80_aggregations_changes]]
-=== Analysis changes
+=== Aggregations changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[discrete]
+[[percentile-duplication]]
+==== Duplicate values no longer supported in percentiles aggregation
+
+If you specify the `percents` parameter with the
+<<search-aggregations-metrics-percentile-aggregation,percentiles aggregation>>,
+its values must be unique. Otherwise, an exception occurs.
 
 // end::notable-breaking-changes[]

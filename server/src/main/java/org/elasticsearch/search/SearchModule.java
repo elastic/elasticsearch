@@ -343,7 +343,8 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
             WeightedAvgAggregationBuilder::parse).addResultReader(InternalWeightedAvg::new));
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder::parse)
-                .addResultReader(InternalSum::new));
+            .addResultReader(InternalSum::new)
+            .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder::parse)
                 .addResultReader(InternalMin::new)
                 .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators));

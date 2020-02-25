@@ -154,7 +154,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
 
             // does the transform require a remote and remote is enabled?
-            if (params.requiresRemote() == true
+            if (params.requiresRemote()
                 && Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR)) == false) {
                 if (explain != null) {
                     explain.put(node.getId(), "transform requires a remote connection but remote is disabled");

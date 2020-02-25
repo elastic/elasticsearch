@@ -317,8 +317,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
 
-        return Collections.singletonList(new TransformPersistentTasksExecutor(client, transformServices.get(), threadPool, clusterService,
-            settingsModule.getSettings(), expressionResolver));
+        return Collections.singletonList(
+            new TransformPersistentTasksExecutor(
+                client,
+                transformServices.get(),
+                threadPool,
+                clusterService,
+                settingsModule.getSettings(),
+                expressionResolver
+            )
+        );
     }
 
     @Override

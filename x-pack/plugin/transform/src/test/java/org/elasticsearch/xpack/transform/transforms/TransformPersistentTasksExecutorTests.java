@@ -139,7 +139,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             assignment.getExplanation(),
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
-                    + "current-data-node-with-0-tasks-transform-remote-disabled:transform requires a remote connection but remote is disabled"
+                    + "current-data-node-with-0-tasks-transform-remote-disabled:"
+                    + "transform requires a remote connection but remote is disabled"
                     + "|"
                     + "non-data-node-1:not a data node"
                     + "]"
@@ -161,7 +162,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             assignment.getExplanation(),
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
-                    + "current-data-node-with-0-tasks-transform-remote-disabled:transform requires a remote connection but remote is disabled"
+                    + "current-data-node-with-0-tasks-transform-remote-disabled:"
+                    + "transform requires a remote connection but remote is disabled"
                     + "|"
                     + "current-data-node-with-transform-disabled:transform not enabled|non-data-node-1:not a data node"
                     + "]"
@@ -187,8 +189,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0,
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver()).size());
+        assertEquals(0, TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver()).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -212,8 +213,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result =
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build(), new IndexNameExpressionResolver());
+        List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
+            csBuilder.build(),
+            new IndexNameExpressionResolver()
+        );
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }
@@ -393,6 +396,13 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
 
-        return new TransformPersistentTasksExecutor(client, transformServices, mock(ThreadPool.class), clusterService, Settings.EMPTY, new IndexNameExpressionResolver());
+        return new TransformPersistentTasksExecutor(
+            client,
+            transformServices,
+            mock(ThreadPool.class),
+            clusterService,
+            Settings.EMPTY,
+            new IndexNameExpressionResolver()
+        );
     }
 }

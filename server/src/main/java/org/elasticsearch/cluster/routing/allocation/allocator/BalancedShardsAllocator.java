@@ -373,11 +373,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> worseBalanceNodes = new ArrayList<>();
+            AllocationDeciders.ShardDecisions shardDecisions = deciders.shardDecisions(shard, allocation);
             for (ModelNode node : modelNodes) {
                 if (node == currentNode) {
                     continue; // skip over node we're currently allocated to
                 }
-                final Decision canAllocate = deciders.canAllocate(shard, node.getRoutingNode(), allocation);
+                final Decision canAllocate = shardDecisions.canAllocate(node.getRoutingNode());
                 // the current weight of the node in the cluster, as computed by the weight function;
                 // this is a comparison of the number of shards on this node to the number of shards
                 // that should be on each node on average (both taking the cluster as a whole into account
@@ -487,6 +488,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     continue;
                 }
 
+                AllocationDeciders.Decisions canAllocateDecision = deciders.decisions(allocation);
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
@@ -534,7 +536,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                              */
                             logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]",
                                 maxNode.getNodeId(), minNode.getNodeId());
-                        } else if (tryRelocateShard(minNode, maxNode, index)) {
+                        } else if (tryRelocateShard(minNode, maxNode, index, canAllocateDecision)) {
+                            canAllocateDecision = deciders.decisions(allocation);
                             /*
                              * TODO we could be a bit smarter here, we don't need to fully sort necessarily
                              * we could just find the place to insert linearly but the win might be minor
@@ -677,7 +680,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             assert sourceNode != null && sourceNode.containsShard(shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
-            Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+            AllocationDeciders.ShardDecisions shardDecisions = allocation.deciders().shardDecisions(shardRouting, allocation);
+            Decision canRemain = shardDecisions.canRemain(routingNode);
             if (canRemain.type() != Decision.Type.NO) {
                 return MoveDecision.stay(canRemain);
             }
@@ -697,7 +701,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
                     // don't use canRebalance as we want hard filtering rules to apply. See #17698
-                    Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+                    Decision allocationDecision = shardDecisions.canAllocate(target);
                     if (explain) {
                         nodeExplanationMap.add(new NodeAllocationResult(
                             currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
@@ -903,6 +907,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * iteration order is different for each run and makes testing hard */
             Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
+            AllocationDeciders.ShardDecisions shardDecisions = allocation.deciders().shardDecisions(shard, allocation);
             for (ModelNode node : nodes.values()) {
                 if ((throttledNodes.contains(node) || node.containsShard(shard)) && explain == false) {
                     // decision is NO without needing to check anything further, so short circuit
@@ -916,7 +921,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     continue;
                 }
 
-                Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
+                Decision currentDecision = shardDecisions.canAllocate(node.getRoutingNode());
                 if (explain) {
                     nodeExplanationMap.put(node.getNodeId(),
                         new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
@@ -986,7 +991,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
          * simulation model as well as on the cluster.
          */
-        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx) {
+        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx, AllocationDeciders.Decisions decisions) {
             final ModelIndex index = maxNode.getIndex(idx);
             if (index != null) {
                 logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1002,7 +1007,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (rebalanceDecision.type() == Type.NO) {
                         continue;
                     }
-                    final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
+                    final Decision allocationDecision = decisions.shard(shard).canAllocate(minNode.getRoutingNode());
                     if (allocationDecision.type() == Type.NO) {
                         continue;
                     }

@@ -89,7 +89,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
         List<AllocationDecider> deciders = new ArrayList<>(
             ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList()));
-        Collections.shuffle(deciders, random);
+//        Collections.shuffle(deciders, random);
         return new AllocationDeciders(deciders);
     }
 

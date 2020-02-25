@@ -876,4 +876,52 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
     }
+
+    public void testFilteredAwareness() {
+        Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+        AllocationService strategy = createAllocationService(settings);
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+            .put("index.routing.allocation.exclude.zone", "b")).numberOfShards(1).numberOfReplicas(1))
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metaData(metaData).routingTable(initialRoutingTable).build();
+
+        Map<String, String> nodeAAttributes = new HashMap<>();
+        nodeAAttributes.put("zone", "a");
+        Map<String, String> nodeBAttributes = new HashMap<>();
+        nodeBAttributes.put("zone", "b");
+        Map<String, String> nodeCAttributes = new HashMap<>();
+        nodeCAttributes.put("zone", "a");
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode("A", nodeAAttributes))
+            .add(newNode("B", nodeBAttributes))
+            .add(newNode("C", nodeCAttributes))
+        ).build();
+
+        clusterState = strategy.reroute(clusterState, "test");
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+
+        logger.info("--> start the shards (primaries)");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+
+        assertThat(clusterState.getRoutingNodes().node("A").shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("C").shardsWithState(STARTED).size(), equalTo(1));
+    }
 }

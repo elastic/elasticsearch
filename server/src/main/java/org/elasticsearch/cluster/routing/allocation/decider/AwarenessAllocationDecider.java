@@ -19,11 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -35,10 +30,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
 import static java.util.Collections.emptyList;
 
 /**
- * This {@link AllocationDecider} controls shard allocation based on
+ * This {@link TieredAllocationDecider} controls shard allocation based on
  * {@code awareness} key-value pairs defined in the node configuration.
  * Awareness explicitly controls where replicas should be allocated based on
  * attributes like node or physical rack locations. Awareness attributes accept
@@ -77,7 +78,7 @@ import static java.util.Collections.emptyList;
  * node.zone: zone1
  * </pre>
  */
-public class AwarenessAllocationDecider extends AllocationDecider {
+public class AwarenessAllocationDecider extends TieredAllocationDecider {
 
     public static final String NAME = "awareness";
 
@@ -116,16 +117,19 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, true);
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
+                                LowerTierDecider lowerTierDecider) {
+        return underCapacity(shardRouting, node, allocation, true, lowerTierDecider);
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, false);
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
+                              LowerTierDecider lowerTierDecider) {
+        return underCapacity(shardRouting, node, allocation, false, lowerTierDecider);
     }
 
-    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
+    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode,
+                                   LowerTierDecider lowerTierDecider) {
         if (awarenessAttributes.isEmpty()) {
             return allocation.decision(Decision.YES, NAME,
                 "allocation awareness is not enabled, set cluster setting [%s] to enable it",
@@ -144,7 +148,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
 
             // build attr_value -> nodes map
-            ObjectIntHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+            ObjectIntHashMap<String> nodesPerAttribute = nodesPerAttribute(awarenessAttribute, lowerTierDecider.candidates());
 
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
@@ -171,7 +175,18 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 }
             }
 
+            final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             int numberOfAttributes = nodesPerAttribute.size();
+            if (numberOfAttributes == 0) {
+                return allocation.decision(Decision.NO, NAME,
+                        "other deciders rejected all nodes with awareness attribute set for attribute [%s], " +
+                        "there are [%d] total configured shard copies for this shard id, [%d] total attribute values and " +
+                        "allocating to this node would result in shard count per attribute [%d]",
+                    awarenessAttribute,
+                    shardCount,
+                    numberOfAttributes,
+                    currentNodeCount);
+            }
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
             if (fullValues != null) {
                 for (String fullValue : fullValues) {
@@ -182,7 +197,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
             // TODO should we remove ones that are not part of full list?
 
-            final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
                 return allocation.decision(Decision.NO, NAME,
@@ -198,5 +212,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+    }
+
+    private ObjectIntHashMap<String> nodesPerAttribute(String awarenessAttribute, Set<RoutingNode> candidates) {
+        ObjectIntHashMap<String> nodesPerAttribute = new ObjectIntHashMap<>();
+        for (RoutingNode routingNode : candidates) {
+            String attrValue = routingNode.node().getAttributes().get(awarenessAttribute);
+            nodesPerAttribute.addTo(attrValue, 1);
+        }
+        return nodesPerAttribute;
     }
 }

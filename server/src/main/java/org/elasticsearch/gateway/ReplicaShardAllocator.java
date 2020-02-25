@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -62,6 +63,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         MetaData metaData = allocation.metaData();
         RoutingNodes routingNodes = allocation.routingNodes();
         List<Runnable> shardCancellationActions = new ArrayList<>();
+        AllocationDeciders.Decisions decisions = allocation.deciders().decisions(allocation);
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shard : routingNode) {
                 if (shard.primary()) {
@@ -97,7 +99,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     continue;
                 }
 
-                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, true, primaryNode, primaryStore, shardStores, false);
+                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, decisions.shard(shard),
+                    true, primaryNode, primaryStore, shardStores, false);
                 if (matchingNodes.getNodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
@@ -146,10 +149,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
 
+        AllocationDeciders.ShardDecisions decisions = allocation.deciders().shardDecisions(unassignedShard, allocation);
         final RoutingNodes routingNodes = allocation.routingNodes();
         final boolean explain = allocation.debugDecision();
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
-        Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
+        Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(decisions, allocation);
         Decision allocateDecision = result.v1();
         if (allocateDecision.type() != Decision.Type.YES
                 && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
@@ -191,7 +195,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         }
 
         MatchingNodes matchingNodes = findMatchingNodes(
-            unassignedShard, allocation, false, primaryNode, primaryStore, shardStores, explain);
+            unassignedShard, allocation, decisions, false, primaryNode, primaryStore, shardStores, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
@@ -200,7 +204,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         } else if (matchingNodes.getNodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before before on NO
-            Decision decision = allocation.deciders().canAllocate(unassignedShard, nodeWithHighestMatch, allocation);
+            Decision decision = decisions.canAllocate(nodeWithHighestMatch);
             if (decision.type() == Decision.Type.THROTTLE) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
@@ -241,8 +245,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
      * in the returned tuple.
      */
-    private static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(ShardRouting shard,
-                                                                                                     RoutingAllocation allocation) {
+    private static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(
+        AllocationDeciders.ShardDecisions shardDecisions,
+        RoutingAllocation allocation) {
         Decision madeDecision = Decision.NO;
         final boolean explain = allocation.debugDecision();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
@@ -253,7 +258,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
             // if we can't allocate it on a node, ignore it, for example, this handles
             // cases for only allocating a replica after a primary
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            Decision decision = shardDecisions.canAllocate(node);
             if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
                 if (explain) {
                     madeDecision = decision;
@@ -302,7 +307,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return nodeFilesStore.storeFilesMetaData();
     }
 
-    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean noMatchFailedNodes,
+    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, AllocationDeciders.ShardDecisions decisions,
+                                            boolean noMatchFailedNodes,
                                             DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
                                             AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data,
                                             boolean explain) {
@@ -328,7 +334,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // check if we can allocate on that node...
             // we only check for NO, since if this node is THROTTLING and it has enough "same data"
             // then we will try and assign it next time
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            Decision decision = decisions.canAllocate(node);
             MatchingNode matchingNode = null;
             if (explain) {
                 matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetaData);

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.ArrayList;
@@ -94,9 +95,10 @@ public abstract class BaseGatewayShardAllocator {
      * allocation decisions for each node, while still waiting to allocate the shard (e.g. due to fetching shard data).
      */
     protected static List<NodeAllocationResult> buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
+        AllocationDeciders.ShardDecisions decisions = allocation.deciders().shardDecisions(shard, allocation);
         List<NodeAllocationResult> results = new ArrayList<>();
         for (RoutingNode node : allocation.routingNodes()) {
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            Decision decision = decisions.canAllocate(node);
             results.add(new NodeAllocationResult(node.node(), null, decision));
         }
         return results;

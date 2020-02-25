@@ -22,22 +22,23 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
 
-public class AllocationDecidersTests extends ESTestCase {
+public class AllocationDecidersTests extends ESAllocationTestCase {
 
     public void testDebugMode() {
         verifyDebugMode(RoutingAllocation.DebugMode.ON, Matchers.hasSize(1));
@@ -94,27 +95,32 @@ public class AllocationDecidersTests extends ESTestCase {
             }
         }));
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder()
+                .add(newNode("testNode")))
+            .build();
         final RoutingAllocation allocation = new RoutingAllocation(deciders,
             clusterState.getRoutingNodes(), clusterState, null, 0L);
 
         allocation.setDebugMode(mode);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId("test", "testUUID", 0), true,
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId("test", "testUUID", 0), true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo);
         IndexMetaData idx =
             IndexMetaData.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
 
-        RoutingNode routingNode = new RoutingNode("testNode", null);
+        RoutingNode routingNode = allocation.routingNodes().node("testNode");
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);
         verify(deciders.canAllocate(idx, routingNode, allocation), matcher);
         verify(deciders.canAllocate(shardRouting, allocation), matcher);
         verify(deciders.canAllocate(routingNode, allocation), matcher);
         verify(deciders.canRebalance(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(allocation), matcher);
-        verify(deciders.canRemain(shardRouting, routingNode, allocation), matcher);
         verify(deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation), matcher);
         verify(deciders.shouldAutoExpandToNode(idx, null, allocation), matcher);
+
+        shardRouting = shardRouting.initialize("testNode", null, 0);
+        verify(deciders.canRemain(shardRouting, routingNode, allocation), matcher);
     }
 
     private void verify(Decision decision, Matcher<Collection<? extends Decision>> matcher) {

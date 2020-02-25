@@ -174,6 +174,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
+        Settings.Builder node3Settings = Settings.builder();
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
@@ -189,7 +190,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
-        assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
+        assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, node3Settings, indexRoutingTable,
             new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 2, true)));
     }
 
@@ -358,19 +359,32 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
     }
 
     private void assertAllocateStatus(Index index, int shards, int replicas, AllocationRoutedStep step, Settings.Builder existingSettings,
-            Settings.Builder node1Settings, Settings.Builder node2Settings, IndexRoutingTable.Builder indexRoutingTable,
-            ClusterStateWaitStep.Result expectedResult) {
+                                      Settings.Builder node1Settings, Settings.Builder node2Settings,
+                                      IndexRoutingTable.Builder indexRoutingTable,
+                                      ClusterStateWaitStep.Result expectedResult) {
+        assertAllocateStatus(index, shards, replicas, step, existingSettings, node1Settings, node2Settings, null, indexRoutingTable,
+            expectedResult);
+    }
+    private void assertAllocateStatus(Index index, int shards, int replicas, AllocationRoutedStep step, Settings.Builder existingSettings,
+                                      Settings.Builder node1Settings, Settings.Builder node2Settings, Settings.Builder node3Settings,
+                                      IndexRoutingTable.Builder indexRoutingTable,
+                                      ClusterStateWaitStep.Result expectedResult) {
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName()).settings(existingSettings).numberOfShards(shards)
                 .numberOfReplicas(replicas).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetadata);
 
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
+            .add(DiscoveryNode.createLocal(node1Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                "node1"))
+            .add(DiscoveryNode.createLocal(node2Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                "node2"));
+        if (node3Settings != null) {
+            nodesBuilder.add(DiscoveryNode.createLocal(node3Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9202),
+                "node3"));
+        }
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
-                .nodes(DiscoveryNodes.builder()
-                        .add(DiscoveryNode.createLocal(node1Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                                "node1"))
-                        .add(DiscoveryNode.createLocal(node2Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                                "node2")))
+                .nodes(nodesBuilder)
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
         Result actualResult = step.isConditionMet(index, clusterState);
         assertEquals(expectedResult.isComplete(), actualResult.isComplete());

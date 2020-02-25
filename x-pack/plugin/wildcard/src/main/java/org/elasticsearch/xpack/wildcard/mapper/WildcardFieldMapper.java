@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -72,18 +71,12 @@ public class WildcardFieldMapper extends FieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
-        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
-        public static final String MATCH_TYPE_DOC_VALUES = "doc_values";
-        public static final String MATCH_TYPE_BINARY_DOC_VALUES = "binary_doc_values";
-        public static final String MATCH_TYPE_POSITION = "positions";
-        
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;        
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, WildcardFieldMapper> {
         private int numChars = 3;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
-        protected String matchType = Defaults.MATCH_TYPE_BINARY_DOC_VALUES;
-        
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -124,30 +117,14 @@ public class WildcardFieldMapper extends FieldMapper {
             this.ignoreAbove = ignoreAbove;
             return this;
         }        
-        
-        public Builder matchType(String matchType) {
-            if (Defaults.MATCH_TYPE_DOC_VALUES.equals(matchType) == false && 
-                   Defaults.MATCH_TYPE_BINARY_DOC_VALUES.equals(matchType) == false && 
-                   Defaults.MATCH_TYPE_POSITION.equals(matchType) == false) {
-                throw new IllegalArgumentException("[match_type] must be " + Defaults.MATCH_TYPE_DOC_VALUES + " or "
-                        + Defaults.MATCH_TYPE_BINARY_DOC_VALUES + " or "
-                        + Defaults.MATCH_TYPE_POSITION + ", got " + matchType);
-            }
-            this.matchType = matchType;
-            return this;
-        }   
+          
         
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
             fieldType().setNumChars(numChars);
-            fieldType().setMatchType(matchType);
             fieldType().setHasDocValues(true);
-            if (matchType.equals(Defaults.MATCH_TYPE_POSITION)) { 
-                fieldType().setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            } else {
-                fieldType().setIndexOptions(IndexOptions.DOCS);                
-            }
+            fieldType().setIndexOptions(IndexOptions.DOCS);                
         }
 
         @Override
@@ -159,24 +136,9 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(BuilderContext context) {
             setupFieldType(context);            
             return new WildcardFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove, matchType, numChars,
+                    name, fieldType, defaultFieldType, ignoreAbove, numChars,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
-        
-        @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            // Suspected parse sequencing problem here - if match_type not set yet we don't know
-            // if this is appropriate or not....
-//            if (matchType.equals(Defaults.MATCH_TYPE_DOC_VALUES)) {
-//                if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
-//                    throw new IllegalArgumentException("The [wildcard] field does not support positions with match_type "
-//                            + Defaults.MATCH_TYPE_DOC_VALUES+", got [index_options]="
-//                            + indexOptionToString(indexOptions));
-//                }
-//            }
-            return super.indexOptions(indexOptions);
-        }        
-        
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -199,9 +161,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
-                } else if (propName.equals("match_type")) {
-                    builder.matchType(XContentMapValues.nodeStringValue(propNode, Defaults.MATCH_TYPE_BINARY_DOC_VALUES));
-                    iterator.remove();
                 }
             }            
             
@@ -216,7 +175,6 @@ public class WildcardFieldMapper extends FieldMapper {
     
      public static final class WildcardFieldType extends MappedFieldType {
         private int numChars;
-        private String matchType;
 
         public WildcardFieldType() {            
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -348,11 +306,6 @@ public class WildcardFieldMapper extends FieldMapper {
             PatternStructure patternStructure = new PatternStructure(wildcardPattern);
             
             
-            if (matchType.equals(Defaults.MATCH_TYPE_POSITION)) {
-                return new WildcardPositionBasedQuery(name(), patternStructure, numChars);
-            }
-
-            
             BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
             
             for (int i = 0; i < patternStructure.fragments.length; i++) {
@@ -432,12 +385,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (approximation.clauses().size() > 1 || patternStructure.needsVerification()) {
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
-                if (matchType.equals(Defaults.MATCH_TYPE_DOC_VALUES)) {                
-                    verifyingBuilder.add(new BooleanClause(new WildcardOnDvQuery(name(), wildcardPattern), Occur.MUST));
-                } else {
-                    assert matchType.equals(Defaults.MATCH_TYPE_BINARY_DOC_VALUES);
-                    verifyingBuilder.add(new BooleanClause(new WildcardOnBinaryDvQuery(name(), wildcardPattern), Occur.MUST));
-                }
+                verifyingBuilder.add(new BooleanClause(new WildcardOnBinaryDvQuery(name(), wildcardPattern), Occur.MUST));
                 return verifyingBuilder.build();
             }
             return approximation;
@@ -449,10 +397,6 @@ public class WildcardFieldMapper extends FieldMapper {
 
         void setNumChars(int numChars) {
             this.numChars = numChars;
-        }
-
-        void setMatchType(String matchType) {
-            this.matchType = matchType;
         }
 
         @Override
@@ -489,21 +433,13 @@ public class WildcardFieldMapper extends FieldMapper {
 
     private int ignoreAbove;
     private int numChars;
-    private String matchType;
 
     private WildcardFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                int ignoreAbove, String matchType, int numChars, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                int ignoreAbove, int numChars, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreAbove = ignoreAbove;
-        this.matchType = matchType;
         this.numChars = numChars;
-        if (matchType.equals(Defaults.MATCH_TYPE_POSITION)) {
-            assert fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-        
-        } else {
-            assert fieldType.indexOptions() == IndexOptions.DOCS;
-            
-        }
+        assert fieldType.indexOptions() == IndexOptions.DOCS;
     }
 
 
@@ -531,9 +467,6 @@ public class WildcardFieldMapper extends FieldMapper {
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
-        if (includeDefaults || matchType != Defaults.MATCH_TYPE_BINARY_DOC_VALUES) {
-            builder.field("match_type", matchType);
-        }        
     }
     
     @Override
@@ -563,14 +496,8 @@ public class WildcardFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), filter, fieldType());
         fields.add(field);
         
-        if (matchType.equals(Defaults.MATCH_TYPE_DOC_VALUES)) {        
-            Field dvField = new SortedSetDocValuesField(fieldType().name(), new BytesRef(value));        
-            fields.add(dvField);
-        }
-        if (matchType.equals(Defaults.MATCH_TYPE_BINARY_DOC_VALUES)) {
-            Field dvField = new BinaryDocValuesField(fieldType().name(), new BytesRef(value));        
-            fields.add(dvField);            
-        }        
+        Field dvField = new BinaryDocValuesField(fieldType().name(), new BytesRef(value));        
+        fields.add(dvField);            
     }
 
     @Override
@@ -583,7 +510,6 @@ public class WildcardFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         this.ignoreAbove = ((WildcardFieldMapper) mergeWith).ignoreAbove;
-        this.matchType = ((WildcardFieldMapper) mergeWith).matchType;
         this.numChars = ((WildcardFieldMapper) mergeWith).numChars;
     }    
 }

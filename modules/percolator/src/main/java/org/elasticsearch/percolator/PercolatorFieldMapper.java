@@ -490,13 +490,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
     }
 
-    static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {
-        configureContext(context, mapUnmappedFieldsAsString);
-        QueryBuilder qb = parseQueryBuilder(parser, parser.getTokenLocation());
-        qb = Rewriteable.rewrite(qb, context);
-        return qb.toQuery(context);
-    }
-
     private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
         try {
             return parseInnerQueryBuilder(parser);

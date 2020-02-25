@@ -409,8 +409,8 @@ public final class EncryptedRepository extends BlobStoreRepository {
                 metadataBlobsToDelete.add(blobNameAndMetaId.v1());
             }
             // group metadata blobs by their associated blob name
-            metaDataByBlobName.putIfAbsent(blobNameAndMetaId.v1(), new ArrayList<>()).add(new Tuple<>(blobNameAndMetaId.v2(),
-                    metadataBlobName));
+            metaDataByBlobName.computeIfAbsent(blobNameAndMetaId.v1(), k -> new ArrayList<>(1))
+                    .add(new Tuple<>(blobNameAndMetaId.v2(), metadataBlobName));
         }
         metaDataByBlobName.entrySet().forEach(entry -> {
             if (entry.getValue().size() > 1) {

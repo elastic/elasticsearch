@@ -40,6 +40,10 @@ public class DateRangeIncludingNowQuery extends Query {
         this.in = in;
     }
 
+    public Query getQuery() {
+        return in;
+    }
+
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         return in;

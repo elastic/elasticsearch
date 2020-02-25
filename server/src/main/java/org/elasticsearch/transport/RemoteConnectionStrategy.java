@@ -88,6 +88,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return numberOfChannels;
         }
 
+        public Supplier<Stream<Setting.AffixSetting<?>>> getEnablementSettings() {
+            return enablementSettings;
+        }
+
         public Writeable.Reader<RemoteConnectionInfo.ModeInfo> getReader() {
             return reader.get();
         }
@@ -149,7 +153,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static Set<String> getRemoteClusters(Settings settings) {
         final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
-            .flatMap(strategy -> strategy.enablementSettings.get());
+            .flatMap(strategy -> strategy.getEnablementSettings().get());
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 
@@ -159,7 +163,21 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return seeds.isEmpty() == false;
         } else {
-            String address = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            String address = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return Strings.isEmpty(address) == false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static boolean isConnectionEnabled(String clusterAlias, Map<Setting<?>, Object> settings) {
+        ConnectionStrategy mode = (ConnectionStrategy) settings.get(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias));
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            List<String> seeds = (List<String>) settings.get(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
+                .getConcreteSettingForNamespace(clusterAlias));
+            return seeds.isEmpty() == false;
+        } else {
+            String address = (String) settings.get(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS
+                .getConcreteSettingForNamespace(clusterAlias));
             return Strings.isEmpty(address) == false;
         }
     }

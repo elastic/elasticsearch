@@ -590,7 +590,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     private static Settings buildProxySettings(String clusterAlias, List<String> addresses) {
         Settings.Builder builder = Settings.builder();
-        builder.put(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).getKey(),
+        builder.put(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS.getConcreteSettingForNamespace(clusterAlias).getKey(),
             addresses.get(0));
         builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "proxy");
         return builder.build();

@@ -53,7 +53,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     /**
      * The remote address for the proxy. The connections will be opened to the configured address.
      */
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_ADDRESSES = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_ADDRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "proxy_address",
         (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY, s -> {
@@ -99,7 +99,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             transportService,
             connectionManager,
             REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            REMOTE_CLUSTER_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
@@ -141,7 +141,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES);
+        return Stream.of(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESS);
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
@@ -155,7 +155,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        String address = REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        String address = REMOTE_CLUSTER_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false;
     }

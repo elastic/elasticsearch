@@ -4,22 +4,23 @@
 Discovery and cluster formation are affected by the following settings:
 
 `discovery.seed_hosts`::
++
+--
+Provides a list of the addresses of the master-eligible nodes in the cluster.
+May also be a single string containing the addresses separated by commas. Each
+address has the format `host:port` or `host`. The `host` is either a host name
+to be resolved by DNS, or an IPv4 address, or an IPv6 address. IPv6 addresses
+must be enclosed in square brackets. If a host name resolves via DNS to multiple
+addresses then Elasticsearch uses all of them. DNS lookups are subject to
+<<networkaddress-cache-ttl,JVM DNS caching>>. If the `port` is not given then it
+is determined by checking the following settings in order:
 
-    Provides a list of the addresses of the master-eligible nodes in the
-    cluster. May also be a single string containing the addresses separated by
-    commas. Each address has the format `host:port` or `host`. The `host` is
-    either a host name to be resolved by DNS, or an IPv4 address, or an IPv6
-    address. IPv6 addresses must be enclosed in square brackets. If a host name
-    resolves via DNS to multiple addresses then Elasticsearch uses all of them.
-    DNS lookups are subject to <<networkaddress-cache-ttl,JVM DNS caching>>.
-    If the `port` is not given then it is determined by checking the following
-    settings in order:
+. `transport.profiles.default.port`
+. `transport.port`
 
-    . `transport.profiles.default.port`
-    . `transport.port`
-
-    If neither of these is set then the default port is `9300`. The default
-    value is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
+If neither of these is set then the default port is `9300`. The default value
+for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>.
+--
 
 `discovery.seed_providers`::
 

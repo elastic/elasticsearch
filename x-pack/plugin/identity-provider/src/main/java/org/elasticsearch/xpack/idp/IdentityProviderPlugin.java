@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -30,16 +31,19 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
+import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -53,33 +57,46 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
     public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
-    public static final Setting<String> IDP_SSO_REDIRECT_ENDPOINT = Setting.simpleString("xpack.idp.sso_endpoint.redirect", value -> {
-        try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.redirect]. Not a valid URI", e);
+    public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "", value -> {
+        if (Strings.hasText(value)) {
+            try {
+                return new URL(value);
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.sso_endpoint.redirect]. Not a valid URL", e);
+            }
+        } else {
+            throw new IllegalArgumentException("[xpack.idp.slo_endpoint.post] cannot be empty");
         }
     }, Setting.Property.NodeScope);
-    public static final Setting<String> IDP_SSO_POST_ENDPOINT = Setting.simpleString("xpack.idp.sso_endpoint.post", value -> {
-        try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.post]. Not a valid URI", e);
+    public static final Setting<URL> IDP_SSO_POST_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.post", "", value -> {
+        if (Strings.hasText(value)) {
+            try {
+                return new URL(value);
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.sso_endpoint.post]. Not a valid URL", e);
+            }
         }
+        return null;
     }, Setting.Property.NodeScope);
-    public static final Setting<String> IDP_SLO_REDIRECT_ENDPOINT = Setting.simpleString("xpack.idp.slo_endpoint.redirect", value -> {
-        try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.redirect]. Not a valid URI", e);
+    public static final Setting<URL> IDP_SLO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.redirect", "", value -> {
+        if (Strings.hasText(value)) {
+            try {
+                return new URL(value);
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.slo_endpoint.redirect]. Not a valid URL", e);
+            }
         }
+        return null;
     }, Setting.Property.NodeScope);
-    public static final Setting<String> IDP_SLO_POST_ENDPOINT = Setting.simpleString("xpack.idp.slo_endpoint.post", value -> {
-        try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.post]. Not a valid URI", e);
+    public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "", value -> {
+        if (Strings.hasText(value)) {
+            try {
+                return new URL(value);
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.slo_endpoint.post]. Not a valid URL", e);
+            }
         }
+        return null;
     }, Setting.Property.NodeScope);
 
     public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString("xpack.idp.organization.name",
@@ -108,25 +125,26 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return List.of();
         }
 
-        SamlUtils.initialize();
+        SamlInit.initialize();
         CloudIdp idp = new CloudIdp(environment, settings);
         return List.of();
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(
+        return List.of(
+            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
             new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class)
         );
     }
@@ -139,7 +157,9 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(new RestSamlValidateAuthenticationRequestAction());
+        return List.of(
+            new RestSamlInitiateSingleSignOnAction(),
+            new RestSamlValidateAuthenticationRequestAction());
     }
 
     @Override
@@ -148,8 +168,6 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.addAll(List.of(ENABLED_SETTING, IDP_ENTITY_ID, IDP_SLO_REDIRECT_ENDPOINT, IDP_SLO_POST_ENDPOINT,
             IDP_SSO_REDIRECT_ENDPOINT, IDP_SSO_POST_ENDPOINT, IDP_ORGANIZATION_NAME, IDP_ORGANIZATION_DISPLAY_NAME, IDP_ORGANIZATION_URL,
             IDP_CONTACT_GIVEN_NAME, IDP_CONTACT_SURNAME, IDP_CONTACT_EMAIL));
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
     }
 }

@@ -10,7 +10,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
@@ -30,16 +31,19 @@ import static org.opensaml.xmlsec.signature.support.SignatureConstants.ALGO_ID_S
 
 public class SamlMetadataGenerator {
 
+    private final SamlFactory samlFactory;
     private final SamlIdentityProvider idp;
     private final Logger logger = LogManager.getLogger(SamlMetadataGenerator.class);
 
-    public SamlMetadataGenerator(SamlIdentityProvider idp) {
+    public SamlMetadataGenerator(SamlFactory samlFactory, SamlIdentityProvider idp) {
+        this.samlFactory = samlFactory;
         this.idp = idp;
-        SamlUtils.initialize();
+        SamlInit.initialize();
     }
 
     public void generateMetadata(String spEntityId, ActionListener<SamlGenerateMetadataResponse> listener) {
         try {
+            // this will be async
             SamlServiceProvider sp = idp.getRegisteredServiceProvider(spEntityId);
             if (null == sp) {
                 listener.onFailure(new IllegalArgumentException("Service provider with Entity ID [" + spEntityId
@@ -47,9 +51,9 @@ public class SamlMetadataGenerator {
                 return;
             }
             EntityDescriptor metadata = buildEntityDescriptor(sp);
-            final X509Credential signingCredential = idp.getMetadataSigningCredential();
+            final X509Credential signingCredential = sp.getIdpMetadataSigningCredential();
             Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
-            listener.onResponse(new SamlGenerateMetadataResponse(SamlUtils.toString(metadataElement, false)));
+            listener.onResponse(new SamlGenerateMetadataResponse(samlFactory.toString(metadataElement, false)));
         } catch (Exception e) {
             logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
             listener.onFailure(e);
@@ -67,10 +71,7 @@ public class SamlMetadataGenerator {
                 idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI))
             .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI,
                 idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI))
-            // TODO: This will probably need adjustment once SP Registration is in place. Then we
-            // can move the signing credential to be an override configuration setting on the SP
-            // defaulting to what is set in the IDP config.
-            .withSigningCertificate(idp.getSigningCredential().getEntityCertificate())
+            .withSigningCertificate(sp.getIdpSigningCredential().getEntityCertificate())
             .withNameIdFormat(PERSISTENT)
             .withNameIdFormat(TRANSIENT)
             .organization(idp.getOrganization())
@@ -84,7 +85,7 @@ public class SamlMetadataGenerator {
         if (null == signingCredential) {
             return marshaller.marshall(descriptor);
         } else {
-            Signature signature = SamlUtils.buildObject(Signature.class, DEFAULT_ELEMENT_NAME);
+            Signature signature = samlFactory.buildObject(Signature.class, DEFAULT_ELEMENT_NAME);
             signature.setSigningCredential(signingCredential);
             signature.setSignatureAlgorithm(ALGO_ID_SIGNATURE_RSA_SHA256);
             signature.setCanonicalizationAlgorithm(ALGO_ID_C14N_EXCL_OMIT_COMMENTS);

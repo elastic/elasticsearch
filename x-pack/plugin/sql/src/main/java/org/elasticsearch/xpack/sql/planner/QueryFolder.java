@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -90,7 +91,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -181,7 +181,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {
-                    query = and(plan.source(), qContainer.query(), qt.query);
+                    query = ExpressionTranslators.and(plan.source(), qContainer.query(), qt.query);
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 

@@ -6,33 +6,50 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Map;
+import java.util.Set;
 
 
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityid;
-    private final String assertionConsumerService;
+    private final URL assertionConsumerService;
     private final ReadableDuration authnExpiry;
-    private final String nameIdPolicyFormat;
-    private final X509Credential signingCredential;
+    private final ServiceProviderPrivileges privileges;
+    private final Set<String> allowedNameIdFormats;
+    private final X509Credential spSigningCredential;
+    private final X509Credential idpSigningCredential;
+    private final X509Credential idpMetadataSigningCredential;
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, String assertionConsumerService, String nameIdPolicyFormat,
-                                boolean signAuthnRequests, boolean signLogoutRequests, @Nullable X509Credential signingCredential) {
+    public CloudServiceProvider(String entityId, String assertionConsumerService, Set<String> allowedNameIdFormats,
+                                ServiceProviderPrivileges privileges, boolean signAuthnRequests, boolean signLogoutRequests,
+                                X509Credential spSigningCredential, X509Credential idpSigningCredential,
+                                X509Credential idpMetadataSigningCredential) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
         this.entityid = entityId;
-        this.assertionConsumerService = assertionConsumerService;
-        this.nameIdPolicyFormat = nameIdPolicyFormat;
+        try {
+            this.assertionConsumerService = new URL(assertionConsumerService);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid URL for Assertion Consumer Service", e);
+        }
+        this.allowedNameIdFormats = Set.copyOf(allowedNameIdFormats);
         this.authnExpiry = Duration.standardMinutes(5);
-        this.signingCredential = signingCredential;
+        this.privileges = new ServiceProviderPrivileges("cloud-idp", "service$" + entityId, "action:sso", Map.of());
+        this.spSigningCredential = spSigningCredential;
+        this.idpSigningCredential = idpSigningCredential;
+        this.idpMetadataSigningCredential = idpMetadataSigningCredential;
         this.signLogoutRequests = signLogoutRequests;
         this.signAuthnRequests = signAuthnRequests;
 
@@ -44,12 +61,12 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public String getNameIDPolicyFormat() {
-        return nameIdPolicyFormat;
+    public Set<String> getAllowedNameIdFormats() {
+        return allowedNameIdFormats;
     }
 
     @Override
-    public String getAssertionConsumerService() {
+    public URL getAssertionConsumerService() {
         return assertionConsumerService;
     }
 
@@ -64,8 +81,18 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public X509Credential getSigningCredential() {
-        return signingCredential;
+    public X509Credential getSpSigningCredential() {
+        return spSigningCredential;
+    }
+
+    @Override
+    public X509Credential getIdpSigningCredential() {
+        return idpSigningCredential;
+    }
+
+    @Override
+    public X509Credential getIdpMetadataSigningCredential() {
+        return idpMetadataSigningCredential;
     }
 
     @Override
@@ -76,5 +103,10 @@ public class CloudServiceProvider implements SamlServiceProvider {
     @Override
     public boolean shouldSignLogoutRequests() {
         return signLogoutRequests;
+    }
+
+    @Override
+    public ServiceProviderPrivileges getPrivileges() {
+        return privileges;
     }
 }

@@ -29,7 +29,7 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
     public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> authnState) {
         this.spEntityId = Objects.requireNonNull(spEntityId);
         this.forceAuthn = forceAuthn;
-        this.authnState = Objects.requireNonNull(authnState);
+        this.authnState = Map.copyOf(Objects.requireNonNull(authnState));
     }
 
     public String getSpEntityId() {

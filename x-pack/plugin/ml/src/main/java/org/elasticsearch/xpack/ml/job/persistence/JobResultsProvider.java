@@ -144,10 +144,12 @@ public class JobResultsProvider {
 
     private final Client client;
     private final Settings settings;
+    private final IndexNameExpressionResolver resolver;
 
-    public JobResultsProvider(Client client, Settings settings) {
+    public JobResultsProvider(Client client, Settings settings, IndexNameExpressionResolver resolver) {
         this.client = Objects.requireNonNull(client);
         this.settings = settings;
+        this.resolver = resolver;
     }
 
     /**
@@ -264,7 +266,6 @@ public class JobResultsProvider {
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
         if (state.getMetaData().hasAlias(tempIndexName)) {
-            IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this

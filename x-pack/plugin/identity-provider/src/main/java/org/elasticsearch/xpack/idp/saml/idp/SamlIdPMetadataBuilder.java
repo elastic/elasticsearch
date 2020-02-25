@@ -42,6 +42,7 @@ import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.impl.KeyInfoBuilder;
 
+import java.net.URL;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -61,8 +62,8 @@ public class SamlIdPMetadataBuilder {
     private final String entityId;
     private Set<String> nameIdFormats;
     private boolean wantAuthnRequestsSigned;
-    private Map<String, String> singleSignOnServiceUrls = new HashMap<>();
-    private Map<String, String> singleLogoutServiceUrls = new HashMap<>();
+    private Map<String, URL> singleSignOnServiceUrls = new HashMap<>();
+    private Map<String, URL> singleLogoutServiceUrls = new HashMap<>();
     private List<X509Certificate> signingCertificates;
     private OrganizationInfo organization;
     private final List<ContactInfo> contacts;
@@ -94,14 +95,14 @@ public class SamlIdPMetadataBuilder {
         return this;
     }
 
-    public SamlIdPMetadataBuilder withSingleSignOnServiceUrl(String binding, String url) {
+    public SamlIdPMetadataBuilder withSingleSignOnServiceUrl(String binding, URL url) {
         if ( null != url) {
             this.singleSignOnServiceUrls.put(binding, url);
         }
         return this;
     }
 
-    public SamlIdPMetadataBuilder withSingleLogoutServiceUrl(String binding, String url) {
+    public SamlIdPMetadataBuilder withSingleLogoutServiceUrl(String binding, URL url) {
         if (null != url) {
             this.singleLogoutServiceUrls.put(binding, url);
         }
@@ -176,10 +177,10 @@ public class SamlIdPMetadataBuilder {
         if (singleSignOnServiceUrls.isEmpty()) {
             throw new IllegalStateException("At least one SingleSignOnService URL should be specified");
         }
-        for (Map.Entry<String, String> entry : singleSignOnServiceUrls.entrySet()) {
+        for (Map.Entry<String, URL> entry : singleSignOnServiceUrls.entrySet()) {
             final SingleSignOnService sso = new SingleSignOnServiceBuilder().buildObject();
             sso.setBinding(entry.getKey());
-            sso.setLocation(entry.getValue());
+            sso.setLocation(entry.getValue().toString());
             ssoServices.add(sso);
         }
         return ssoServices;
@@ -187,10 +188,10 @@ public class SamlIdPMetadataBuilder {
 
     private List<SingleLogoutService> buildSingleLogoutServices() {
         List<SingleLogoutService> sloServices = new ArrayList<>();
-        for (Map.Entry<String, String> entry : singleLogoutServiceUrls.entrySet()) {
+        for (Map.Entry<String, URL> entry : singleLogoutServiceUrls.entrySet()) {
             final SingleLogoutService slo = new SingleLogoutServiceBuilder().buildObject();
             slo.setBinding(entry.getKey());
-            slo.setLocation(entry.getValue());
+            slo.setLocation(entry.getValue().toString());
             sloServices.add(slo);
         }
         return sloServices;

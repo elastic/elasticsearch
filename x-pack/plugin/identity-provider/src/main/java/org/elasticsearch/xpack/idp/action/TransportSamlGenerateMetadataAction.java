@@ -15,6 +15,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.idp.SamlMetadataGenerator;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
 public class TransportSamlGenerateMetadataAction extends HandledTransportAction<SamlGenerateMetadataRequest, SamlGenerateMetadataResponse> {
 
@@ -29,8 +30,9 @@ public class TransportSamlGenerateMetadataAction extends HandledTransportAction<
     @Override
     protected void doExecute(Task task, SamlGenerateMetadataRequest request, ActionListener<SamlGenerateMetadataResponse> listener) {
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
+        final SamlFactory factory = new SamlFactory();
         final String spEntityId = request.getSpEntityId();
-        final SamlMetadataGenerator generator = new SamlMetadataGenerator(idp);
+        final SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
         generator.generateMetadata(spEntityId, listener);
     }
 }

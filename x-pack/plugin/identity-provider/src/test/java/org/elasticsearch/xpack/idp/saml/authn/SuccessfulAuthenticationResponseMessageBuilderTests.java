@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
@@ -17,7 +18,7 @@ import org.junit.Before;
 import org.opensaml.saml.saml2.core.Response;
 import org.w3c.dom.Element;
 
-import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Clock;
 import java.util.Set;
 
@@ -30,10 +31,12 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
 
     private SamlIdentityProvider idp;
     private XmlValidator validator;
+    private SamlFactory samlFactory;
 
     @Before
     public void setupSaml() throws Exception {
-        SamlUtils.initialize();
+        SamlInit.initialize();
+        samlFactory = new SamlFactory();
         validator = new XmlValidator("saml-schema-protocol-2.0.xsd");
 
         idp = mock(SamlIdentityProvider.class);
@@ -50,7 +53,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
     }
 
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {
-        final SamlObjectSigner signer = new SamlObjectSigner(idp);
+        final SamlObjectSigner signer = new SamlObjectSigner(samlFactory, idp);
         final Response response = buildResponse();
 
         final Element signed = signer.sign(response);
@@ -59,14 +62,14 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         validator.validate(xml);
     }
 
-    private Response buildResponse() throws URISyntaxException {
+    private Response buildResponse() throws Exception{
         final Clock clock = Clock.systemUTC();
 
         final SamlServiceProvider sp = mock(SamlServiceProvider.class);
         final String baseServiceUrl = "https://" + randomAlphaOfLength(32) + ".us-east-1.aws.found.io/";
         final String acs = baseServiceUrl + "api/security/saml/callback";
         when(sp.getEntityId()).thenReturn(baseServiceUrl);
-        when(sp.getAssertionConsumerService()).thenReturn(acs);
+        when(sp.getAssertionConsumerService()).thenReturn(new URL(acs));
         when(sp.getAuthnExpiry()).thenReturn(Duration.standardMinutes(10));
         when(sp.getAttributeNames()).thenReturn(new SamlServiceProvider.AttributeNames());
 
@@ -75,7 +78,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         when(user.getGroups()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
         when(user.getServiceProvider()).thenReturn(sp);
 
-        final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(clock, idp);
+        final SuccessfulAuthenticationResponseMessageBuilder builder =
+            new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, clock, idp);
         return builder.build(user, null);
     }
 

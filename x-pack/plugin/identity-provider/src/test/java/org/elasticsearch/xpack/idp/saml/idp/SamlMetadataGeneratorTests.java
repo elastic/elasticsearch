@@ -9,7 +9,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -21,6 +21,7 @@ import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.w3c.dom.Element;
 
+import java.net.URL;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -37,13 +38,14 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         when(sp.shouldSignAuthnRequests()).thenReturn(true);
         SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://idp.org");
-        when(idp.getMetadataSigningCredential()).thenReturn(null);
-        when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
-        when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn("https://idp.org/sso/redirect");
-        when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn("https://idp.org/slo/post");
+        when(sp.getIdpMetadataSigningCredential()).thenReturn(null);
+        when(sp.getIdpSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn(new URL("https://idp.org/sso/redirect"));
+        when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn(new URL("https://idp.org/slo/post"));
         when(idp.getRegisteredServiceProvider("https://sp.org")).thenReturn(sp);
 
-        SamlMetadataGenerator generator = new SamlMetadataGenerator(idp);
+        SamlFactory factory = new SamlFactory();
+        SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
         PlainActionFuture<SamlGenerateMetadataResponse> future = new PlainActionFuture<>();
         generator.generateMetadata("https://sp.org", future);
         SamlGenerateMetadataResponse response = future.actionGet();
@@ -105,16 +107,17 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         when(sp.shouldSignAuthnRequests()).thenReturn(true);
         SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://idp.org");
-        when(idp.getMetadataSigningCredential()).thenReturn(readCredentials("RSA", 4096));
-        when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
-        when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn("https://idp.org/sso/redirect");
-        when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn("https://idp.org/slo/post");
+        when(sp.getIdpMetadataSigningCredential()).thenReturn(readCredentials("RSA", 4096));
+        when(sp.getIdpSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn(new URL("https://idp.org/sso/redirect"));
+        when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn(new URL("https://idp.org/slo/post"));
         when(idp.getRegisteredServiceProvider("https://sp.org")).thenReturn(sp);
 
         X509Credential signingCredential = readCredentials("RSA", 4096);
-        SamlMetadataGenerator generator = new SamlMetadataGenerator(idp);
+        SamlFactory factory = new SamlFactory();
+        SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
         Element element = generator.possiblySignDescriptor(generator.buildEntityDescriptor(sp), signingCredential);
-        EntityDescriptor descriptor = SamlUtils.buildXmlObject(element, EntityDescriptor.class);
+        EntityDescriptor descriptor = factory.buildXmlObject(element, EntityDescriptor.class);
         Signature signature = descriptor.getSignature();
         assertNotNull(signature);
         SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();

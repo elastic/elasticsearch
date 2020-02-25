@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.idp.saml.idp;
 
 import org.elasticsearch.common.util.NamedFormatter;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -28,7 +28,7 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
 
     @Before
     public void setup() throws Exception {
-        SamlUtils.initialize();
+        SamlInit.initialize();
     }
 
     public void testSimpleMetadataGeneration() throws Exception {

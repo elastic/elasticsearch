@@ -17,7 +17,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
 
     @Override
@@ -36,6 +36,11 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(LocalStateEqlXPackPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 }
 

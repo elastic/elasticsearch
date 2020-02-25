@@ -169,9 +169,15 @@
 ---
 "sort by keyword field fails":
   - skip:
-      features: default_shards
       version: " - 8.0.0"
-      reason: backport to 7.7.0 pending *and* The failure message isn't predictable with more than one shard
+      reason: backport to 7.7.0 pending
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
 
   - do:
       bulk:
@@ -197,9 +203,16 @@
 ---
 "sort by score":
   - skip:
-      features: default_shards
       version: " - 8.0.0"
-      reason: backport to 7.7.0 pending *and* Scores aren't predictable with many shards
+      reason: backport to 7.7.0 pending
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The score isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -263,8 +276,14 @@
 "sort by string script fails":
   - skip:
       version: " - 8.0.0"
-      features: default_shards
-      reason: backport to 7.7.0 pending *and* The failure message isn't predictable with more than one shard
+      reason: backport to 7.7.0 pending
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
 
   - do:
       bulk:

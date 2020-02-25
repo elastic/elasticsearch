@@ -88,7 +88,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
 
-        if (!config.unmapped()) {
+        if (config.unmapped() == false) {
+            if (config.fieldContext().fieldType().isSearchable() == false) {
+                throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
+                    + config.fieldContext().fieldType().name() + "] is not");
+            }
+
             this.fieldType = config.fieldContext().fieldType();
             this.indexedFieldName = fieldType.name();
         }
@@ -129,6 +134,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     private long getBackgroundFrequency(String value) throws IOException {
+        // fieldType can be null if the field is unmapped, but theoretically this method should only be called
+        // when constructing buckets.  Assert to ensure this is the case
+        // TODO this is a bad setup and it should be refactored
+        assert fieldType != null;
         Query query = fieldType.termQuery(value, queryShardContext);
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a caching terms

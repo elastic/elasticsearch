@@ -34,12 +34,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,6 +66,28 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         return Arrays.stream(fieldTypes).collect(Collectors.toMap(
             ft -> ft.name() + "-alias",
             Function.identity()));
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new SignificantTextAggregationBuilder("foo", fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.GEOPOINT);
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of(
+            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
+            GeoPointFieldMapper.CONTENT_TYPE // geopoint fields cannot use term queries
+        );
     }
 
     /**

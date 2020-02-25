@@ -1,3 +1,5 @@
+[float]
+[[java_time_migration_guide]]
 === Java Time Migration Guide
 
 Since version 7.0 Elasticsearch is using java.time as an underlying implementation of dates parsing, formatting and calculations.

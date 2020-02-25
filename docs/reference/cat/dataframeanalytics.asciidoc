@@ -65,18 +65,21 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 `assignment_explanation`::
 include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-dfanalytics]
 +
+--
 To retrieve this information, specify the `ae` column in the `h` query 
 parameter.
+--
 
-`create_time`
+`create_time`::
 The time when the {dfanalytics-job} was created. To retrieve this information, 
 specify the `ct` or `createTime` column in the `h` query parameter.
 
 `description`::
 include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
 +
-To retrieve this information, specify the `d` column in the `h` query 
-parameter.
+--
+To retrieve this information, specify the `d` column in the `h` query parameter.
+--
 
 `dest_index`::
 Name of the destination index. To retrieve this information, specify the `di` or 
@@ -90,8 +93,10 @@ query parameter.
 `id`::
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 +
+--
 To retrieve this information, specify the `id` column in the `h` query 
 parameter.
+--
 
 `model_memory_limit`::
 The approximate maximum amount of memory resources that are permitted for the 

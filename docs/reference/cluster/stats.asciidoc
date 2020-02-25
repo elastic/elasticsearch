@@ -18,9 +18,9 @@ Returns cluster statistics.
 [[cluster-stats-api-desc]]
 ==== {api-description-title}
 
-The Cluster Stats API allows to retrieve statistics from a cluster wide 
-perspective. The API returns basic index metrics (shard numbers, store size, 
-memory usage) and information about the current nodes that form the cluster 
+The Cluster Stats API allows to retrieve statistics from a cluster wide
+perspective. The API returns basic index metrics (shard numbers, store size,
+memory usage) and information about the current nodes that form the cluster
 (number, roles, os, jvm versions, memory usage, cpu and installed plugins).
 
 
@@ -72,6 +72,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 +
 See <<cluster-health>>.
 
+[NOTE]
+====
+The remaining statistics are grouped by section.
+====
+
+[[cluster-stats-api-response-body-indices]]
+===== `indices` section
+
+[%collapsible]
+====
 `indices.count`::
 (integer)
 Total number of indices with shards assigned to selected nodes.
@@ -338,7 +348,289 @@ This object is not populated by the cluster stats API.
 +
 To get information on segment files, use the <<cluster-nodes-stats,node stats
 API>>.
+====
 
+[[cluster-stats-api-response-body-nodes]]
+===== `nodes` section
+
+[%collapsible]
+====
+`nodes.count.total`::
+(integer)
+Total number of nodes selected by the request's <<cluster-nodes,node filters>>.
+
+`nodes.count.coordinating_only`::
+(integer)
+Number of selected <<coordinating-only-node,coordinating only>> nodes.
+
+`nodes.count.data`::
+(integer)
+Number of selected nodes with the <<data-node,data>> role.
+
+`nodes.count.ingest`::
+(integer)
+Number of selected nodes with the <<node-ingest-node,ingest>> role.
+
+`nodes.count.master`::
+(integer)
+Number of selected nodes with the <<master-node,master-eligible>> role.
+
+`nodes.count.ml`::
+(integer)
+Number of selected nodes with the <<ml-node,machine learning>> role.
+
+`nodes.count.voting_only`::
+(integer)
+Number of selected nodes with the <<voting-only-node,voting-only>> role.
+
+`nodes.versions`::
+(array of strings)
+Array of {es} versions used on selected nodes.
+
+`nodes.os.available_processors`::
+(integer)
+Number of processors available to JVM across all selected nodes.
+
+`nodes.os.allocated_processors`::
+(integer)
+Number of processors used to calculate thread pool size across all selected
+nodes.
++
+This number can be set with the `processors` setting of a node and defaults to
+the number of processors reported by the OS. In both cases, this number will
+never be larger than `32`.
+
+`nodes.os.names`::
+(array of objects)
+Contains details about operating systems used by one or more selected nodes.
+
+`nodes.os.names.name`:::
+(string)
+Name of an operating system used by one or more selected nodes.
+
+`nodes.os.names.count`:::
+(string)
+Number of selected nodes using the operating system.
+
+`nodes.os.pretty_names`::
+(array of objects)
+Contains details about operating systems used by one or more selected nodes.
+
+`nodes.os.pretty_names.pretty_name`:::
+(string)
+Human-readable name of an operating system used by one or more selected nodes.
+
+`nodes.os.pretty_names.count`:::
+(string)
+Number of selected nodes using the operating system.
+
+`nodes.os.mem.total`::
+(<<byte-units, byte units>>)
+Total amount of physical memory across all selected nodes.
+
+`nodes.os.mem.total_in_bytes`::
+(integer)
+Total bytes of physical memory across all selected nodes.
+
+`nodes.os.mem.free`::
+(<<byte-units, byte units>>)
+Amount of free physical memory across all selected nodes.
+
+`nodes.os.mem.free_in_bytes`::
+(integer)
+Bytes of free physical memory across all selected nodes.
+
+`nodes.os.mem.used`::
+(<<byte-units, byte units>>)
+Amount of physical memory in use across all selected nodes.
+
+`nodes.os.mem.used_in_bytes`::
+(integer)
+Bytes of physical memory in use across all selected nodes.
+
+`nodes.os.mem.free_percent`::
+(integer)
+Percentage of free memory across all selected nodes.
+
+`nodes.os.mem.used_percent`::
+(integer)
+Percentage of memory in use across all selected nodes.
+
+`nodes.process.cpu.percent`::
+(integer)
+Percentage of CPU used across all selected nodes. Returns `-1` if
+not supported.
+
+`nodes.process.open_file_descriptors.min`::
+(integer)
+Minimum number of concurrently open file descriptors across all selected nodes.
+Returns `-1` if not supported.
+
+`nodes.process.open_file_descriptors.max`::
+(integer)
+Maximum number of concurrently open file descriptors allowed across all selected
+nodes. Returns `-1` if not supported.
+
+`nodes.process.open_file_descriptors.avg`::
+(integer)
+Average number of concurrently open file descriptors. Returns `-1` if not
+supported.
+
+`nodes.jvm.max_uptime`::
+(<<time-units,time unit>>)
+Uptime duration since JVM last started.
+
+`nodes.jvm.max_uptime_in_millis`::
+(integer)
+Uptime duration, in milliseconds, since JVM last started.
+
+`nodes.jvm.versions`::
+(array of objects)
+Contains details about the JVM versions used by selected
+nodes.
+
+`nodes.jvm.versions.version`:::
+(string)
+Version of JVM used by one or more selected nodes.
+
+`nodes.jvm.versions.vm_name`:::
+(string)
+Name of the JVM.
+
+`nodes.jvm.versions.vm_version`:::
+(string)
+Full version number of JVM.
++
+The full version number includes a plus sign (`+`) followed by the build number.
+
+`nodes.jvm.versions.vm_vendor`:::
+(string)
+Vendor of the JVM.
+
+`nodes.jvm.versions.bundled_jdk`:::
+(boolean)
+If `true`, the JVM includes a bundled Java Development Kit (JDK).
+
+`nodes.jvm.versions.using_bundled_jdk`:::
+(boolean)
+If `true`, a bundled JDK is in use by JVM.
+
+`nodes.jvm.versions.count`:::
+(integer)
+Total number of selected nodes using JVM.
+
+`nodes.jvm.mem.heap_used`::
+(<<byte-units, byte units>>)
+Memory currently in use by the heap across all selected nodes.
+
+`nodes.jvm.mem.heap_used_in_bytes`::
+(integer)
+Memory, in bytes, currently in use by the heap across all selected nodes.
+
+`nodes.jvm.mem.heap_max`::
+(<<byte-units, byte units>>)
+Maximum amount of memory, in bytes, available for use by the heap across all
+selected nodes.
+
+`nodes.jvm.mem.heap_max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the heap across all
+selected nodes.
+
+`nodes.jvm.threads`::
+(integer)
+Number of active threads in use by JVM across all selected nodes.
+
+`nodes.fs.total`::
+(<<byte-units, byte units>>)
+Total size of all file stores across all selected nodes.
+
+`nodes.fs.total_in_bytes`::
+(integer)
+Total size, in bytes, of all file stores across all seleced nodes.
+
+`nodes.fs.free`::
+(<<byte-units, byte units>>)
+Amount of unallocated disk space in file stores across all selected nodes.
+
+`nodes.fs.free_in_bytes`::
+(integer)
+Total number of unallocated bytes in file stores across all selected nodes.
+
+`nodes.fs.available`::
+(<<byte-units, byte units>>)
+Total amount of disk space available to JVM in file
+stores across all selected nodes.
++
+Depending on OS or process-level restrictions, this amount may be less than
+`nodes.fs.free`. This is the actual amount of free disk space the selected {es}
+nodes can use.
+
+`nodes.fs.available_in_bytes`::
+(integer)
+Total number of bytes available to JVM in file stores
+across all selected nodes.
++
+Depending on OS or process-level restrictions, this number may be less than
+`nodes.fs.free_in_byes`. This is the actual amount of free disk space the
+selected {es} nodes can use.
+
+`nodes.plugins`::
+(array of objects)
+Contains details about installed plugins and modules across all selected nodes.
++
+If no plugins or modules are installed, this array is empty.
+
+`nodes.plugins.name`:::
+(string)
+Name of the {es} plugin.
+
+`nodes.plugins.version`:::
+(string)
+{es} version for which the plugin was built.
+
+`nodes.plugins.description`:::
+(string)
+Short description of the plugin.
+
+`nodes.plugins.classname`:::
+(string)
+Class name used as the plugin's entry point.
+
+`nodes.plugins.has_native_controller`:::
+(boolean)
+If `true`, the plugin has a native controller process.
+
+`nodes.network_types.transport_types.<transport_type>`::
+(integer)
+Number of selected nodes using the transport type.
+
+`nodes.network_types.http_types.<http_type>`::
+(integer)
+Number of selected nodes using the HTTP type.
+
+`nodes.discovery_types.<discovery_type>`::
+(integer)
+Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
+type>> to find other nodes.
+
+`nodes.packaging_types`::
+(array of objects)
+Contains details about {es} distributions installed on selected nodes.
+
+`nodes.packaging_types.flavor`:::
+(string)
+Type of {es} distribution, such as `default` or `OSS`, used by one or more
+selected nodes.
+
+`nodes.packaging_types.type`:::
+(string)
+File type, such as `tar` or `zip`, used for the distribution package.
+
+`nodes.packaging_types.count`:::
+(integer)
+Number of selected nodes using the distribution flavor and file type.
+====
 
 [[cluster-stats-api-example]]
 ==== {api-examples-title}

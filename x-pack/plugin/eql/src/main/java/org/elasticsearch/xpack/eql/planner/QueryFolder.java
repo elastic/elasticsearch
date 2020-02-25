@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
-import static java.util.Collections.emptyList;
+import java.util.Arrays;
 
 class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
@@ -33,14 +33,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 new PlanOutputToQueryRef()
         );
         
-        //return Arrays.asList(fold, finish);
-        return emptyList();
+        return Arrays.asList(fold, finish);
     }
     
     private static class FoldFilter extends FoldingRule<FilterExec> {
+
         @Override
         protected PhysicalPlan rule(FilterExec plan) {
-
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();

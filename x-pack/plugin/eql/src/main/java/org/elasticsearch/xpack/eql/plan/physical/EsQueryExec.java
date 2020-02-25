@@ -79,6 +79,6 @@ public class EsQueryExec extends LeafExec {
     }
 
     public QueryContainer queryContainer() {
-        return null;
+        return queryContainer;
     }
 }

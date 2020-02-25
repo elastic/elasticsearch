@@ -10,14 +10,15 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -90,7 +91,11 @@ public class QueryContainer {
             return new Tuple<>(this, topHitFieldRef(fa));
         }
 
-        throw new QlIllegalArgumentException("Unknown output attribute {}", attr);
+        if (expression.foldable()) {
+            return new Tuple<>(this, new ComputedRef(new ConstantInput(expression.source(), expression, expression.fold())));
+        }
+
+        throw new EqlIllegalArgumentException("Unknown output attribute {}", attr);
     }
 
     //
@@ -129,7 +134,8 @@ public class QueryContainer {
             rootField = rootField.parent();
         }
 
-        throw new UnsupportedOperationException("Extraction pending");
+        return new SearchHitFieldRef(actualField.name(), fullFieldName.toString(), fieldAttr.field().getDataType(),
+                                     fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
     }
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
@@ -138,7 +144,7 @@ public class QueryContainer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query);
+        return Objects.hash(query, attributes, fields, trackHits, includeFrozen);
     }
 
     @Override
@@ -152,7 +158,11 @@ public class QueryContainer {
         }
 
         QueryContainer other = (QueryContainer) obj;
-        return Objects.equals(query, other.query);
+        return Objects.equals(query, other.query)
+                && Objects.equals(attributes, other.attributes)
+                && Objects.equals(fields, other.fields)
+                && Objects.equals(trackHits, other.trackHits)
+                && Objects.equals(includeFrozen, other.includeFrozen);
     }
 
     @Override
@@ -162,7 +172,7 @@ public class QueryContainer {
             SourceGenerator.sourceBuilder(this, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new RuntimeException("error rendering", e);
+            throw new EqlIllegalArgumentException("error rendering", e);
         }
     }
 }

@@ -36,7 +36,7 @@ part of remote cluster requests. This mode requires that the _gateway node_
 publish addresses are exposed to the local cluster.
 
 The sniff mode is the default connection mode.
-// end::how-remote-clusters-work[]
+// end::how-sniff-mode-works[]
 
 [float]
 [[gateway-nodes-selection]]
@@ -88,7 +88,7 @@ The proxy mode is not the default connection mode and must be configured. Simila
 to the sniff <<remote-cluster-compatibility-matrix,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
-// end::how-remote-clusters-work[]
+// end::how-proxy-mode-works[]
 
 [float]
 [[configuring-remote-clusters]]

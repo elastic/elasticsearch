@@ -114,11 +114,11 @@ NOTE: If left empty, the default *9200* port number will be used.
 +
 * Username, Password
 +
-If security is enabled, these fields will need to contain the credentials of the user configured to access the REST SQL endpoint.
+If security is enabled, these fields will need to contain the credentials of the access user.
 
 At a minimum, the _Name_ and _Hostname_ fields must be provisioned, before the DSN can be saved.
 
-WARNING: Connection encryption is enabled by default. This will need to be changed if connecting to a SQL API endpoint with no cryptography enabled.
+WARNING: Connection encryption is enabled by default. This will need to be changed if connecting to an {es} node with no encryption.
 
 [float]
 ===== 2.3 Cryptography parameters

@@ -132,6 +132,16 @@ public final class EncryptedRepository extends BlobStoreRepository {
     // repository password on the local node
     private final HashVerifier passwordHashVerifier;
 
+    /**
+     * Returns the byte length (i.e. the storage size) of an encrypted blob, given the length of the blob's plaintext contents.
+     *
+     * @see EncryptionPacketsInputStream#getEncryptionLength(long, int)
+     */
+    public static long getEncryptedBlobByteLength(long plaintextBlobByteLength) {
+        return ((long) MetadataIdentifier.byteLength()) + EncryptionPacketsInputStream.getEncryptionLength(plaintextBlobByteLength,
+                PACKET_LENGTH_IN_BYTES);
+    }
+
     protected EncryptedRepository(RepositoryMetaData metadata, NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
                                   BlobStoreRepository delegatedRepository, Supplier<XPackLicenseState> licenseStateSupplier,
                                   char[] password) throws NoSuchAlgorithmException {

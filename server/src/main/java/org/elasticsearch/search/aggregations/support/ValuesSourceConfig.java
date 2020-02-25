@@ -139,7 +139,7 @@ public class ValuesSourceConfig {
 
     /**
      * Special case factory method, intended to be used by aggregations which have some specialized logic for figuring out what field they
-     * are operating on, for example Parent & Child join aggregations, which use the join relation to find the field they are reading from
+     * are operating on, for example Parent and Child join aggregations, which use the join relation to find the field they are reading from
      * rather than a user specified field.
      */
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType,

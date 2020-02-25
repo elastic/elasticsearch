@@ -221,6 +221,8 @@ include::cat/allocation.asciidoc[]
 
 include::cat/count.asciidoc[]
 
+include::cat/dataframeanalytics.asciidoc[]
+
 include::cat/fielddata.asciidoc[]
 
 include::cat/health.asciidoc[]

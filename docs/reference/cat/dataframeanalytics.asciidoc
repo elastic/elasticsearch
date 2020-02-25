@@ -1,0 +1,9 @@
+[role="xpack"]
+[testenv="platinum"]
+[[cat-dfanalytics]]
+=== cat {dfanalytics} API
+++++
+<titleabbrev>cat {dfanalytics}</titleabbrev>
+++++
+
+Returns configuration and usage information about {dfanalytics-jobs}.

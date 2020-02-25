@@ -143,10 +143,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      * Node attributes for transform, automatically created and retrievable via cluster state.
      * These attributes should never be set directly, use the node setting counter parts instead.
      */
-    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.enabled";
+    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
     public static final String TRANSFORM_REMOTE_ENABLED_NODE_ATTR = "transform.remote_connect";
 
-    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting(
+    /**
+     * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
+     * respects xpack.transform.enabled (for the whole plugin) as fallback
+     */
+    public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
         XPackSettings.TRANSFORM_ENABLED,
         Property.NodeScope
@@ -331,7 +335,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(Arrays.asList(TRANSFORM_ENABLED, NUM_FAILURE_RETRIES_SETTING));
+        return Collections.unmodifiableList(Arrays.asList(TRANSFORM_ENABLED_NODE, NUM_FAILURE_RETRIES_SETTING));
     }
 
     @Override
@@ -347,7 +351,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         Settings.Builder additionalSettings = Settings.builder();
 
-        additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED.get(settings));
+        additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
         additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
 
         return additionalSettings.build();

@@ -1,6 +1,6 @@
 
 [role="xpack"]
-[[data-frames-settings]]
+[[transform-settings]]
 === {transforms-cap}  settings in Elasticsearch
 [subs="attributes"]
 ++++
@@ -9,16 +9,27 @@
 
 You do not need to configure any settings to use {transforms}. It is enabled by default.
 
-All of these settings can be added to the `elasticsearch.yml` configuration file. 
-The dynamic settings can also be updated across a cluster with the 
+All of these settings can be added to the `elasticsearch.yml` configuration file.
+The dynamic settings can also be updated across a cluster with the
 <<cluster-update-settings,cluster update settings API>>.
 
-TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml` 
+TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
 file.
 
 [float]
-[[general-data-frames-settings]]
+[[general-transform-settings]]
 ==== General {transforms} settings
+
+`node.transform`::
+Set to `true` (default) to identify the node as a _transform node_. +
++
+If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If set to
+`true` but `xpack.transform.enabled` is set to `false`, the `node.transform` setting is
+ignored and the node cannot run transforms. If you want to run transforms, there must be at
+least one transform node in your cluster. +
++
+IMPORTANT: It is advised to use the `node.transform` setting to constrain the execution
+of transforms to certain nodes instead of using `xpack.transform.enabled`.
 
 `xpack.transform.enabled`::
 Set to `true` (default) to enable {transforms} on the node. +

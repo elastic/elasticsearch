@@ -22,7 +22,15 @@ public class TransformTests extends ESTestCase {
 
         if (randomBoolean()) {
             transformEnabled = randomBoolean();
-            builder.put("xpack.transform.enabled", transformEnabled);
+            if (randomBoolean()) {
+                builder.put("node.transform", transformEnabled);
+                if (randomBoolean()) {
+                    // note: the case where node.transform: true and xpack.transform.enabled: false is benign
+                    builder.put("xpack.transform.enabled", randomBoolean());
+                }
+            } else {
+                builder.put("xpack.transform.enabled", transformEnabled);
+            }
         }
 
         if (randomBoolean()) {
@@ -33,7 +41,7 @@ public class TransformTests extends ESTestCase {
         builder.put("node.attr.some_other_attrib", "value");
         Transform transform = createTransform(builder.build());
         assertNotNull(transform.additionalSettings());
-        assertEquals(transformEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.enabled")));
+        assertEquals(transformEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node")));
         assertEquals(remoteEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect")));
     }
 
@@ -41,7 +49,7 @@ public class TransformTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
 
         if (randomBoolean()) {
-            builder.put("node.attr.transform.enabled", randomBoolean());
+            builder.put("node.attr.transform.node", randomBoolean());
         } else {
             builder.put("node.attr.transform.remote_connect", randomBoolean());
         }

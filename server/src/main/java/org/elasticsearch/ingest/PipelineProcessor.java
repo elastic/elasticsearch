@@ -31,7 +31,7 @@ public class PipelineProcessor extends AbstractProcessor {
     private final TemplateScript.Factory pipelineTemplate;
     private final IngestService ingestService;
 
-    private PipelineProcessor(String tag, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
+    PipelineProcessor(String tag, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
         super(tag);
         this.pipelineTemplate = pipelineTemplate;
         this.ingestService = ingestService;

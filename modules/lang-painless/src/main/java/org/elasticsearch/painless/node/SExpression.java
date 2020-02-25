@@ -19,16 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.ir.StatementExpressionNode;
+import org.elasticsearch.painless.ir.StatementNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents the top-level node for an expression as a statement.
@@ -44,24 +43,14 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        Class<?> rtnType = locals.getReturnType();
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        Class<?> rtnType = scope.getReturnType();
         boolean isVoid = rtnType == void.class;
 
         expression.read = lastSource && !isVoid;
-        expression.analyze(scriptRoot, locals);
+        expression.analyze(scriptRoot, scope);
 
-        if (!lastSource && !expression.statement) {
+        if ((lastSource == false || isVoid) && expression.statement == false) {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
@@ -69,7 +58,7 @@ public final class SExpression extends AStatement {
 
         expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(scriptRoot, locals);
+        expression = expression.cast(scriptRoot, scope);
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -78,14 +67,23 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-        expression.write(classWriter, methodWriter, globals);
-
+    StatementNode write(ClassNode classNode) {
         if (methodEscape) {
-            methodWriter.returnValue();
+            ReturnNode returnNode = new ReturnNode();
+
+            returnNode.setExpressionNode(expression.write(classNode));
+
+            returnNode.setLocation(location);
+
+            return returnNode;
         } else {
-            methodWriter.writePop(MethodWriter.getType(expression.expected).getSize());
+            StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
+
+            statementExpressionNode.setExpressionNode(expression.write(classNode));
+
+            statementExpressionNode.setLocation(location);
+
+            return statementExpressionNode;
         }
     }
 

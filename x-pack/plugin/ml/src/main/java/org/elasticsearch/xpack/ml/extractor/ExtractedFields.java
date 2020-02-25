@@ -62,8 +62,8 @@ public class ExtractedFields {
         return new TimeField(name, method);
     }
 
-    public static <T> ExtractedField applyBooleanMapping(ExtractedField field, T trueValue, T falseValue) {
-        return new BooleanMapper<>(field, trueValue, falseValue);
+    public static ExtractedField applyBooleanMapping(ExtractedField field) {
+        return new BooleanMapper<>(field, 1, 0);
     }
 
     public static class ExtractionMethodDetector {
@@ -94,7 +94,7 @@ public class ExtractedFields {
         }
 
         private ExtractedField detectNonScriptField(String field) {
-            if (isFieldOfType(field, TimeField.TYPE) && isAggregatable(field)) {
+            if (isFieldOfTypes(field, TimeField.TYPES) && isAggregatable(field)) {
                 return new TimeField(field, ExtractedField.Method.DOC_VALUE);
             }
             if (isFieldOfType(field, GeoPointField.TYPE)) {
@@ -129,9 +129,14 @@ public class ExtractedFields {
         }
 
         private boolean isFieldOfType(String field, String type) {
+            return isFieldOfTypes(field, Collections.singleton(type));
+        }
+
+        private boolean isFieldOfTypes(String field, Set<String> types) {
+            assert types.isEmpty() == false;
             Map<String, FieldCapabilities> fieldCaps = fieldsCapabilities.getField(field);
-            if (fieldCaps != null && fieldCaps.size() == 1) {
-                return fieldCaps.containsKey(type);
+            if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+                return types.containsAll(fieldCaps.keySet());
             }
             return false;
         }

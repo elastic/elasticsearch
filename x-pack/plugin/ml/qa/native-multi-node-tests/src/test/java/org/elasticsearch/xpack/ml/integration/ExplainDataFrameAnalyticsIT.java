@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -14,13 +15,25 @@ import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
+
+    public void testExplain_GivenMissingSourceIndex() {
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setSource(new DataFrameAnalyticsSource(new String[] {"missing_index"}, null, null))
+            .setAnalysis(new OutlierDetection.Builder().build())
+            .buildForExplain();
+
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> explainDataFrame(config));
+        assertThat(e.getMessage(), equalTo("cannot retrieve data because index [missing_index] does not exist"));
+    }
 
     public void testSourceQueryIsApplied() throws IOException {
         // To test the source query is applied when we extract data,
@@ -30,7 +43,11 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         String sourceIndex = "test-source-query-is-applied";
 
         client().admin().indices().prepareCreate(sourceIndex)
-            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical", "type=keyword")
+            .setMapping(
+                "numeric_1", "type=double",
+                "numeric_2", "type=float",
+                "categorical", "type=keyword",
+                "filtered_field", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -38,9 +55,11 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         for (int i = 0; i < 30; i++) {
             IndexRequest indexRequest = new IndexRequest(sourceIndex);
-
-            // We insert one odd value out of 5 for one feature
-            indexRequest.source("numeric_1", 1.0, "numeric_2", 2.0, "categorical", i == 0 ? "only-one" : "normal");
+            indexRequest.source(
+                "numeric_1", 1.0,
+                "numeric_2", 2.0,
+                "categorical", i % 2 == 0 ? "class_1" : "class_2",
+                "filtered_field", i < 2 ? "bingo" : "rest"); // We tag bingo on the first two docs to ensure we have 2 classes
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -53,12 +72,13 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("categorical", "only-one"))))
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("filtered_field", "bingo")),
+                null))
             .setAnalysis(new Classification("categorical"))
             .buildForExplain();
 
         ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
 
-        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk().getKb(), lessThanOrEqualTo(500L));
+        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk().getKb(), lessThanOrEqualTo(1024L));
     }
 }

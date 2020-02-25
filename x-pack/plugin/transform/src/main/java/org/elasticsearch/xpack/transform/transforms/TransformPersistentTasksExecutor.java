@@ -61,6 +61,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final TransformServices transformServices;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
     private volatile int numFailureRetries;
 
@@ -69,13 +70,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         TransformServices transformServices,
         ThreadPool threadPool,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        IndexNameExpressionResolver resolver
     ) {
         super(TransformField.TASK_NAME, Transform.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformServices = transformServices;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.resolver = resolver;
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
@@ -83,7 +86,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     @Override
     public PersistentTasksCustomMetaData.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
                 + params.getId()
@@ -101,8 +104,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {
         String[] indices = resolver.concreteIndexNames(
             clusterState,
             IndicesOptions.lenientExpandOpen(),
@@ -271,8 +273,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <1> Check the internal index template is installed
-        TransformInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
+        // <1> Check the index templates are installed
+        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, client, templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

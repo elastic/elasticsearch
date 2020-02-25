@@ -117,7 +117,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("_doc", "{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -158,7 +158,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -173,7 +173,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithNormsConflicts() {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}", XContentType.JSON)
+                .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
                 .execute().actionGet();
         try {
             client().admin().indices().preparePutMapping("test")
@@ -194,7 +194,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -301,7 +301,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
             MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                MappedFieldType fieldType = mapperService.fullName(fieldName);
+                MappedFieldType fieldType = mapperService.fieldType(fieldName);
                 assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }

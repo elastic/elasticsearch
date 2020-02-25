@@ -39,6 +39,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
@@ -77,6 +79,12 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 `non_aggregatable_indices`::
   The list of indices where this field is not aggregatable, or null if all 
   indices have the same definition for the field.
+
+`meta`::
+  Merged metadata across all indices as a map of string keys to arrays of values.
+  A value length of 1 indicates that all indices had the same value for this key,
+  while a length of 2 or more indicates that not all indices had the same value
+  for this key.
 
 
 [[search-field-caps-api-example]]

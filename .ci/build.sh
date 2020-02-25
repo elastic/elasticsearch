@@ -1,16 +1,5 @@
 #!/bin/bash
 
-JAVA_HOME=${JAVA_HOME:-$HOME/.java/openjdk12}
-RUNTIME_JAVA_HOME=${RUNTIME_JAVA_HOME:-$HOME/.java/openjdk11}
-
-JAVA7_HOME=$HOME/.java/java7
-JAVA8_HOME=$HOME/.java/java8
-JAVA9_HOME=$HOME/.java/java9
-JAVA10_HOME=$HOME/.java/java10
-JAVA11_HOME=$HOME/.java/java11
-JAVA12_HOME=$HOME/.java/openjdk12
-JAVA13_HOME=$HOME/.java/openjdk13
-
 # drop page cache and kernel slab objects on linux
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
 
@@ -36,7 +25,6 @@ if pwd | grep -v -q ^/dev/shm ; then
    MAX_WORKERS=$(($MAX_WORKERS*2/3))
 fi
 
-export GRADLE_OPTS="-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m"
 set -e
 ./gradlew --parallel --scan \
   -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ \

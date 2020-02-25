@@ -34,12 +34,6 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.RemovalListener;
-import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -52,12 +46,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ScriptService implements Closeable, ClusterStateApplier {
 
@@ -117,21 +113,14 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
 
+    final ScriptCache compiler;
+
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
-
-    private final Cache<CacheKey, Object> cache;
-
-    private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     private ClusterState clusterState;
 
     private int maxSizeInBytes;
-
-    private Tuple<Integer, TimeValue> rate;
-    private long lastInlineCompileTime;
-    private double scriptsPerTimeWindow;
-    private double compilesAllowedPerNano;
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         this.settings = Objects.requireNonNull(settings);
@@ -211,29 +200,26 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             }
         }
 
-        int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
-
-        CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
-        if (cacheMaxSize >= 0) {
-            cacheBuilder.setMaximumWeight(cacheMaxSize);
-        }
-
-        TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
-        if (cacheExpire.getNanos() != 0) {
-            cacheBuilder.setExpireAfterAccess(cacheExpire);
-        }
-
-        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
-        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
-
-        this.lastInlineCompileTime = System.nanoTime();
         this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
-        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));
+        compiler = new ScriptCache(
+                    SCRIPT_CACHE_SIZE_SETTING.get(settings),
+                    SCRIPT_CACHE_EXPIRE_SETTING.get(settings),
+                    compilationLimitsEnabled() ?
+                        SCRIPT_MAX_COMPILATIONS_RATE.get(settings):
+                        new Tuple<>(0, TimeValue.ZERO)
+                    );
+    }
+
+    /**
+     * This is overridden in tests to disable compilation rate limiting.
+     */
+    boolean compilationLimitsEnabled() {
+        return true;
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);
-        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, compiler::setMaxCompilationRate);
     }
 
     @Override
@@ -265,19 +251,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         maxSizeInBytes = newMaxSizeInBytes;
     }
 
-    /**
-     * This configures the maximum script compilations per five minute window.
-     *
-     * @param newRate the new expected maximum number of compilations per five minute window
-     */
-    void setMaxCompilationRate(Tuple<Integer, TimeValue> newRate) {
-        this.rate = newRate;
-        // Reset the counter to allow new compilations
-        this.scriptsPerTimeWindow = rate.v1();
-        this.compilesAllowedPerNano = ((double) rate.v1()) / newRate.v2().nanos();
-    }
-
-    /**
+    /*
      * Compiles a script using the given context.
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
@@ -322,7 +296,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         if (type == ScriptType.INLINE) {
             if (idOrCode.getBytes(StandardCharsets.UTF_8).length > maxSizeInBytes) {
                 throw new IllegalArgumentException("exceeded max allowed inline script size in bytes [" + maxSizeInBytes + "] " +
-                        "with size [" + idOrCode.getBytes(StandardCharsets.UTF_8).length + "] for script [" + idOrCode + "]");
+                    "with size [" + idOrCode.getBytes(StandardCharsets.UTF_8).length + "] for script [" + idOrCode + "]");
             }
         }
 
@@ -330,80 +304,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
         }
 
-        CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);
-        Object compiledScript = cache.get(cacheKey);
-
-        if (compiledScript != null) {
-            return context.factoryClazz.cast(compiledScript);
-        }
-
-        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
-        synchronized (this) {
-            // Retrieve it again in case it has been put by a different thread
-            compiledScript = cache.get(cacheKey);
-
-            if (compiledScript == null) {
-                try {
-                    // Either an un-cached inline script or indexed script
-                    // If the script type is inline the name will be the same as the code for identification in exceptions
-                    // but give the script engine the chance to be better, give it separate name + source code
-                    // for the inline case, then its anonymous: null.
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("compiling script, type: [{}], lang: [{}], options: [{}]", type, lang, options);
-                    }
-                    // Check whether too many compilations have happened
-                    checkCompilationLimit();
-                    compiledScript = scriptEngine.compile(id, idOrCode, context, options);
-                } catch (ScriptException good) {
-                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
-                    throw good; // its already good
-                } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]",
-                            exception);
-                }
-
-                // Since the cache key is the script content itself we don't need to
-                // invalidate/check the cache if an indexed script changes.
-                scriptMetrics.onCompilation();
-                cache.put(cacheKey, compiledScript);
-            }
-
-            return context.factoryClazz.cast(compiledScript);
-        }
-    }
-
-    /**
-     * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
-     * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
-     *
-     * It can be thought of as a bucket with water, every time the bucket is checked, water is added proportional to the amount of time that
-     * elapsed since the last time it was checked. If there is enough water, some is removed and the request is allowed. If there is not
-     * enough water the request is denied. Just like a normal bucket, if water is added that overflows the bucket, the extra water/capacity
-     * is discarded - there can never be more water in the bucket than the size of the bucket.
-     */
-    void checkCompilationLimit() {
-        long now = System.nanoTime();
-        long timePassed = now - lastInlineCompileTime;
-        lastInlineCompileTime = now;
-
-        scriptsPerTimeWindow += (timePassed) * compilesAllowedPerNano;
-
-        // It's been over the time limit anyway, readjust the bucket to be level
-        if (scriptsPerTimeWindow > rate.v1()) {
-            scriptsPerTimeWindow = rate.v1();
-        }
-
-        // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
-        if (scriptsPerTimeWindow >= 1) {
-            scriptsPerTimeWindow -= 1.0;
-        } else {
-            scriptMetrics.onCompilationLimit();
-            // Otherwise reject the request
-            throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
-                    rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
-                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting",
-                CircuitBreaker.Durability.TRANSIENT);
-        }
+        return compiler.compile(context, scriptEngine, id, idOrCode, type, options);
     }
 
     public boolean isLangSupported(String lang) {
@@ -546,57 +447,32 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return infos;
     }
 
+    public ScriptLanguagesInfo getScriptLanguages() {
+        Set<String> types = typesAllowed;
+        if (types == null) {
+            types = new HashSet<>();
+            for (ScriptType type: ScriptType.values()) {
+                types.add(type.getName());
+            }
+        }
+
+        final Set<String> contexts = contextsAllowed != null ? contextsAllowed : this.contexts.keySet();
+        Map<String,Set<String>> languageContexts = new HashMap<>();
+        engines.forEach(
+            (key, value) -> languageContexts.put(
+                key,
+                value.getSupportedContexts().stream().map(c -> c.name).filter(contexts::contains).collect(Collectors.toSet())
+            )
+        );
+        return new ScriptLanguagesInfo(types, languageContexts);
+    }
+
     public ScriptStats stats() {
-        return scriptMetrics.stats();
+        return compiler.stats();
     }
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
-    }
-
-    /**
-     * A small listener for the script cache that calls each
-     * {@code ScriptEngine}'s {@code scriptRemoved} method when the
-     * script has been removed from the cache
-     */
-    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, Object> {
-        @Override
-        public void onRemoval(RemovalNotification<CacheKey, Object> notification) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
-            }
-            scriptMetrics.onCacheEviction();
-        }
-    }
-
-    private static final class CacheKey {
-        final String lang;
-        final String idOrCode;
-        final String context;
-        final Map<String, String> options;
-
-        private CacheKey(String lang, String idOrCode, String context, Map<String, String> options) {
-            this.lang = lang;
-            this.idOrCode = idOrCode;
-            this.context = context;
-            this.options = options;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(lang, cacheKey.lang) &&
-                Objects.equals(idOrCode, cacheKey.idOrCode) &&
-                Objects.equals(context, cacheKey.context) &&
-                Objects.equals(options, cacheKey.options);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lang, idOrCode, context, options);
-        }
     }
 }

@@ -73,6 +73,18 @@ public interface TransformConfigManager {
     void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener);
 
     /**
+     * This deletes stored checkpoint documents for the given transformId, based on number and age.
+     *
+     * Both criteria MUST apply for the deletion to happen.
+     *
+     * @param transformId The transform ID referenced by the documents
+     * @param deleteCheckpointsBelow checkpoints lower than this to delete
+     * @param deleteOlderThan checkpoints older than this to delete
+     * @param listener listener to alert on completion, returning number of deleted checkpoints
+     */
+    void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener);
+
+    /**
      * Get a stored checkpoint, requires the transform id as well as the checkpoint id
      *
      * @param transformId the transform id
@@ -137,4 +149,5 @@ public interface TransformConfigManager {
 
     void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener);
 
+    void refresh(ActionListener<Boolean> listener);
 }

@@ -372,7 +372,7 @@ is not null safe alternative, so an explicit null check is needed.
 
 [[ingest-conditional-complex]]
 === Complex Conditionals
-The `if` condition can be more then a simple equality check.
+The `if` condition can be more complex than a simple equality check.
 The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
 running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
 
@@ -825,6 +825,7 @@ include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/circle.asciidoc[]
 include::processors/convert.asciidoc[]
+include::processors/csv.asciidoc[]
 include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
@@ -837,6 +838,7 @@ include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/html_strip.asciidoc[]
+include::processors/inference.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]

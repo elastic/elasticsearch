@@ -24,11 +24,14 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
+import org.junit.BeforeClass;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -46,9 +49,47 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     protected boolean enableWarningsCheck() {
         return false;
     }
+    @BeforeClass
+    public static void checkJvmProperties(){
+        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers")))
+            : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
+    }
+
+    public void testTimezoneParsing() {
+        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
+         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         */
+        assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+01:00", "strict_date_optional_time", "strict_date_optional_time");
+    }
+
+    public void testPartialTimeParsing() {
+         /*
+         This does not work in Joda as it reports 2016-11-30T01:00:00Z
+         because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
+         assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         ES java.time implementation does not suffer from this,
+         but we intentionally not allow parsing timezone without an time part as it is not allowed in iso8601
+  */
+        assertJavaTimeParseException("2016-11-30T+01","strict_date_optional_time");
+
+        assertSameDateAs("2016-11-30T12+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00.000+01", "strict_date_optional_time", "strict_date_optional_time");
+
+        //without timezone
+        assertSameDateAs("2016-11-30T", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00.000", "strict_date_optional_time", "strict_date_optional_time");
+    }
+
     // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
     // means that date part can be partially parsed.
-    public void testPartialParsing() {
+    public void testPartialDateParsing() {
         assertSameDateAs("2001", "strict_date_optional_time_nanos", "strict_date_optional_time");
         assertSameDateAs("2001-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
         assertSameDateAs("2001-01-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
@@ -167,19 +208,17 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
     }
 
-    // this test requires tests to run with -Djava.locale.providers=COMPAT in order to work
-//    public void testCustomLocales() {
-//
-//        // also ensure that locale based dates are the same
-//        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Mi., 06 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Do., 07 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Fr., 08 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//
-//        DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
-//        ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
-//        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"), javaTimeNow, dateTimeNow);
-//    }
+    public void testCustomLocales() {
+        // also ensure that locale based dates are the same
+        assertSameDate("Di, 05 Dez 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Mi, 06 Dez 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Do, 07 Dez 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Fr, 08 Dez 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+
+        DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
+        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", javaTimeNow, dateTimeNow, LocaleUtils.parse("de"));
+    }
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
@@ -859,9 +898,28 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
+        DateFormatter dateFormatter = DateFormatter.forPattern(format);
+        JodaDateFormatter jodaDateFormatter = Joda.forPattern(format);
+
+        assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
+    }
+
+    private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate, Locale locale) {
+        DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
+        DateFormatter jodaDateFormatter = Joda.forPattern(format).withLocale(locale);
+
+        assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
+    }
+
+    private void assertSamePrinterOutput(String format,
+                                         ZonedDateTime javaDate,
+                                         DateTime jodaDate,
+                                         DateFormatter dateFormatter,
+                                         DateFormatter jodaDateFormatter) {
+        String javaTimeOut = dateFormatter.format(javaDate);
+        String jodaTimeOut = jodaDateFormatter.formatJoda(jodaDate);
+
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatter.forPattern(format).format(javaDate);
-        String jodaTimeOut = Joda.forPattern(format).formatJoda(jodaDate);
 
         if (JavaVersion.current().getVersion().get(0) == 8 && javaTimeOut.endsWith(".0")
             && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
@@ -877,6 +935,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatter.forPattern(format);
+        assertSameDate(input, format, jodaFormatter, javaFormatter);
+    }
+
+    private void assertSameDate(String input, String format, Locale locale) {
+        DateFormatter jodaFormatter = Joda.forPattern(format).withLocale(locale);
+        DateFormatter javaFormatter = DateFormatter.forPattern(format).withLocale(locale);
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
 

@@ -147,7 +147,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(settings, env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
         }
     }
     /**
@@ -174,7 +174,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString())
             .setSecureSettings(secureSettings)
             .build();
-        final Environment env = newEnvironment();
+        final Environment env = TestEnvironment.newEnvironment(settings);
         // Load HTTPClient once. Client uses a keystore containing testnode key/cert as a truststore
         try (CloseableHttpClient client = getSSLClient(Collections.singletonList(certPath))) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
@@ -207,7 +207,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(settings, env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
         }
     }
 
@@ -259,7 +259,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(settings, env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
         }
     }
 
@@ -309,7 +309,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(settings, env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
         }
     }
 
@@ -331,7 +331,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final SSLService sslService = new SSLService(settings, env);
+        final SSLService sslService = new SSLService(env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -353,6 +353,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         // truncate the keystore
         try (OutputStream ignore = Files.newOutputStream(keystorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
+            // do nothing
         }
 
         latch.await();
@@ -384,7 +385,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final SSLService sslService = new SSLService(settings, env);
+        final SSLService sslService = new SSLService(env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -430,7 +431,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final SSLService sslService = new SSLService(settings, env);
+        final SSLService sslService = new SSLService(env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -474,7 +475,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final SSLService sslService = new SSLService(settings, env);
+        final SSLService sslService = new SSLService(env);
         final SSLConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -508,23 +509,26 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {
-        final Path keystorePath = tempDir.resolve("testclient.jks");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
+        final Path keyPath = tempDir.resolve("testclient.pem");
+        final Path certPath = tempDir.resolve("testclientcert.crt"); // testclient.crt filename already used in #testPEMTrustReloadException
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), keyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
 
         if (secureSettings == null) {
             secureSettings = new MockSecureSettings();
         }
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
 
         return Settings.builder()
-            .put("xpack.security.transport.ssl.keystore.path", keystorePath.toString())
+            .put("xpack.security.transport.ssl.key", keyPath.toString())
+            .put("xpack.security.transport.ssl.certificate", certPath.toString())
             .setSecureSettings(secureSettings);
     }
 
-    private void validateSSLConfigurationIsReloaded(Settings settings, Environment env, Consumer<SSLContext> preChecks,
+    private void validateSSLConfigurationIsReloaded(Environment env, Consumer<SSLContext> preChecks,
                                                     Runnable modificationFunction, Consumer<SSLContext> postChecks) throws Exception {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
-        final SSLService sslService = new SSLService(settings, env);
+        final SSLService sslService = new SSLService(env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override

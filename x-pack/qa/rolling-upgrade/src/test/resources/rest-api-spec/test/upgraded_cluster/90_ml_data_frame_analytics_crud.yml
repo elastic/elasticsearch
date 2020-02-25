@@ -40,6 +40,7 @@
   - match: { data_frame_analytics.0.dest.index: "old_cluster_regression_job_results" }
   - match: { data_frame_analytics.0.analysis.regression.dependent_variable: "foo" }
   - match: { data_frame_analytics.0.analysis.regression.training_percent: 100.0 }
+  - is_true: data_frame_analytics.0.analysis.regression.randomize_seed
 
 ---
 "Get old cluster regression job stats":

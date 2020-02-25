@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -81,6 +82,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private AtomicReference<IndexRequest> idxReqReference;
     private AuthenticationService authenticationService;
     private XPackLicenseState license;
+    private SecurityContext securityContext;
 
     @Before
     public void setupClient() {
@@ -124,6 +126,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
                     randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+
+        securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext());
 
         // setup lifecycle service
         securityIndex = mock(SecurityIndexManager.class);
@@ -174,14 +178,14 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testClientCredentialsCreatesWithoutRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license, securityContext,
                 securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
             mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
-            authenticationService);
+            authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("client_credentials");
 
@@ -199,14 +203,14 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testPasswordGrantTypeCreatesWithRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license, securityContext,
                 securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
             mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
-            authenticationService);
+            authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("password");
         createTokenRequest.setUsername("user");
@@ -226,14 +230,14 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testKerberosGrantTypeCreatesWithRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license, securityContext,
                 securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
             mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
-            authenticationService);
+            authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("_kerberos");
         String failOrSuccess = randomBoolean() ? "fail" : "success";

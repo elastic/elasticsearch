@@ -23,19 +23,17 @@ Validates {anomaly-job} configuration information.
 [[ml-valid-job-desc]]
 ==== {api-description-title}
 
-This API enables you validate the {anomaly-job} configuration before you
+This API enables you to validate the {anomaly-job} configuration before you
 create the job.
 
 [[ml-valid-job-request-body]]
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-job-resource>>.
+see <<ml-put-job-request-body>>.
 
 [[ml-valid-job-example]]
 ==== {api-examples-title}
-
-The following example validates job configuration information:
 
 [source,console]
 --------------------------------------------------

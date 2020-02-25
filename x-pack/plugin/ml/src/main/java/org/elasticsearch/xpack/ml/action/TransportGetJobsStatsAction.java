@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -50,6 +52,8 @@ import java.util.stream.Collectors;
 public class TransportGetJobsStatsAction extends TransportTasksAction<TransportOpenJobAction.JobTask, GetJobsStatsAction.Request,
         GetJobsStatsAction.Response, QueryPage<JobStats>> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetJobsStatsAction.class);
+
     private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
     private final JobResultsProvider jobResultsProvider;
@@ -71,7 +75,10 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
         logger.debug("Get stats for job [{}]", request.getJobId());
 
-        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
+        ClusterState state = clusterService.state();
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        // If there are deleted configs, but the task is still around, we probably want to return the tasks in the stats call
+        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, tasks, true, ActionListener.wrap(
                 expandedIds -> {
                     request.setExpandedJobsIds(new ArrayList<>(expandedIds));
                     ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(

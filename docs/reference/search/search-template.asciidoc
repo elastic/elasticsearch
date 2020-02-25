@@ -53,6 +53,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 `ccs_minimize_roundtrips`::
   (Optional, boolean) If `true`, network round-trips are minimized for 
@@ -545,8 +547,8 @@ The `params` would look like:
 // NOTCONSOLE
 <1> The `line_no`, `start`, and `end` parameters are optional.
 
-
-We could write the query as:
+When written as a query, the template would include invalid JSON, such as
+section markers like `{{#line_no}}`:
 
 [source,js]
 ------------------------------------------
@@ -587,19 +589,14 @@ We could write the query as:
 <6> Include the `lte` clause only if `line_no.end` is specified
 <7> Fill in the value of param `line_no.end`
 
-[NOTE]
-==================================
-As written above, this template is not valid JSON because it includes the
-_section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in a file (see <<pre-registered-templates>>) or, when used
-via the REST API, should be written as a string:
+Because search templates cannot include invalid JSON, you can pass the same
+query as a string instead:
 
 [source,js]
 --------------------
 "source": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 // NOTCONSOLE
-==================================
 
 
 [[search-template-encode-urls]]

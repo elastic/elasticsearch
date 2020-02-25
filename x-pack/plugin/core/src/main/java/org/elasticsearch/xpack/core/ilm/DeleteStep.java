@@ -24,12 +24,17 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices()
-            .delete(new DeleteIndexRequest(indexMetaData.getIndex().getName()),
+            .delete(new DeleteIndexRequest(indexMetaData.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 
     @Override
     public boolean indexSurvives() {
         return false;
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 }

@@ -9,6 +9,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -19,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SqlSourceBuilderTests extends ESTestCase {
     public void testSqlSourceBuilder() {
-        final SqlSourceBuilder ssb = new SqlSourceBuilder();
+        final QlSourceBuilder ssb = new QlSourceBuilder();
         final SearchSourceBuilder source = new SearchSourceBuilder();
         ssb.trackScores();
         ssb.addSourceField("foo");

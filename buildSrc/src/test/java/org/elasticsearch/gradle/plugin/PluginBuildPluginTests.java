@@ -18,38 +18,26 @@ public class PluginBuildPluginTests extends GradleUnitTestCase {
 
     @Before
     public void setUp() throws Exception {
-        project = ProjectBuilder.builder()
-            .withName(getClass().getName())
-            .build();
+        project = ProjectBuilder.builder().withName(getClass().getName()).build();
     }
 
     public void testApply() {
         // FIXME: distribution download plugin doesn't support running externally
-        project.getExtensions().getExtraProperties().set(
-            "bwcVersions", Mockito.mock(BwcVersions.class)
-        );
+        project.getExtensions().getExtraProperties().set("bwcVersions", Mockito.mock(BwcVersions.class));
         project.getPlugins().apply(PluginBuildPlugin.class);
 
         assertNotNull(
             "plugin extension created with the right name",
             project.getExtensions().findByName(PluginBuildPlugin.PLUGIN_EXTENSION_NAME)
         );
-        assertNotNull(
-            "plugin extensions has the right type",
-            project.getExtensions().findByType(PluginPropertiesExtension.class)
-        );
+        assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(PluginPropertiesExtension.class));
 
-        assertNotNull(
-            "plugin created an integTest class",
-            project.getTasks().findByName("integTest")
-        );
+        assertNotNull("plugin created an integTest class", project.getTasks().findByName("integTest"));
     }
 
     @Ignore("https://github.com/elastic/elasticsearch/issues/47123")
     public void testApplyWithAfterEvaluate() {
-        project.getExtensions().getExtraProperties().set(
-            "bwcVersions", Mockito.mock(BwcVersions.class)
-        );
+        project.getExtensions().getExtraProperties().set("bwcVersions", Mockito.mock(BwcVersions.class));
         project.getPlugins().apply(PluginBuildPlugin.class);
         PluginPropertiesExtension extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
         extension.setNoticeFile(project.file("test.notice"));
@@ -60,9 +48,7 @@ public class PluginBuildPluginTests extends GradleUnitTestCase {
         ((ProjectInternal) project).evaluate();
 
         assertNotNull(
-            "Task to generate notice not created: " + project.getTasks().stream()
-                .map(Task::getPath)
-                .collect(Collectors.joining(", ")),
+            "Task to generate notice not created: " + project.getTasks().stream().map(Task::getPath).collect(Collectors.joining(", ")),
             project.getTasks().findByName("generateNotice")
         );
     }

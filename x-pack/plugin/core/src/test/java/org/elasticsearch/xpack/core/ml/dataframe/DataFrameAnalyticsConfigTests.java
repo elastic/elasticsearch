@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,17 +21,25 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.RegressionTests;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
@@ -42,13 +51,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<DataFrameAnalyticsConfig> {
+public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestCase<DataFrameAnalyticsConfig> {
 
     @Override
     protected DataFrameAnalyticsConfig doParseInstance(XContentParser parser) throws IOException {
@@ -81,6 +94,88 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     @Override
+    protected List<Version> bwcVersions() {
+        return AbstractBWCSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
+    }
+
+    @Override
+    protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance)
+            .setSource(DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version))
+            .setDest(DataFrameAnalyticsDestTests.mutateForVersion(instance.getDest(), version));
+        if (instance.getAnalysis() instanceof OutlierDetection) {
+            builder.setAnalysis(OutlierDetectionTests.mutateForVersion((OutlierDetection)instance.getAnalysis(), version));
+        }
+        if (instance.getAnalysis() instanceof Regression) {
+            builder.setAnalysis(RegressionTests.mutateForVersion((Regression)instance.getAnalysis(), version));
+        }
+        if (instance.getAnalysis() instanceof Classification) {
+            builder.setAnalysis(ClassificationTests.mutateForVersion((Classification)instance.getAnalysis(), version));
+        }
+        if (version.before(Version.V_7_5_0)) {
+            builder.setAllowLazyStart(false);
+        }
+        if (version.before(Version.V_7_4_0)) {
+            builder.setDescription(null);
+        }
+        if (version.before(Version.V_7_3_0)) {
+            builder.setCreateTime(null);
+            builder.setVersion(null);
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected void assertOnBWCObject(DataFrameAnalyticsConfig bwcSerializedObject, DataFrameAnalyticsConfig testInstance, Version version) {
+
+        // Don't have to worry about Regression/Classifications Seeds
+        if (version.onOrAfter(Version.V_7_6_0) || testInstance.getAnalysis() instanceof OutlierDetection) {
+            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
+            return;
+        }
+        DataFrameAnalysis bwcAnalysis;
+        DataFrameAnalysis testAnalysis;
+        if (testInstance.getAnalysis() instanceof Regression) {
+            Regression testRegression = (Regression)testInstance.getAnalysis();
+            Regression bwcRegression = (Regression)bwcSerializedObject.getAnalysis();
+
+            bwcAnalysis = new Regression(bwcRegression.getDependentVariable(),
+                bwcRegression.getBoostedTreeParams(),
+                bwcRegression.getPredictionFieldName(),
+                bwcRegression.getTrainingPercent(),
+                42L);
+            testAnalysis = new Regression(testRegression.getDependentVariable(),
+                testRegression.getBoostedTreeParams(),
+                testRegression.getPredictionFieldName(),
+                testRegression.getTrainingPercent(),
+                42L);
+        } else {
+            Classification testClassification = (Classification)testInstance.getAnalysis();
+            Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
+            bwcAnalysis = new Classification(bwcClassification.getDependentVariable(),
+                bwcClassification.getBoostedTreeParams(),
+                bwcClassification.getPredictionFieldName(),
+                bwcClassification.getNumTopClasses(),
+                bwcClassification.getTrainingPercent(),
+                42L);
+            testAnalysis = new Classification(testClassification.getDependentVariable(),
+                testClassification.getBoostedTreeParams(),
+                testClassification.getPredictionFieldName(),
+                testClassification.getNumTopClasses(),
+                testClassification.getTrainingPercent(),
+                42L);
+        }
+        super.assertOnBWCObject(new DataFrameAnalyticsConfig.Builder(bwcSerializedObject)
+            .setAnalysis(bwcAnalysis)
+            .build(),
+            new DataFrameAnalyticsConfig.Builder(testInstance)
+            .setAnalysis(testAnalysis)
+            .build(),
+            version);
+    }
+
+
+    @Override
     protected Writeable.Reader<DataFrameAnalyticsConfig> instanceReader() {
         return DataFrameAnalyticsConfig::new;
     }
@@ -90,19 +185,23 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     public static DataFrameAnalyticsConfig createRandom(String id, boolean withGeneratedFields) {
-        return createRandomBuilder(id, withGeneratedFields).build();
+        return createRandomBuilder(id, withGeneratedFields, randomFrom(OutlierDetectionTests.createRandom(),
+            RegressionTests.createRandom(),
+            ClassificationTests.createRandom())).build();
     }
 
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
-        return createRandomBuilder(id, false);
+        return createRandomBuilder(id, false, randomFrom(OutlierDetectionTests.createRandom(),
+            RegressionTests.createRandom(),
+            ClassificationTests.createRandom()));
     }
 
-    public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id, boolean withGeneratedFields) {
+    public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id, boolean withGeneratedFields, DataFrameAnalysis analysis) {
         DataFrameAnalyticsSource source = DataFrameAnalyticsSourceTests.createRandom();
         DataFrameAnalyticsDest dest = DataFrameAnalyticsDestTests.createRandom();
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setAnalysis(OutlierDetectionTests.createRandom())
+            .setAnalysis(analysis)
             .setSource(source)
             .setDest(dest);
         if (randomBoolean()) {
@@ -320,7 +419,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                  XContentFactory.xContent(XContentType.JSON).createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
-            assertThat(e.getMessage(), containsString("unknown field [create_time], parser not found"));
+            assertThat(e.getMessage(), containsString("unknown field [create_time]"));
         }
     }
 
@@ -335,8 +434,53 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                  XContentFactory.xContent(XContentType.JSON).createParser(
                      xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
-            assertThat(e.getMessage(), containsString("unknown field [version], parser not found"));
+            assertThat(e.getMessage(), containsString("unknown field [version]"));
         }
+    }
+
+    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsCurrent() throws IOException {
+        Regression regression = new Regression("foo");
+        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setVersion(Version.CURRENT)
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(regression)
+            .build();
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            assertThat(json, containsString("randomize_seed"));
+        }
+    }
+
+    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsBeforeItWasIntroduced() throws IOException {
+        Regression regression = new Regression("foo");
+        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setVersion(Version.V_7_5_0)
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(regression)
+            .build();
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            assertThat(json, not(containsString("randomize_seed")));
+        }
+    }
+
+    public void testExtractJobIdFromDocId() {
+        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-foo"), equalTo("foo"));
+        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-data_frame_analytics_config-foo"),
+            equalTo("data_frame_analytics_config-foo"));
+        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("foo"), is(nullValue()));
     }
 
     private static void assertTooSmall(ElasticsearchStatusException e) {

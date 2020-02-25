@@ -32,69 +32,208 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
 
 [[ml-put-job-request-body]]
 ==== {api-request-body-title}
 
-`analysis_config`::
-  (Required, object) The analysis configuration, which specifies how to analyze
-  the data. See <<ml-analysisconfig, analysis configuration objects>>.
+`allow_lazy_open`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 
-`analysis_limits`::
-  (Optional, object) Specifies runtime limits for the job. See
-  <<ml-apilimits,analysis limits>>.
+[[put-analysisconfig]]`analysis_config`::
+(Required, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
+
+`analysis_config`.`bucket_span`:::
+(<<time-units,time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span]
+
+`analysis_config`.`categorization_field_name`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-field-name]
+
+`analysis_config`.`categorization_filters`:::
+(array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
+
+`analysis_config`.`categorization_analyzer`:::
+(object or string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-analyzer]
+
+`analysis_config`.`detectors`:::
+(array) An array of detector configuration objects. Detector configuration
+objects specify which data fields a job analyzes. They also specify which
+analytical functions are used. You can specify multiple detectors for a job. 
++
+--
+NOTE: If the `detectors` array does not contain at least one detector,
+no analysis can occur and an error is returned.
+
+A detector has the following properties:
+--
+
+`analysis_config`.`detectors`.`by_field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
+
+[[put-customrules]]`analysis_config`.`detectors`.`custom_rules`::::
++
+--
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
+
+`analysis_config`.`detectors`.`custom_rules`.`actions`:::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+
+`analysis_config`.`detectors`.`custom_rules`.`scope`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
+
+`analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_id`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`:::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`.`applies_to`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`.`operator`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`.`value`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
+--
+
+`analysis_config`.`detectors`.`detector_description`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
+
+`analysis_config`.`detectors`.`detector_index`::::
++
+--
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+If you specify a value for this property, it is ignored.
+--
+
+`analysis_config`.`detectors`.`exclude_frequent`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
+
+`analysis_config`.`detectors`.`field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
+
+`analysis_config`.`detectors`.`function`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=function]
+
+`analysis_config`.`detectors`.`over_field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
+
+`analysis_config`.`detectors`.`partition_field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+
+`analysis_config`.`detectors`.`use_null`::::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
+
+`analysis_config`.`influencers`:::
+(array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=influencers]
+
+`analysis_config`.`latency`:::
+(time units)
+include::{docdir}/ml/ml-shared.asciidoc[tag=latency]
+
+`analysis_config`.`multivariate_by_fields`:::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
+
+`analysis_config`.`summary_count_field_name`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=summary-count-field-name]
+
+[[put-analysislimits]]`analysis_limits`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
++
+--
+The `analysis_limits` object has the following properties:
+--
+
+`analysis_limits`.`categorization_examples_limit`:::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
+
+`analysis_limits`.`model_memory_limit`:::
+(long or string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
 
 `background_persist_interval`::
-  (Optional, <<time-units, time units>>) Advanced configuration option. The time 
-  between each periodic persistence of the model. See <<ml-job-resource>>.
+(Optional, <<time-units, time units>>)
+include::{docdir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 
-`custom_settings`::
-  (Optional, object) Advanced configuration option. Contains custom meta data
-  about the job. See <<ml-job-resource>>.
+[[put-customsettings]]`custom_settings`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
-`data_description`::
-  (Required, object) Describes the format of the input data. This object is
-  required, but it can be empty (`{}`). See
-    <<ml-datadescription,data description objects>>.
+[[put-datadescription]]`data_description`::
+(Required, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=data-description]
 
 `description`::
   (Optional, string) A description of the job.
 
 `groups`::
-  (Optional, array of strings) A list of job groups. See <<ml-job-resource>>.
+(Optional, array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 
 `model_plot_config`::
-  (Optional, object) Advanced configuration option. Specifies to store model 
-  information along with the results. This adds overhead to the performance of
-  the system and is not feasible for jobs with many entities, see
-  <<ml-apimodelplotconfig>>.
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
+
+`model_plot_config`.`enabled`:::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
+
+`model_plot_config`.`terms`:::
+experimental[] (string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 
 `model_snapshot_retention_days`::
-  (Optional, long) The time in days that model snapshots are retained for the
-  job. Older snapshots are deleted. The default value is `1`, which means
-  snapshots are retained for one day (twenty-four hours). 
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
 
 `renormalization_window_days`::
-  (Optional, long) Advanced configuration option. The period over which
-  adjustments to the score are applied, as new data is seen. See
-  <<ml-job-resource>>.
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
 
 `results_index_name`::
-  (Optional, string) A text string that affects the name of the {ml} results
-  index. The default value is `shared`, which generates an index named
-  `.ml-anomalies-shared`. 
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=results-index-name]
 
 `results_retention_days`::
-  (Optional, long) Advanced configuration option. The number of days for which
-  job results are retained. See <<ml-job-resource>>.
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
 [[ml-put-job-example]]
 ==== {api-examples-title}
-
-The following example creates the `total-requests` job:
 
 [source,console]
 --------------------------------------------------

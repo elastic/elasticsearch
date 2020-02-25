@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptException;
@@ -42,7 +41,6 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
@@ -79,7 +77,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public static final int MINIMUM_PAGE_SIZE = 10;
     public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
+
     private static final Logger logger = LogManager.getLogger(TransformIndexer.class);
+
+    // constant for checkpoint retention, static for now
+    private static final long NUMBER_OF_CHECKPOINTS_TO_KEEP = 10;
+    private static final long RETENTION_OF_CHECKPOINTS_MS = 864000000L; // 10 days
+    private static final long CHECKPOINT_CLEANUP_INTERVAL = 100L; // every 100 checkpoints
 
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
@@ -110,6 +114,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     // hold information for continuous mode (partial updates)
     private volatile Map<String, Set<String>> changedBuckets;
     private volatile Map<String, Object> changedBucketsAfterKey;
+
+    private volatile long lastCheckpointCleanup = 0L;
 
     public TransformIndexer(
         Executor executor,
@@ -279,7 +285,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     // If the transform config index or the transform config is gone, something serious occurred
                     // We are in an unknown state and should fail out
                     if (failure instanceof ResourceNotFoundException) {
-                        updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
+                        updateConfigListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
                     } else {
                         auditor.warning(getJobId(), msg);
                         updateConfigListener.onResponse(null);
@@ -353,9 +359,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
                 progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
             }
-            // If the last checkpoint is now greater than 1, that means that we have just processed the first
-            // continuous checkpoint and should start recording the exponential averages
-            if (lastCheckpoint != null && lastCheckpoint.getCheckpoint() > 1) {
+
+            if (lastCheckpoint != null) {
                 long docsIndexed = 0;
                 long docsProcessed = 0;
                 // This should not happen as we simply create a new one when we reach continuous checkpoints
@@ -375,7 +380,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (context.shouldStopAtCheckpoint()) {
                 stop();
             }
-            listener.onResponse(null);
+
+            if (checkpoint - lastCheckpointCleanup > CHECKPOINT_CLEANUP_INTERVAL) {
+                // delete old checkpoints, on a failure we keep going
+                cleanupOldCheckpoints(listener);
+            } else {
+                listener.onResponse(null);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -463,32 +474,91 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         if (unwrappedException instanceof CircuitBreakingException) {
             handleCircuitBreakingException((CircuitBreakingException) unwrappedException);
-        } else if (unwrappedException instanceof ScriptException) {
+            return;
+        }
+
+        if (unwrappedException instanceof ScriptException) {
             handleScriptException((ScriptException) unwrappedException);
-            // irrecoverable error without special handling
-        } else if (unwrappedException instanceof IndexNotFoundException
-            || unwrappedException instanceof AggregationResultUtils.AggregationExtractionException
-            || unwrappedException instanceof TransformConfigReloadingException) {
+            return;
+        }
+
+        if (unwrappedException instanceof BulkIndexingException && ((BulkIndexingException) unwrappedException).isIrrecoverable()) {
+            handleIrrecoverableBulkIndexingException((BulkIndexingException) unwrappedException);
+            return;
+        }
+
+        // irrecoverable error without special handling
+        if (unwrappedException instanceof ElasticsearchException) {
+            ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedException;
+            if (ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+                failIndexer("task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage());
+                return;
+            }
+        }
+
+        if (unwrappedException instanceof IllegalArgumentException) {
             failIndexer("task encountered irrecoverable failure: " + e.getMessage());
-        } else if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+            return;
+        }
+
+        if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
             failIndexer(
                 "task encountered more than "
                     + context.getNumFailureRetries()
                     + " failures; latest failure: "
                     + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
             );
-        } else {
-            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
-            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-            if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
+            return;
+        }
 
-                auditor.warning(
-                    getJobId(),
-                    "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
-                );
-                lastAuditedExceptionMessage = message;
-            }
+        // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+        // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
+        if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
+            String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
+
+            auditor.warning(
+                getJobId(),
+                "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+            );
+            lastAuditedExceptionMessage = message;
+        }
+    }
+
+    /**
+     * Cleanup old checkpoints
+     *
+     * @param listener listener to call after done
+     */
+    private void cleanupOldCheckpoints(ActionListener<Void> listener) {
+        long now = getTime();
+        long checkpointLowerBound = context.getCheckpoint() - NUMBER_OF_CHECKPOINTS_TO_KEEP;
+        long lowerBoundEpochMs = now - RETENTION_OF_CHECKPOINTS_MS;
+
+        if (checkpointLowerBound > 0 && lowerBoundEpochMs > 0) {
+            transformsConfigManager.deleteOldCheckpoints(
+                transformConfig.getId(),
+                checkpointLowerBound,
+                lowerBoundEpochMs,
+                ActionListener.wrap(deletes -> {
+                    logger.debug("[{}] deleted [{}] outdated checkpoints", getJobId(), deletes);
+                    listener.onResponse(null);
+                    lastCheckpointCleanup = context.getCheckpoint();
+                }, e -> {
+                    logger.warn(
+                        new ParameterizedMessage("[{}] failed to cleanup old checkpoints, retrying after next checkpoint", getJobId()),
+                        e
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Failed to cleanup old checkpoints, retrying after next checkpoint. Exception: " + e.getMessage()
+                    );
+
+                    listener.onResponse(null);
+                })
+            );
+        } else {
+            logger.debug("[{}] checked for outdated checkpoints", getJobId());
+            listener.onResponse(null);
         }
     }
 
@@ -782,10 +852,29 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         failIndexer(message);
     }
 
+    /**
+     * Handle permanent bulk indexing exception case. This is error is irrecoverable.
+     *
+     * @param bulkIndexingException BulkIndexingException thrown
+     */
+    private void handleIrrecoverableBulkIndexingException(BulkIndexingException bulkIndexingException) {
+        String message = TransformMessages.getMessage(
+            TransformMessages.LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR,
+            bulkIndexingException.getDetailedMessage()
+        );
+        failIndexer(message);
+    }
+
     protected void failIndexer(String failureMessage) {
-        logger.error("[{}] transform has failed; experienced: [{}].", getJobId(), failureMessage);
-        auditor.error(getJobId(), failureMessage);
+        // note: logging and audit is done as part of context.markAsFailed
         context.markAsFailed(failureMessage);
+    }
+
+    /*
+     * Get the current time, abstracted for the purpose of testing
+     */
+    long getTime() {
+        return System.currentTimeMillis();
     }
 
     /**
@@ -826,8 +915,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
     }
 
-    static class TransformConfigReloadingException extends ElasticsearchException {
-        TransformConfigReloadingException(String msg, Throwable cause, Object... args) {
+    /**
+     * Thrown when the transform configuration disappeared permanently.
+     * (not if reloading failed due to an intermittent problem)
+     */
+    static class TransformConfigLostOnReloadException extends ResourceNotFoundException {
+        TransformConfigLostOnReloadException(String msg, Throwable cause, Object... args) {
             super(msg, cause, args);
         }
     }

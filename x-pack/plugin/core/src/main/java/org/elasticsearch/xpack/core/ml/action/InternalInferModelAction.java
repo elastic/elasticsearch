@@ -41,7 +41,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
         private final boolean previouslyLicensed;
 
         public Request(String modelId, boolean previouslyLicensed) {
-            this(modelId, Collections.emptyList(), new RegressionConfig(), previouslyLicensed);
+            this(modelId, Collections.emptyList(), RegressionConfig.EMPTY_PARAMS, previouslyLicensed);
         }
 
         public Request(String modelId,

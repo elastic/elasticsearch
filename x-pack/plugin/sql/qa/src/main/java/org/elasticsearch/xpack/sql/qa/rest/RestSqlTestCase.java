@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -15,9 +14,11 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -31,6 +32,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -148,6 +152,70 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             expected.put("rows", emptyList());
         }
         assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + columnarParameter(columnar) + "}",
+                ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
+    }
+
+    public void testNextPageWithDatetimeAndTimezoneParam() throws IOException {
+        Request request = new Request("PUT", "/test_date_timezone");
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("date").field("type", "date").field("format", "epoch_millis");
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+
+        request = new Request("PUT", "/test_date_timezone/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        long[] datetimes = new long[] { 1_000, 10_000, 100_000, 1_000_000, 10_000_000 };
+        for (long datetime : datetimes) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"date\":").append(datetime).append("}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        ZoneId zoneId = randomZone();
+        String mode = randomMode();
+        String sqlRequest =
+                "{\"query\":\"SELECT DATE_PART('TZOFFSET', date) AS tz FROM test_date_timezone ORDER BY date\","
+                        + "\"time_zone\":\"" + zoneId.getId() + "\", "
+                        + "\"mode\":\"" + mode + "\", "
+                        + "\"fetch_size\":2}";
+
+        String cursor = null;
+        for (int i = 0; i <= datetimes.length; i += 2) {
+            Map<String, Object> expected = new HashMap<>();
+            Map<String, Object> response;
+
+            if (i == 0) {
+                expected.put("columns", singletonList(columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
+                response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
+            } else {
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+                        ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode);
+            }
+
+            List<Object> values = new ArrayList<>(2);
+            for (int j = 0; j < (i < datetimes.length - 1 ? 2 : 1); j++) {
+                values.add(singletonList(ZonedDateTime.ofInstant(Instant.ofEpochMilli(datetimes[i + j]), zoneId)
+                        .getOffset().getTotalSeconds() / 60));
+            }
+            expected.put("rows", values);
+            cursor = (String) response.remove("cursor");
+            assertResponse(expected, response);
+            assertNotNull(cursor);
+        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("rows", emptyList());
+        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 
@@ -350,7 +418,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expectBadRequest(() -> {
                 client().performRequest(request);
                 return Collections.emptyMap();
-            }, containsString("unknown field [columnar], parser not found"));
+            }, containsString("unknown field [columnar]"));
     }
 
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
@@ -422,36 +490,36 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\n" + 
-                    "  \"columns\" : [\n" + 
-                    "    {\n" + 
-                    "      \"name\" : \"test1\",\n" + 
-                    "      \"type\" : \"text\"\n" + 
-                    "    }\n" + 
-                    "  ],\n" + 
-                    "  \"values\" : [\n" + 
-                    "    [\n" + 
-                    "      \"test1\",\n" + 
-                    "      \"test2\"\n" + 
-                    "    ]\n" + 
-                    "  ]\n" + 
+            expected = "{\n" +
+                    "  \"columns\" : [\n" +
+                    "    {\n" +
+                    "      \"name\" : \"test1\",\n" +
+                    "      \"type\" : \"text\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"values\" : [\n" +
+                    "    [\n" +
+                    "      \"test1\",\n" +
+                    "      \"test2\"\n" +
+                    "    ]\n" +
+                    "  ]\n" +
                     "}\n";
         } else {
-            expected = "{\n" + 
-                    "  \"columns\" : [\n" + 
-                    "    {\n" + 
-                    "      \"name\" : \"test1\",\n" + 
-                    "      \"type\" : \"text\"\n" + 
-                    "    }\n" + 
-                    "  ],\n" + 
-                    "  \"rows\" : [\n" + 
-                    "    [\n" + 
-                    "      \"test1\"\n" + 
-                    "    ],\n" + 
-                    "    [\n" + 
-                    "      \"test2\"\n" + 
-                    "    ]\n" + 
-                    "  ]\n" + 
+            expected = "{\n" +
+                    "  \"columns\" : [\n" +
+                    "    {\n" +
+                    "      \"name\" : \"test1\",\n" +
+                    "      \"type\" : \"text\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"rows\" : [\n" +
+                    "    [\n" +
+                    "      \"test1\"\n" +
+                    "    ],\n" +
+                    "    [\n" +
+                    "      \"test2\"\n" +
+                    "    ]\n" +
+                    "  ]\n" +
                     "}\n";
         }
         executeAndAssertPrettyPrinting(expected, "true", columnar);
@@ -538,8 +606,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         } else {
             expected.put("rows", Arrays.asList(Arrays.asList("foo", 10)));
         }
+        
+        String params = mode.equals("jdbc") ? "{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}" :
+            "10, \"foo\"";
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
-                "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]"
+                "\"params\":[" + params + "]"
                 + mode(mode) + columnarParameter(columnar) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 
@@ -638,14 +709,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> aggregations2 = (Map<String, Object>) groupby.get("aggregations");
         assertEquals(2, aggregations2.size());
 
-        List<Integer> aggKeys = new ArrayList<>(2);
+        List<String> aggKeys = new ArrayList<>(2);
         String aggFilterKey = null;
         for (Map.Entry<String, Object> entry : aggregations2.entrySet()) {
             String key = entry.getKey();
             if (key.startsWith("having")) {
                 aggFilterKey = key;
             } else {
-                aggKeys.add(Integer.valueOf(key));
+                aggKeys.add(key);
                 @SuppressWarnings("unchecked")
                 Map<String, Object> aggr = (Map<String, Object>) entry.getValue();
                 assertEquals(1, aggr.size());

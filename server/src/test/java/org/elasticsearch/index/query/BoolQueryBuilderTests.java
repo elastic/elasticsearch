@@ -263,7 +263,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "      }" +
                 "    }" +
                 "  } ]," +
-                "  \"adjust_pure_negative\" : true," +
                 "  \"minimum_should_match\" : \"23\"," +
                 "  \"boost\" : 42.0" +
                 "}" +
@@ -284,7 +283,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
 
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
+        assertEquals("unknown query [unknown_query]", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

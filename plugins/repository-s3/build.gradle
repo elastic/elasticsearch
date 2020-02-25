@@ -43,7 +43,7 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
+  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jacksondatabind}"
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   compile "joda-time:joda-time:${versions.joda}"
@@ -141,7 +141,7 @@ task thirdPartyTest(type: Test) {
 }
 
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:minio-fixture')
+  testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
 
   def minioAddress = {
     int minioPort = project(':test:fixtures:minio-fixture').postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"

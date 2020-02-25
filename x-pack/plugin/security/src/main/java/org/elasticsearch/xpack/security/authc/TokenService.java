@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -83,6 +82,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
@@ -208,6 +208,7 @@ public final class TokenService {
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private final XPackLicenseState licenseState;
+    private final SecurityContext securityContext;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -215,7 +216,7 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
-    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState,
+    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityContext securityContext,
                         SecurityIndexManager securityMainIndex, SecurityIndexManager securityTokensIndex,
                         ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
@@ -226,6 +227,7 @@ public final class TokenService {
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
         this.licenseState = licenseState;
+        this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
@@ -421,7 +423,7 @@ public final class TokenService {
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
                     getTokenDocumentId(userTokenId)).request();
-            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
+            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -441,8 +443,10 @@ public final class TokenService {
                                     listener.onResponse(UserToken.fromSourceMap(userTokenSource));
                                 }
                             } else {
-                                onFailure.accept(
-                                    new IllegalStateException("token document is missing and must be present"));
+                                // The chances of a random token string decoding to something that we can read is minimal, so
+                                // we assume that this was a token we have created but is now expired/revoked and deleted
+                                logger.trace("The access token [{}] is expired and already deleted", userTokenId);
+                                listener.onResponse(null);
                             }
                         }, e -> {
                             // if the index or the shard is not there / available we assume that
@@ -524,7 +528,7 @@ public final class TokenService {
                     listener.onResponse(null);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // could happen with a token that is not ours
             if (logger.isDebugEnabled()) {
                logger.debug("built in token service unable to decode token", e);
@@ -799,7 +803,7 @@ public final class TokenService {
         findTokenFromRefreshToken(refreshToken,
             backoff,
             ActionListener.wrap(tokenDocHit -> {
-                final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
+                final Authentication clientAuth = securityContext.getAuthentication();
                 innerRefresh(refreshToken, tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(),
                     tokenDocHit.getPrimaryTerm(),
                     clientAuth, backoff, refreshRequested, listener);
@@ -2019,7 +2023,7 @@ public final class TokenService {
 
             if (state.nodes().isLocalNodeElectedMaster()) {
                 if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state.metaData());
+                    installTokenMetadata(state);
                 } else {
                     logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
                         () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
@@ -2042,8 +2046,8 @@ public final class TokenService {
     // to prevent too many cluster state update tasks to be queued for doing the same update
     private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
 
-    private void installTokenMetadata(MetaData metaData) {
-        if (metaData.custom(TokenMetaData.TYPE) == null) {
+    private void installTokenMetadata(ClusterState state) {
+        if (state.custom(TokenMetaData.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
                 clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override

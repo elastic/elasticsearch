@@ -90,7 +90,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             .setSecureSettings(secureSettings)
             .build();
         try {
-            return new SSLService(settings1, TestEnvironment.newEnvironment(settings1));
+            return new SSLService(TestEnvironment.newEnvironment(settings1));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

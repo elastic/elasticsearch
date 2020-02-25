@@ -46,12 +46,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";
-    private static final String TYPE_NAME = "type1";
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("type1", "field2", "type=keyword")
+            .setMapping("field2", "type=keyword")
             .get()
         );
         ensureGreen();
@@ -133,7 +132,7 @@ public class SearchAfterIT extends ESIntegTestCase {
 
     public void testWithNullStrings() throws InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field2", "type=keyword").get());
+                .setMapping("field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test").setId("0").setSource("field1", 0),
@@ -191,7 +190,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         if (reqSize == 0) {
             reqSize = 1;
         }
-        assertSearchFromWithSortValues(INDEX_NAME, TYPE_NAME, documents, reqSize);
+        assertSearchFromWithSortValues(INDEX_NAME, documents, reqSize);
     }
 
     private static class ListComparator implements Comparator<List> {
@@ -221,10 +220,10 @@ public class SearchAfterIT extends ESIntegTestCase {
     }
     private ListComparator LST_COMPARATOR = new ListComparator();
 
-    private void assertSearchFromWithSortValues(String indexName, String typeName, List<List> documents, int reqSize) throws Exception {
+    private void assertSearchFromWithSortValues(String indexName, List<List> documents, int reqSize) throws Exception {
         int numFields = documents.get(0).size();
         {
-            createIndexMappingsFromObjectType(indexName, typeName, documents.get(0));
+            createIndexMappingsFromObjectType(indexName, documents.get(0));
             List<IndexRequestBuilder> requests = new ArrayList<>();
             for (int i = 0; i < documents.size(); i++) {
                 XContentBuilder builder = jsonBuilder();
@@ -260,7 +259,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         }
     }
 
-    private void createIndexMappingsFromObjectType(String indexName, String typeName, List<Object> types) {
+    private void createIndexMappingsFromObjectType(String indexName, List<Object> types) {
         CreateIndexRequestBuilder indexRequestBuilder = client().admin().indices().prepareCreate(indexName);
         List<String> mappings = new ArrayList<> ();
         int numFields = types.size();
@@ -294,7 +293,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 fail("Can't match type [" + type + "]");
             }
         }
-        indexRequestBuilder.addMapping(typeName, mappings.toArray()).get();
+        indexRequestBuilder.setMapping(mappings.toArray(new String[0])).get();
         ensureGreen();
     }
 

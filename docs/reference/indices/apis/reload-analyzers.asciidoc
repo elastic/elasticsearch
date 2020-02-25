@@ -6,8 +6,6 @@
 <titleabbrev>Reload search analyzers</titleabbrev>
 ++++
 
-experimental::[]
-
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
 
 [source,console]
@@ -76,6 +74,8 @@ used to limit the request.
 === {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +

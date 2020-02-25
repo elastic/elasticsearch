@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -108,13 +109,18 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     }
 
     @Override
+    public Map<String, String> reverseLookup() {
+        return Collections.singletonMap(featureName, field);
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
     public void process(Map<String, Object> fields) {
-        Object value = fields.get(field);
+        Object value = MapHelper.dig(field, fields);
         if (value == null) {
             return;
         }

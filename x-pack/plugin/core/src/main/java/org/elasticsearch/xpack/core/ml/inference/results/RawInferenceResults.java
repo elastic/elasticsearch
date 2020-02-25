@@ -7,22 +7,22 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class RawInferenceResults extends SingleValueInferenceResults {
 
     public static final String NAME = "raw";
 
-    public RawInferenceResults(double value) {
-        super(value);
+    public RawInferenceResults(double value, Map<String, Double> featureImportance) {
+        super(value, featureImportance);
     }
 
     public RawInferenceResults(StreamInput in) throws IOException {
-        super(in.readDouble());
+        super(in);
     }
 
     @Override
@@ -31,25 +31,21 @@ public class RawInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    XContentBuilder innerToXContent(XContentBuilder builder, Params params) {
-        return builder;
-    }
-
-    @Override
     public boolean equals(Object object) {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
         RawInferenceResults that = (RawInferenceResults) object;
-        return Objects.equals(value(), that.value());
+        return Objects.equals(value(), that.value())
+            && Objects.equals(getFeatureImportance(), that.getFeatureImportance());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value());
+        return Objects.hash(value(), getFeatureImportance());
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String parentResultField) {
         throw new UnsupportedOperationException("[raw] does not support writing inference results");
     }
 
@@ -58,8 +54,4 @@ public class RawInferenceResults extends SingleValueInferenceResults {
         return NAME;
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
 }

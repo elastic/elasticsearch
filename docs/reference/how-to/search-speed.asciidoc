@@ -31,7 +31,7 @@ If your search is CPU-bound, you should investigate buying faster CPUs.
 Documents should be modeled so that search-time operations are as cheap as possible.
 
 In particular, joins should be avoided. <<nested,`nested`>> can make queries
-several times slower and <<mapping-parent-field,parent-child>> relations can make
+several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 
@@ -159,13 +159,7 @@ GET index/_search
 [[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
-The fact that some data is numeric does not mean it should always be mapped as a
-<<number,numeric field>>. The way that Elasticsearch indexes numbers optimizes
-for `range` queries while `keyword` fields are better at `term` queries. Typically, 
-fields storing identifiers such as an `ISBN` or any number identifying a record 
-from another database are rarely used in `range` queries or aggregations. This is
-why they might benefit from being mapped as <<keyword,`keyword`>> rather than as 
-`integer` or `long`.
+include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 
 [float]
 === Avoid scripts
@@ -420,7 +414,7 @@ queries, this can speed up queries significantly.
 [[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
-The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that
+The <<text,`text`>> field has an <<index-prefixes,`index_prefixes`>> option that
 indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.

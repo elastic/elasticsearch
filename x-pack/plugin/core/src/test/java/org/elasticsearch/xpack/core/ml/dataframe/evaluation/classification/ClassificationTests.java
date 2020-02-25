@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,8 +20,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
@@ -42,7 +45,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlEvaluationNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(MlEvaluationNamedXContentProvider.getNamedWriteables());
     }
 
     @Override
@@ -51,8 +54,13 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public static Classification createRandom() {
-        List<ClassificationMetric> metrics =
-            randomSubsetOf(Arrays.asList(AccuracyTests.createRandom(), MulticlassConfusionMatrixTests.createRandom()));
+        List<EvaluationMetric> metrics =
+            randomSubsetOf(
+                Arrays.asList(
+                    AccuracyTests.createRandom(),
+                    PrecisionTests.createRandom(),
+                    RecallTests.createRandom(),
+                    MulticlassConfusionMatrixTests.createRandom()));
         return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
@@ -98,10 +106,10 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testProcess_MultipleMetricsWithDifferentNumberOfSteps() {
-        ClassificationMetric metric1 = new FakeClassificationMetric("fake_metric_1", 2);
-        ClassificationMetric metric2 = new FakeClassificationMetric("fake_metric_2", 3);
-        ClassificationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
-        ClassificationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
+        EvaluationMetric metric1 = new FakeClassificationMetric("fake_metric_1", 2);
+        EvaluationMetric metric2 = new FakeClassificationMetric("fake_metric_2", 3);
+        EvaluationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
+        EvaluationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
 
         Classification evaluation = new Classification("act", "pred", Arrays.asList(metric1, metric2, metric3, metric4));
         assertThat(metric1.getResult(), isEmpty());
@@ -165,7 +173,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
      * Number of steps is configurable.
      * Upon reaching the last step, the result is produced.
      */
-    private static class FakeClassificationMetric implements ClassificationMetric {
+    private static class FakeClassificationMetric implements EvaluationMetric {
 
         private final String name;
         private final int numSteps;
@@ -188,8 +196,8 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public List<AggregationBuilder> aggs(String actualField, String predictedField) {
-            return List.of();
+        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+            return Tuple.tuple(List.of(), List.of());
         }
 
         @Override

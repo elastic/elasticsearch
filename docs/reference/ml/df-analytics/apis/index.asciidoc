@@ -14,12 +14,23 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
 * <<explain-dfanalytics,Explain {dfanalytics}>>
 
+
+You can use the following APIs to perform {infer} operations.
+
+* <<put-inference>>
+* <<get-inference>>
+* <<get-inference-stats>>
+* <<delete-inference>>
+
+
 See also <<ml-apis>>.
 
 //CREATE
 include::put-dfanalytics.asciidoc[]
+include::put-inference.asciidoc[]
 //DELETE
 include::delete-dfanalytics.asciidoc[]
+include::delete-inference-trained-model.asciidoc[]
 //EVALUATE
 include::evaluate-dfanalytics.asciidoc[]
 //ESTIMATE_MEMORY_USAGE
@@ -27,6 +38,8 @@ include::explain-dfanalytics.asciidoc[]
 //GET
 include::get-dfanalytics.asciidoc[]
 include::get-dfanalytics-stats.asciidoc[]
+include::get-inference-trained-model.asciidoc[]
+include::get-inference-trained-model-stats.asciidoc[]
 //SET/START/STOP
 include::start-dfanalytics.asciidoc[]
 include::stop-dfanalytics.asciidoc[]

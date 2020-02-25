@@ -90,12 +90,12 @@ both index and query time.
         "value": 2,
         "relation": "eq"
     },
-    "max_score": 0.47000363,
+    "max_score": 0.4700036,
     "hits": [
       {
         "_index": "index",
         "_id": "1",
-        "_score": 0.47000363,
+        "_score": 0.4700036,
         "_source": {
           "foo": "BÀR"
         }
@@ -103,7 +103,7 @@ both index and query time.
       {
         "_index": "index",
         "_id": "2",
-        "_score": 0.47000363,
+        "_score": 0.4700036,
         "_source": {
           "foo": "bar"
         }

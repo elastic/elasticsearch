@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.Collections;
+
 public class RawInferenceResultsTests extends AbstractWireSerializingTestCase<RawInferenceResults> {
 
     public static RawInferenceResults createRandomResults() {
-        return new RawInferenceResults(randomDouble());
+        return new RawInferenceResults(randomDouble(), randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", 1.08));
     }
 
     @Override

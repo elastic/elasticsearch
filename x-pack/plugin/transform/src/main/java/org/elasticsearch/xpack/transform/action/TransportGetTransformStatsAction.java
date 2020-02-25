@@ -207,7 +207,6 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             listener.onResponse(response);
             return;
         }
-
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
         transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId).collect(Collectors.toList()));
 
@@ -252,7 +251,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getPosition(),
             transform.getTransformState().getProgress(),
-            ActionListener.wrap(listener::onResponse, e -> {
+            ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
                 logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
                 listener.onResponse(TransformCheckpointingInfo.EMPTY);
             })

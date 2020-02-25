@@ -31,10 +31,12 @@ not be included yet.
 * <<security-api,Security APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<transform-apis,{transform-cap} APIs>>
+* <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
 --
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
+include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
@@ -53,7 +55,8 @@ include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
-include::{es-repo-dir}/ilm/apis/slm-api.asciidoc[]
+include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
 include::{es-repo-dir}/transform/apis/index.asciidoc[]
+include::usage.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
 include::defs.asciidoc[]

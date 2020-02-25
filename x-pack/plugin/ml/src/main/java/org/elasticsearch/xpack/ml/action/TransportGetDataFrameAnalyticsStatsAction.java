@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,7 +66,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     extends TransportTasksAction<DataFrameAnalyticsTask, GetDataFrameAnalyticsStatsAction.Request,
         GetDataFrameAnalyticsStatsAction.Response, QueryPage<Stats>> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
 
     private final Client client;
 
@@ -95,7 +96,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void taskOperation(GetDataFrameAnalyticsStatsAction.Request request, DataFrameAnalyticsTask task,
                                  ActionListener<QueryPage<Stats>> listener) {
-        LOGGER.debug("Get stats for running task [{}]", task.getParams().getId());
+        logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
         ActionListener<List<PhaseProgress>> progressListener = ActionListener.wrap(
             progress -> {
@@ -106,9 +107,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
         );
 
         ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
-            aVoid -> {
-                progressListener.onResponse(task.getProgressTracker().report());
-            },
+            aVoid -> progressListener.onResponse(task.getStatsHolder().getProgressTracker().report()),
             listener::onFailure
         );
 
@@ -118,7 +117,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     @Override
     protected void doExecute(Task task, GetDataFrameAnalyticsStatsAction.Request request,
                              ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
-        LOGGER.debug("Get stats for data frame analytics [{}]", request.getId());
+        logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
             getResponse -> {
@@ -187,7 +186,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
             searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
             searchRequest.source().size(1);
-            searchRequest.source().query(QueryBuilders.idsQuery().addIds(DataFrameAnalyticsTask.progressDocId(configId)));
+            searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(configId)));
             multiSearchRequest.add(searchRequest);
         }
 
@@ -201,7 +200,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                     } else {
                         SearchHit[] hits = itemResponse.getResponse().getHits().getHits();
                         if (hits.length == 0) {
-                            progresses.add(new StoredProgress(new DataFrameAnalyticsTask.ProgressTracker().report()));
+                            progresses.add(new StoredProgress(new ProgressTracker().report()));
                         } else {
                             progresses.add(parseStoredProgress(hits[0]));
                         }
@@ -221,7 +220,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             StoredProgress storedProgress = StoredProgress.PARSER.apply(parser, null);
             return storedProgress;
         } catch (IOException e) {
-            LOGGER.error(new ParameterizedMessage("failed to parse progress from doc with it [{}]", hit.getId()), e);
+            logger.error(new ParameterizedMessage("failed to parse progress from doc with it [{}]", hit.getId()), e);
             return new StoredProgress(Collections.emptyList());
         }
     }

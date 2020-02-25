@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
@@ -274,6 +274,17 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
         assertEquals(-350, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
             .makePipe().asProcessor().process(null));
 
+        dt1 = l(dateTime(1988, 1, 2, 0, 0, 0, 0));
+        dt2 = l(dateTime(1987, 12, 29, 0, 0, 0, 0));
+        assertEquals(0, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(0, new DateDiff(Source.EMPTY, l("weeks"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(0, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(0, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
         dt1 = l(dateTime(1988, 1, 5, 0, 0, 0, 0));
         dt2 = l(dateTime(1996, 5, 13, 0, 0, 0, 0));
         assertEquals(436, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
@@ -283,6 +294,39 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
         assertEquals(436, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
             .makePipe().asProcessor().process(null));
         assertEquals(-436, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1999, 8, 20, 0, 0, 0, 0));
+        dt2 = l(dateTime(1974, 3, 17, 0, 0, 0, 0));
+        assertEquals(-1326, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(1326, new DateDiff(Source.EMPTY, l("weeks"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-1326, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(1326, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1997, 2, 2, 0, 0, 0, 0));
+        dt2 = l(dateTime(1997, 9, 19, 0, 0, 0, 0));
+        assertEquals(32, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-32, new DateDiff(Source.EMPTY, l("weeks"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(32, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-32, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1980, 11, 7, 0, 0, 0, 0));
+        dt2 = l(dateTime(1979, 4, 1, 0, 0, 0, 0));
+        assertEquals(-83, new DateDiff(Source.EMPTY, l("week"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(83, new DateDiff(Source.EMPTY, l("weeks"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-83, new DateDiff(Source.EMPTY, l("wk"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(83, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
             .makePipe().asProcessor().process(null));
 
         dt1 = l(dateTime(1997, 9, 19, 0, 0, 0, 0));

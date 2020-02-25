@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 
@@ -195,6 +196,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         }
 
         args "-Dbuild.snapshot=true"
+        args "-Dscan.tag.NESTED"
         final LogLevel logLevel = gradle.startParameter.logLevel
         if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
           args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"

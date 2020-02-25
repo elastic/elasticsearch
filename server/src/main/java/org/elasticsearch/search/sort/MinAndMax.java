@@ -35,7 +35,7 @@ public class MinAndMax<T extends Comparable<T>> implements Writeable {
     private final T minValue;
     private final T maxValue;
 
-    private MinAndMax(T minValue, T maxValue) {
+    public MinAndMax(T minValue, T maxValue) {
         this.minValue = Objects.requireNonNull(minValue);
         this.maxValue = Objects.requireNonNull(maxValue);
     }
@@ -66,17 +66,12 @@ public class MinAndMax<T extends Comparable<T>> implements Writeable {
         return maxValue;
     }
 
-    public static <T extends Comparable<T>> MinAndMax<T> newMinMax(T min, T max) {
-        return new MinAndMax<>(min, max);
-    }
-
     /**
      * Return a {@link Comparator} for {@link MinAndMax} values according to the provided {@link SortOrder}.
      */
     public static Comparator<MinAndMax<?>> getComparator(SortOrder order) {
         Comparator<MinAndMax<?>> cmp = order == SortOrder.ASC  ?
             Comparator.comparing(MinAndMax::getMin) : Comparator.comparing(MinAndMax::getMax);
-
         if (order == SortOrder.DESC) {
             cmp = cmp.reversed();
         }

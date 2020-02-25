@@ -36,9 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.fetch.subphase.matches.MatchesResult;
-import org.elasticsearch.search.fetch.subphase.matches.NamedQueries;
-import org.elasticsearch.search.fetch.subphase.matches.NamedQueriesProcessor;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -75,8 +72,6 @@ public class SuggestTests extends ESTestCase {
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
         namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
-        namedXContents.add(new NamedXContentRegistry.Entry(MatchesResult.class,
-            new ParseField(NamedQueriesProcessor.NAME), NamedQueries::fromXContent));
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 

@@ -20,21 +20,16 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,32 +39,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SuggestionEntryTests extends ESTestCase {
-
-    private static NamedXContentRegistry xContentRegistry;
-
-    @BeforeClass
-    public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        xContentRegistry = null;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
-    }
-
     private static final Map<Class<? extends Entry>, Function<XContentParser, ? extends Entry>> ENTRY_PARSERS = new HashMap<>();
     static {
         ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);

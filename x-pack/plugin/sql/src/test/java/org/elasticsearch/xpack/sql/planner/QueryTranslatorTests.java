@@ -1053,6 +1053,30 @@ public class QueryTranslatorTests extends ESTestCase {
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
+    
+    public void testGroupByOneMonthHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"calendar_interval\":\"1M\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+    
+    public void testGroupByMoreMonthsHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 5 MONTH) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"fixed_interval\":\"12960000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
 
     public void testGroupByYearAndScalarsQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT YEAR(CAST(date + INTERVAL 5 months AS DATE)) FROM test GROUP BY 1");

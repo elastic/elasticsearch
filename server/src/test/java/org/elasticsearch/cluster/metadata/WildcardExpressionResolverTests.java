@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -47,22 +47,28 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testXXX"))), equalTo(newHashSet("testXXX")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "ku*"))), equalTo(newHashSet("testXXX", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("testXXX"))), equalTo(newHashSet("testXXX")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testXXX", "testYYY")))),
+            equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testXXX", "ku*")))),
+            equalTo(newHashSet("testXXX", "kuku")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("test*"))),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("testX*"))), equalTo(newHashSet("testXXX", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testX*", "kuku")))),
             equalTo(newHashSet("testXXX", "testXYY", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("*"))),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))),
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("*", "-kuku")))),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))), equalTo(newHashSet("testXXX", "-testXXX")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testX*"))), equalTo(newHashSet("testXXX")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testXXX", "testYYY")))),
+            equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testXXX", "-testXXX")))),
+            equalTo(newHashSet("testXXX", "-testXXX")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testXXX", "testY*")))),
+            equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testXXX", "-testX*")))),
+            equalTo(newHashSet("testXXX")));
     }
 
     public void testConvertWildcardsTests() {
@@ -75,13 +81,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))),
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testYY*", "alias*")))),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("-kuku"))), equalTo(newHashSet("-kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "testYYY")))
-            , equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "testX*"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("-kuku"))), equalTo(newHashSet("-kuku")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("test*", "-testYYY")))),
+            equalTo(newHashSet("testXXX", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testX*", "testYYY")))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, new LinkedHashSet<>(Arrays.asList("testYYY", "testX*")))),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
@@ -98,12 +105,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
             IndicesOptions.fromOptions(true, true, true, true));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("testX*"))),
             equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, true));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("testX*"))), equalTo(newHashSet("testXYY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, false));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXXX", "testXXY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("testX*"))), equalTo(newHashSet("testXXX", "testXXY")));
     }
 
     // issue #13334
@@ -120,14 +127,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("test*X*"))),
             equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*Y"))), equalTo(newHashSet("testXXY", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("kuku*Y*"))), equalTo(newHashSet("kukuYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("test*X*Y"))), equalTo(newHashSet("testXXY", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("kuku*Y*"))), equalTo(newHashSet("kukuYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("*Y*"))),
             equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*Y*X"))).size(), equalTo(0));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*X"))).size(), equalTo(0));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("test*Y*X"))).size(), equalTo(0));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("*Y*X"))).size(), equalTo(0));
     }
 
     public void testAll() {
@@ -139,7 +146,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("_all"))),
+        assertThat(newHashSet(resolver.resolve(context, Collections.singleton("_all"))),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
@@ -167,41 +174,41 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             new IndexNameExpressionResolver.Context(state, errorOnAliasIndicesOptions);
 
         {
-            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_a*"));
+            Set<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singleton("foo_a*"));
             assertThat(indices, containsInAnyOrder("foo_index", "bar_index"));
         }
         {
-            List<String> indices = resolver.resolve(skipAliasesLenientContext, Collections.singletonList("foo_a*"));
+            Set<String> indices = resolver.resolve(skipAliasesLenientContext, Collections.singleton("foo_a*"));
             assertEquals(0, indices.size());
         }
         {
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
-                    () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_a*")));
+                    () -> resolver.resolve(skipAliasesStrictContext, Collections.singleton("foo_a*")));
             assertEquals("foo_a*", infe.getIndex().getName());
         }
         {
-            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo*"));
+            Set<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singleton("foo*"));
             assertThat(indices, containsInAnyOrder("foo_foo", "foo_index", "bar_index"));
         }
         {
-            List<String> indices = resolver.resolve(skipAliasesLenientContext, Collections.singletonList("foo*"));
+            Set<String> indices = resolver.resolve(skipAliasesLenientContext, Collections.singleton("foo*"));
             assertThat(indices, containsInAnyOrder("foo_foo", "foo_index"));
         }
         {
-            List<String> indices = resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo*"));
+            Set<String> indices = resolver.resolve(skipAliasesStrictContext, Collections.singleton("foo*"));
             assertThat(indices, containsInAnyOrder("foo_foo", "foo_index"));
         }
         {
-            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_alias"));
+            Set<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singleton("foo_alias"));
             assertThat(indices, containsInAnyOrder("foo_alias"));
         }
         {
-            List<String> indices = resolver.resolve(skipAliasesLenientContext, Collections.singletonList("foo_alias"));
+            Set<String> indices = resolver.resolve(skipAliasesLenientContext, Collections.singleton("foo_alias"));
             assertThat(indices, containsInAnyOrder("foo_alias"));
         }
         {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                    () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_alias")));
+                    () -> resolver.resolve(skipAliasesStrictContext, Collections.singleton("foo_alias")));
             assertEquals("The provided expression [foo_alias] matches an alias, " +
                     "specify the corresponding concrete indices instead.", iae.getMessage());
         }

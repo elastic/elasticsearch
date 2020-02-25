@@ -33,10 +33,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES;
 
@@ -240,12 +240,12 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      * still result in unique snapshot names.
      */
     public String generateSnapshotName(Context context) {
-        List<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singletonList(this.name));
+        Set<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singleton(this.name));
         if (candidates.size() != 1) {
             throw new IllegalStateException("resolving snapshot name " + this.name + " generated more than one candidate: " + candidates);
         }
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
-        return candidates.get(0) + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+        return candidates.iterator().next() + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
     }
 
     /**

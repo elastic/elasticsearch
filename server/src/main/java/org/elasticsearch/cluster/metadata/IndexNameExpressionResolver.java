@@ -47,12 +47,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.Spliterators;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -154,7 +156,7 @@ public class IndexNameExpressionResolver {
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
         final boolean failNoIndices = indexExpressions.length == 1 ? !options.allowNoIndices() : !options.ignoreUnavailable();
-        List<String> expressions = Arrays.asList(indexExpressions);
+        Set<String> expressions = new LinkedHashSet<>(Arrays.asList(indexExpressions));
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
         }
@@ -345,11 +347,11 @@ public class IndexNameExpressionResolver {
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
-        List<String> resolvedExpressions = Arrays.asList(expressions);
+        Set<String> resolvedExpressions = new LinkedHashSet<>(Arrays.asList(expressions));
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
-        return Set.copyOf(resolvedExpressions);
+        return resolvedExpressions;
     }
 
     /**
@@ -437,7 +439,7 @@ public class IndexNameExpressionResolver {
      * @return routing values grouped by concrete index
      */
     public Map<String, Set<String>> resolveSearchRouting(ClusterState state, @Nullable String routing, String... expressions) {
-        List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.<String>emptyList();
+        Set<String> resolvedExpressions = expressions != null ? new LinkedHashSet<>(Arrays.asList(expressions)) : Collections.emptySet();
         Context context = new Context(state, IndicesOptions.lenientExpandOpen());
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
@@ -657,7 +659,7 @@ public class IndexNameExpressionResolver {
          *
          * @return a new list with expressions based on the provided expressions
          */
-        List<String> resolve(Context context, List<String> expressions);
+        Set<String> resolve(Context context, Set<String> expressions);
 
     }
 
@@ -667,7 +669,7 @@ public class IndexNameExpressionResolver {
     static final class WildcardExpressionResolver implements ExpressionResolver {
 
         @Override
-        public List<String> resolve(Context context, List<String> expressions) {
+        public Set<String> resolve(Context context, Set<String> expressions) {
             IndicesOptions options = context.getOptions();
             MetaData metaData = context.getState().metaData();
             // only check open/closed since if we do not expand to open or closed it doesn't make sense to
@@ -680,8 +682,6 @@ public class IndexNameExpressionResolver {
                 return resolveEmptyOrTrivialWildcard(options, metaData);
             }
 
-            // TODO: Fix API to work with sets rather than lists since we need to convert to sets
-            // internally anyway.
             Set<String> result = innerResolve(context, expressions, options, metaData);
 
             if (result == null) {
@@ -692,22 +692,20 @@ public class IndexNameExpressionResolver {
                 infe.setResources("index_or_alias", expressions.toArray(new String[0]));
                 throw infe;
             }
-            return new ArrayList<>(result);
+            return result;
         }
 
-        private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
+        private Set<String> innerResolve(Context context, Set<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
+            Consumer<String> resultAdder = s -> {};
             boolean wildcardSeen = false;
-            for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
+            for (String expression : expressions) {
                 if (Strings.isEmpty(expression)) {
                     throw indexNotFoundException(expression);
                 }
                 validateAliasOrIndex(expression);
                 if (aliasOrIndexExists(options, metaData, expression)) {
-                    if (result != null) {
-                        result.add(expression);
-                    }
+                    resultAdder.accept(expression);
                     continue;
                 }
                 final boolean add;
@@ -718,8 +716,14 @@ public class IndexNameExpressionResolver {
                     add = true;
                 }
                 if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
+                    result = new LinkedHashSet<>(expressions.size());
+                    for (String exp : expressions) {
+                        if (exp.equals(expression)) {
+                            break;
+                        }
+                        result.add(exp);
+                    }
+                    resultAdder = result::add;
                 }
                 if (!Regex.isSimpleMatchPattern(expression)) {
                     //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
@@ -861,26 +865,32 @@ public class IndexNameExpressionResolver {
             return expand;
         }
 
-        private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0)) ||
-                Regex.isMatchAllPattern(expressions.get(0))));
+        private boolean isEmptyOrTrivialWildcard(Set<String> expressions) {
+            if (expressions.isEmpty()) {
+                return true;
+            } else if (expressions.size() == 1) {
+                final String expression = expressions.iterator().next();
+                return MetaData.ALL.equals(expression) || Regex.isMatchAllPattern(expression);
+            } else {
+                return false;
+            }
         }
 
-        private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
+        private static Set<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metaData.getConcreteAllIndices());
+                return Set.of(metaData.getConcreteAllIndices());
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.getConcreteVisibleIndices());
+                return Set.of(metaData.getConcreteVisibleIndices());
             } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metaData.getConcreteAllOpenIndices());
+                return Set.of(metaData.getConcreteAllOpenIndices());
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metaData.getConcreteVisibleOpenIndices());
+                return Set.of(metaData.getConcreteVisibleOpenIndices());
             } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metaData.getConcreteAllClosedIndices());
+                return Set.of(metaData.getConcreteAllClosedIndices());
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.getConcreteVisibleClosedIndices());
+                return Set.of(metaData.getConcreteVisibleClosedIndices());
             } else {
-                return Collections.emptyList();
+                return Collections.emptySet();
             }
         }
     }
@@ -896,12 +906,24 @@ public class IndexNameExpressionResolver {
         private static final char TIME_ZONE_BOUND = '|';
 
         @Override
-        public List<String> resolve(final Context context, List<String> expressions) {
-            List<String> result = new ArrayList<>(expressions.size());
+        public Set<String> resolve(final Context context, Set<String> expressions) {
+            Set<String> result = null;
+            Consumer<String> addConsumer = s -> {};
             for (String expression : expressions) {
-                result.add(resolveExpression(expression, context));
+                final String resolvedExpression = resolveExpression(expression, context);
+                if (resolvedExpression.equals(expression) == false && result == null) {
+                    result = new LinkedHashSet<>(expressions.size());
+                    for (String exp : expressions) {
+                        if (exp.equals(expression)) {
+                            break;
+                        }
+                        result.add(exp);
+                    }
+                    addConsumer = result::add;
+                }
+                addConsumer.accept(resolvedExpression);
             }
-            return result;
+            return result == null ? expressions : result;
         }
 
         @SuppressWarnings("fallthrough")

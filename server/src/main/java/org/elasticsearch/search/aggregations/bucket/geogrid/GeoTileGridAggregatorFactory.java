@@ -82,11 +82,11 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         }
         final GeoGridTiler tiler;
         if (geoBoundingBox.isUnbounded()) {
-            tiler = GeoGridTiler.GeoTileGridTiler.INSTANCE;
+            tiler = new GeoTileGridTiler();
         } else {
-            tiler = GeoGridTiler.GeoTileGridTiler.BOUNDED_INSTANCE;
+            tiler = new BoundedGeoTileGridTiler(geoBoundingBox);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, tiler);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, tiler);
         return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
             searchContext, parent, pipelineAggregators, metaData);
     }

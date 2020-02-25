@@ -20,16 +20,17 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
-/** Sorted numeric doc values for geo shapes */
-class UnboundedGeoShapeCellValues extends CellValues {
+/**
+ * Class representing geo_point {@link CellValues}
+ */
+class GeoPointCellValues extends CellValues {
 
-    protected UnboundedGeoShapeCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
+    protected GeoPointCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
         super(geoValues, precision, tiler);
     }
 
     @Override
     int advanceValue(MultiGeoValues.GeoValue target, int valuesIdx) {
-        // TODO(talevy): determine reasonable circuit-breaker here
-        return tiler.setValues(this, target, precision);
+        return tiler.advancePointValue(values, target.lon(), target.lat(), precision, valuesIdx);
     }
 }

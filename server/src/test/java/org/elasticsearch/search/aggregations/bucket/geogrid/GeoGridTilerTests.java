@@ -43,7 +43,6 @@ import java.util.List;
 import static org.elasticsearch.common.geo.GeoTestUtils.encodeDecodeLat;
 import static org.elasticsearch.common.geo.GeoTestUtils.encodeDecodeLon;
 import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridTiler.GeoTileGridTiler.BOUNDED_INSTANCE;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.NORMALIZED_LATITUDE_MASK;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK;
@@ -51,8 +50,8 @@ import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoGridTilerTests extends ESTestCase {
-    private static final GeoGridTiler.GeoTileGridTiler GEOTILE = GeoGridTiler.GeoTileGridTiler.INSTANCE;
-    private static final GeoGridTiler.GeoHashGridTiler GEOHASH = GeoGridTiler.GeoHashGridTiler.INSTANCE;
+    private static final GeoTileGridTiler GEOTILE = new GeoTileGridTiler();
+    private static final GeoHashGridTiler GEOHASH = new GeoHashGridTiler();
 
     public void testGeoTile() throws Exception {
         double x = randomDouble();
@@ -69,17 +68,17 @@ public class GeoGridTilerTests extends ESTestCase {
 
         // test shape within tile bounds
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 13);
             assertThat(count, equalTo(1));
         }
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 14);
             assertThat(count, equalTo(4));
         }
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 15);
             assertThat(count, equalTo(16));
         }
@@ -119,12 +118,10 @@ public class GeoGridTilerTests extends ESTestCase {
 
             TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
             GeoBoundingBox geoBoundingBox = GeoBoundingBoxTests.randomBBox();
-            MultiGeoValues.GeoShapeValue origValue = new MultiGeoValues.GeoShapeValue(reader);
-            BoundedGeoShapeCellValues.BoundedGeoValue value = new BoundedGeoShapeCellValues.BoundedGeoValue(geoBoundingBox);
-            value.reset(origValue);
-            BoundedGeoShapeCellValues boundedCellValues = new BoundedGeoShapeCellValues(null, precision, GEOTILE, geoBoundingBox);
+            MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
+            GeoShapeCellValues cellValues = new GeoShapeCellValues(null, precision, GEOTILE);
 
-            int numTiles = BOUNDED_INSTANCE.setValues(boundedCellValues, value, precision);
+            int numTiles = new BoundedGeoTileGridTiler(geoBoundingBox).setValues(cellValues, value, precision);
             int expected = numTiles(value, precision, geoBoundingBox);
 
             assertThat(numTiles, equalTo(expected));
@@ -148,7 +145,7 @@ public class GeoGridTilerTests extends ESTestCase {
 
             TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
             MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-            CellValues unboundedCellValues = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            CellValues unboundedCellValues = new GeoShapeCellValues(null, precision, GEOTILE);
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             int expected = numTiles(value, precision);
             assertThat(numTiles, equalTo(expected));
@@ -181,7 +178,7 @@ public class GeoGridTilerTests extends ESTestCase {
             }
             TriangleTreeReader reader = triangleTreeReader(point, GeoShapeCoordinateEncoder.INSTANCE);
             MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-            UnboundedGeoShapeCellValues unboundedCellValues = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+            GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(null, precision, GEOTILE);
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             assertThat(numTiles, equalTo(1));
             long tilerHash = unboundedCellValues.getValues()[0];
@@ -205,17 +202,17 @@ public class GeoGridTilerTests extends ESTestCase {
 
         // test shape within tile bounds
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOHASH);
             int count = GEOHASH.setValues(values, value, 5);
             assertThat(count, equalTo(1));
         }
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOHASH);
             int count = GEOHASH.setValues(values, value, 6);
             assertThat(count, equalTo(32));
         }
         {
-            UnboundedGeoShapeCellValues values = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOHASH);
             int count = GEOHASH.setValues(values, value, 7);
             assertThat(count, equalTo(1024));
         }
@@ -316,12 +313,12 @@ public class GeoGridTilerTests extends ESTestCase {
         geometry = indexer.prepareForIndexing(geometry);
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        UnboundedGeoShapeCellValues recursiveValues = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+        GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOTILE);
         int recursiveCount;
         {
             recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0, precision, value);
         }
-        UnboundedGeoShapeCellValues bruteForceValues = new UnboundedGeoShapeCellValues(null, precision, GEOTILE);
+        GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOTILE);
         int bruteForceCount;
         {
             final double tiles = 1 << precision;
@@ -346,12 +343,12 @@ public class GeoGridTilerTests extends ESTestCase {
         geometry = indexer.prepareForIndexing(geometry);
         TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        UnboundedGeoShapeCellValues recursiveValues = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
+        GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOHASH);
         int recursiveCount;
         {
             recursiveCount = GEOHASH.setValuesByRasterization("", recursiveValues, 0, precision, value);
         }
-        UnboundedGeoShapeCellValues bruteForceValues = new UnboundedGeoShapeCellValues(null, precision, GEOHASH);
+        GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOHASH);
         int bruteForceCount;
         {
             MultiGeoValues.BoundingBox bounds = value.boundingBox();

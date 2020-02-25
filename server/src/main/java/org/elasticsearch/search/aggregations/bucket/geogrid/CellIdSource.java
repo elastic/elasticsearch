@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
-import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -36,13 +35,11 @@ public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.Geo valuesSource;
     private final int precision;
     private final GeoGridTiler encoder;
-    private final GeoBoundingBox geoBoundingBox;
 
-    public CellIdSource(ValuesSource.Geo valuesSource, int precision, GeoBoundingBox geoBoundingBox, GeoGridTiler encoder) {
+    public CellIdSource(ValuesSource.Geo valuesSource, int precision, GeoGridTiler encoder) {
         this.valuesSource = valuesSource;
         //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;
-        this.geoBoundingBox = geoBoundingBox;
         this.encoder = encoder;
     }
 
@@ -65,18 +62,10 @@ public class CellIdSource extends ValuesSource.Numeric {
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (CoreValuesSourceType.GEOPOINT == vs) {
             // docValues are geo points
-            if (geoBoundingBox.isUnbounded()) {
-                return new UnboundedGeoPointCellValues(geoValues, precision, encoder);
-            } else {
-                return new BoundedGeoPointCellValues(geoValues, precision, encoder, geoBoundingBox);
-            }
+            return new GeoPointCellValues(geoValues, precision, encoder);
         } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
             // docValues are geo shapes
-            if (geoBoundingBox.isUnbounded()) {
-                return new UnboundedGeoShapeCellValues(geoValues, precision, encoder);
-            } else {
-                return new BoundedGeoShapeCellValues(geoValues, precision, encoder, geoBoundingBox);
-            }
+            return new GeoShapeCellValues(geoValues, precision, encoder);
         } else {
             throw new IllegalArgumentException("unsupported geo type");
         }

@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * A stateful lightweight per document set of geo values.
@@ -59,7 +58,7 @@ import java.util.Objects;
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
+public abstract class MultiGeoValues {
 
     /**
      * Creates a new {@link MultiGeoValues} instance
@@ -88,7 +87,7 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract G nextValue() throws IOException;
+    public abstract GeoValue nextValue() throws IOException;
 
     public static class GeoPointValue implements GeoValue {
         private final GeoPoint geoPoint;
@@ -316,24 +315,6 @@ public abstract class MultiGeoValues <G extends MultiGeoValues.GeoValue> {
          */
         public double maxX() {
             return Math.max(negRight, posRight);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BoundingBox that = (BoundingBox) o;
-            return Double.compare(that.top, top) == 0 &&
-                Double.compare(that.bottom, bottom) == 0 &&
-                Double.compare(that.negLeft, negLeft) == 0 &&
-                Double.compare(that.negRight, negRight) == 0 &&
-                Double.compare(that.posLeft, posLeft) == 0 &&
-                Double.compare(that.posRight, posRight) == 0;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(top, bottom, negLeft, negRight, posLeft, posRight);
         }
     }
 }

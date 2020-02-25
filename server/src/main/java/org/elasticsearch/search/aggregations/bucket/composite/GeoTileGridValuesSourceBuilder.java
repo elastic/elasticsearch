@@ -31,9 +31,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridTiler;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -141,12 +143,12 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
             final GeoGridTiler tiler;
             if (geoBoundingBox.isUnbounded()) {
-                tiler = GeoGridTiler.GeoTileGridTiler.INSTANCE;
+                tiler = new GeoTileGridTiler();
             } else {
-                tiler = GeoGridTiler.GeoTileGridTiler.BOUNDED_INSTANCE;
+                tiler = new BoundedGeoTileGridTiler(geoBoundingBox);
             }
 
-            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, geoBoundingBox, tiler);
+            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, tiler);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
                 missingBucket(), script() != null);
         } else {

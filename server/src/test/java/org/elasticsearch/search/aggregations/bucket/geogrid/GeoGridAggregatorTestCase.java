@@ -39,7 +39,6 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +64,6 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
-    protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     /**
      * Generate a random precision according to the rules of the given aggregation.
@@ -191,56 +188,54 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     }
 
     public void testGeoPointBounds() throws IOException {
-        final int numDocs = randomIntBetween(64, 256);
+        final int precision = randomPrecision();
+        final int numDocs = randomIntBetween(100, 200);
+        int numDocsWithin = 0;
         final GeoGridAggregationBuilder builder = createBuilder("_name");
 
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
 
-        // only consider bounding boxes that are at least GEOHASH_TOLERANCE wide and have quantized coordinates
-        GeoBoundingBox bbox = randomValueOtherThanMany(
-            (b) -> Math.abs(GeoUtils.normalizeLon(b.right()) - GeoUtils.normalizeLon(b.left())) < GEOHASH_TOLERANCE,
-            GeoBoundingBoxTests::randomBBox);
-        Function<Double, Double> encodeDecodeLat = (lat) -> GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
-        Function<Double, Double> encodeDecodeLon = (lon) -> GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
-        bbox.topLeft().reset(encodeDecodeLat.apply(bbox.top()), encodeDecodeLon.apply(bbox.left()));
-        bbox.bottomRight().reset(encodeDecodeLat.apply(bbox.bottom()), encodeDecodeLon.apply(bbox.right()));
-
-        int in = 0, out = 0;
-        List<LatLonDocValuesField> docs = new ArrayList<>();
-        while (in + out < numDocs) {
-            if (bbox.left() > bbox.right()) {
-                if (randomBoolean()) {
-                    double lonWithin = randomBoolean() ?
-                        randomDoubleBetween(bbox.left(), 180.0, true)
-                        : randomDoubleBetween(-180.0, bbox.right(), true);
-                    double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
-                    in++;
-                    docs.add(new LatLonDocValuesField(FIELD_NAME, latWithin, lonWithin));
-                } else {
-                    double lonOutside = randomDoubleBetween(bbox.left(), bbox.right(), true);
-                    double latOutside = randomDoubleBetween(bbox.top(), -90, false);
-                    out++;
-                    docs.add(new LatLonDocValuesField(FIELD_NAME, latOutside, lonOutside));
-                }
-            } else {
-                if (randomBoolean()) {
-                    double lonWithin = randomDoubleBetween(bbox.left(), bbox.right(), true);
-                    double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
-                    in++;
-                    docs.add(new LatLonDocValuesField(FIELD_NAME, latWithin, lonWithin));
-                } else {
-                    double lonOutside = GeoUtils.normalizeLon(randomDoubleBetween(bbox.right(), 180.001, false));
-                    double latOutside = GeoUtils.normalizeLat(randomDoubleBetween(bbox.top(), 90.001, false));
-                    out++;
-                    docs.add(new LatLonDocValuesField(FIELD_NAME, latOutside, lonOutside));
-                }
-            }
-
+        GeoBoundingBox bbox = GeoBoundingBoxTests.randomBBox();
+        final double boundsTop = bbox.top();
+        final double boundsBottom = bbox.bottom();
+        final double boundsWestLeft;
+        final double boundsWestRight;
+        final double boundsEastLeft;
+        final double boundsEastRight;
+        final boolean crossesDateline;
+        if (bbox.right() < bbox.left()) {
+            boundsWestLeft = -180;
+            boundsWestRight = bbox.right();
+            boundsEastLeft = bbox.left();
+            boundsEastRight = 180;
+            crossesDateline = true;
+        } else { // only set east bounds
+            boundsEastLeft = bbox.left();
+            boundsEastRight = bbox.right();
+            boundsWestLeft = 0;
+            boundsWestRight = 0;
+            crossesDateline = false;
         }
 
-        final long numDocsInBucket = in;
-        final int precision = randomPrecision();
+        List<LatLonDocValuesField> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            Point p;
+            p = randomPoint();
+            double x = GeoTestUtils.encodeDecodeLon(p.getX());
+            double y = GeoTestUtils.encodeDecodeLat(p.getY());
+            Rectangle pointTile = getTile(x, y, precision);
+
+            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
+                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
+                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
+            if (intersectsBounds) {
+                numDocsWithin += 1;
+            }
+            docs.add(new LatLonDocValuesField(FIELD_NAME, p.getLat(), p.getLon()));
+        }
+
+        final long numDocsInBucket = numDocsWithin;
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
                 for (LatLonDocValuesField docField : docs) {

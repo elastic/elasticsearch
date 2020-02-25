@@ -18,22 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
-/**
- * Class representing {@link CellValues} that are unbounded by any
- * {@link GeoBoundingBox}.
- */
-class UnboundedGeoPointCellValues extends CellValues {
+/** Sorted numeric doc values for geo shapes */
+class GeoShapeCellValues extends CellValues {
 
-    protected UnboundedGeoPointCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
+    protected GeoShapeCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
         super(geoValues, precision, tiler);
     }
 
     @Override
     int advanceValue(MultiGeoValues.GeoValue target, int valuesIdx) {
-        values[valuesIdx] = tiler.encode(target.lon(), target.lat(), precision);
-        return valuesIdx + 1;
+        // TODO(talevy): determine reasonable circuit-breaker here
+        return tiler.setValues(this, target, precision);
     }
 }

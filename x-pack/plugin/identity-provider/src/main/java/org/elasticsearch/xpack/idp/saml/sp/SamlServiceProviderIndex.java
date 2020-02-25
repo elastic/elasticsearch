@@ -57,6 +57,7 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final ClusterStateListener clusterStateListener;
     private volatile boolean aliasExists;
     private volatile boolean templateInstalled;
 
@@ -64,10 +65,9 @@ public class SamlServiceProviderIndex implements Closeable {
     static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
-    private static final String TEMPLATE_RESOURCE = "/index/saml-service-provider-template.json";
+    private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
     private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
     private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
-    private final ClusterStateListener clusterStateListener;
 
     public SamlServiceProviderIndex(Client client, ClusterService clusterService) {
         this.client = new OriginSettingClient(client, ClientHelper.IDP_ORIGIN);

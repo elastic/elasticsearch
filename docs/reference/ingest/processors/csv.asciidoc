@@ -21,7 +21,7 @@ include::common-options.asciidoc[]
 {
   "csv": {
     "field": "my_field",
-    "target_fields": ["field1, field2"]
+    "target_fields": ["field1", "field2"]
   }
 }
 --------------------------------------------------

@@ -824,20 +824,24 @@ public final class EncryptedRepository extends BlobStoreRepository {
             Objects.requireNonNull(saltedHash);
             // first check if this exact hash has been checked before
             if (saltedHash.equals(lastVerifiedHash.get())) {
+                logger.debug("The repository salted password hash [" + saltedHash + "] is locally cached as VALID");
                 return true;
             }
             String[] parts = saltedHash.split(":");
+            // the hash has an invalid format
             if (parts == null || parts.length != 2) {
-                // the hash has an invalid format
+                logger.error("Unrecognized format for the repository password hash [" + saltedHash + "]");
                 return false;
             }
             String salt = parts[0];
+            logger.debug("Computing repository password hash");
             String computedHash = computeSaltedPBKDF2Hash(Base64.getUrlDecoder().decode(salt.getBytes(StandardCharsets.UTF_8)), password);
             if (false == computedHash.equals(saltedHash)) {
                 return false;
             }
             // remember last successfully verified hash
             lastVerifiedHash.set(computedHash);
+            logger.debug("Repository password hash [" + saltedHash + "] validated successfully and is now locally cached");
             return true;
         }
 

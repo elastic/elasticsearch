@@ -362,14 +362,18 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
+        assertThat(shard.flushStats().getTotal(), equalTo(0L));
         client().prepareIndex("test", "_doc", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(2L));
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
-            assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
+            assertThat(shard.flushStats().getPeriodic(), equalTo(1L));
+            assertThat(shard.flushStats().getTotal(), equalTo(1L));
         });
         shard.sync();
-        assertEquals(0, translog.stats().getUncommittedOperations());
+        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(2L));
+        assertThat("last commit [" + shard.commitStats().getUserData() + "]", translog.stats().getUncommittedOperations(), equalTo(0));
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());

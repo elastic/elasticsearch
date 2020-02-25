@@ -899,7 +899,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         // TODO: is the full inference config really needed?
         String modelId = "model-id";
         InferenceConfig config = new RegressionConfig("ignored");
-        return List.of(new InferencePhase(modelId, config, this.modelLoadingService.get()));
+        return List.of(new InferencePhase(modelId, config, this.modelLoadingService));
     }
 
     @Override

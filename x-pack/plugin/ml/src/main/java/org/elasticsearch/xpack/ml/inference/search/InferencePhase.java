@@ -20,11 +20,11 @@ import java.util.Map;
 public class InferencePhase implements FetchSubPhase {
     private final String modelId;
     private final InferenceConfig config;
-    private final ModelLoadingService modelLoadingService;
+    private final SetOnce<ModelLoadingService> modelLoadingService;
 
     public InferencePhase(String modelId,
                           InferenceConfig config,
-                          ModelLoadingService modelLoadingService) {
+                          SetOnce<ModelLoadingService> modelLoadingService) {
         this.modelId = modelId;
         this.config = config;
         this.modelLoadingService = modelLoadingService;
@@ -33,7 +33,7 @@ public class InferencePhase implements FetchSubPhase {
     @Override
     public void hitsExecute(SearchContext searchContext, SearchHit[] hits) throws IOException {
         SetOnce<Model> model = new SetOnce<>();
-        modelLoadingService.getModel(modelId, ActionListener.wrap(
+        modelLoadingService.get().getModel(modelId, ActionListener.wrap(
             model::set,
             m -> {throw new RuntimeException();}));
 

@@ -48,12 +48,11 @@ import java.util.stream.Collectors;
 
 /**
  * Copies the files needed for the Rest YAML specs to the current projects test resources output directory.
- * This is intended to be be used from {@link CopyRestApiPlugin} since the plugin wires up the needed
+ * This is intended to be be used from {@link RestResourcesPlugin} since the plugin wires up the needed
  * configurations and custom extensions.
- * @see CopyRestApiPlugin
+ * @see RestResourcesPlugin
  */
 public class CopyRestApiTask extends DefaultTask {
-    private static final Logger logger = Logging.getLogger(CopyRestApiTask.class);
     private static final String COPY_TO = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
@@ -111,14 +110,14 @@ public class CopyRestApiTask extends DefaultTask {
         Project project = getProject();
         // always copy the core specs if the task executes
         if (BuildParams.isInternal()) {
-            logger.debug("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
+            getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(coreConfig.getSingleFile());
                 c.into(getOutputDir());
                 c.include(corePatternSet.getIncludes());
             });
         } else {
-            logger.debug(
+            getLogger().debug(
                 "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
                 project.getPath(),
                 VersionProperties.getElasticsearch()
@@ -131,7 +130,7 @@ public class CopyRestApiTask extends DefaultTask {
         }
         // only copy x-pack specs if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
-            logger.debug("X-pack rest specs for project [{}] will be copied to the test resources.", project.getPath());
+            getLogger().debug("X-pack rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());

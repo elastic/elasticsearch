@@ -45,12 +45,11 @@ import java.util.stream.Collectors;
 
 /**
  * Copies the Rest YAML test to the current projects test resources output directory.
- * This is intended to be be used from {@link CopyRestApiPlugin} since the plugin wires up the needed
+ * This is intended to be be used from {@link RestResourcesPlugin} since the plugin wires up the needed
  * configurations and custom extensions.
- * @see CopyRestApiPlugin
+ * @see RestResourcesPlugin
  */
 public class CopyRestTestsTask extends DefaultTask {
-    private static final Logger logger = Logging.getLogger(CopyRestTestsTask.class);
     private static final String COPY_TO = "rest-api-spec/test";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
@@ -107,7 +106,7 @@ public class CopyRestTestsTask extends DefaultTask {
         // only copy core tests if explicitly instructed
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
-                logger.debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
+                getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
                     c.from(coreConfig.getSingleFile());
                     c.into(getOutputDir());
@@ -115,7 +114,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 });
 
             } else {
-                logger.debug(
+                getLogger().debug(
                     "Rest tests for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
                     project.getPath(),
                     VersionProperties.getElasticsearch()
@@ -129,7 +128,7 @@ public class CopyRestTestsTask extends DefaultTask {
         }
         // only copy x-pack tests if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
-            logger.debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
+            getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());

@@ -7,10 +7,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 
@@ -20,7 +18,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
  * Restores the snapshot created for the designated index via the ILM policy to an index named using the provided prefix appended to the
  * designated index name.
  */
-public class RestoreSnapshotStep extends AsyncActionStep {
+public class RestoreSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "restore-snapshot";
 
     private final String snapshotRepository;
@@ -38,8 +36,7 @@ public class RestoreSnapshotStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, ClusterStateObserver observer,
-                              Listener listener) {
+    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
         final String indexName = indexMetaData.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
@@ -65,16 +62,7 @@ public class RestoreSnapshotStep extends AsyncActionStep {
         restoreSnapshotRequest.ignoreIndexSettings(LifecycleSettings.LIFECYCLE_NAME);
         restoreSnapshotRequest.includeAliases(false);
 
-        getClient().admin().cluster().restoreSnapshot(restoreSnapshotRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(RestoreSnapshotResponse response) {
-                listener.onResponse(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        getClient().admin().cluster().restoreSnapshot(restoreSnapshotRequest,
+            ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 }

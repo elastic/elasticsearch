@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.client.Client;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -22,14 +23,16 @@ import java.util.Objects;
  * This is useful for actions like shrink or searchable snapshot that create a new index and migrate the ILM execution from the source
  * to the target index.
  */
-public class CopySettingsStep extends AsyncActionStep {
+public class CopySettingsStep extends ClusterStateActionStep {
     public static final String NAME = "copy-settings";
+
+    private static final Logger logger = LogManager.getLogger(CopySettingsStep.class);
 
     private final String[] settingsKeys;
     private final String indexPrefix;
 
-    public CopySettingsStep(StepKey key, StepKey nextStepKey, Client client, String indexPrefix, String... settingsKeys) {
-        super(key, nextStepKey, client);
+    public CopySettingsStep(StepKey key, StepKey nextStepKey, String indexPrefix, String... settingsKeys) {
+        super(key, nextStepKey);
         Objects.requireNonNull(indexPrefix);
         Objects.requireNonNull(settingsKeys);
         this.indexPrefix = indexPrefix;
@@ -42,20 +45,35 @@ public class CopySettingsStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        String indexName = indexPrefix + indexMetaData.getIndex().getName();
+    public ClusterState performAction(Index index, ClusterState clusterState) {
+        String sourceIndexName = index.getName();
+        IndexMetaData sourceIndexMetadata = clusterState.metaData().index(sourceIndexName);
+        String targetIndexName = indexPrefix + sourceIndexName;
+        IndexMetaData targetIndexMetadata = clusterState.metaData().index(targetIndexName);
 
-        Settings.Builder settings = Settings.builder();
+        if (sourceIndexMetadata == null) {
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), sourceIndexName);
+            return clusterState;
+        }
+
+        if (targetIndexMetadata == null) {
+            String errorMessage = String.format(Locale.ROOT, "index [%s] is being referenced by ILM action [%s] on step [%s] but " +
+                "it doesn't exist", targetIndexName, getKey().getAction(), getKey().getName());
+            logger.debug(errorMessage);
+            throw new IllegalStateException(errorMessage);
+        }
+
+        Settings.Builder settings = Settings.builder().put(targetIndexMetadata.getSettings());
         for (String key : settingsKeys) {
-            String value = indexMetaData.getSettings().get(key);
+            String value = sourceIndexMetadata.getSettings().get(key);
             settings.put(key, value);
         }
 
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
-            .masterNodeTimeout(getMasterTimeout(currentState))
-            .settings(settings);
-        getClient().admin().indices().updateSettings(updateSettingsRequest,
-            ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+        MetaData.Builder newMetaData = MetaData.builder(clusterState.getMetaData())
+            .put(IndexMetaData.builder(targetIndexMetadata)
+                .settings(settings));
+        return ClusterState.builder(clusterState).metaData(newMetaData).build();
     }
 
     @Override

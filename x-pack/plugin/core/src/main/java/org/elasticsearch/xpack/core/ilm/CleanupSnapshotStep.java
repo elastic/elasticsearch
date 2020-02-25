@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
@@ -63,7 +64,13 @@ public class CleanupSnapshotStep extends AsyncActionStep {
                     // during the happy flow we generate a snapshot name and that snapshot doesn't exist in the repository
                     listener.onResponse(true);
                 } else {
-                    listener.onFailure(e);
+                    if (e instanceof RepositoryMissingException) {
+                        String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                        listener.onFailure(new IllegalStateException("repository [" + snapshotRepository + "] is missing. [" + policyName +
+                            "] policy for index [" + indexName + "] cannot continue until the repository is created", e));
+                    } else {
+                        listener.onFailure(e);
+                    }
                 }
             }
         });

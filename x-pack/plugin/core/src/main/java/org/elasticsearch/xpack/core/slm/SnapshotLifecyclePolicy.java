@@ -27,12 +27,12 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
+import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 
 /**
  * A {@code SnapshotLifecyclePolicy} is a policy for the cluster including a schedule of when a
@@ -153,21 +153,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         // Snapshot name validation
         // We generate a snapshot name here to make sure it validates after applying date math
         final String snapshotName = generateSnapshotName(this.name);
-        if (Strings.hasText(name) == false) {
-            err.addValidationError("invalid snapshot name [" + name + "]: cannot be empty");
-        }
-        if (snapshotName.contains("#")) {
-            err.addValidationError("invalid snapshot name [" + name + "]: must not contain '#'");
-        }
-        if (snapshotName.charAt(0) == '_') {
-            err.addValidationError("invalid snapshot name [" + name + "]: must not start with '_'");
-        }
-        if (snapshotName.toLowerCase(Locale.ROOT).equals(snapshotName) == false) {
-            err.addValidationError("invalid snapshot name [" + name + "]: must be lowercase");
-        }
-        if (Strings.validFileName(snapshotName) == false) {
-            err.addValidationError("invalid snapshot name [" + name + "]: must not contain contain the following characters " +
-                Strings.INVALID_FILENAME_CHARS);
+        ActionRequestValidationException nameValidationErrors = validateGeneratedSnapshotName(name, snapshotName);
+        if(nameValidationErrors != null) {
+            err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
         // Schedule validation

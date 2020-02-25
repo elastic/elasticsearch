@@ -40,12 +40,12 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.State.SUCCESS;
  * newly created searchable snapshot backed index.
  */
 public class SearchableSnapshotAction implements LifecycleAction {
-    public static final String NAME = "searchable_snapshot";
+    public static final String NAME = "searchable-snapshot";
 
-    public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
-    public static final ParseField SEARCHABLE_REPOSITORY = new ParseField("searchable_repository");
+    public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot-repository");
+    public static final ParseField SEARCHABLE_REPOSITORY = new ParseField("searchable-repository");
 
-    public static final String RESTORED_INDEX_PREFIX = "ilm-restored-";
+    public static final String RESTORED_INDEX_PREFIX = "restored-";
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new SearchableSnapshotAction((String) a[0], (String) a[1]));
@@ -82,7 +82,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
-        StepKey takeSnapshotKey = new StepKey(phase, NAME, TakeSnapshotStep.NAME);
+        StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
         StepKey waitForSnapshotInProgressKey = new StepKey(phase, NAME, WaitForSnapshotInProgressStep.NAME);
         StepKey verifySnapshotStatusBranchingKey = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
         StepKey restoreFromSearchableRepoKey = new StepKey(phase, NAME, RestoreSnapshotStep.NAME);
@@ -94,8 +94,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, generateSnapshotNameKey,
             client);
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey);
-        CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, takeSnapshotKey, client, snapshotRepository);
-        TakeSnapshotStep takeSnapshotStep = new TakeSnapshotStep(takeSnapshotKey, waitForSnapshotInProgressKey, client, snapshotRepository);
+        CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client, snapshotRepository);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForSnapshotInProgressKey, client,
+            snapshotRepository);
         WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = new WaitForSnapshotInProgressStep(waitForSnapshotInProgressKey,
             verifySnapshotStatusBranchingKey, snapshotRepository);
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(verifySnapshotStatusBranchingKey,
@@ -106,14 +107,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
             copyMetadataKey, ClusterHealthStatus.GREEN, RESTORED_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
             RESTORED_INDEX_PREFIX, nextStepKey.getName());
-        CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, swapAliasesKey, client,
-            RESTORED_INDEX_PREFIX, LifecycleSettings.LIFECYCLE_NAME);
+        CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, swapAliasesKey, RESTORED_INDEX_PREFIX,
+            LifecycleSettings.LIFECYCLE_NAME);
         // sending this step to null as the restored index (which will after this step essentially be the source index) was sent to the next
         // key after we restored the lifecycle execution state
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(swapAliasesKey,
             null, client, RESTORED_INDEX_PREFIX);
 
-        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, takeSnapshotStep,
+        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotStep,
             waitForSnapshotInProgressStep, onAsyncWaitBranchingStep, restoreSnapshotStep, waitForGreenIndexHealthStep,
             copyMetadataStep, copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
     }

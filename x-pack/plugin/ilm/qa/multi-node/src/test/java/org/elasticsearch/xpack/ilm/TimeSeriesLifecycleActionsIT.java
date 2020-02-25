@@ -1615,21 +1615,15 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             randomBoolean());
 
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
-        try {
-            assertTrue(waitUntil(() -> {
-                try {
-                    return indexExists(restoredIndexName);
-                } catch (IOException e) {
-                    return false;
-                }
-            }, 30, TimeUnit.SECONDS));
-        } catch (Throwable e) {
-            System.out.println(explainIndex(index));
-            System.out.println(explainIndex(restoredIndexName));
-            throw e;
-        }
-        assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"),
-            is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own

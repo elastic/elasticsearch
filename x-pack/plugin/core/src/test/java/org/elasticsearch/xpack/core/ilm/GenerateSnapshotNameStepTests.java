@@ -5,8 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
+
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
+import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<GenerateSnapshotNameStep> {
@@ -51,5 +58,38 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(generateSnapshotName("<name-{now/M}>", resolverContext), startsWith("name-2019.03.01-"));
 
         assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", resolverContext), startsWith("name-2019-03-15.21:09:00-"));
+    }
+
+    public void testNameValidation() {
+        assertThat(validateGeneratedSnapshotName("name-", generateSnapshotName("name-")), nullValue());
+        assertThat(validateGeneratedSnapshotName("<name-{now}>", generateSnapshotName("<name-{now}>")), nullValue());
+
+        {
+            ActionRequestValidationException validationException = validateGeneratedSnapshotName("", generateSnapshotName(""));
+            assertThat(validationException, notNullValue());
+            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name []: cannot be empty"));
+        }
+        {
+            ActionRequestValidationException validationException = validateGeneratedSnapshotName("#start", generateSnapshotName("#start"));
+            assertThat(validationException, notNullValue());
+            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [#start]: must not contain '#'"));
+        }
+        {
+            ActionRequestValidationException validationException = validateGeneratedSnapshotName("_start", generateSnapshotName("_start"));
+            assertThat(validationException, notNullValue());
+            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [_start]: must not start with " +
+                "'_'"));
+        }
+        {
+            ActionRequestValidationException validationException = validateGeneratedSnapshotName("aBcD", generateSnapshotName("aBcD"));
+            assertThat(validationException, notNullValue());
+            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [aBcD]: must be lowercase"));
+        }
+        {
+            ActionRequestValidationException validationException = validateGeneratedSnapshotName("na>me", generateSnapshotName("na>me"));
+            assertThat(validationException, notNullValue());
+            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [na>me]: must not contain " +
+                "contain the following characters " + Strings.INVALID_FILENAME_CHARS));
+        }
     }
 }

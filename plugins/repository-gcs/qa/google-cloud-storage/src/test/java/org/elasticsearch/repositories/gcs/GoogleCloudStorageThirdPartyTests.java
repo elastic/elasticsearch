@@ -69,11 +69,11 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
     @Override
     protected void createRepository(final String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repoName)
             .setType("gcs")
             .setSettings(Settings.builder()
                 .put("bucket", System.getProperty("test.google.bucket"))
-                .put("base_path", System.getProperty("test.google.base", "/"))
+                .put("base_path", System.getProperty("test.google.base", "") + "/" + GoogleCloudStorageThirdPartyTests.class.getName() )
             ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }

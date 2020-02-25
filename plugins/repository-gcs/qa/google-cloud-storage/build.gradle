@@ -34,6 +34,9 @@ apply plugin: 'elasticsearch.test.fixtures'
 // TODO think about flattening qa:google-cloud-storage project into parent
 dependencies {
   testCompile project(path: ':plugins:repository-gcs')
+  // required by the third-party test for the encrypted GCS repository
+  testCompile project(path: ':x-pack:plugin:repository-encrypted')
+  testCompile project(path: ':x-pack:plugin:core')
 }
 
 testFixtures.useFixture(':test:fixtures:gcs-fixture')
@@ -101,6 +104,7 @@ task thirdPartyTest(type: Test) {
   }
 
   include '**/GoogleCloudStorageThirdPartyTests.class'
+  include '**/EncryptedGoogleCloudStorageThirdPartyTests.class'
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
@@ -126,10 +130,14 @@ processTestResources {
 
 integTest {
   dependsOn project(':plugins:repository-gcs').bundlePlugin
+  dependsOn project(':x-pack:plugin:core').bundlePlugin
+  dependsOn project(':x-pack:plugin:repository-encrypted').bundlePlugin
 }
 
 testClusters.integTest {
   plugin file(project(':plugins:repository-gcs').bundlePlugin.archiveFile)
+  plugin file(project(':x-pack:plugin:core').bundlePlugin.archiveFile)
+  plugin file(project(':x-pack:plugin:repository-encrypted').bundlePlugin.archiveFile)
 
   keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 

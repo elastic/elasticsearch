@@ -69,14 +69,14 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        createRepository("test-repo");
+        createRepository(getTestRepoName());
         deleteAndAssertEmpty(getRepository().basePath());
     }
 
     @Override
     public void tearDown() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
-        client().admin().cluster().prepareDeleteRepository("test-repo").get();
+        client().admin().cluster().prepareDeleteRepository(getTestRepoName()).get();
         super.tearDown();
     }
 
@@ -112,7 +112,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", snapshotName)
+            .prepareCreateSnapshot(getTestRepoName(), snapshotName)
             .setWaitForCompletion(true)
             .setIndices("test-idx-*", "-test-idx-3")
             .get();
@@ -122,17 +122,17 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         assertThat(client().admin()
                 .cluster()
-                .prepareGetSnapshots("test-repo")
+                .prepareGetSnapshots(getTestRepoName())
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots("test-repo")
+                .getSnapshots(getTestRepoName())
                 .get(0)
                 .state(),
             equalTo(SnapshotState.SUCCESS));
 
         assertTrue(client().admin()
                 .cluster()
-                .prepareDeleteSnapshot("test-repo", snapshotName)
+                .prepareDeleteSnapshot(getTestRepoName(), snapshotName)
                 .get()
                 .isAcknowledged());
     }
@@ -188,7 +188,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", snapshotName)
+            .prepareCreateSnapshot(getTestRepoName(), snapshotName)
             .setWaitForCompletion(true)
             .setIndices("test-idx-*", "-test-idx-3")
             .get();
@@ -198,16 +198,16 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         assertThat(client().admin()
                 .cluster()
-                .prepareGetSnapshots("test-repo")
+                .prepareGetSnapshots(getTestRepoName())
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots("test-repo")
+                .getSnapshots(getTestRepoName())
                 .get(0)
                 .state(),
             equalTo(SnapshotState.SUCCESS));
 
         final BlobStoreRepository repo =
-            (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+            (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(getTestRepoName());
         final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
 
         logger.info("--> creating a dangling index folder");
@@ -215,7 +215,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(getTestRepoName(), snapshotName)).actionGet();
 
         assertConsistentRepository(repo, genericExec);
 
@@ -223,7 +223,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> Execute repository cleanup");
-        final CleanupRepositoryResponse response = client().admin().cluster().prepareCleanupRepository("test-repo").get();
+        final CleanupRepositoryResponse response = client().admin().cluster().prepareCleanupRepository(getTestRepoName()).get();
         assertCleanupResponse(response, 3L, 1L);
     }
 
@@ -285,6 +285,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected BlobStoreRepository getRepository() {
-        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(getTestRepoName());
+    }
+
+    protected String getTestRepoName() {
+        return "test-repo";
     }
 }

@@ -66,6 +66,17 @@ public abstract class DocValuesIndexFieldData {
     public final Index index() {
         return index;
     }
+    
+    public static class BinaryBuilder implements IndexFieldData.Builder {
+
+        @Override
+        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+                CircuitBreakerService breakerService, MapperService mapperService) {
+            // Ignore Circuit Breaker
+            return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+        }
+
+    }
 
     public static class Builder implements IndexFieldData.Builder {
         private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(IdFieldMapper.NAME));

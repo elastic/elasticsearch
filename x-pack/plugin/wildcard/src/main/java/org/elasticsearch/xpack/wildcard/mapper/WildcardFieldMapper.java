@@ -36,6 +36,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -140,6 +142,7 @@ public class WildcardFieldMapper extends FieldMapper {
             super.setupFieldType(context);
             fieldType().setNumChars(numChars);
             fieldType().setMatchType(matchType);
+            fieldType().setHasDocValues(true);
             if (matchType.equals(Defaults.MATCH_TYPE_POSITION)) { 
                 fieldType().setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             } else {
@@ -474,7 +477,14 @@ public class WildcardFieldMapper extends FieldMapper {
                 bq.add(termQuery(value, context), Occur.SHOULD);
             }
             return new ConstantScoreQuery(bq.build());
-        }                
+        }     
+                
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.BinaryBuilder();
+        }
+        
     }
 
     private int ignoreAbove;

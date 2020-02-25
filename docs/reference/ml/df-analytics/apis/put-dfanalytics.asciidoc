@@ -136,6 +136,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
+`analysis`.`classification`.`class_assignment_objective`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
+
 `analysis`.`classification`.`num_top_classes`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-classes]

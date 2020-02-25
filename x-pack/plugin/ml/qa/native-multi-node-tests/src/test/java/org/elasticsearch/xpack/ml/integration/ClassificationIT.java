@@ -87,6 +87,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 null,
                 null,
                 null,
+                null,
                 null));
         registerAnalytics(config);
         putAnalytics(config);

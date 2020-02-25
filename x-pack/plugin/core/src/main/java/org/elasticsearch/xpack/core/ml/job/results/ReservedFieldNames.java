@@ -316,6 +316,7 @@ public final class ReservedFieldNames {
             Classification.NAME.getPreferredName(),
             Classification.DEPENDENT_VARIABLE.getPreferredName(),
             Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(),
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),

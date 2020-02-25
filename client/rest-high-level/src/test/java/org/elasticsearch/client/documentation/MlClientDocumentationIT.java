@@ -2979,7 +2979,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setPredictionFieldName("my_prediction_field_name") // <8>
                 .setTrainingPercent(50.0) // <9>
                 .setRandomizeSeed(1234L) // <10>
-                .setNumTopClasses(1) // <11>
+                .setClassAssignmentObjective("maximize_accuracy") // <11>
+                .setNumTopClasses(1) // <12>
                 .build();
             // end::put-data-frame-analytics-classification
 

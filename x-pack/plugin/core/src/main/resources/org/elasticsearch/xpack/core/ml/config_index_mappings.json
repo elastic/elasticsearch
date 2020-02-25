@@ -43,6 +43,9 @@
               "maximum_number_trees" : {
                 "type" : "integer"
               },
+              "class_assignment_objective" : {
+                "type" : "keyword"
+              },
               "num_top_classes" : {
                 "type" : "integer"
               },

@@ -155,12 +155,14 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             bwcAnalysis = new Classification(bwcClassification.getDependentVariable(),
                 bwcClassification.getBoostedTreeParams(),
                 bwcClassification.getPredictionFieldName(),
+                bwcClassification.getClassAssignmentObjective(),
                 bwcClassification.getNumTopClasses(),
                 bwcClassification.getTrainingPercent(),
                 42L);
             testAnalysis = new Classification(testClassification.getDependentVariable(),
                 testClassification.getBoostedTreeParams(),
                 testClassification.getPredictionFieldName(),
+                testClassification.getClassAssignmentObjective(),
                 testClassification.getNumTopClasses(),
                 testClassification.getTrainingPercent(),
                 42L);

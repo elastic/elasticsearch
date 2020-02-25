@@ -899,6 +899,14 @@ improve diversity in the ensemble. Therefore, only override this if you are
 confident that the value you choose is appropriate for the data set.
 end::n-neighbors[]
 
+tag::class-assignment-objective[]
+Defines the objective to optimize when assigning class labels. Available
+objectives are maximize_accuracy and maximize_minimum_recall. When maximizing
+accuracy class labels are choosen to maximize the number of correct predictions.
+When maximizing minimum recall labels are choosen to maximize the minimum recall
+for any class. Defaults to maximize_minimum_recall. 
+end::class-assignment-objective[]
+
 tag::num-top-classes[]
 Defines the number of categories for which the predicted 
 probabilities are reported. It must be non-negative. If it is greater than the 

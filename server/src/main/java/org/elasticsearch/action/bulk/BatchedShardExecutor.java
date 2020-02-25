@@ -449,7 +449,7 @@ public class BatchedShardExecutor implements IndexEventListener {
 
     static class ShardState {
 
-        private static final int MAX_QUEUED = 400;
+        private static final int MAX_QUEUED = 1000;
 
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
@@ -467,12 +467,21 @@ public class BatchedShardExecutor implements IndexEventListener {
         }
 
         private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {
-            if (allowReject && pendingOps.get() >= MAX_QUEUED) {
+            if (allowReject && operationRejected(shardOp)) {
                 return false;
             } else {
                 pendingOps.incrementAndGet();
                 preIndexedQueue.add(shardOp);
                 return true;
+            }
+        }
+
+        private boolean operationRejected(ShardOp shardOp) {
+            int pending = pendingOps.get();
+            if (shardOp instanceof PrimaryOp) {
+                return pending >= MAX_QUEUED;
+            } else {
+                return pending >= (MAX_QUEUED * 10);
             }
         }
 

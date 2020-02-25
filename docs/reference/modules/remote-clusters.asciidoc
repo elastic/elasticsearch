@@ -85,7 +85,7 @@ the remote cluster. Proxy mode does not require that the remote cluster nodes
 publish addresses are accessible.
 
 The proxy mode is not the default connection mode and must be configured. Similar
-to the sniff <<remote-cluster-compatibility-matrix,gateway nodes>>, the remote
+to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
 // end::how-proxy-mode-works[]

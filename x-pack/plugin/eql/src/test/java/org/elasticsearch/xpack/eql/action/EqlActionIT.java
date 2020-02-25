@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.action;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -27,7 +26,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52737")
 public class EqlActionIT extends AbstractEqlIntegTestCase {
 
     static final String indexPrefix = "endgame";

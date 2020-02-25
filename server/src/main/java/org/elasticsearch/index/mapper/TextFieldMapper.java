@@ -751,10 +751,10 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (fielddata == false) {
-            throw new IllegalArgumentException("Text fields are not optimised for operations that require per-document "
-                + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
+                throw new IllegalArgumentException("Text fields are not optimised for operations that require per-document "
+                    + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
                     + "keyword field instead. Alternatively, set fielddata=true on [" + name() + "] in order to load "
-                        + "field data by uninverting the inverted index. Note that this can use significant memory.");
+                    + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }

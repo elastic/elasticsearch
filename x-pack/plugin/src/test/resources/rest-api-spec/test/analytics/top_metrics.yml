@@ -174,6 +174,7 @@
   - do:
       catch: bad_request
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -269,6 +270,7 @@
       catch: bad_request
       search:
         size: 0
+        index: test
         body:
           aggs:
             tm:

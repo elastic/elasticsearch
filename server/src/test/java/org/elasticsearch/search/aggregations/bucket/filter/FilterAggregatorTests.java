@@ -84,7 +84,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         try {
 
             int value = randomInt(maxTerm - 1);

@@ -708,6 +708,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout, fetchPhase);
             success = true;
             return searchContext;
+        } catch (IOException e) {
+            return null;
         } finally {
             if (success == false) {
                 // we handle the case where `IndicesService#indexServiceSafe`or `IndexService#getShard`, or the DefaultSearchContext

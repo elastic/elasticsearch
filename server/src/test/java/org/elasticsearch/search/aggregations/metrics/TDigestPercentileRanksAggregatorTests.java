@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -62,13 +61,19 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 .method(PercentilesMethod.TDIGEST);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         fieldType.setName("field");
-        try (IndexReader reader = new MultiReader()) {
+
+        Directory directory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), directory);
+        try (IndexReader reader = unmappedIndexWriter.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
             PercentileRanks ranks = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
+        } finally {
+            unmappedIndexWriter.close();
+            directory.close();
         }
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -62,13 +61,19 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 .method(PercentilesMethod.HDR);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         fieldType.setName("field");
-        try (IndexReader reader = new MultiReader()) {
+
+        Directory directory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), directory);
+        try (IndexReader reader = unmappedIndexWriter.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
             PercentileRanks ranks = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
+        } finally {
+            unmappedIndexWriter.close();
+            directory.close();
         }
     }
 
@@ -106,13 +111,13 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testNullValues() throws IOException {
+    public void testNullValues() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.HDR));
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be null: [my_agg]"));
     }
 
-    public void testEmptyValues() throws IOException {
+    public void testEmptyValues() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.HDR));
 

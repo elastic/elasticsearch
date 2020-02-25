@@ -393,6 +393,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    @AwaitsFix(bugUrl = "Replace with integration test")
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
@@ -424,6 +425,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Replace with integration test")
     public void testSingleValuedFieldPartiallyUnmappedWithMissing() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
@@ -647,7 +649,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
                 assertEquals(2.0, min.getValue(), 0);
@@ -679,7 +681,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), nonDeterministicAggregationBuilder, fieldType);
                 assertTrue(min.getValue() >= 0.0 && min.getValue() <= 1.0);
@@ -687,7 +689,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
                 assertFalse(queryShardContext.isCacheable());
 
-                indexSearcher = newSearcher(indexReader, true, true);
+                indexSearcher = newIndexSearcher(indexReader);
 
                 min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
                 assertEquals(-7.0, min.getValue(), 0);
@@ -925,14 +927,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
                 verify.accept(agg);
-
             }
         }
     }
-
-
 }

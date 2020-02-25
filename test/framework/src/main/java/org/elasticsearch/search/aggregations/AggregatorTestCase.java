@@ -40,6 +40,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -222,16 +223,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 IndexSettings indexSettings,
                                                 Query query,
                                                 MultiBucketConsumer bucketConsumer,
-                                                MappedFieldType... fieldTypes) {
-        return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+                                                MappedFieldType... fieldTypes) throws IOException {
+        return createSearchContext(indexSearcher.getIndexReader(), indexSearcher.getSimilarity(),
+                indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
     }
 
-    protected SearchContext createSearchContext(IndexSearcher indexSearcher,
+    protected SearchContext createSearchContext(IndexReader indexReader,
+                                                Similarity similarity,
                                                 IndexSettings indexSettings,
                                                 Query query,
                                                 MultiBucketConsumer bucketConsumer,
                                                 CircuitBreakerService circuitBreakerService,
-                                                MappedFieldType... fieldTypes) {
+                                                MappedFieldType... fieldTypes) throws IOException {
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -244,8 +247,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 return false;
             }
         };
-        ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexSearcher.getIndexReader(),
-            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy);
+        ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexReader,
+                similarity, queryCache, queryCachingPolicy, false);
 
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
@@ -437,6 +440,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       AggregationBuilder builder,
                                                                                       int maxBucket,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+        searcher = root.context().searcher();
+
         final IndexReaderContext ctx = searcher.getTopReaderContext();
 
         final ShardSearcher[] subSearchers;
@@ -456,9 +464,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<> ();
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
 
         for (ShardSearcher subSearcher : subSearchers) {
             MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(maxBucket,

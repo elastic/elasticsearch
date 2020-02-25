@@ -261,6 +261,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "Replace with integration test")
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -537,7 +538,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
@@ -587,7 +588,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
@@ -611,14 +612,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("value");
@@ -639,9 +634,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         // Test that an aggregation not using a script does get cached
         assertTrue(aggregator.context().getQueryShardContext().isCacheable());
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 
     /**
@@ -657,14 +651,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("value");
@@ -705,8 +693,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         // Test that an aggregation using a nondeterministic script does not get cached
         assertFalse(aggregator.context().getQueryShardContext().isCacheable());
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 }

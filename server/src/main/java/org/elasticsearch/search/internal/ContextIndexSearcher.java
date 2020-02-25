@@ -19,9 +19,18 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.ExitableDirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.QueryTimeout;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
@@ -64,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -79,8 +89,18 @@ public class ContextIndexSearcher extends IndexSearcher {
     private QueryProfiler profiler;
     private Runnable checkCancelled;
 
-    public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
-        super(reader);
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
+        this(reader, similarity, queryCache, queryCachingPolicy, true);
+    }
+
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                boolean shouldWrap) throws IOException {
+        super(shouldWrap? new CancellableIndexReader((DirectoryReader) reader, new Cancellable()) : reader);
+        if (shouldWrap) {
+            ((CancellableIndexReader) getIndexReader()).setCheckCancelled(() -> checkCancelled);
+        }
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -319,5 +339,100 @@ public class ContextIndexSearcher extends IndexSearcher {
         final IndexReader reader = getIndexReader();
         assert reader instanceof DirectoryReader : "expected an instance of DirectoryReader, got " + reader.getClass();
         return (DirectoryReader) reader;
+    }
+
+    /**
+     * Wraps an {@link IndexReader} with a cancellation Runnable task.
+     */
+    private static class CancellableIndexReader extends FilterDirectoryReader {
+
+        private final Cancellable checkCancelled;
+
+        private CancellableIndexReader(DirectoryReader in, Cancellable checkCancelled) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new CancellableLeafReader(reader, checkCancelled);
+                }
+            });
+            this.checkCancelled = checkCancelled;
+        }
+
+        private void setCheckCancelled(Supplier<Runnable> checkCancelled) {
+            this.checkCancelled.setCancellable(checkCancelled);
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+            return in;
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+    }
+
+    /**
+     * Wraps a leaf reader with a cancellable task
+     */
+    private static class CancellableLeafReader extends ExitableDirectoryReader.ExitableFilterAtomicReader {
+
+        private CancellableLeafReader(LeafReader leafReader, Cancellable checkCancelled)  {
+            super(leafReader, checkCancelled);
+        }
+
+        @Override
+        public NumericDocValues getNumericDocValues(String field) throws IOException {
+            return in.getNumericDocValues(field);
+        }
+
+        @Override
+        public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+            return in.getBinaryDocValues(field);
+        }
+
+        @Override
+        public SortedDocValues getSortedDocValues(String field) throws IOException {
+            return in.getSortedDocValues(field);
+        }
+
+        @Override
+        public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
+            return in.getSortedNumericDocValues(field);
+        }
+
+        @Override
+        public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
+            return in.getSortedSetDocValues(field);
+        }
+    }
+
+    /**
+     * Implementation of {@link QueryTimeout} with a Runnable task.
+     */
+    private static class Cancellable implements QueryTimeout {
+
+        private Supplier<Runnable> cancellable;
+
+        public void setCancellable(Supplier<Runnable> cancellable) {
+            this.cancellable = cancellable;
+        }
+
+        @Override
+        public boolean shouldExit() {
+            assert cancellable != null : "checkCancelled must be set immediately after the construction of CancellableIndexReader";
+            if (cancellable.get() == null) {
+                return false;
+            }
+            cancellable.get().run();
+            return false;
+        }
+
+        @Override
+        public boolean isTimeoutEnabled() {
+            assert cancellable != null : "checkCancelled must be set immediately after the construction of CancellableIndexReader";
+            return cancellable.get() != null;
+        }
     }
 }

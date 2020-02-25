@@ -99,7 +99,7 @@ public final class ERegex extends AExpression {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
             statementExpressionNode.setLocation(location);
 
-            BlockNode blockNode = classNode.getClinitNode().getBlockNode();
+            BlockNode blockNode = classNode.getClinitBlockNode();
             blockNode.addStatementNode(statementExpressionNode);
 
             MemberFieldStoreNode memberFieldStoreNode = new MemberFieldStoreNode();

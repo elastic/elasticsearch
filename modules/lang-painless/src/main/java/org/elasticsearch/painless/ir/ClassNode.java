@@ -28,6 +28,7 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.invoke.MethodType;
@@ -44,7 +45,7 @@ public class ClassNode extends IRNode {
 
     private final List<FieldNode> fieldNodes = new ArrayList<>();
     private final List<FunctionNode> functionNodes = new ArrayList<>();
-    private final FunctionNode clinitNode;
+    private final BlockNode clinitBlockNode;
 
     public void addFieldNode(FieldNode fieldNode) {
         fieldNodes.add(fieldNode);
@@ -62,8 +63,8 @@ public class ClassNode extends IRNode {
         return functionNodes;
     }
 
-    public FunctionNode getClinitNode() {
-        return clinitNode;
+    public BlockNode getClinitBlockNode() {
+        return clinitBlockNode;
     }
 
     /* ---- end tree structure, begin node data ---- */
@@ -117,21 +118,10 @@ public class ClassNode extends IRNode {
     /* ---- end node data ---- */
 
     public ClassNode() {
-        clinitNode = new FunctionNode();
-        clinitNode.setLocation(new Location("internal$clinit", 0));
-        clinitNode.setName("<clinit>");
-        clinitNode.setReturnType(void.class);
-        clinitNode.setStatic(true);
-        clinitNode.setVarArgs(false);
-        clinitNode.setSynthetic(false);
-        clinitNode.setMaxLoopCounter(0);
-
-        BlockNode blockNode = new BlockNode();
-        blockNode.setLocation(new Location("internal$clinit$blocknode", 0));
-        blockNode.setAllEscape(true);
-        blockNode.setStatementCount(1);
-
-        clinitNode.setBlockNode(blockNode);
+        clinitBlockNode = new BlockNode();
+        clinitBlockNode.setLocation(new Location("internal$clinit$blocknode", 0));
+        clinitBlockNode.setAllEscape(true);
+        clinitBlockNode.setStatementCount(1);
     }
 
     public byte[] write() {
@@ -169,12 +159,13 @@ public class ClassNode extends IRNode {
         constructor.returnValue();
         constructor.endMethod();
 
-        if (clinitNode.getBlockNode().getStatementsNodes().isEmpty() == false) {
-            ReturnNode returnNode = new ReturnNode();
-            returnNode.setLocation(new Location("internal$clinit$return", 0));
-            clinitNode.getBlockNode().addStatementNode(returnNode);
-
-            clinitNode.write(classWriter, null, new ScopeTable());
+        if (clinitBlockNode.getStatementsNodes().isEmpty() == false) {
+            MethodWriter methodWriter = classWriter.newMethodWriter(
+                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                    new Method("<clinit>", Type.getType(void.class), new Type[0]));
+            clinitBlockNode.write(classWriter, methodWriter, new ScopeTable());
+            methodWriter.returnValue();
+            methodWriter.endMethod();
         }
 
         // Write all fields:

@@ -430,7 +430,7 @@ Total amount of physical memory across all selected nodes.
 
 `nodes.os.mem.total_in_bytes`::
 (integer)
-Total bytes of physical memory across all selected nodes.
+Total amount, in bytes, of physical memory across all selected nodes.
 
 `nodes.os.mem.free`::
 (<<byte-units, byte units>>)
@@ -438,7 +438,7 @@ Amount of free physical memory across all selected nodes.
 
 `nodes.os.mem.free_in_bytes`::
 (integer)
-Bytes of free physical memory across all selected nodes.
+Amount, in bytes, of free physical memory across all selected nodes.
 
 `nodes.os.mem.used`::
 (<<byte-units, byte units>>)
@@ -446,15 +446,15 @@ Amount of physical memory in use across all selected nodes.
 
 `nodes.os.mem.used_in_bytes`::
 (integer)
-Bytes of physical memory in use across all selected nodes.
+Amount, in bytes, of physical memory in use across all selected nodes.
 
 `nodes.os.mem.free_percent`::
 (integer)
-Percentage of free memory across all selected nodes.
+Percentage of free physical memory across all selected nodes.
 
 `nodes.os.mem.used_percent`::
 (integer)
-Percentage of memory in use across all selected nodes.
+Percentage of physical memory in use across all selected nodes.
 
 `nodes.process.cpu.percent`::
 (integer)

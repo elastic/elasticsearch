@@ -118,7 +118,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         }
 
         private void visit(BooleanQuery.Builder bqb, GeometryCollection<?> collection) {
-            BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
+            BooleanClause.Occur occur = BooleanClause.Occur.FILTER;
             for (Geometry shape : collection) {
                 bqb.add(shape.visit(this), occur);
             }

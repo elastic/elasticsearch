@@ -33,6 +33,7 @@ import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPointBuilder;
+import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -290,6 +291,72 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         assertNotEquals("1", response.getHits().getAt(0).getId());
         assertNotEquals("1", response.getHits().getAt(1).getId());
     }
+
+    public void testPolygonSpanningDateline() throws Exception {
+        XContentBuilder mapping = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        String doc1 = "{\"geo\":{\"coordinates\":[" + "-169," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc2 = "{\"geo\":{\"coordinates\":[" + "-179," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc3 = "{\"geo\":{\"coordinates\":[" + "171," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
+                    .coordinate(-177, 10)
+                    .coordinate(177, 10)
+                    .coordinate(177, 5)
+                    .coordinate(-177, 5)
+                    .coordinate(-177, 10));
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+        assertNotEquals("1", response.getHits().getAt(0).getId());
+        assertNotEquals("3", response.getHits().getAt(0).getId());
+    }
+
+    public void testMultiPolygonSpanningDateline() throws Exception {
+        XContentBuilder mapping = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        String doc1 = "{\"geo\":{\"coordinates\":[" + "-169," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc2 = "{\"geo\":{\"coordinates\":[" + "-179," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc3 = "{\"geo\":{\"coordinates\":[" + "171," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        MultiPolygonBuilder multiPolygon = new MultiPolygonBuilder()
+            .polygon(new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-167, 10)
+                .coordinate(-171, 10)
+                .coordinate(171, 5)
+                .coordinate(-167, 5)
+                .coordinate(-167, 10)))
+            .polygon(new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-177, 10)
+                .coordinate(177, 10)
+                .coordinate(177, 5)
+                .coordinate(-177, 5)
+                .coordinate(-177, 10)));
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertNotEquals("3", response.getHits().getAt(0).getId());
+        assertNotEquals("3", response.getHits().getAt(1).getId());
+    }
+
 
     public void testGeometryCollectionRelations() throws Exception {
         XContentBuilder mapping = createDefaultMapping();

@@ -6,14 +6,15 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
-// bring in watcher rest test suite
-task copyWatcherRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/watcher/**'
+restResources {
+  restApi {
+    includeXpack 'watcher', 'security', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
 }
 
-integTest.runner.dependsOn copyWatcherRestTests
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.ilm.enabled', 'false'

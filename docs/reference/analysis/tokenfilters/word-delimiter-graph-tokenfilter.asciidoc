@@ -32,23 +32,23 @@ Parameters include:
 
 `generate_word_parts`::
     If `true` causes parts of words to be
-    generated: "PowerShot" => "Power" "Shot". Defaults to `true`.
+    generated: "PowerShot" -> "Power" "Shot". Defaults to `true`.
 
 `generate_number_parts`::
     If `true` causes number subwords to be
-    generated: "500-42" => "500" "42". Defaults to `true`.
+    generated: "500-42" -> "500" "42". Defaults to `true`.
 
 `catenate_words`::
     If `true` causes maximum runs of word parts to be
-    catenated: "wi-fi" => "wifi". Defaults to `false`.
+    catenated: "wi-fi" -> "wifi". Defaults to `false`.
 
 `catenate_numbers`::
     If `true` causes maximum runs of number parts to
-    be catenated: "500-42" => "50042". Defaults to `false`.
+    be catenated: "500-42" -> "50042". Defaults to `false`.
 
 `catenate_all`::
     If `true` causes all subword parts to be catenated:
-    "wi-fi-4000" => "wifi4000". Defaults to `false`.
+    "wi-fi-4000" -> "wifi4000". Defaults to `false`.
 
 `split_on_case_change`::
     If `true` causes "PowerShot" to be two tokens;
@@ -56,7 +56,7 @@ Parameters include:
 
 `preserve_original`::
     If `true` includes original words in subwords:
-    "500-42" => "500-42" "500" "42". Defaults to `false`.
+    "500-42" -> "500-42" "500" "42". Defaults to `false`.
 
 `split_on_numerics`::
     If `true` causes "j2se" to be three tokens; "j"
@@ -64,7 +64,7 @@ Parameters include:
 
 `stem_english_possessive`::
     If `true` causes trailing "'s" to be
-    removed for each subword: "O'Neil's" => "O", "Neil". Defaults to `true`.
+    removed for each subword: "O'Neil's" -> "O", "Neil". Defaults to `true`.
 
 Advance settings include:
 

@@ -50,11 +50,21 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
+import org.elasticsearch.rest.action.admin.indices.RestIndexPutAliasAction;
+import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
+import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -70,7 +80,7 @@ import static java.util.Collections.unmodifiableList;
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting("kibana.system_indices",
-        unmodifiableList(Arrays.asList(".kibana", ".kibana_task_manager")), Function.identity(), Property.NodeScope);
+        unmodifiableList(Arrays.asList(".kibana", ".kibana_task_manager", ".reporting")), Function.identity(), Property.NodeScope);
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
@@ -86,12 +96,32 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         final List<String> allowedIndexPatterns = KIBANA_INDEX_NAMES_SETTING.get(settings);
         return List.of(
+            // Based on https://github.com/elastic/kibana/issues/49764
+            // apis needed to perform migrations... ideally these will go away
+            new KibanaWrappedRestHandler(new RestCreateIndexAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestGetAliasesAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestIndexPutAliasAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestRefreshAction(), allowedIndexPatterns),
+
+            // apis needed to access saved objects
             new KibanaWrappedRestHandler(new RestGetAction(), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestMultiGetAction(settings), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestSearchAction(), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestBulkAction(settings), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestDeleteAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestDeleteByQueryAction(), allowedIndexPatterns));
+            new KibanaWrappedRestHandler(new RestDeleteByQueryAction(), allowedIndexPatterns),
+
+            // api used for testing
+            new KibanaWrappedRestHandler(new RestUpdateSettingsAction(), allowedIndexPatterns),
+
+            // apis used specifically by reporting
+            new KibanaWrappedRestHandler(new RestGetIndicesAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestIndexAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestUpdateAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestSearchScrollAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestClearScrollAction(), allowedIndexPatterns)
+        );
+
     }
 
     @Override

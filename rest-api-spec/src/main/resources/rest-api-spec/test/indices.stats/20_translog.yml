@@ -257,6 +257,10 @@
   - match: { indices.test.primaries.translog.operations: 1 }
   - match: { indices.test.primaries.translog.uncommitted_operations: 1 }
   - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+  - do:
       indices.close:
         index: test
         wait_for_active_shards: 1

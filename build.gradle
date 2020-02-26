@@ -113,6 +113,7 @@ subprojects {
       ':distribution:tools:java-version-checker',
       ':distribution:tools:launchers',
       ':distribution:tools:plugin-cli',
+      ':qa:os',
       ':x-pack:plugin:enrich'
     ]
 

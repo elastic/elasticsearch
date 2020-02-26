@@ -77,10 +77,7 @@ public class Docker {
     public static void ensureImageIsLoaded(Distribution distribution) {
         Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name);
 
-        final long count = Arrays.stream(result.stdout.split("\n"))
-            .map(String::trim)
-            .filter(s -> s.isEmpty() == false)
-            .count();
+        final long count = Arrays.stream(result.stdout.split("\n")).map(String::trim).filter(s -> s.isEmpty() == false).count();
 
         if (count != 0) {
             return;

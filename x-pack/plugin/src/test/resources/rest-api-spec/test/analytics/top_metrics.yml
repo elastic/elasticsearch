@@ -8,7 +8,7 @@
           - '{"index": {}}'
           - '{"s": 1, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2, "v": 1}'
+          - '{"s": 2, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3, "v": 2.71828}'
 
@@ -73,7 +73,7 @@
           - '{"index": {}}'
           - '{"s": 1.0, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2.0, "v": 1}'
+          - '{"s": 2.0, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3.0, "v": 2.71828}'
 
@@ -123,7 +123,7 @@
           - '{"index": {}}'
           - '{"s": 1, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2, "v": 1}'
+          - '{"s": 2, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3, "v": 2.71828}'
 
@@ -157,6 +157,13 @@
 ---
 "sort by keyword field fails":
   - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
       bulk:
         index: test
         refresh: true
@@ -167,6 +174,7 @@
   - do:
       catch: bad_request
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -180,6 +188,13 @@
 ---
 "sort by score":
   - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The score isn't predictable with more than one shard
+
+  - do:
       bulk:
         index: test
         refresh: true
@@ -187,7 +202,7 @@
           - '{"index": {}}'
           - '{"s": "big cat", "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": "cat", "v": 1}'
+          - '{"s": "cat", "v": 1.0}'
           - '{"index": {}}'
           - '{"s": "the small dog", "v": 2.71828}'
 
@@ -237,6 +252,13 @@
 ---
 "sort by string script fails":
   - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
       bulk:
         index: test
         refresh: true
@@ -248,6 +270,7 @@
       catch: bad_request
       search:
         size: 0
+        index: test
         body:
           aggs:
             tm:

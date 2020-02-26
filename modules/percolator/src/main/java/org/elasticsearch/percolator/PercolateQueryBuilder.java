@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -35,7 +36,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
@@ -74,6 +76,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
@@ -561,8 +564,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
         String name = this.name != null ? this.name : pft.name();
         QueryShardContext percolateShardContext = wrap(context);
-        percolateShardContext.setAllowUnmappedFields(false);
-        percolateShardContext.setMapUnmappedFieldAsString(pft.mapUnmappedFieldsAsText);
+        PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
             percolateShardContext);
 
@@ -587,8 +589,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, Collection<ParsedDocument> docs) {
-        RAMDirectory ramDirectory = new RAMDirectory();
-        try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(analyzer))) {
+        Directory directory = new ByteBuffersDirectory();
+        try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(analyzer))) {
             // Indexing in order here, so that the user provided order matches with the docid sequencing:
             Iterable<ParseContext.Document> iterable = () -> docs.stream()
                 .map(ParsedDocument::docs)
@@ -633,6 +635,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             assert valueLength > 0;
                             QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                             assert in.read() == -1;
+                            queryBuilder = Rewriteable.rewrite(queryBuilder, context);
                             return queryBuilder.toQuery(context);
                         }
                     }
@@ -645,6 +648,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     static QueryShardContext wrap(QueryShardContext shardContext) {
         return new QueryShardContext(shardContext) {
+
+            @Override
+            public IndexReader getIndexReader() {
+                // The reader that matters in this context is not the reader of the shard but
+                // the reader of the MemoryIndex. We just use `null` for simplicity.
+                return null;
+            }
 
             @Override
             public BitSetProducer bitsetFilter(Query query) {

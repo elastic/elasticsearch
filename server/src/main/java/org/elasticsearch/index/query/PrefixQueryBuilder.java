@@ -182,9 +182,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 // since rewrites might happen on a network thread.
                 Query query = fieldType.prefixQuery(value, null, context); // the rewrite method doesn't matter
                 if (query instanceof MatchAllDocsQuery) {
-                    return new MatchAllQueryBuilder().queryName(queryName).boost(boost);
+                    return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
                 }
             }
         }

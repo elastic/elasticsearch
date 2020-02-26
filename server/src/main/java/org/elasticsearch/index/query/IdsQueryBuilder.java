@@ -140,11 +140,9 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             return new MatchNoneQueryBuilder();
         }
         QueryShardContext context = queryRewriteContext.convertToShardContext();
-        if (context != null) {
-            if (context.fieldMapper(IdFieldMapper.NAME) == null) {
-                // no mappings yet
-                return new MatchNoneQueryBuilder();
-            }
+        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+            // no mappings yet
+            return new MatchNoneQueryBuilder();
         }
         return super.doRewrite(queryRewriteContext);
     }

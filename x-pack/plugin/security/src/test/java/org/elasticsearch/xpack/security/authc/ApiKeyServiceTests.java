@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;

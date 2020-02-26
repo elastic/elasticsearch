@@ -4797,8 +4797,8 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.syncTranslog();
                 }
                 if (frequently()) {
-                    engine.flush(randomBoolean(), true);
                     final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+                    engine.flush(randomBoolean(), true);
                     final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                     // Keep only one safe commit as the oldest commit.
                     final IndexCommit safeCommit = commits.get(0);

@@ -67,14 +67,12 @@ import static org.junit.Assume.assumeTrue;
  * Class that all packaging test cases should inherit from
  */
 @RunWith(RandomizedRunner.class)
-@TestMethodProviders({
-    JUnit3MethodProvider.class
-})
+@TestMethodProviders({ JUnit3MethodProvider.class })
 @Timeout(millis = 20 * 60 * 1000) // 20 min
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class PackagingTestCase extends Assert {
 
-    protected final Logger logger =  LogManager.getLogger(getClass());
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     // the distribution being tested
     protected static final Distribution distribution;
@@ -142,19 +140,14 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
-
     @Before
     public void setup() throws Exception {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh.reset();
         if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
-            Platforms.onWindows(() -> {
-                sh.getEnv().put("JAVA_HOME", systemJavaHome);
-            });
+            Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
+            Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
     }
 
@@ -208,15 +201,14 @@ public abstract class PackagingTestCase extends Assert {
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand());
-        } catch (Exception e ){
+        } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
                 logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
                 sh.runIgnoreExitCode("jstack " + pid);
             }
             if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
-                logger.warn("Elasticsearch log:\n" +
-                    FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+                logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             }
             if (Files.exists(installation.logs.resolve("output.out"))) {
                 logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
@@ -230,8 +222,7 @@ public abstract class PackagingTestCase extends Assert {
         try {
             assertions.run();
         } catch (Exception e) {
-            logger.warn("Elasticsearch log:\n" +
-                FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             throw e;
         }
         stopElasticsearch();
@@ -345,9 +336,11 @@ public abstract class PackagingTestCase extends Assert {
             // in the background
             String wrapperPid = result.stdout.trim();
             sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
-            sh.runIgnoreExitCode("Get-EventSubscriber | " +
-                "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
-                "Unregister-EventSubscriber -Force");
+            sh.runIgnoreExitCode(
+                "Get-EventSubscriber | "
+                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
+                    + "Unregister-EventSubscriber -Force"
+            );
             assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));
 
         } else {

@@ -67,17 +67,20 @@ public class CentroidCalculator {
      * @param weight the associated weight of the coordinate
      */
     private void addCoordinate(double x, double y, double weight, DimensionalShapeType dimensionalShapeType) {
-        if (this.dimensionalShapeType == null || this.dimensionalShapeType == dimensionalShapeType) {
-            compSumX.add(x * weight);
-            compSumY.add(y * weight);
-            compSumWeight.add(weight);
-            this.dimensionalShapeType = dimensionalShapeType;
-        } else if (dimensionalShapeType.compareTo(this.dimensionalShapeType) > 0) {
-            // reset counters
-            compSumX.reset(x * weight, 0);
-            compSumY.reset(y * weight, 0);
-            compSumWeight.reset(weight, 0);
-            this.dimensionalShapeType = dimensionalShapeType;
+        // x and y can be infinite due to really small areas and rounding problems
+        if (Double.isFinite(x) && Double.isFinite(y)) {
+            if (this.dimensionalShapeType == null || this.dimensionalShapeType == dimensionalShapeType) {
+                compSumX.add(x * weight);
+                compSumY.add(y * weight);
+                compSumWeight.add(weight);
+                this.dimensionalShapeType = dimensionalShapeType;
+            } else if (dimensionalShapeType.compareTo(this.dimensionalShapeType) > 0) {
+                // reset counters
+                compSumX.reset(x * weight, 0);
+                compSumY.reset(y * weight, 0);
+                compSumWeight.reset(weight, 0);
+                this.dimensionalShapeType = dimensionalShapeType;
+            }
         }
     }
 

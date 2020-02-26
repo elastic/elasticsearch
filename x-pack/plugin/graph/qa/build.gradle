@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 subprojects {
@@ -15,3 +16,5 @@ subprojects {
     }
   }
 }
+=======
+>>>>>>> 810dc9fce3a... Smarter copying of the rest specs and tests (#52114)

@@ -2,6 +2,12 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
+restResources {
+  restApi {
+    includeXpack 'enrich'
+  }
+}
+
 dependencies {
   testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
   testCompile project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')

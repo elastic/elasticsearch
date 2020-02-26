@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -50,6 +51,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
@@ -110,11 +112,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
         }
         if (randomBoolean()) {
-            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()));
+            builder.setIndicesOptions(IndicesOptions.fromParameters(
+                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                SearchRequest.DEFAULT_INDICES_OPTIONS));
         }
         return builder.build();
     }
@@ -444,11 +447,21 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             }
             break;
         case 11:
-            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()));
+            if (instance.getIndicesOptions() != null) {
+                builder.setIndicesOptions(IndicesOptions.fromParameters(
+                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
+                    Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
+                    Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS));
+            } else {
+                builder.setIndicesOptions(IndicesOptions.fromParameters(
+                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    Boolean.toString(randomBoolean()),
+                    Boolean.toString(randomBoolean()),
+                    Boolean.toString(randomBoolean()),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS));
+            }
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

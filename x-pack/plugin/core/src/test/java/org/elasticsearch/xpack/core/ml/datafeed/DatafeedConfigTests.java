@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -58,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
@@ -143,11 +145,12 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
-        builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean()));
+        builder.setIndicesOptions(IndicesOptions.fromParameters(
+            randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+            Boolean.toString(randomBoolean()),
+            Boolean.toString(randomBoolean()),
+            Boolean.toString(randomBoolean()),
+            SearchRequest.DEFAULT_INDICES_OPTIONS));
         return builder;
     }
 
@@ -759,7 +762,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             xContentType);
 
         DatafeedConfig parsedDatafeedConfig = doParseInstance(parser);
-        assertEquals(datafeedConfig.getAggregations(), parsedDatafeedConfig.getAggregations());
+        assertEquals(datafeedConfig, parsedDatafeedConfig);
 
         // Assert that the parsed versions of our aggs and queries work as well
         assertEquals(aggBuilder, parsedDatafeedConfig.getParsedAggregations(xContentRegistry()));
@@ -948,11 +951,12 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             }
             break;
         case 11:
-            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()));
+            builder.setIndicesOptions(IndicesOptions.fromParameters(
+                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
+                Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
+                Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
+                SearchRequest.DEFAULT_INDICES_OPTIONS));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

@@ -158,7 +158,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             DELAYED_DATA_CHECK_CONFIG);
         parser.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
         parser.declareObject(Builder::setIndicesOptions,
-            (p, c) -> IndicesOptions.fromMap(p.map(), new IndicesOptions(IndicesOptions.Option.NONE, IndicesOptions.WildcardStates.NONE)),
+            (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
             INDICES_OPTIONS);
         return parser;
     }

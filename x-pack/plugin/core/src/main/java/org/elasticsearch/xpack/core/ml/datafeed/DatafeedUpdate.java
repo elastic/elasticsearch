@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -81,7 +82,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG);
         PARSER.declareInt(Builder::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
         PARSER.declareObject(Builder::setIndicesOptions,
-            (p, c) -> IndicesOptions.fromMap(p.map(), new IndicesOptions(IndicesOptions.Option.NONE, IndicesOptions.WildcardStates.NONE)),
+            (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
             DatafeedConfig.INDICES_OPTIONS);
     }
 

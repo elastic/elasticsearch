@@ -13,7 +13,7 @@ functionality of the {xpack} components. For more information, see
 https://www.elastic.co/subscriptions.
 
 * <<installing-xpack-es>>
-* <<configuring-monitoring>>
+* <<monitor-elasticsearch-cluster>>
 * <<configuring-security>>
 * <<setup-xpack-client>>
 * <<settings-xpack>>

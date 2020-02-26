@@ -50,6 +50,15 @@ public abstract class SourceGenerator {
         sortBuilder.build(source);
         optimize(sortBuilder, source);
 
+        // set fetch size
+        if (size != null) {
+            int sz = size;
+
+            if (source.size() == -1) {
+                source.size(sz);
+            }
+        }
+
         return source;
     }
 

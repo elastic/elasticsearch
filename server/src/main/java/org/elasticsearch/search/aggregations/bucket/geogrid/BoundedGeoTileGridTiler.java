@@ -60,7 +60,7 @@ public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
         return valuesIdx;
     }
 
-    private boolean cellIntersectsGeoBoundingBox(Rectangle rectangle) {
+    boolean cellIntersectsGeoBoundingBox(Rectangle rectangle) {
         return (boundsTop >= rectangle.getMinY() && boundsBottom <= rectangle.getMaxY()
             && (boundsEastLeft <= rectangle.getMaxX() && boundsEastRight >= rectangle.getMinX()
             || (crossesDateline && boundsWestLeft <= rectangle.getMaxX() && boundsWestRight >= rectangle.getMinX())));
@@ -93,8 +93,10 @@ public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
             for (int j = 0; j < 2; j++) {
                 int nextX = 2 * xTile + i;
                 int nextY = 2 * yTile + j;
-                if (zTile == targetPrecision && cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(nextX, nextY, zTile))) {
-                    values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
+                if (zTile == targetPrecision) {
+                    if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(nextX, nextY, zTile))) {
+                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
+                    }
                 } else {
                     valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
                 }

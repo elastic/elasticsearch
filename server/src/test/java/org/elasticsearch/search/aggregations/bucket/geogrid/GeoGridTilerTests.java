@@ -84,6 +84,65 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
+    public void testAdvancePointValue() {
+        for (int i = 0; i < 100; i++) {
+            int precision = randomIntBetween(1, 6);
+            int size = randomIntBetween(1, 10);
+            long[] values = new long[size];
+            int idx = randomIntBetween(0, size - 1);
+            Point point = GeometryTestUtils.randomPoint(false);
+            for (GeoGridTiler tiler : List.of(GEOTILE, GEOHASH)) {
+                int newIdx = tiler.advancePointValue(values, point.getX(), point.getY(), precision, idx);
+                assertThat(newIdx, equalTo(idx + 1));
+                assertThat(values[idx], equalTo(tiler.encode(point.getX(), point.getY(), precision)));
+            }
+        }
+    }
+
+    public void testBoundedGeotileAdvancePointValue() {
+        for (int i = 0; i < 100; i++) {
+            int precision = randomIntBetween(1, 6);
+            int size = randomIntBetween(1, 10);
+            long[] values = new long[size];
+            int idx = randomIntBetween(0, size - 1);
+            Point point = GeometryTestUtils.randomPoint(false);
+            GeoBoundingBox geoBoundingBox = GeoBoundingBoxTests.randomBBox();
+
+            BoundedGeoTileGridTiler tiler = new BoundedGeoTileGridTiler(geoBoundingBox);
+            int newIdx = tiler.advancePointValue(values, point.getX(), point.getY(), precision, idx);
+            if (newIdx == idx + 1) {
+                assertTrue(tiler.cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(values[idx])));
+                assertThat(values[idx], equalTo(tiler.encode(point.getX(), point.getY(), precision)));
+                assertThat(newIdx, equalTo(idx + 1));
+            } else {
+                assertThat(newIdx, equalTo(idx));
+                assertThat(values[idx], equalTo(0L));
+            }
+        }
+    }
+
+    public void testBoundedGeohashAdvancePointValue() {
+        for (int i = 0; i < 100; i++) {
+            int precision = randomIntBetween(1, 6);
+            int size = randomIntBetween(1, 10);
+            long[] values = new long[size];
+            int idx = randomIntBetween(0, size - 1);
+            Point point = GeometryTestUtils.randomPoint(false);
+            GeoBoundingBox geoBoundingBox = GeoBoundingBoxTests.randomBBox();
+
+            BoundedGeoHashGridTiler tiler = new BoundedGeoHashGridTiler(geoBoundingBox);
+            int newIdx = tiler.advancePointValue(values, point.getX(), point.getY(), precision, idx);
+            if (newIdx == idx + 1) {
+                assertTrue(tiler.cellIntersectsGeoBoundingBox(Geohash.toBoundingBox(Geohash.stringEncode(values[idx]))));
+                assertThat(values[idx], equalTo(tiler.encode(point.getX(), point.getY(), precision)));
+                assertThat(newIdx, equalTo(idx + 1));
+            } else {
+                assertThat(newIdx, equalTo(idx));
+                assertThat(values[idx], equalTo(0L));
+            }
+        }
+    }
+
     public void testGeoTileSetValuesBruteAndRecursiveMultiline() throws Exception {
         MultiLine geometry = GeometryTestUtils.randomMultiLine(false);
         checkGeoTileSetValuesBruteAndRecursive(geometry);
@@ -295,6 +354,11 @@ public class GeoGridTilerTests extends ESTestCase {
         } else {
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
             int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
+
+            if (minXTile == maxXTile && minYTile == maxYTile) {
+                return tileIntersectsBounds(minXTile, minYTile, precision, geoBox) ? 1 : 0;
+            }
+
             for (int x = minXTile; x <= maxXTile; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
@@ -434,6 +498,11 @@ public class GeoGridTilerTests extends ESTestCase {
         } else {
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
             int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
+
+            if (minXTile == maxXTile && minYTile == maxYTile) {
+                return 1;
+            }
+
             for (int x = minXTile; x <= maxXTile; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);

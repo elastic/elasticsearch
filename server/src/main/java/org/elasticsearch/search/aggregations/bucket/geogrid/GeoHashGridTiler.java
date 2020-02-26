@@ -62,8 +62,7 @@ public class GeoHashGridTiler implements GeoGridTiler {
         return 1;
     }
 
-    protected GeoRelation relateTile(MultiGeoValues.GeoValue geoValue, double x, double y, int precision) {
-        String hash = Geohash.stringEncode(x, y, precision);
+    protected GeoRelation relateTile(MultiGeoValues.GeoValue geoValue, String hash) {
         Rectangle rectangle = Geohash.toBoundingBox(hash);
         return geoValue.relate(rectangle);
     }
@@ -82,8 +81,8 @@ public class GeoHashGridTiler implements GeoGridTiler {
         double maxX = Geohash.decodeLongitude(max);
         for (double i = minX; i <= maxX; i += Geohash.lonWidthInDegrees(precision)) {
             for (double j = minY; j <= maxY; j += Geohash.latHeightInDegrees(precision)) {
-                Rectangle rectangle = Geohash.toBoundingBox(Geohash.stringEncode(i, j, precision));
-                GeoRelation relation = geoValue.relate(rectangle);
+                String hash = Geohash.stringEncode(i, j, precision);
+                GeoRelation relation = relateTile(geoValue, hash);
                 if (relation != GeoRelation.QUERY_DISJOINT) {
                     values.resizeCell(idx + 1);
                     values.add(idx++,  encode(i, j, precision));
@@ -97,8 +96,7 @@ public class GeoHashGridTiler implements GeoGridTiler {
                                            MultiGeoValues.GeoValue geoValue) {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {
-            Rectangle rectangle = Geohash.toBoundingBox(hashes[i]);
-            GeoRelation relation = geoValue.relate(rectangle);
+            GeoRelation relation = relateTile(geoValue, hashes[i]);
             if (relation == GeoRelation.QUERY_CROSSES) {
                 if (hashes[i].length() == targetPrecision) {
                     values.resizeCell(valuesIndex + 1);

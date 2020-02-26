@@ -62,15 +62,16 @@ public class BoundedGeoHashGridTiler extends GeoHashGridTiler {
         return valuesIdx;
     }
 
-    private boolean cellIntersectsGeoBoundingBox(Rectangle rectangle) {
+    boolean cellIntersectsGeoBoundingBox(Rectangle rectangle) {
         return (boundsTop >= rectangle.getMinY() && boundsBottom <= rectangle.getMaxY()
             && (boundsEastLeft <= rectangle.getMaxX() && boundsEastRight >= rectangle.getMinX()
             || (crossesDateline && boundsWestLeft <= rectangle.getMaxX() && boundsWestRight >= rectangle.getMinX())));
     }
 
+    @Override
     protected int setValue(CellValues docValues, MultiGeoValues.GeoValue geoValue, MultiGeoValues.BoundingBox bounds, int precision) {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
-        GeoRelation relation = relateTile(geoValue, bounds.minX(), bounds.minY(), precision);
+        GeoRelation relation = relateTile(geoValue, hash);
         if (relation != GeoRelation.QUERY_DISJOINT) {
             docValues.resizeCell(1);
             docValues.add(0, Geohash.longEncode(hash));
@@ -79,8 +80,8 @@ public class BoundedGeoHashGridTiler extends GeoHashGridTiler {
         return 0;
     }
 
-    protected GeoRelation relateTile(MultiGeoValues.GeoValue geoValue, double x, double y, int precision) {
-        String hash = Geohash.stringEncode(x, y, precision);
+    @Override
+    protected GeoRelation relateTile(MultiGeoValues.GeoValue geoValue, String hash) {
         Rectangle rectangle = Geohash.toBoundingBox(hash);
         if (cellIntersectsGeoBoundingBox(rectangle)) {
             return geoValue.relate(rectangle);
@@ -94,8 +95,10 @@ public class BoundedGeoHashGridTiler extends GeoHashGridTiler {
                                                int valuesIndex, int targetPrecision) {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {
-            if (hashes[i].length() == targetPrecision && cellIntersectsGeoBoundingBox(Geohash.toBoundingBox(hashes[i]))) {
-                values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+            if (hashes[i].length() == targetPrecision ) {
+                if (cellIntersectsGeoBoundingBox(Geohash.toBoundingBox(hashes[i]))) {
+                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                }
             } else {
                 valuesIndex = setValuesForFullyContainedTile(hashes[i], values, valuesIndex, targetPrecision);
             }

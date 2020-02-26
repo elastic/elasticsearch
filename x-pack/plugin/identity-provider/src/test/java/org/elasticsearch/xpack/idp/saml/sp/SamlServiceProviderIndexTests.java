@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -127,6 +129,32 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(allDocs, hasItem(Matchers.equalTo(document)));
 
         assertThat(readDocument(serviceProviderIndex, document.docId), equalTo(document));
+    }
+
+    public void testInstallTemplateAutomaticallyOnClusterChange() {
+        // Create an index that will trigger a cluster state change
+        client().admin().indices().create(new CreateIndexRequest(randomAlphaOfLength(7).toLowerCase(Locale.ROOT))).actionGet();
+
+        IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
+        assertNotNull(templateMeta);
+
+        final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
+        serviceProviderIndex.installIndexTemplate(installTemplate);
+        assertFalse("Template is already installed, should not install again", installTemplate.actionGet());
+    }
+
+    public void testInstallTemplateAutomaticallyOnDocumentWrite() {
+        final SamlServiceProviderDocument doc = randomDocument(1);
+        writeDocument(serviceProviderIndex, doc);
+
+        assertThat(readDocument(serviceProviderIndex, doc.docId), equalTo(doc));
+
+        IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
+        assertNotNull(templateMeta);
+
+        final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
+        serviceProviderIndex.installIndexTemplate(installTemplate);
+        assertFalse("Template is already installed, should not install again", installTemplate.actionGet());
     }
 
     private boolean installTemplate() {

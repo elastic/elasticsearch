@@ -116,4 +116,28 @@ public class TemplateRoleNameTests extends ESTestCase {
         };
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, copy, mutate);
     }
+
+    public void testValidate() {
+        final ScriptService scriptService = new ScriptService(Settings.EMPTY,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+        final ExpressionModel model = new ExpressionModel();
+        model.defineField("username", "hulk");
+        model.defineField("groups", Arrays.asList("avengers", "defenders", "panthenon"));
+
+        final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
+        plainString.validate(scriptService);
+
+        final TemplateRoleName user = new TemplateRoleName(new BytesArray("{ \"source\":\"_user_{{username}}\" }"), Format.STRING);
+        user.validate(scriptService);
+
+        final TemplateRoleName groups = new TemplateRoleName(new BytesArray("{ \"source\":\"{{#tojson}}groups{{/tojson}}\" }"),
+            Format.JSON);
+        groups.validate(scriptService);
+
+        final TemplateRoleName notObject = new TemplateRoleName(new BytesArray("heroes"), Format.STRING);
+        expectThrows(IllegalArgumentException.class, () -> notObject.validate(scriptService));
+
+        final TemplateRoleName invalidField = new TemplateRoleName(new BytesArray("{ \"foo\":\"heroes\" }"), Format.STRING);
+        expectThrows(IllegalArgumentException.class, () -> invalidField.validate(scriptService));
+    }
 }

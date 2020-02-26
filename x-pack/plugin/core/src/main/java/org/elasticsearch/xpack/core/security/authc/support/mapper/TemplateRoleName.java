@@ -99,9 +99,7 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
 
     public void validate(ScriptService scriptService) {
         try {
-            final XContentParser parser =XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template, XContentType.JSON);
-            MustacheTemplateEvaluator.evaluate(scriptService, parser, Collections.emptyMap());
+            parseTemplate(scriptService, Collections.emptyMap());
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (IOException e) {

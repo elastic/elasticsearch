@@ -7,6 +7,12 @@ dependencies {
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
+restResources {
+  restApi {
+    includeXpack 'watcher'
+  }
+}
+
 String slackUrl = System.getenv('slack_url')
 
 if (!slackUrl) {
@@ -14,6 +20,7 @@ if (!slackUrl) {
   testingConventions.enabled = false
 } else {
   testClusters.integTest {
+    testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'

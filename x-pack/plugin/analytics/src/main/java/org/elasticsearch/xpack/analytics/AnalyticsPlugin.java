@@ -59,7 +59,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
                 CumulativeCardinalityPipelineAggregator::new,
-                (name, p) -> CumulativeCardinalityPipelineAggregationBuilder.PARSER.parse(p, name))
+                CumulativeCardinalityPipelineAggregationBuilder.PARSER)
         );
     }
 

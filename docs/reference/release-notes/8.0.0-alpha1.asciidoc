@@ -11,5 +11,5 @@ coming[8.0.0]
 === Breaking changes
 
 Mapping::
-* Dynamic mappings in indices created on 8.0 and later no longer accept invalid mapping snippets
+* Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time.
   (e.g. incorrect analyzer settings or unknown field types). {pull}51233[#51233]

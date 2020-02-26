@@ -164,4 +164,14 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         }
         return query;
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContextWithNoType();
+        context.setAllowUnmappedFields(true);
+        IdsQueryBuilder queryBuilder = createTestQueryBuilder();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
 }

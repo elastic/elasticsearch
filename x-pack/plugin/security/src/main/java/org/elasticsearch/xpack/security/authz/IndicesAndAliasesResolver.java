@@ -421,18 +421,19 @@ class IndicesAndAliasesResolver {
             if (indicesOptions.ignoreAliases()) {
                 return false;
             }
-            final boolean isWildcardExpression = Regex.isSimpleMatchPattern(expression);
             final IndexMetaData.State excludeState = excludeState(indicesOptions);
+            boolean hasNonExcludedState = false;
             for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
                 if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     if (indicesOptions.forbidClosedIndices()) {
                         return false;
                     }
-                } else if (isWildcardExpression && indexMetaData.getState() == excludeState) {
-                    return false;
+                }
+                if (indexMetaData.getState() != excludeState) {
+                    hasNonExcludedState = true;
                 }
             }
-            return true;
+            return hasNonExcludedState;
         }
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);

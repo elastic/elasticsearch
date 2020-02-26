@@ -91,7 +91,7 @@ monitoring cluster.
 
 ** <<configuring-metricbeat,Use {metricbeat}>>.
 
-** <<configuring-monitoring,Use HTTP exporters>>.
+** <<collecting-monitoring-data,Use HTTP exporters>>.
 
 . (Optional)
 {logstash-ref}/configuring-logstash.html[Configure {ls} to collect data and send it to the monitoring cluster].

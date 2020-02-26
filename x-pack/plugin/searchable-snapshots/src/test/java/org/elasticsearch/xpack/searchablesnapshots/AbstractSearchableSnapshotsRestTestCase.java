@@ -71,7 +71,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final StringBuilder bulkBody = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulkBody.append("{\"index\":{}}\n");
+            bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\"}}\n");
             bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Document number ").append(i).append("\"}\n");
         }
 
@@ -80,8 +80,21 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         documents.setJsonEntity(bulkBody.toString());
         assertOK(client().performRequest(documents));
 
+        if (randomBoolean()) {
+            final StringBuilder bulkUpdateBody = new StringBuilder();
+            for (int i = 0; i < randomIntBetween(1, numDocs); i++) {
+                bulkUpdateBody.append("{\"update\":{\"_id\":\"").append(i).append("\"}}\n");
+                bulkUpdateBody.append("{\"doc\":{").append("\"text\":\"Updated document number ").append(i).append("\"}}\n");
+            }
+
+            final Request bulkUpdate = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
+            bulkUpdate.addParameter("refresh", Boolean.TRUE.toString());
+            bulkUpdate.setJsonEntity(bulkUpdateBody.toString());
+            assertOK(client().performRequest(bulkUpdate));
+        }
+
         logger.info("force merging index [{}]", indexName);
-        forceMerge(indexName, true, true);
+        forceMerge(indexName, randomBoolean(), randomBoolean());
 
         final String snapshot = "searchable-snapshot";
 

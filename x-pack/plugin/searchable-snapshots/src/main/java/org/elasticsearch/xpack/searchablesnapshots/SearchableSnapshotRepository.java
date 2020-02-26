@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -93,7 +95,11 @@ public class SearchableSnapshotRepository extends FilterRepository {
         }
         directory = new InMemoryNoOpCommitDirectory(directory);
 
-        try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+        final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setMergePolicy(NoMergePolicy.INSTANCE);
+
+        try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
             final Map<String, String> userData = new HashMap<>();
             indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
 

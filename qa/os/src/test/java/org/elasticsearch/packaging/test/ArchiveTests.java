@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
@@ -230,7 +231,7 @@ public class ArchiveTests extends PackagingTestCase {
             // manager exception before we have configured logging; this will fail
             // startup since we detect usages of logging before it is configured
             final List<String> jvmOptions = List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
-            Files.write(tempConf.resolve("jvm.options"), jvmOptions, APPEND);
+            Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.chown(tempConf);
 

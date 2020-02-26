@@ -20,11 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Circle;
@@ -36,12 +36,14 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+
+import java.util.ArrayList;
 
 import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 
@@ -69,14 +71,25 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
     protected Query getVectorQueryFromShape(
         Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true, fieldName);
-
-        Geometry processedShape = geometryIndexer.prepareForIndexing(queryShape);
-
-        if (processedShape == null) {
-            return new MatchNoDocsQuery();
+        ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
+        if (queryShape.type().equals(ShapeType.POLYGON)) {
+            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            GeoPolygonDecomposer.decomposePolygon(
+                (org.elasticsearch.geometry.Polygon) queryShape, true, collector);
+            if (collector.size() < 1) {
+                return new MatchNoDocsQuery();
+            } else {
+                BooleanQuery.Builder bqb = new BooleanQuery.Builder();
+                BooleanClause.Occur occur = BooleanClause.Occur.FILTER;
+                for (Polygon component : collector) {
+                    bqb.add(component.visit(shapeVisitor), occur);
+                }
+                return bqb.build();
+            }
+        } else {
+            return queryShape.visit(shapeVisitor);
         }
-        return processedShape.visit(new ShapeVisitor(context, fieldName, relation));
+
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
@@ -120,7 +133,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         @Override
         // don't think this is called directly
         public Query visit(LinearRing ring) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support  "
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
                 + ShapeType.LINEARRING + " queries");
         }
 
@@ -138,7 +151,8 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(MultiPolygon multiPolygon) {
-            Polygon[] polygons = new Polygon[multiPolygon.size()];
+            org.apache.lucene.geo.Polygon[] polygons =
+                new org.apache.lucene.geo.Polygon[multiPolygon.size()];
             for (int i = 0; i < multiPolygon.size(); i++) {
                 polygons[i] = toLucenePolygon(multiPolygon.get(i));
             }

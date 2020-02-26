@@ -253,7 +253,7 @@ phases required. For simplicity, we'll just use rollover:
 
 [source,console]
 -----------------------
-PUT _ilm/policy/sample_policy
+PUT _ilm/policy/mylogs_condensed_policy
 {
   "policy": {
     "phases": {

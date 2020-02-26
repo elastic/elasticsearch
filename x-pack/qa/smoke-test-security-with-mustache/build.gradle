@@ -6,6 +6,12 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
+restResources {
+  restApi {
+    includeXpack 'security'
+  }
+}
+
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'

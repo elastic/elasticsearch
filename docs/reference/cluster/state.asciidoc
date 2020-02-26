@@ -96,6 +96,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
     (Optional, boolean) If `true`, the wildcard indices expression that resolves 
     into no concrete indices will be ignored. (This includes `_all` string or 
     when no indices have been specified).
++
+Defaults to `true`.
 
 `expand_wildcards`::
     (Optional, string) Whether to expand wildcard expression to concrete indices 

@@ -6,6 +6,12 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
+restResources {
+  restApi {
+    includeXpack 'watcher'
+  }
+}
+
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.slm.enabled', 'false'

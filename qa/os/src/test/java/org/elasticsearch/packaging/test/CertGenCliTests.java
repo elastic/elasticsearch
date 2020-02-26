@@ -74,7 +74,7 @@ public class CertGenCliTests extends PackagingTestCase {
         lines.add("  - name: \"mynode\"");
         lines.add("    ip:");
         lines.add("      - \"127.0.0.1\"");
-        Files.write(instancesFile, lines, APPEND);
+        Files.write(instancesFile, lines, CREATE, APPEND);
 
         installation.executables().certgenTool.run("--in " + instancesFile + " --out " + certificatesFile);
 

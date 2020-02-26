@@ -34,11 +34,16 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     public static final String NAME = "top_metrics";
     public static final ParseField METRIC_FIELD = new ParseField("metric");
 
+    /**
+     * Default to returning only a single top metric.
+     */
+    private static final int DEFAULT_SIZE = 1;
+
     public static final ConstructingObjectParser<TopMetricsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
             false, (args, name) -> {
                 @SuppressWarnings("unchecked")
                 List<SortBuilder<?>> sorts = (List<SortBuilder<?>>) args[0];
-                int size = args[1] == null ? 1 : (Integer) args[1];
+                int size = args[1] == null ? DEFAULT_SIZE : (Integer) args[1];
                 if (size < 1) {
                     throw new IllegalArgumentException("[size] must be more than 0 but was [" + size + "]");
                 }

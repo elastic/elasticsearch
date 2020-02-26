@@ -332,10 +332,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 throw new QueryShardException(context,
                     "max_children is only supported on v6.5.0 or higher");
             }
-            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-                throw new QueryShardException(context,
-                    "max_children is only supported on last level of nested sort");
-            }
             // new nested sorts takes priority
             validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
             nested = resolveNested(context, nestedSort);

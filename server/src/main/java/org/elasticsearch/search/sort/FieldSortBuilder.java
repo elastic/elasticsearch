@@ -476,10 +476,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context,
                 "max_children is only supported on v6.5.0 or higher");
         }
-        if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-            throw new QueryShardException(context,
-                "max_children is only supported on last level of nested sort");
-        }
         validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
         return resolveNested(context, nestedSort);
     }

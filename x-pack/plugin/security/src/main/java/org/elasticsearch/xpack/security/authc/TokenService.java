@@ -395,6 +395,32 @@ public final class TokenService {
     }
 
     /**
+     * Decodes the provided token, and validates it (for format, expiry and invalidation).
+     * If valid, the token's {@link Authentication} (see {@link UserToken#getAuthentication()} is provided to the listener.
+     * If the token is invalid (expired etc), then {@link ActionListener#onFailure(Exception)} will be called.
+     * If tokens are not enabled, or the token does not exist, {@link ActionListener#onResponse} will be called with a
+     * {@code null} authentication object.
+     */
+    public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
+        if (isEnabled()) {
+            decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
+                if (userToken != null) {
+                    checkIfTokenIsValid(userToken, ActionListener.wrap(
+                        token -> {
+                            listener.onResponse(token == null ? null : token.getAuthentication());
+                        },
+                        listener::onFailure
+                    ));
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure));
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    /**
      * Reads the authentication and metadata from the given token.
      * This method does not validate whether the token is expired or not.
      */
@@ -421,8 +447,9 @@ public final class TokenService {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
-            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
-                    getTokenDocumentId(userTokenId)).request();
+            final String index = tokensIndex.aliasName();
+            final String documentId = getTokenDocumentId(userTokenId);
+            final GetRequest getRequest = client.prepareGet(index, documentId).request();
             final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),

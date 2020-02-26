@@ -37,7 +37,7 @@ public class RestSamlGenerateMetadataRequest extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "idp_generate_metadata";
+        return "saml_idp_generate_metadata";
     }
 
     @Override

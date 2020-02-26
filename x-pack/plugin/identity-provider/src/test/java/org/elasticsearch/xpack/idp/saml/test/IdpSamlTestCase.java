@@ -6,13 +6,18 @@
 
 package org.elasticsearch.xpack.idp.saml.test;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.hamcrest.Matchers;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.io.Unmarshaller;
@@ -23,12 +28,9 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.security.x509.X509Credential;
 import org.w3c.dom.Element;
 
-import javax.xml.XMLConstants;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
@@ -45,11 +47,39 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public abstract class IdpSamlTestCase extends ESTestCase {
+
+    private static Locale restoreLocale;
+
+    @BeforeClass
+    public static void localeChecks() throws Exception {
+        Logger logger = LogManager.getLogger(IdpSamlTestCase.class);
+        SamlInit.initialize();
+        if (isTurkishLocale()) {
+            // See: https://github.com/elastic/elasticsearch/issues/29824
+            logger.warn("Attempting to run SAML test on turkish-like locale, but that breaks OpenSAML. Switching to English.");
+            restoreLocale = Locale.getDefault();
+            Locale.setDefault(Locale.ENGLISH);
+        }
+    }
+
+    private static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
+    @AfterClass
+    public static void restoreLocale() {
+        if (restoreLocale != null) {
+            Locale.setDefault(restoreLocale);
+            restoreLocale = null;
+        }
+    }
 
     protected List<X509Credential> readCredentials() throws CertificateException, IOException {
         List<X509Credential> list = new ArrayList<>(2);
@@ -82,7 +112,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     }
 
     protected void print(Element element, Writer writer, boolean pretty) throws TransformerException {
-        final Transformer serializer = getHardenedXMLTransformer();
+        final Transformer serializer = new SamlFactory().getHardenedXMLTransformer();
         if (pretty) {
             serializer.setOutputProperty(OutputKeys.INDENT, "yes");
         }
@@ -120,35 +150,5 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         // Remove spaces between elements, and compress other spaces. These patterns don't use \s because
         // that would match newlines.
         return input.replaceAll("> +<", "><").replaceAll(" +", " ");
-    }
-
-    @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
-    private static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
-        final TransformerFactory tfactory = TransformerFactory.newInstance();
-        tfactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-        tfactory.setAttribute("indent-number", 2);
-        Transformer transformer = tfactory.newTransformer();
-        transformer.setErrorListener(new ErrorListener());
-        return transformer;
-    }
-
-    private static class ErrorListener implements javax.xml.transform.ErrorListener {
-
-        @Override
-        public void warning(TransformerException e) throws TransformerException {
-            throw e;
-        }
-
-        @Override
-        public void error(TransformerException e) throws TransformerException {
-            throw e;
-        }
-
-        @Override
-        public void fatalError(TransformerException e) throws TransformerException {
-            throw e;
-        }
     }
 }

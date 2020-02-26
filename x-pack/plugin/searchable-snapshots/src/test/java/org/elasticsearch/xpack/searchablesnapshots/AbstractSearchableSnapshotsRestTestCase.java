@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -15,6 +16,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -54,9 +57,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             Settings.builder().put("delegate_type", repositoryType).put("readonly", true).put(repositorySettings).build());
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numberOfShards = randomIntBetween(1, 5);
+
         logger.info("creating index [{}]", indexName);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen(indexName);
@@ -130,6 +135,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         logger.info("deleting snapshot [{}]", snapshot);
         deleteSnapshot(repository, snapshot, false);
+
+        final Map<String, Object> searchableSnapshotStats = searchableSnapshotStats(restoredIndexName);
+        assertThat("Expected searchable snapshots stats for " + numberOfShards + " shards but got " + searchableSnapshotStats,
+            searchableSnapshotStats.size(), equalTo(numberOfShards));
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
@@ -210,11 +219,27 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         return responseAsMap;
     }
 
+    protected static Map<String, Object> searchableSnapshotStats(String index) throws IOException {
+        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats"));
+        assertThat("Failed to retrieve searchable snapshots stats for on index [" + index + "]: " + response,
+            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        assertThat("Shard failures when retrieving searchable snapshots stats for index [" + index + "]: " + response,
+            extractValue(responseAsMap, "_shards.failed"), equalTo(0));
+        return extractValue(responseAsMap, "indices." + index + ".shards");
+    }
+
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
         final XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         assertThat("Unknown XContentType", xContentType, notNullValue());
-        try (InputStream responseBody = response.getEntity().getContent()) {
+
+        BytesReference bytesReference = Streams.readFully(response.getEntity().getContent());
+
+        try (InputStream responseBody = bytesReference.streamInput()) {
             return XContentHelper.convertToMap(xContentType.xContent(), responseBody, true);
+        } catch (Exception e) {
+            throw new IOException(bytesReference.utf8ToString(), e);
         }
     }
 

@@ -47,6 +47,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
             .map(SearchableSnapshotShardStats::getShardRouting)
             .map(ShardRouting::index)
             .sorted(Comparator.comparing(Index::getName))
+            .distinct()
             .collect(toList());
 
         builder.startObject("indices");

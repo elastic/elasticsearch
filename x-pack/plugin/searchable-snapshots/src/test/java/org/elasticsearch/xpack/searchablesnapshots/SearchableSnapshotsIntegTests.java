@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -23,6 +25,10 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
@@ -39,6 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
@@ -117,12 +124,15 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
                 .put("location", repo)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
+        final boolean cacheEnabled = randomBoolean();
+        logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
+
         final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster()
             .prepareRestoreSnapshot(searchableRepoName, snapshotName).setIndices(indexName)
             .setRenamePattern(indexName)
             .setRenameReplacement(restoredIndexName)
             .setIndexSettings(Settings.builder()
-                .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
+                .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
                 .build())
             .setWaitForCompletion(true).get();
@@ -138,6 +148,19 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         assertTrue(SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+
+        final SearchableSnapshotsStatsRequest request = new SearchableSnapshotsStatsRequest(restoredIndexName);
+        final ActionFuture<SearchableSnapshotsStatsResponse> future =  client().execute(SearchableSnapshotsStatsAction.INSTANCE, request);
+        if (cacheEnabled) {
+            final SearchableSnapshotsStatsResponse statsResponse = future.actionGet();
+            assertThat(statsResponse.getStats(), hasSize(getNumShards(restoredIndexName).totalNumShards));
+            for (SearchableSnapshotShardStats stats : statsResponse.getStats()) {
+                assertThat(stats.getShardRouting().getIndexName(), equalTo(restoredIndexName));
+                assertThat(stats.getStats().size(), greaterThan(0));
+            }
+        } else {
+            expectThrows(ResourceNotFoundException.class, future::actionGet);
+        }
 
         internalCluster().fullRestart();
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);

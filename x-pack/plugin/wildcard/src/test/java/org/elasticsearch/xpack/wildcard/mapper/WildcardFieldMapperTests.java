@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -15,26 +16,41 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,6 +60,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
     static final int MAX_FIELD_LENGTH = 100;
     static WildcardFieldMapper wildcardFieldType;
+    static KeywordFieldMapper keywordFieldType;
 
     @Override
     @Before
@@ -51,6 +68,10 @@ public class WildcardFieldMapperTests extends ESTestCase {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
         builder.ignoreAbove(MAX_FIELD_LENGTH);        
         wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
+        
+        
+        org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
+        keywordFieldType = kwBuilder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));        
         super.setUp();
     }
     
@@ -135,10 +156,58 @@ public class WildcardFieldMapperTests extends ESTestCase {
             }
             assertThat(expectedDocs.size(), equalTo(0));
         }
+        
+        
+        //Test keyword and wildcard sort operations are also equivalent
+        QueryShardContext shardContextMock = createMockShardContext();
+        
+        FieldSortBuilder wildcardSortBuilder = new FieldSortBuilder(WILDCARD_FIELD_NAME);
+        SortField wildcardSortField = wildcardSortBuilder.build(shardContextMock).field;        
+        ScoreDoc[] wildcardHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(wildcardSortField)).scoreDocs;
+
+        FieldSortBuilder keywordSortBuilder = new FieldSortBuilder(KEYWORD_FIELD_NAME);
+        SortField keywordSortField = keywordSortBuilder.build(shardContextMock).field;        
+        ScoreDoc[] keywordHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(keywordSortField)).scoreDocs;
+        
+        assertThat(wildcardHits.length, equalTo(keywordHits.length));
+        for (int i = 0; i < wildcardHits.length; i++) {
+            assertThat(wildcardHits[i].doc, equalTo(keywordHits[i].doc));            
+        }
+        
         reader.close();
         dir.close();
     }
 
+    
+    
+    protected MappedFieldType provideMappedFieldType(String name) {
+        if (name.equals(WILDCARD_FIELD_NAME)) {
+            return wildcardFieldType.fieldType();            
+        } else {
+            return keywordFieldType.fieldType();
+        }
+    }    
+    
+    protected final QueryShardContext createMockShardContext() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
+        BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
+            return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
+        };
+        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+                null, null, null, xContentRegistry(), null, null, null,
+                () -> randomNonNegativeLong(), null, null, () -> true) {
+
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                return provideMappedFieldType(name);
+            }
+        };
+    }       
+    
     private void createDocs(String docContent, RandomIndexWriter iw) throws IOException {
         ArrayList<IndexableField> fields = new ArrayList<>();
         wildcardFieldType.createFields(docContent, fields);
@@ -146,6 +215,8 @@ public class WildcardFieldMapperTests extends ESTestCase {
         for (IndexableField indexableField : fields) {
             doc.add(indexableField);
         }
+        // Add keyword fields too
+        doc.add(new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(docContent)));        
         doc.add(new StringField(KEYWORD_FIELD_NAME, docContent, Field.Store.YES));
         iw.addDocument(doc);
     }

@@ -375,6 +375,9 @@ public class RootObjectMapper extends ObjectMapper {
             try {
                 Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
                 if (fieldTypeConfig.isEmpty()) {
+                    Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
+                    BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
+                    dummyBuilder.build(builderContext);
                     dynamicTemplateInvalid = false;
                     break;
                 } else {

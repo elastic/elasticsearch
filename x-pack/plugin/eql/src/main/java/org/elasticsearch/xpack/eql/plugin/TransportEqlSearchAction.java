@@ -72,7 +72,6 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     }
 
     static EqlSearchResponse createResponse(Results results) {
-        // Updated for stubbed response to: process where serial_event_id = 1
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.searchHits(), results.sequences(), results.counts(), results
                 .totalHits());
 

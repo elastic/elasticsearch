@@ -20,10 +20,7 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.*;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.util.ArrayList;

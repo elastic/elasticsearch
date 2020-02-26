@@ -110,7 +110,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
         } catch (
             SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(),
-                containsString("failed to create query"));
+                containsString("Field [" + defaultGeoFieldName + "] does not support LINEARRING queries"));
         }
     }
 

@@ -250,7 +250,7 @@ public class TestingConventionsTasks extends DefaultTask {
             Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
         } else {
             getLogger().error(problems);
-            throw new IllegalStateException("Testing conventions are not honored");
+            throw new IllegalStateException(String.format("Testing conventions [%s] are not honored", problems));
         }
     }
 

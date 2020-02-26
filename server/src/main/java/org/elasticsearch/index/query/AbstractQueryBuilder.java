@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanQuery;
@@ -103,7 +104,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof SpanQuery) {
                     query = new SpanBoostQuery((SpanQuery) query, boost);
-                } else {
+                } else if (query instanceof MatchNoDocsQuery == false) {
                     query = new BoostQuery(query, boost);
                 }
             }
@@ -237,7 +238,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
-            Query query = queryBuilder.toQuery(context);
+            Query query = queryBuilder.rewrite(context).toQuery(context);
             if (query != null) {
                 queries.add(query);
             }

@@ -94,12 +94,15 @@ public class ContextIndexSearcher extends IndexSearcher {
         this(reader, similarity, queryCache, queryCachingPolicy, true);
     }
 
+    // TODO: Remove the 2nd constructor and the shouldWrap so that we always wrap the IndexReader.
+    // Some issues must be fixed regarding tests deriving from AggregatorTestCase and more specifically
+    // the use of searchAndReduce and the ShardSearcher sub-searchers.
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                                 boolean shouldWrap) throws IOException {
-        super(shouldWrap? new CancellableIndexReader((DirectoryReader) reader, new Cancellable()) : reader);
+        super(shouldWrap? new CancellableDirectoryReader((DirectoryReader) reader, new Cancellable()) : reader);
         if (shouldWrap) {
-            ((CancellableIndexReader) getIndexReader()).setCheckCancelled(() -> checkCancelled);
+            ((CancellableDirectoryReader) getIndexReader()).setCheckCancelled(() -> checkCancelled);
         }
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -344,11 +347,11 @@ public class ContextIndexSearcher extends IndexSearcher {
     /**
      * Wraps an {@link IndexReader} with a cancellation Runnable task.
      */
-    private static class CancellableIndexReader extends FilterDirectoryReader {
+    private static class CancellableDirectoryReader extends FilterDirectoryReader {
 
         private final Cancellable checkCancelled;
 
-        private CancellableIndexReader(DirectoryReader in, Cancellable checkCancelled) throws IOException {
+        private CancellableDirectoryReader(DirectoryReader in, Cancellable checkCancelled) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {

@@ -62,18 +62,17 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         fieldType.setName("field");
 
-        Directory directory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), directory);
-        try (IndexReader reader = unmappedIndexWriter.getReader()) {
+
+
+        try (Directory directory = newDirectory();
+             RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), directory);
+             IndexReader reader = unmappedIndexWriter.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
             PercentileRanks ranks = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
-        } finally {
-            unmappedIndexWriter.close();
-            directory.close();
         }
     }
 

@@ -6,4 +6,133 @@
 <titleabbrev>cat trained model</titleabbrev>
 ++++
 
-Returns configuration and usage information about inference trained models.
+Returns configuration and usage information about {infer} trained models.
+
+
+[[cat-trained-model-request]]
+==== {api-request-title}
+
+`GET /_cat/ml/trained_models`
+
+
+[[cat-trained-model-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+
+For more information, see <<security-privileges>> and 
+{ml-docs}/setup.html[Set up {ml-features}].
+
+
+////
+[[cat-trained-model-desc]]
+==== {api-description-title}
+TBD
+////
+
+
+[[cat-trained-model-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-trained-model-results]]
+==== {api-response-body-title}
+
+`create_time`::
+The time when the trained model was created. To retrieve this information, 
+specify the `ct` column in the `h` query parameter.
+
+`created_by`::
+Information on the creator of the trained model. To retrieve this information, 
+specify the `c` or the `createdBy` column in the `h` query parameter.
+
+`data_frame_analytics_id`::
+Identifier for the {dfanalytics-job} that created the model. Only displayed if 
+it is still available. To retrieve this information, specify the `df` or the 
+`dataFrameAnalytics` column in the `h` query parameter.
+
+`description`::
+The description of the trained model. To retrieve this information, specify the 
+`d` column in the `h` query parameter.
+
+`heap_size`::
+The estimated heap size to keep the trained model in memory. To retrieve this 
+information, specify the `hs` or the `modelHeapSize` column in the `h` query 
+parameter.
+
+`id`::
+Idetifier for the trained model. To retrieve this information, specify the `id` 
+column in the `h` query parameter.
+
+`ingest.count`::
+The total number of documents that are processed by the model. To retrieve this 
+information, specify the `ic` or the `ingestCount` column in the `h` query 
+parameter.
+
+`ingest.current`::
+The total number of document that are currently being handled by the trained 
+model. To retrieve this information, specify the `icurr` or the `ingestCurrent` 
+column in the `h` query parameter.
+
+`ingest.failed`::
+The total number of failed ingest attempts with the trained model. To retrieve 
+this information, specify the `if` or the `ingestFailed` column in the `h` query 
+parameter.
+
+`ingest.pipelines`::
+The total number of ingest pipelines that are referencing the trained model. To 
+retrieve this information, specify the `ip` or the `ingestPipelines` column in 
+the `h` query parameter.
+
+`ingest.time`::
+The total time that is spent processing documents with the trained model. To 
+retrieve this information, specify the `it` or the `ingestTime` column in the 
+`h` query parameter.
+
+`license`::
+The license level of the trained model. To retrieve this information, specify 
+the `l` column in the `h` query parameter.
+
+`operations`::
+The estimated number of operations to use the trained model. This number helps 
+measuring the computational complexity of the model. To retrieve this 
+information, specify the `o` or the `modelOperations` column in the `h` query 
+parameter.
+
+`version`::
+The {es} version number in which the trained model was created. To retrieve this 
+information, specify the `v` column in the `h` query parameter.
+
+
+[[cat-trained-model-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _cat/ml/trained_models?h=c,o,l,ct,v&v
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+[source,console-result]
+----
+id                           created_by operations license  create_time              version
+ddddd-1580216177138              _xpack 196        PLATINUM 2020-01-28T12:56:17.138Z 8.0.0
+flight-regress-1580215685537     _xpack 102        PLATINUM 2020-01-28T12:48:05.537Z 8.0.0
+lang_ident_model_1               _xpack 39629      BASIC    2019-12-05T12:28:34.594Z 7.6.0
+----
+// TESTRESPONSE[skip:kibana sample data]

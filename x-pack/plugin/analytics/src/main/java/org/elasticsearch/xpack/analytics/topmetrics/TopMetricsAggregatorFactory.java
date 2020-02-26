@@ -42,7 +42,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
         ValuesSourceConfig metricFieldSource = ValuesSourceConfig.resolve(queryShardContext, ValueType.NUMERIC,
                 metricField.getFieldName(), metricField.getScript(), metricField.getMissing(), metricField.getTimeZone(), null,
             CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
-        ValuesSource.Numeric metricValueSource = (ValuesSource.Numeric) metricFieldSource.toValuesSource(queryShardContext);
+        ValuesSource.Numeric metricValueSource = (ValuesSource.Numeric) metricFieldSource.toValuesSource();
         if (metricValueSource == null) {
             return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }

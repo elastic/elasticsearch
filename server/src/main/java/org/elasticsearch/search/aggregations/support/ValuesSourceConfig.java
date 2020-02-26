@@ -27,25 +27,13 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.LongSupplier;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
  * in order to run a specific aggregation.
  */
 public class ValuesSourceConfig {
-
-    /**
-     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
-     */
-    public static  ValuesSourceConfig resolve(
-        QueryShardContext context,
-        ValueType valueType,
-        String field, Script script,
-        Object missing,
-        ZoneId timeZone,
-        String format, String aggregationName) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, CoreValuesSourceType.BYTES, aggregationName);
-    }
 
     /**
      * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
@@ -64,23 +52,26 @@ public class ValuesSourceConfig {
      *                          {@link ValuesSourceRegistry}
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
-    public static  ValuesSourceConfig resolve(
-        QueryShardContext context,
-        ValueType userValueTypeHint,
-        String field, Script script,
-        Object missing,
-        ZoneId timeZone,
-        String format,
-        ValuesSourceType defaultValueSourceType,
-        String aggregationName) {
+    public static ValuesSourceConfig resolve(QueryShardContext context,
+                                             ValueType userValueTypeHint,
+                                             String field,
+                                             Script script,
+                                             Object missing,
+                                             ZoneId timeZone,
+                                             String format,
+                                             ValuesSourceType defaultValueSourceType,
+                                             String aggregationName) {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
         ValuesSourceType valuesSourceType;
+        ValueType scriptValueType = null;
+        AggregationScript.LeafFactory aggregationScript = null;
+        boolean unmapped = false;
         if (field == null) {
             // Stand Alone Script Case
             if (script == null) {
                 throw new IllegalStateException(
-                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+                    "value source config is invalid; must have either a field context or a script or marked as unmapped");
             }
             /*
              * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or
@@ -92,9 +83,8 @@ public class ValuesSourceConfig {
             } else {
                 valuesSourceType = defaultValueSourceType;
             }
-            config = new ValuesSourceConfig(valuesSourceType);
-            config.script(createScript(script, context));
-            config.scriptValueType(userValueTypeHint);
+            aggregationScript = createScript(script, context);
+            scriptValueType = userValueTypeHint;
         } else {
             // Field case
             fieldType = context.fieldMapper(field);
@@ -104,30 +94,25 @@ public class ValuesSourceConfig {
                  * pattern.  In this case, we're going to end up using the EMPTY variant of the ValuesSource, and possibly applying a user
                  * specified missing value.
                  */
-                // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
                 if (userValueTypeHint != null) {
                     valuesSourceType = userValueTypeHint.getValuesSourceType();
                 } else {
                     valuesSourceType = defaultValueSourceType;
                 }
-               config = new ValuesSourceConfig(valuesSourceType);
-                // TODO: PLAN - get rid of the unmapped flag field; it's only used by valid(), and we're intending to get rid of that.
-                // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
-                config.unmapped(true);
+                unmapped = true;
                 if (userValueTypeHint != null) {
                     // todo do we really need this for unmapped?
-                    config.scriptValueType(userValueTypeHint);
+                    scriptValueType = userValueTypeHint;
                 }
             } else {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 valuesSourceType = context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
                     userValueTypeHint, script, defaultValueSourceType);
-                config = new ValuesSourceConfig(valuesSourceType);
 
-                config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
-                config.script(createScript(script, context));
+                aggregationScript = createScript(script, context);
             }
         }
+        config = new ValuesSourceConfig(valuesSourceType, fieldType, unmapped, aggregationScript, scriptValueType , context);
         config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
         config.missing(missing);
         config.timezone(timeZone);
@@ -152,21 +137,56 @@ public class ValuesSourceConfig {
         return valuesSourceType.getFormatter(format, tz);
     }
 
-    private final ValuesSourceType valueSourceType;
+    /**
+     * Special case factory method, intended to be used by aggregations which have some specialized logic for figuring out what field they
+     * are operating on, for example Parent and Child join aggregations, which use the join relation to find the field they are reading from
+     * rather than a user specified field.
+     */
+    public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType,
+                                                      QueryShardContext queryShardContext) {
+        return new ValuesSourceConfig(fieldType.getValuesSourceType(), fieldType, false, null, null, queryShardContext);
+    }
+
+    /**
+     * Convenience method for creating unmapped configs
+     */
+    public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, queryShardContext);
+    }
+
+    private final ValuesSourceType valuesSourceType;
     private FieldContext fieldContext;
     private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
-    private boolean unmapped = false;
+    private boolean unmapped;
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
     private ZoneId timeZone;
+    private LongSupplier nowSupplier;
 
-    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
-        this.valueSourceType = valueSourceType;
+
+    public ValuesSourceConfig(ValuesSourceType valuesSourceType,
+                              MappedFieldType fieldType,
+                              boolean unmapped,
+                              AggregationScript.LeafFactory script,
+                              ValueType scriptValueType,
+                              QueryShardContext queryShardContext) {
+        if (unmapped && fieldType != null) {
+            throw new IllegalStateException("value source config is invalid; marked as unmapped but specified a mapped field");
+        }
+        this.valuesSourceType = valuesSourceType;
+        if (fieldType != null) {
+            this.fieldContext = new FieldContext(fieldType.name(), queryShardContext.getForField(fieldType), fieldType);
+        }
+        this.unmapped = unmapped;
+        this.script = script;
+        this.scriptValueType = scriptValueType;
+        this.nowSupplier = queryShardContext::nowInMillis;
+
     }
 
     public ValuesSourceType valueSourceType() {
-        return valueSourceType;
+        return valuesSourceType;
     }
 
     public FieldContext fieldContext() {
@@ -185,36 +205,16 @@ public class ValuesSourceConfig {
         return fieldContext != null || script != null || unmapped;
     }
 
-    public ValuesSourceConfig fieldContext(FieldContext fieldContext) {
-        this.fieldContext = fieldContext;
-        return this;
-    }
-
-    public ValuesSourceConfig script(AggregationScript.LeafFactory script) {
-        this.script = script;
-        return this;
-    }
-
-    private ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
-        this.scriptValueType = scriptValueType;
-        return this;
-    }
-
     public ValueType scriptValueType() {
         return this.scriptValueType;
     }
 
-    public ValuesSourceConfig unmapped(boolean unmapped) {
-        this.unmapped = unmapped;
-        return this;
-    }
-
-    public ValuesSourceConfig format(final DocValueFormat format) {
+    private ValuesSourceConfig format(final DocValueFormat format) {
         this.format = format;
         return this;
     }
 
-    public ValuesSourceConfig missing(final Object missing) {
+    private ValuesSourceConfig missing(final Object missing) {
         this.missing = missing;
         return this;
     }
@@ -223,7 +223,7 @@ public class ValuesSourceConfig {
         return this.missing;
     }
 
-    public ValuesSourceConfig timezone(final ZoneId timeZone) {
+    private ValuesSourceConfig timezone(final ZoneId timeZone) {
         this.timeZone = timeZone;
         return this;
     }
@@ -238,12 +238,10 @@ public class ValuesSourceConfig {
 
     /**
      * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
-     * @param context - Literally just used to get the current time
      * @return - A {@link ValuesSource} ready to be read from by an aggregator
      */
     @Nullable
-    // TODO: Replace QueryShardContext with a LongProvider
-    public ValuesSource toValuesSource(QueryShardContext context) {
+    public ValuesSource toValuesSource() {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
@@ -253,7 +251,9 @@ public class ValuesSourceConfig {
         final ValuesSource vs;
         if (unmapped()) {
             if (missing() == null) {
-                // otherwise we will have values because of the missing value
+                /* Null values source signals to the AggregationBuilder to use the createUnmapped method, which aggregator factories can
+                 * override to provide an aggregator optimized to return empty values
+                 */
                 vs = null;
             } else {
                 vs = valueSourceType().getEmpty();
@@ -271,6 +271,6 @@ public class ValuesSourceConfig {
         if (missing() == null) {
             return vs;
         }
-        return valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
+        return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
     }
 }

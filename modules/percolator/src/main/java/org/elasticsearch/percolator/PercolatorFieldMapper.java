@@ -500,7 +500,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
     }
 
-    private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
+    static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
         try {
             return parseInnerQueryBuilder(parser);
         } catch (IOException e) {

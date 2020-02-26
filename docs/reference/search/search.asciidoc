@@ -47,7 +47,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
-  
++
+Defaults to `true`.
+
 `allow_partial_search_results`::
   (Optional, boolean) Indicates if an error should be returned if there is a 
   partial search failure or timeout. Defaults to `true`.

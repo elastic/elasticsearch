@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 
@@ -46,7 +45,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/{index}/_update_by_query"));
+        return List.of(new Route(POST, "/{index}/_update_by_query"));
     }
 
     @Override

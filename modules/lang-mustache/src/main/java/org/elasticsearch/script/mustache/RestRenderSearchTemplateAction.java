@@ -29,8 +29,6 @@ import org.elasticsearch.script.ScriptType;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -38,11 +36,11 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_render/template"),
             new Route(POST, "/_render/template"),
             new Route(GET, "/_render/template/{id}"),
-            new Route(POST, "/_render/template/{id}")));
+            new Route(POST, "/_render/template/{id}"));
     }
 
     @Override

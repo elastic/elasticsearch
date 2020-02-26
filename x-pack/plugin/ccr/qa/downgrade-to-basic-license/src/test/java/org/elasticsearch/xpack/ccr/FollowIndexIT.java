@@ -19,6 +19,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
@@ -48,7 +49,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(index1);
             verifyDocuments(index1, 5, "filtered_field:true");
-        });
+        }, 60, TimeUnit.SECONDS);
 
         String index2 = "logs-20190102";
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -88,7 +89,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                     }
                 });
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Manually following index2 also does not work after the downgrade:
         Exception e = expectThrows(ResponseException.class, () -> followIndex("leader_cluster", index2));

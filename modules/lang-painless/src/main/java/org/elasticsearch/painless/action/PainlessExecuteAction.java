@@ -29,7 +29,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -84,8 +85,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -543,8 +542,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
-            try (RAMDirectory ramDirectory = new RAMDirectory()) {
-                try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
+            try (Directory directory = new ByteBuffersDirectory()) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
@@ -568,9 +567,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
+            return List.of(
                 new Route(GET, "/_scripts/painless/_execute"),
-                new Route(POST, "/_scripts/painless/_execute")));
+                new Route(POST, "/_scripts/painless/_execute"));
         }
 
         @Override

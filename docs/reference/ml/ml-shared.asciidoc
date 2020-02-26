@@ -137,6 +137,10 @@ tag::analyzed-fields-includes[]
 An array of strings that defines the fields that will be included in the analysis.
 end::analyzed-fields-includes[]
 
+tag::assignment-explanation-dfanalytics[]
+Contains messages relating to the selection of a node.
+end::assignment-explanation-dfanalytics[]
+
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the 
 model. The default value is a randomized value between 3 to 4 hours, which
@@ -644,23 +648,9 @@ to `false`. When `true`, only a single model must match the ID patterns
 provided, otherwise a bad request is returned.
 end::include-model-definition[]
 
-tag::tags[]
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-When supplied, only {infer} models that contain all the supplied tags are
-returned.
-end::tags[]
-
 tag::indices[]
 An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
-
-tag::num-top-feature-importance-values[]
-Advanced configuration option. If set, feature importance for the top
-most important features will be computed. Importance is calculated
-using the SHAP (SHapley Additive exPlanations) method as described in
-https://papers.nips.cc/paper/7062-a-unified-approach-to-interpreting-model-predictions.pdf[Lundberg, S. M., & Lee, S.-I. A Unified Approach to Interpreting Model Predictions. In NeurIPS 2017.].
-end::num-top-feature-importance-values[]
-
 +
 --
 NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
@@ -1063,6 +1053,12 @@ function.
 
 --
 end::summary-count-field-name[]
+
+tag::tags[]
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+When supplied, only {infer} models that contain all the supplied tags are
+returned.
+end::tags[]
 
 tag::timeout-start[]
 Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults 

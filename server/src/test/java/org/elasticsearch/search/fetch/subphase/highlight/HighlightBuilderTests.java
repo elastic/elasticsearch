@@ -280,7 +280,7 @@ public class HighlightBuilderTests extends ESTestCase {
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
-                null, null, System::currentTimeMillis, null, null) {
+                null, null, System::currentTimeMillis, null, null, () -> true) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -291,6 +291,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
+            highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
             SearchContextHighlight highlight = highlightBuilder.build(mockShardContext);
             for (SearchContextHighlight.Field field : highlight.fields()) {
                 String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;

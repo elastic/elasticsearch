@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.UnboundCallNode;
+import org.elasticsearch.painless.ir.MemberCallNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -123,13 +123,14 @@ public final class ECallLocal extends AExpression {
             actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");
             scriptRoot.getClassNode().addField(new SField(location,
-                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass(), null));
+                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass()));
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             actual = instanceBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("instance_binding");
             scriptRoot.getClassNode().addField(new SField(location, Modifier.STATIC | Modifier.PUBLIC,
-                    bindingName, instanceBinding.targetInstance.getClass(), instanceBinding.targetInstance));
+                    bindingName, instanceBinding.targetInstance.getClass()));
+            scriptRoot.addStaticConstant(bindingName, instanceBinding.targetInstance);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -150,23 +151,23 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    UnboundCallNode write(ClassNode classNode) {
-        UnboundCallNode unboundCallNode = new UnboundCallNode();
+    MemberCallNode write(ClassNode classNode) {
+        MemberCallNode memberCallNode = new MemberCallNode();
 
         for (AExpression argument : arguments) {
-            unboundCallNode.addArgumentNode(argument.write(classNode));
+            memberCallNode.addArgumentNode(argument.write(classNode));
         }
 
-        unboundCallNode.setLocation(location);
-        unboundCallNode.setExpressionType(actual);
-        unboundCallNode.setLocalFunction(localFunction);
-        unboundCallNode.setImportedMethod(importedMethod);
-        unboundCallNode.setClassBinding(classBinding);
-        unboundCallNode.setClassBindingOffset(classBindingOffset);
-        unboundCallNode.setBindingName(bindingName);
-        unboundCallNode.setInstanceBinding(instanceBinding);
+        memberCallNode.setLocation(location);
+        memberCallNode.setExpressionType(actual);
+        memberCallNode.setLocalFunction(localFunction);
+        memberCallNode.setImportedMethod(importedMethod);
+        memberCallNode.setClassBinding(classBinding);
+        memberCallNode.setClassBindingOffset(classBindingOffset);
+        memberCallNode.setBindingName(bindingName);
+        memberCallNode.setInstanceBinding(instanceBinding);
 
-        return unboundCallNode;
+        return memberCallNode;
     }
 
     @Override

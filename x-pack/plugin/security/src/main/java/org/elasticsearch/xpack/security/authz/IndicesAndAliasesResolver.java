@@ -422,19 +422,37 @@ class IndicesAndAliasesResolver {
                 return false;
             }
             final IndexMetaData.State excludeState = excludeState(indicesOptions);
-            boolean hasNonExcludedState = false;
+            boolean hasIncludedState = false;
+            boolean hasExcludedState = false;
             for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
                 if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     if (indicesOptions.forbidClosedIndices()) {
-                        return false;
+                        // if we cannot ignoreUnavailable then this should be failed. Let it be visible to the IndexNameExpressionResolver
+                        // which will fail the request!
+                        return indicesOptions.ignoreUnavailable() != false;
                     }
                 }
-                if (indexMetaData.getState() != excludeState) {
-                    hasNonExcludedState = true;
+
+                if (indexMetaData.getState() == excludeState) {
+                    hasExcludedState = true;
+                } else {
+                    hasIncludedState = true;
                 }
             }
-            return hasNonExcludedState;
+
+            if (hasIncludedState) {
+                if (hasExcludedState) {
+                    return indicesOptions.ignoreUnavailable();
+                } else {
+                    // all included
+                    return true;
+                }
+            } else {
+                assert hasExcludedState;
+                return indicesOptions.allowNoIndices();
+            }
         }
+
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
         final boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(indexMetaData.getSettings());

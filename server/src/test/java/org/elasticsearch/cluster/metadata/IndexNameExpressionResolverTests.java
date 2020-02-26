@@ -49,10 +49,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
@@ -877,6 +879,143 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));
         assertTrue(indexNames.contains("bar_bar"));
+    }
+
+    public void testHiddenAliasAndHiddenIndexResolution() {
+        final String visibleIndex = "visible_index";
+        final String hiddenIndex = "hidden_index";
+        final String visibleAlias = "visible_alias";
+        final String hiddenAlias = "hidden_alias";
+        final String dottedHiddenAlias = ".hidden_alias";
+        final String dottedHiddenIndex = ".hidden_index";
+
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false);
+
+        {
+            // A visible index with a visible alias and a hidden index with a hidden alias
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(visibleAlias)))
+                .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            // A total wildcard should only be resolved to visible indices
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // Unless hidden is specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // Both hidden indices and hidden aliases should not be included in wildcard resolution
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "hidden*", "visible*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // unless it's specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "hidden*", "visible*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // Only visible aliases should be included in wildcard resolution
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // unless, again, it's specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // If we specify a hidden alias by name, the options shouldn't matter.
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+        }
+
+        {
+            // A visible alias that points to one hidden and one visible index
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(visibleAlias)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(visibleAlias)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            // If the alias is resolved to concrete indices, it should resolve to all the indices it points to, hidden or not.
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // A total wildcards does not resolve the hidden index in this case
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+        }
+
+        {
+            // A hidden alias that points to one hidden and one visible index
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // A query that only matches the hidden alias should throw
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias"));
+
+            // But if we include hidden it should be resolved to both indices
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // If we specify the alias by name it should resolve to both indices, regardless of if the options specify hidden
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+        }
+
+        {
+            // A hidden alias with a dot-prefixed name that points to one hidden index with a dot prefix, and one hidden index without
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(dottedHiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(dottedHiddenAlias).isHidden(true)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(dottedHiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            String[] indexNames;
+            // A dot-prefixed pattern that includes only the hidden alias should resolve to both, regardless of the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, ".hidden_a*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, ".hidden_a*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+
+            // A query that doesn't include the dot should fail if the options don't include hidden
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias"));
+
+            // But should include both indices if the options do include hidden
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+
+        }
     }
 
     /**

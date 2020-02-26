@@ -721,7 +721,7 @@ public class IndexNameExpressionResolver {
                     // add all the previous ones...
                     result = new HashSet<>(expressions.subList(0, i));
                 }
-                if (!Regex.isSimpleMatchPattern(expression)) {
+                if (Regex.isSimpleMatchPattern(expression) == false) {
                     //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                     if (options.ignoreUnavailable() == false) {
                         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
@@ -840,25 +840,27 @@ public class IndexNameExpressionResolver {
                                           String expression, boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
+                String aliasOrIndexName = entry.getKey();
                 AliasOrIndex aliasOrIndex = entry.getValue();
-                if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
-                    expand.add(entry.getKey());
-                } else {
-                    for (IndexMetaData meta : aliasOrIndex.getIndices()) {
-                        if (excludeState == null || meta.getState() != excludeState) {
-                            if (includeHidden) {
-                                expand.add(meta.getIndex().getName());
-                            } else if (IndexMetaData.INDEX_HIDDEN_SETTING.get(meta.getSettings()) == false) {
-                                expand.add(meta.getIndex().getName());
-                            } else if (meta.getIndex().getName().startsWith(".") &&
-                                expression.startsWith(".") && Regex.isSimpleMatchPattern(expression)) {
+
+                if (aliasOrIndex.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
+                    if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
+                        expand.add(aliasOrIndexName);
+                    } else {
+                        for (IndexMetaData meta : aliasOrIndex.getIndices()) {
+                            if (excludeState == null || meta.getState() != excludeState) {
                                 expand.add(meta.getIndex().getName());
                             }
                         }
+
                     }
                 }
             }
             return expand;
+        }
+
+        private static boolean implicitHiddenMatch(String itemName, String expression) {
+            return itemName.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
         }
 
         private boolean isEmptyOrTrivialWildcard(List<String> expressions) {

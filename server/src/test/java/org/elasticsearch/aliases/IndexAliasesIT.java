@@ -909,7 +909,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .setMapping("field", "type=text")
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("alias2").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("field"))))
-                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
+                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search"))
+                .addAlias(new Alias("alias4").isHidden(true)));
 
         checkAliases();
     }
@@ -919,7 +920,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 "    \"aliases\" : {\n" +
                 "        \"alias1\" : {},\n" +
                 "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n" +
-                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n" +
+                "        \"alias4\" : {\"is_hidden\":  true}\n" +
                 "    }\n" +
                 "}", XContentType.JSON));
 
@@ -932,7 +934,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .setAliases("{\n" +
                         "        \"alias1\" : {},\n" +
                         "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
-                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n" +
+                        "        \"alias4\" : {\"is_hidden\":  true}\n" +
                         "}"));
 
         checkAliases();
@@ -1127,6 +1130,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetaData.filter(), nullValue());
         assertThat(aliasMetaData.indexRouting(), nullValue());
         assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertThat(aliasMetaData.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias2").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
@@ -1135,6 +1139,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetaData.filter(), notNullValue());
         assertThat(aliasMetaData.indexRouting(), nullValue());
         assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertThat(aliasMetaData.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias3").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
@@ -1143,6 +1148,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetaData.filter(), nullValue());
         assertThat(aliasMetaData.indexRouting(), equalTo("index"));
         assertThat(aliasMetaData.searchRouting(), equalTo("search"));
+        assertThat(aliasMetaData.isHidden(), nullValue());
+
+        getAliasesResponse = admin().indices().prepareGetAliases("alias4").get();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetaData.alias(), equalTo("alias4"));
+        assertThat(aliasMetaData.filter(), nullValue());
+        assertThat(aliasMetaData.indexRouting(), nullValue());
+        assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertThat(aliasMetaData.isHidden(), equalTo(true));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

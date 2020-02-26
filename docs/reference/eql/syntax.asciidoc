@@ -14,15 +14,16 @@ experimental::[]
 [[eql-basic-syntax]]
 === Basic syntax
 
-EQL queries require an event type and a matching condition. The `where` keyword connects them.
+EQL queries require an event type and a matching condition. The `where` keyword
+connects them.
 
 [source,eql]
 ----
 event_type where condition
 ----
 
-For example, the following EQL query matches `process` events with a `process.name`
-field value of `svchost.exe`:
+For example, the following EQL query matches `process` events with a
+`process.name` field value of `svchost.exe`:
 
 [source,eql]
 ----
@@ -35,9 +36,7 @@ process where process.name == "svchost.exe"
 
 In {es}, an event type is a valid, indexed value of the
 <<eql-required-fields,event type field>>. You can set the event type field using
-the `event_type_field` parameter of the EQL search API. By default, this
-parameter uses the `event.category` field from the
-{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)].
+the `event_type_field` parameter of the EQL search API.
 
 [discrete]
 [[eql-syntax-match-any-event-type]]

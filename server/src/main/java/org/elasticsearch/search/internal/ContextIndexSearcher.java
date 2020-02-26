@@ -428,8 +428,12 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (cancellable.get() == null) {
                 return false;
             }
-            cancellable.get().run();
-            return false;
+            try {
+                cancellable.get().run();
+                return false;
+            } catch (Exception e) {
+                return true;
+            }
         }
 
         @Override

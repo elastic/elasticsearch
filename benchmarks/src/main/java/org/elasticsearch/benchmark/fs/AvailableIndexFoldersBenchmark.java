@@ -55,13 +55,14 @@ public class AvailableIndexFoldersBenchmark {
     @Setup
     public void setup() throws IOException {
         Path path = Files.createTempDirectory("test");
-        String[] paths = new String[] {path.toString()};
+        String[] paths = new String[] { path.toString() };
         nodePath = new NodeEnvironment.NodePath(path);
 
         LogConfigurator.setNodeName("test");
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         nodeEnv = new NodeEnvironment(settings, new Environment(settings, null));
 
         Files.createDirectories(nodePath.indicesPath);
@@ -79,7 +80,6 @@ public class AvailableIndexFoldersBenchmark {
             throw new IllegalStateException("bad size");
         }
     }
-
 
     @Benchmark
     public Set<String> availableIndexFolderNaive() throws IOException {

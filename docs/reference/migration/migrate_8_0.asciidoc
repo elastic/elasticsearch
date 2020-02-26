@@ -11,6 +11,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.0.0]
 
+* <<breaking_80_aggregations_changes>>
 * <<breaking_80_analysis_changes>>
 * <<breaking_80_allocation_changes>>
 * <<breaking_80_breaker_changes>>
@@ -63,6 +64,7 @@ is replaced with a new endpoint that does not contain `_xpack`. As an example,
 
 // end::notable-breaking-changes[]
 
+include::migrate_8_0/aggregations.asciidoc[]
 include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/allocation.asciidoc[]
 include::migrate_8_0/breaker.asciidoc[]

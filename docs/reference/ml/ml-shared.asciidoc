@@ -141,6 +141,10 @@ tag::assignment-explanation[]
 For started {dfeeds} only, contains messages relating to the selection of a node.
 end::assignment-explanation[]
 
+tag::assignment-explanation-dfanalytics[]
+Contains messages relating to the selection of a node.
+end::assignment-explanation-dfanalytics[]
+
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the 
 model. The default value is a randomized value between 3 to 4 hours, which

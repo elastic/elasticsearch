@@ -156,9 +156,12 @@
 
 ---
 "sort by keyword field fails":
-  - skip:
-      features: default_shards
-      reason: The failure message isn't predictable with more than one shard
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
 
   - do:
       bulk:
@@ -171,6 +174,7 @@
   - do:
       catch: bad_request
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -183,9 +187,13 @@
 
 ---
 "sort by score":
-  - skip:
-      features: default_shards
-      reason: Scores aren't predictable with many shards
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The score isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -243,9 +251,12 @@
 
 ---
 "sort by string script fails":
-  - skip:
-      features: default_shards
-      reason: The failure message isn't predictable with more than one shard
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
 
   - do:
       bulk:
@@ -259,6 +270,7 @@
       catch: bad_request
       search:
         size: 0
+        index: test
         body:
           aggs:
             tm:

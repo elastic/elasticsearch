@@ -59,7 +59,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         Integer numTopClasses = randomBoolean() ? null : randomIntBetween(0, 1000);
         Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
         Long randomizeSeed = randomBoolean() ? null : randomLong();
-        return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, classAssignmentObjective, 
+        return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, classAssignmentObjective,
             numTopClasses, trainingPercent, randomizeSeed);
     }
 
@@ -139,11 +139,11 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testClassAssignmentObjective() {
-        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 
+        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result",
             Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY, 7, 1.0, randomLong());
         assertThat(classification.getClassAssignmentObjective(), equalTo(Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY));
 
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result",
         Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL, 7, 1.0, randomLong());
         assertThat(classification.getClassAssignmentObjective(), equalTo(Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL));
 

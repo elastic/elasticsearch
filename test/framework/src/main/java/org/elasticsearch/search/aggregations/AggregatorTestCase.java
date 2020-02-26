@@ -63,15 +63,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -617,7 +614,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
-    @AwaitsFix(bugUrl = "Muted until we can tweak Date/IP/Boolean")
     public final void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
@@ -689,12 +685,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         ValuesSourceType vst = fieldType.getValuesSourceType();
         
         if (vst.equals(CoreValuesSourceType.NUMERIC)) {
-            // TODO note: once VS refactor adds DATE/BOOLEAN, this conditional will go away
-            if (typeName.equals(DateFieldMapper.CONTENT_TYPE) || typeName.equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
-            } else if (typeName.equals(BooleanFieldMapper.CONTENT_TYPE)) {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));
-            } else if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
+            if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
                 long encoded = NumericUtils.doubleToSortableLong(Math.abs(randomDouble()));
                 iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
             } else if (typeName.equals(NumberFieldMapper.NumberType.FLOAT.typeName())) {
@@ -709,13 +700,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } else if (vst.equals(CoreValuesSourceType.BYTES)) {
             if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
                 iw.addDocument(singleton(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes)));
-            } else if (typeName.equals(IpFieldMapper.CONTENT_TYPE)) {
-                // TODO note: once VS refactor adds IP, this conditional will go away
-                boolean v4 = randomBoolean();
-                iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
             } else {
                 iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef("a"))));
             }
+        } else if (vst.equals(CoreValuesSourceType.DATE)) {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
+        } else if (vst.equals(CoreValuesSourceType.BOOLEAN)) {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));
+        } else if (vst.equals(CoreValuesSourceType.IP)) {
+            boolean v4 = randomBoolean();
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
         } else if (vst.equals(CoreValuesSourceType.RANGE)) {
             Object start;
             Object end;

@@ -525,6 +525,13 @@ public abstract class BucketedSort implements Releasable {
                 super(ctx);
             }
 
+            /**
+             * Return the value for of this sort for the document to which
+             * we just {@link #advanceExact(int) moved}. This should be fast
+             * because it is called twice per competitive hit when in heap
+             * mode, once for {@link #docBetterThan(long)} and once
+             * for {@link #setIndexToDocValue(long).
+             */
             protected abstract double docValue();
 
             @Override
@@ -609,6 +616,13 @@ public abstract class BucketedSort implements Releasable {
                 super(ctx);
             }
 
+            /**
+             * Return the value for of this sort for the document to which
+             * we just {@link #advanceExact(int) moved}. This should be fast
+             * because it is called twice per competitive hit when in heap
+             * mode, once for {@link #docBetterThan(long)} and once
+             * for {@link #setIndexToDocValue(long).
+             */
             protected abstract float docValue();
 
             @Override
@@ -677,6 +691,13 @@ public abstract class BucketedSort implements Releasable {
                 super(ctx);
             }
 
+            /**
+             * Return the value for of this sort for the document to which
+             * we just {@link #advanceExact(int) moved}. This should be fast
+             * because it is called twice per competitive hit when in heap
+             * mode, once for {@link #docBetterThan(long)} and once
+             * for {@link #setIndexToDocValue(long).
+             */
             protected abstract long docValue();
 
             @Override

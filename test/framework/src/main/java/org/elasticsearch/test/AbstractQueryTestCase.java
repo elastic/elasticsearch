@@ -450,7 +450,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
-            if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
+            boolean isMatchNoDocs = firstLuceneQuery instanceof MatchNoDocsQuery
+                || (firstLuceneQuery instanceof NamedQuery && ((NamedQuery)firstLuceneQuery).getQuery() instanceof MatchNoDocsQuery);
+            if (supportsBoost() && isMatchNoDocs == false) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),

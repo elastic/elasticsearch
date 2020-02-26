@@ -9,7 +9,6 @@ The changes listed below have been released for the first time in {es}
 === Breaking changes
 
 Aggregations::
-* disallow specifying the same percentile multiple times in percentiles aggregation {pull}52257[#52257]
+* Disallow specifying the same percentile multiple times in percentiles aggregation {pull}52257[#52257]
 
 coming[8.0.0]
-

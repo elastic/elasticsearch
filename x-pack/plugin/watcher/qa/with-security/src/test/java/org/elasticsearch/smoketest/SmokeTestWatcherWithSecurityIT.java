@@ -14,26 +14,22 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
-import org.junit.After;
+import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
+public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
     private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
@@ -41,85 +37,20 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     private String watchId = randomAlphaOfLength(20);
 
     @Before
-    public void startWatcher() throws Exception {
+    public void beforeTest() throws Exception {
+        Request deleteRequest = new Request("DELETE", "/my_test_index");
+        deleteRequest.addParameter("ignore_unavailable", "true");
+        adminClient().performRequest(deleteRequest);
+
         Request createAllowedDoc = new Request("PUT", "/my_test_index/_doc/1");
         createAllowedDoc.setJsonEntity("{ \"value\" : \"15\" }");
         createAllowedDoc.addParameter("refresh", "true");
         adminClient().performRequest(createAllowedDoc);
 
-        // delete the watcher history to not clutter with entries from other test
-        adminClient().performRequest(new Request("DELETE", ".watcher-history-*"));
-
-        // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
+         // create one document in this index, so we can test that the index cannot be accessed
         Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
         createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(createNotAllowedDoc);
-
-        assertBusy(() -> {
-            try {
-                Response statsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
-                ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
-                String state = objectPath.evaluate("stats.0.watcher_state");
-
-                switch (state) {
-                    case "stopped":
-                        Response startResponse = adminClient().performRequest(new Request("POST", "/_watcher/_start"));
-                        Map<String, Object> responseMap = entityAsMap(startResponse);
-                        assertThat(responseMap, hasEntry("acknowledged", true));
-                        throw new AssertionError("waiting until stopped state reached started state");
-                    case "stopping":
-                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                    case "starting":
-                        throw new AssertionError("waiting until starting state reached started state");
-                    case "started":
-                        // all good here, we are done
-                        break;
-                    default:
-                        throw new AssertionError("unknown state[" + state + "]");
-                }
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        });
-
-        assertBusy(() -> {
-            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
-                assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
-            }
-        });
-    }
-
-    @After
-    public void stopWatcher() throws Exception {
-
-        assertBusy(() -> {
-            try {
-                Response statsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
-                ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
-                String state = objectPath.evaluate("stats.0.watcher_state");
-
-                switch (state) {
-                case "stopped":
-                    // all good here, we are done
-                    break;
-                case "stopping":
-                    throw new AssertionError("waiting until stopping state reached stopped state");
-                case "starting":
-                    throw new AssertionError("waiting until starting state reached started state to stop");
-                case "started":
-                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_watcher/_stop"));
-                    String body = EntityUtils.toString(stopResponse.getEntity());
-                    assertThat(body, containsString("\"acknowledged\":true"));
-                    throw new AssertionError("waiting until started state reached stopped state");
-                default:
-                    throw new AssertionError("unknown state[" + state + "]");
-                }
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }, 60, TimeUnit.SECONDS);
-
-        adminClient().performRequest(new Request("DELETE", "/my_test_index"));
     }
 
     @Override

@@ -14,15 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -33,70 +29,10 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
+public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
     private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
-
-    @Before
-    public void startWatcher() throws Exception {
-        // delete the watcher history to not clutter with entries from other test
-        assertOK(adminClient().performRequest(new Request("DELETE", "/.watcher-history-*")));
-
-        assertBusy(() -> {
-            Response response = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
-            String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
-
-            switch (state) {
-                case "stopped":
-                    Response startResponse = adminClient().performRequest(new Request("POST", "/_watcher/_start"));
-                    boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
-                    assertThat(isAcknowledged, is(true));
-                    throw new AssertionError("waiting until stopped state reached started state");
-                case "stopping":
-                    throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                case "starting":
-                    throw new AssertionError("waiting until starting state reached started state");
-                case "started":
-                    // all good here, we are done
-                    break;
-                default:
-                    throw new AssertionError("unknown state[" + state + "]");
-            }
-        });
-
-        assertBusy(() -> {
-            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
-                Response templateExistsResponse = adminClient().performRequest(new Request("HEAD", "/_template/" + template));
-                assertThat(templateExistsResponse.getStatusLine().getStatusCode(), is(200));
-            }
-        });
-    }
-
-    @After
-    public void stopWatcher() throws Exception {
-        assertBusy(() -> {
-            Response response = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
-            String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
-
-            switch (state) {
-                case "stopped":
-                    // all good here, we are done
-                    break;
-                case "stopping":
-                    throw new AssertionError("waiting until stopping state reached stopped state");
-                case "starting":
-                    throw new AssertionError("waiting until starting state reached started state to stop");
-                case "started":
-                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_watcher/_stop"));
-                    boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
-                    assertThat(isAcknowledged, is(true));
-                    throw new AssertionError("waiting until started state reached stopped state");
-                default:
-                    throw new AssertionError("unknown state[" + state + "]");
-            }
-        }, 60, TimeUnit.SECONDS);
-    }
 
     @Override
     protected Settings restClientSettings() {

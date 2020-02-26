@@ -774,7 +774,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             datafeedConfig.writeTo(output);
             try(StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(streamInput);
-                assertEquals(datafeedConfig.getAggregations(), streamedDatafeedConfig.getAggregations());
+                assertEquals(datafeedConfig, streamedDatafeedConfig);
 
                 // Assert that the parsed versions of our aggs and queries work as well
                 assertEquals(aggBuilder, streamedDatafeedConfig.getParsedAggregations(xContentRegistry()));

@@ -216,7 +216,7 @@ PUT /twitter/_doc/1
   "text" : "twitter test test test "
 }
 
-PUT /twitter/_doc/2
+PUT /twitter/_doc/2?refresh=wait_for
 {
   "fullname" : "Jane Doe",
   "text" : "Another twitter test ..."

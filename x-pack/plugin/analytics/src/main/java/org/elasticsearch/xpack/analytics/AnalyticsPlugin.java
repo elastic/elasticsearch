@@ -7,14 +7,25 @@ package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
@@ -28,24 +39,22 @@ import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuild
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregatorFactory;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonList;
 
 public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugin, MapperPlugin {
-
-    // TODO this should probably become more structured
-    public static AtomicLong cumulativeCardUsage = new AtomicLong(0);
-    public static AtomicLong topMetricsUsage = new AtomicLong(0);
+    private final AnalyticsUsage usage = new AnalyticsUsage();
 
     public AnalyticsPlugin() { }
 
@@ -58,7 +67,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
                 CumulativeCardinalityPipelineAggregator::new,
-                CumulativeCardinalityPipelineAggregationBuilder.PARSER)
+                usage.trackStringStats(checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
         );
     }
 
@@ -68,16 +77,17 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                StringStatsAggregationBuilder.PARSER).addResultReader(InternalStringStats::new),
+                usage.trackStringStats(checkLicense(StringStatsAggregationBuilder.PARSER)))
+                .addResultReader(InternalStringStats::new),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                BoxplotAggregationBuilder.PARSER)
+                usage.trackBoxplot(checkLicense(BoxplotAggregationBuilder.PARSER)))
                 .addResultReader(InternalBoxplot::new),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                track(TopMetricsAggregationBuilder.PARSER, topMetricsUsage))
+                usage.trackTopMetrics(checkLicense(TopMetricsAggregationBuilder.PARSER)))
                 .addResultReader(InternalTopMetrics::new)
         );
     }
@@ -100,15 +110,20 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
     }
 
-    /**
-     * Track successful parsing.
-     */
-    private static <T> ContextParser<String, T> track(ContextParser<String, T> realParser, AtomicLong usage) {
+    @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver) {
+        return singletonList(new AnalyticsUsage());
+    }
+
+    private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            T value = realParser.parse(parser, name);
-            // Intentionally doesn't count unless the parser returns cleanly.
-            usage.addAndGet(1);
-            return value;
+            if (getLicenseState().isDataScienceAllowed() == false) {
+                throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
+            }
+            return realParser.parse(parser, name);
         };
     }
 }

@@ -110,10 +110,14 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     }
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentObject {
+        static final ParseField BOXPLOT_USAGE = new ParseField("boxplot_usage");
         static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
+        static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
         static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
 
+        private long boxplotUsage;
         private long cumulativeCardinalityUsage;
+        private long stringStatsUsage;
         private long topMetricsUsage;
 
         public NodeResponse(DiscoveryNode node) {
@@ -122,7 +126,13 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
+                boxplotUsage = in.readVLong();
+            }
             cumulativeCardinalityUsage = in.readZLong();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
+                stringStatsUsage = in.readVLong();
+            }
             if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 topMetricsUsage = in.readVLong();
             }
@@ -131,14 +141,28 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeZLong(cumulativeCardinalityUsage);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
+                out.writeVLong(boxplotUsage);
+            }
+            out.writeVLong(cumulativeCardinalityUsage);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
+                out.writeVLong(stringStatsUsage);
+            }
             if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeVLong(topMetricsUsage);
             }
         }
 
+        public void setBoxplotUsage(long boxplotUsage) {
+            this.boxplotUsage = boxplotUsage;
+        }
+
         public void setCumulativeCardinalityUsage(long cumulativeCardinalityUsage) {
             this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
+        }
+
+        public void setStringStatsUsage(long stringStatsUsage) {
+            this.stringStatsUsage = stringStatsUsage;
         }
 
         public void setTopMetricsUsage(long topMetricsUsage) {
@@ -148,7 +172,9 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(BOXPLOT_USAGE.getPreferredName(), boxplotUsage);
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
+            builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
             builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
             builder.endObject();
             return builder;

@@ -820,6 +820,94 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
+    private IndexThing indexThing(Engine engine, Engine.Index index) throws IOException {
+        active.set(true);
+        final Engine.IndexResult result;
+        index = indexingOperationListeners.preIndex(shardId, index);
+        try {
+            if (logger.isTraceEnabled()) {
+                // don't use index.source().utf8ToString() here source might not be valid UTF-8
+                logger.trace("index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
+                    index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin());
+            }
+
+
+            result = engine.index(index);
+            if (logger.isTraceEnabled()) {
+                logger.trace("index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] " +
+                        "result-seq# [{}] result-term [{}] failure [{}]",
+                    index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin(), result.getSeqNo(), result.getTerm(), result.getFailure());
+            }
+        } catch (Exception e) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(new ParameterizedMessage(
+                    "index-fail [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
+                    index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin()
+                ), e);
+            }
+            indexingOperationListeners.postIndex(shardId, index, e);
+            throw e;
+        }
+        indexingOperationListeners.postIndex(shardId, index, result);
+        return null;
+
+    }
+
+    private class IndexThing {
+
+        private final Engine engine;
+        private final Engine.Index index;
+        // TODO: volatile?
+        private boolean failed = false;
+
+        private IndexThing(Engine engine, Engine.Index index) {
+            this.engine = engine;
+            this.index = index;
+        }
+
+        private void index() throws IOException {
+            try {
+                final Engine.IndexResult result = engine.index(index);
+            } catch (Exception e) {
+                failed(e);
+                throw e;
+            }
+        }
+
+        private void writeToTranslog() throws IOException {
+            assert failed == false;
+            final Engine.IndexResult result;
+            try {
+                result = engine.index(index);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] " +
+                            "result-seq# [{}] result-term [{}] failure [{}]",
+                        index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                        index.origin(), result.getSeqNo(), result.getTerm(), result.getFailure());
+                }
+            } catch (Exception e) {
+                failed(e);
+                throw e;
+            }
+            indexingOperationListeners.postIndex(shardId, index, result);
+        }
+
+        private void failed(Exception e) {
+            failed = true;
+            if (logger.isTraceEnabled()) {
+                logger.trace(new ParameterizedMessage(
+                    "index-fail [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
+                    index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin()
+                ), e);
+            }
+            indexingOperationListeners.postIndex(shardId, index, e);
+        }
+    }
+
     public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason) throws IOException {
         return markSeqNoAsNoop(getEngine(), seqNo, opPrimaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }

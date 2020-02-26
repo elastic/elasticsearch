@@ -29,9 +29,9 @@ public class ScriptCacheTests extends ESTestCase {
     // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
         ScriptCache cache = new ScriptCache(
-            ScriptService.SCRIPT_CACHE_SIZE_SETTING.get(Settings.EMPTY),
-            ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.get(Settings.EMPTY),
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.get(Settings.EMPTY)
+            ScriptService.SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.get(Settings.EMPTY),
+            ScriptService.SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED.get(Settings.EMPTY),
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.get(Settings.EMPTY)
         );
         cache.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
         cache.checkCompilationLimit(); // should pass

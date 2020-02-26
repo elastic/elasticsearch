@@ -495,10 +495,10 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 0, 2000));
+            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.getKey(), RandomNumbers.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(),
+            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED.getKey(),
                     timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
         }
 

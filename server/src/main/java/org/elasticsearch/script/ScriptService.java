@@ -45,6 +45,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -93,14 +94,51 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 }
             };
 
-    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
+    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING_DEPRECATED =
         Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
-    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
+    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
+    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED =
             new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
+
+    // Per-context settings
+    static final String contextPrefix = "script.context.";
+
+    // script.context.<context-name>.{cache_max_size, cache_expire, max_compilations_rate}
+    public static final Setting.AffixSetting<Integer> SCRIPT_CACHE_SIZE_SETTING =
+        Setting.affixKeySetting(
+            contextPrefix,
+            "cache_max_size",
+            key -> Setting.intSetting(
+                key,
+                100,
+                0,
+                Property.NodeScope,
+                Property.Dynamic)
+        );
+    public static final Setting.AffixSetting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
+        Setting.affixKeySetting(
+            contextPrefix,
+            "cache_expire",
+            key -> Setting.positiveTimeSetting(
+                key,
+                TimeValue.timeValueMillis(0),
+                Property.NodeScope,
+                Property.Dynamic)
+        );
+    public static final Setting.AffixSetting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
+        Setting.affixKeySetting(
+            contextPrefix,
+            "max_compilations_rate",
+            key -> new Setting<>(
+                key,
+                "75/5m",
+                MAX_COMPILATION_RATE_FUNCTION,
+                Property.NodeScope,
+                Property.Dynamic)
+        );
 
     public static final String ALLOW_NONE = "none";
 
@@ -113,7 +151,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
 
-    final ScriptCache compiler;
+    final ScriptCache generalCache;
+    final Map<String, ScriptCache> contextCache = new HashMap<>();
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
@@ -201,13 +240,138 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
-        compiler = new ScriptCache(
-                    SCRIPT_CACHE_SIZE_SETTING.get(settings),
-                    SCRIPT_CACHE_EXPIRE_SETTING.get(settings),
+        generalCache = initCache(settings, contextCache, contexts.keySet());
+    }
+
+    /**
+     * initialize contextCache with per context settings or return a general script cache
+     */
+    ScriptCache initCache(Settings settings, Map<String, ScriptCache> contextCache, Set<String> contextNames) {
+        if (useGeneralCacheSettings(settings)) {
+            return new ScriptCache(
+                SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.get(settings),
+                SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED.get(settings),
+                compilationLimitsEnabled() ?
+                    SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.get(settings):
+                    new Tuple<>(0, TimeValue.ZERO)
+            );
+        }
+
+        Map<String, Integer> sizePerContext = SCRIPT_CACHE_SIZE_SETTING.getAsMap(settings);
+        Map<String, TimeValue> expirePerContext = SCRIPT_CACHE_EXPIRE_SETTING.getAsMap(settings);
+        Map<String, Tuple<Integer, TimeValue>> ratePerContext = SCRIPT_MAX_COMPILATIONS_RATE.getAsMap(settings);
+
+        List<String> badContexts = invalidContextSettings(contextNames, sizePerContext.keySet(), expirePerContext.keySet(),
+                                    ratePerContext.keySet());
+        if (badContexts.size() > 0) {
+            throw new IllegalArgumentException("Invalid contexts for script cache settings [" + String.join(", ", badContexts) + "]");
+        }
+
+        for (String contextName: contexts.keySet()) {
+            contextCache.put(contextName,
+                new ScriptCache(
+                    sizePerContext.getOrDefault(contextName, SCRIPT_CACHE_SIZE_SETTING.getDefault(settings)),
+                    expirePerContext.getOrDefault(contextName, SCRIPT_CACHE_EXPIRE_SETTING.getDefault(settings)),
                     compilationLimitsEnabled() ?
-                        SCRIPT_MAX_COMPILATIONS_RATE.get(settings):
+                        ratePerContext.getOrDefault(contextName, SCRIPT_MAX_COMPILATIONS_RATE.getDefault(settings)) :
                         new Tuple<>(0, TimeValue.ZERO)
-                    );
+                )
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Return all setting values that do not correspond to the set of contexts.  Visible for testing.
+     */
+    static List<String> invalidContextSettings(Set<String> contextNames, Set<String> size, Set<String> expire, Set<String> rate) {
+        Set<String> badSize = new HashSet<>(size);
+        Set<String> badExpire = new HashSet<>(expire);
+        Set<String> badRate = new HashSet<>(rate);
+        for (String context: contextNames) {
+            badSize.remove(context);
+            badExpire.remove(context);
+            badRate.remove(context);
+        }
+
+        List<String> badSettings = new ArrayList<>();
+        for (String sizeContext: badSize) {
+            badSettings.add(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(sizeContext).getKey());
+        }
+        for (String expireContext: badExpire) {
+            badSettings.add(SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(expireContext).getKey());
+        }
+        for (String rateContext: badRate) {
+            badSettings.add(SCRIPT_MAX_COMPILATIONS_RATE.getConcreteSettingForNamespace(rateContext).getKey());
+        }
+
+        Collections.sort(badSettings);
+        return badSettings;
+    }
+
+    /**
+     * Ensure that either the general cache settings are given or the per context settings are given.  If neither are set, the default is to
+     * using general cache settings.
+     * Visible for testing
+     * TODO(stu): change default to per context when context defaults exist
+     */
+    static boolean useGeneralCacheSettings(Settings settings) {
+        Set<String> generalKeys = new HashSet<>();
+        Set<String> contextKeys = new HashSet<>();
+        for (String key: settings.keySet()) {
+            if (SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.match(key) ||
+                SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED.match(key) ||
+                SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.match(key)) {
+
+                generalKeys.add(key);
+
+            } else if (
+                SCRIPT_CACHE_SIZE_SETTING.getRawKey().match(key) ||
+                SCRIPT_CACHE_EXPIRE_SETTING.getRawKey().match(key) ||
+                SCRIPT_MAX_COMPILATIONS_RATE.getRawKey().match(key)) {
+
+                contextKeys.add(key);
+
+            }
+        }
+
+        if (generalKeys.size() > 0) {
+            if (contextKeys.size() > 0) {
+                throw new IllegalArgumentException("Cannot combine deprecated general script cache settings [" +
+                    generalKeys.stream().sorted().collect(Collectors.joining(", ")) +
+                    "] with context specific script cache settings [" +
+                    contextKeys.stream().sorted().collect(Collectors.joining(", ")) + ']'
+                );
+            }
+
+            return true;
+        }
+
+        // TODO(stu): switch to false when per context defaults exist
+        return contextKeys.size() == 0;
+    }
+
+    private void contextExists(String context, Object o) {
+        if (generalCache != null) {
+            throw new IllegalArgumentException("Cannot update context script cache settings when general script cache is in use");
+        }
+        if (contextCache.containsKey(context) == false) {
+            throw new IllegalArgumentException("Context [" + context + "] does not exist");
+        }
+    }
+
+
+    private void setScriptCacheSize(String context, Integer newSize) {
+        contextCache.get(context).setScriptCacheSize(newSize);
+    }
+
+    private void setScriptCacheExpire(String context, TimeValue newExpire) {
+        contextCache.get(context).setScriptCacheExpire(newExpire);
+    }
+
+    private void setMaxCompilationRate(String context, Tuple<Integer, TimeValue> newRate) {
+        contextCache.get(context).setMaxCompilationRate(newRate);
     }
 
     /**
@@ -219,7 +383,29 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);
-        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, compiler::setMaxCompilationRate);
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED,
+                // Don't deref potentially null generalCache
+                r -> {
+                    if (generalCache != null) {
+                        generalCache.setMaxCompilationRate(r);
+                    }
+                },
+                s -> {
+                    if (generalCache == null) {
+                        // This validator is run on every settings update.
+                        // Here we try to detect if it's a spurious update to the default.
+                        // This _will_ allow through bad updates to the default.
+                        if (SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.getDefault(Settings.EMPTY).equals(s) &&
+                            SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.exists(settings) == false) {
+                            return;
+                        }
+                        throw new IllegalArgumentException("Using context script caches rather than general script cache");
+                    }
+                }
+            );
+        clusterSettings.addAffixUpdateConsumer(SCRIPT_CACHE_SIZE_SETTING, this::setScriptCacheSize, this::contextExists);
+        clusterSettings.addAffixUpdateConsumer(SCRIPT_CACHE_EXPIRE_SETTING, this::setScriptCacheExpire, this::contextExists);
+        clusterSettings.addAffixUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate, this::contextExists);
     }
 
     @Override
@@ -304,7 +490,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
         }
 
-        return compiler.compile(context, scriptEngine, id, idOrCode, type, options);
+        if (generalCache != null) {
+            return generalCache.compile(context, scriptEngine, id, idOrCode, type, options);
+        }
+
+        if (contextCache.containsKey(context.name) == false) {
+            throw new IllegalArgumentException("script context [" + context.name + "] has no script cache");
+        }
+
+        return contextCache.get(context.name).compile(context, scriptEngine, id, idOrCode, type, options);
     }
 
     public boolean isLangSupported(String lang) {
@@ -468,7 +662,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     }
 
     public ScriptStats stats() {
-        return compiler.stats();
+        if (generalCache != null) {
+            return generalCache.stats();
+        }
+
+        return ScriptStats.sum(contextCache.values().stream().map(ScriptCache::stats)::iterator);
     }
 
     @Override

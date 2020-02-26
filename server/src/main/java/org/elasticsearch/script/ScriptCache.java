@@ -184,6 +184,29 @@ public class ScriptCache {
                 CircuitBreaker.Durability.TRANSIENT);
         }
     }
+    /**
+     * This sets the cache size.  Replaces existing cache.
+     * @param newSize the new size
+     */
+    void setScriptCacheSize(Integer newSize) {
+        synchronized (lock) {
+            this.cacheSize = newSize.intValue();
+
+            this.cache = buildCache();
+        }
+    }
+
+    /**
+     * This sets the cache expiration time.  Replaces existing cache.
+     * @param newExpire the new expiration
+     */
+    void setScriptCacheExpire(TimeValue newExpire) {
+        synchronized (lock) {
+            this.cacheExpire = newExpire;
+
+            this.cache = buildCache();
+        }
+    }
 
     /**
      * This configures the maximum script compilations per five minute window.

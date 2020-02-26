@@ -112,13 +112,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDocValues values = getNumericDocValues(ctx, lMissingValue);
-                    private long value;
+                    private final NumericDocValues docValues = getNumericDocValues(ctx, lMissingValue);
+                    private long docValue;
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        if (values.advanceExact(doc)) {
-                            value = values.longValue();
+                        if (docValues.advanceExact(doc)) {
+                            docValue = docValues.longValue();
                             return true;
                         }
                         return false;
@@ -126,7 +126,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
                     @Override
                     protected long docValue() {
-                        return value;
+                        return docValue;
                     }
                 };
             }

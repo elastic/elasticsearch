@@ -104,13 +104,13 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDoubleValues values = getNumericDocValues(ctx, dMissingValue);
+                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue);
                     private double docValue;
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        if (values.advanceExact(doc)) {
-                            docValue = values.doubleValue();
+                        if (docValues.advanceExact(doc)) {
+                            docValue = docValues.doubleValue();
                             return true;
                         }
                         return false;

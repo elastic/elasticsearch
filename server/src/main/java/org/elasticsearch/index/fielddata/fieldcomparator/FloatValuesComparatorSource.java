@@ -96,16 +96,16 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDoubleValues values = getNumericDocValues(ctx, dMissingValue);
-                    private float value;
+                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue);
+                    private float docValue;
 
                     @Override
                     public void setScorer(Scorable scorer) {}
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        if (values.advanceExact(doc)) {
-                            value = (float) values.doubleValue();
+                        if (docValues.advanceExact(doc)) {
+                            docValue = (float) docValues.doubleValue();
                             return true;
                         }
                         return false;
@@ -113,7 +113,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
 
                     @Override
                     protected float docValue() {
-                        return value;
+                        return docValue;
                     }
                 };
             }

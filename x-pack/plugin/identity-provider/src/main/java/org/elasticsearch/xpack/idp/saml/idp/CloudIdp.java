@@ -33,6 +33,9 @@ import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SLO_POST_EN
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SLO_REDIRECT_ENDPOINT;
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_POST_ENDPOINT;
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_REDIRECT_ENDPOINT;
+import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
+import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class CloudIdp implements SamlIdentityProvider {
 
@@ -44,15 +47,15 @@ public class CloudIdp implements SamlIdentityProvider {
 
     public CloudIdp(Environment env, Settings settings) {
         this.entityId = require(settings, IDP_ENTITY_ID);
-        this.ssoEndpoints.put("redirect", require(settings, IDP_SSO_REDIRECT_ENDPOINT));
+        this.ssoEndpoints.put(SAML2_REDIRECT_BINDING_URI, require(settings, IDP_SSO_REDIRECT_ENDPOINT));
         if (settings.hasValue(IDP_SSO_POST_ENDPOINT.getKey())) {
-            this.ssoEndpoints.put("post", settings.get(IDP_SSO_POST_ENDPOINT.getKey()));
+            this.ssoEndpoints.put(SAML2_POST_BINDING_URI, IDP_SSO_POST_ENDPOINT.get(settings));
         }
         if (settings.hasValue(IDP_SLO_POST_ENDPOINT.getKey())) {
-            this.sloEndpoints.put("post", settings.get(IDP_SLO_POST_ENDPOINT.getKey()));
+            this.sloEndpoints.put(SAML2_POST_BINDING_URI, IDP_SLO_POST_ENDPOINT.get(settings));
         }
         if (settings.hasValue(IDP_SLO_REDIRECT_ENDPOINT.getKey())) {
-            this.sloEndpoints.put("redirect", settings.get(IDP_SLO_REDIRECT_ENDPOINT.getKey()));
+            this.sloEndpoints.put(SAML2_REDIRECT_BINDING_URI, IDP_SLO_REDIRECT_ENDPOINT.get(settings));
         }
         this.signingCredential = buildSigningCredential(env, settings);
         this.registeredServiceProviders = gatherRegisteredServiceProviders();
@@ -81,9 +84,7 @@ public class CloudIdp implements SamlIdentityProvider {
     @Override
     public SamlServiceProvider getRegisteredServiceProvider(String spEntityId) {
         return registeredServiceProviders.get(spEntityId);
-
     }
-
 
     private static String require(Settings settings, Setting<String> setting) {
         if (settings.hasValue(setting.getKey())) {
@@ -139,13 +140,13 @@ public class CloudIdp implements SamlIdentityProvider {
         return new X509KeyManagerX509CredentialAdapter(keyManager, selectedAlias);
     }
 
-
     private Map<String, SamlServiceProvider> gatherRegisteredServiceProviders() {
         // TODO Fetch all the registered service providers from the index (?) they are persisted.
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
         registeredSps.put("https://sp.some.org",
-            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml"));
+            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", Set.of(TRANSIENT), null, false,
+                false, null));
         return registeredSps;
     }
 

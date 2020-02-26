@@ -38,11 +38,11 @@ import static org.mockito.Mockito.when;
 
 public class SamlObjectSignerTests extends IdpSamlTestCase {
 
-    private SamlFactory factory;
-
+    private SamlFactory samlFactory;
     @Before
     public void setupState() {
-        factory = new SamlFactory();
+        SamlInit.initialize();
+        samlFactory = new SamlFactory();
     }
 
     public void testSignLogoutRequest() throws Exception {
@@ -106,7 +106,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
     private Element sign(SignableSAMLObject request, String entityId, X509Credential credential) {
         SamlIdentityProvider idp = buildIdP(entityId, credential);
 
-        SamlObjectSigner signer = new SamlObjectSigner(factory, idp);
+        SamlObjectSigner signer = new SamlObjectSigner(samlFactory, idp);
         return signer.sign(request);
     }
 
@@ -119,34 +119,34 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
     }
 
     private LogoutRequest createLogoutRequest(String entityId) {
-        final LogoutRequest request = factory.object(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
+        final LogoutRequest request = samlFactory.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         request.setNotOnOrAfter(DateTime.now().plusMinutes(15));
 
-        final NameID nameID = factory.object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
+        final NameID nameID = samlFactory.buildObject(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
         nameID.setFormat(NameIDType.TRANSIENT);
         nameID.setValue(randomAlphaOfLengthBetween(24, 64));
         request.setNameID(nameID);
 
-        final Issuer issuer = factory.object(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
+        final Issuer issuer = samlFactory.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(entityId);
         request.setIssuer(issuer);
         return request;
     }
 
     private Response createAuthnResponse(String entityId) {
-        final Response response = factory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
+        final Response response = samlFactory.buildObject(Response.class, Response.DEFAULT_ELEMENT_NAME);
         final DateTime now = DateTime.now();
         response.setIssueInstant(now);
         response.setID(randomAlphaOfLength(24));
 
-        final StatusCode code = factory.object(StatusCode.class, StatusCode.DEFAULT_ELEMENT_NAME);
+        final StatusCode code = samlFactory.buildObject(StatusCode.class, StatusCode.DEFAULT_ELEMENT_NAME);
         code.setValue(StatusCode.AUTHN_FAILED);
 
-        Status status = factory.object(Status.class, Status.DEFAULT_ELEMENT_NAME);
+        Status status = samlFactory.buildObject(Status.class, Status.DEFAULT_ELEMENT_NAME);
         status.setStatusCode(code);
         response.setStatus(status);
 
-        final Issuer issuer = factory.object(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
+        final Issuer issuer = samlFactory.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(entityId);
         response.setIssuer(issuer);
         return response;

@@ -6,34 +6,49 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
+import org.opensaml.security.x509.X509Credential;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Map;
+import java.util.Set;
+
 
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityid;
-    private final URI assertionConsumerService;
+    private final URL assertionConsumerService;
     private final ReadableDuration authnExpiry;
     private final ServiceProviderPrivileges privileges;
+    private final Set<String> allowedNameIdFormats;
+    private final X509Credential signingCredential;
+    private final boolean signAuthnRequests;
+    private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, String assertionConsumerService) {
+    public CloudServiceProvider(String entityId, String assertionConsumerService, Set<String> allowedNameIdFormats,
+                                ServiceProviderPrivileges privileges, boolean signAuthnRequests, boolean signLogoutRequests,
+                                @Nullable X509Credential signingCredential) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
         this.entityid = entityId;
         try {
-            this.assertionConsumerService = new URI(assertionConsumerService);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid URI for Assertion Consumer Service", e);
+            this.assertionConsumerService = new URL(assertionConsumerService);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid URL for Assertion Consumer Service", e);
         }
+        this.allowedNameIdFormats = Set.copyOf(allowedNameIdFormats);
         this.authnExpiry = Duration.standardMinutes(5);
         this.privileges = new ServiceProviderPrivileges("cloud-idp", "service$" + entityId, "action:sso", Map.of());
+        this.signingCredential = signingCredential;
+        this.signLogoutRequests = signLogoutRequests;
+        this.signAuthnRequests = signAuthnRequests;
+
     }
 
     @Override
@@ -42,7 +57,12 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public URI getAssertionConsumerService() {
+    public Set<String> getAllowedNameIdFormats() {
+        return allowedNameIdFormats;
+    }
+
+    @Override
+    public URL getAssertionConsumerService() {
         return assertionConsumerService;
     }
 
@@ -54,6 +74,21 @@ public class CloudServiceProvider implements SamlServiceProvider {
     @Override
     public AttributeNames getAttributeNames() {
         return new SamlServiceProvider.AttributeNames();
+    }
+
+    @Override
+    public X509Credential getSigningCredential() {
+        return signingCredential;
+    }
+
+    @Override
+    public boolean shouldSignAuthnRequests() {
+        return signAuthnRequests;
+    }
+
+    @Override
+    public boolean shouldSignLogoutRequests() {
+        return signLogoutRequests;
     }
 
     @Override

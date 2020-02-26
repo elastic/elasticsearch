@@ -34,11 +34,14 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
-import org.elasticsearch.xpack.idp.saml.support.SamlUtils;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 
 import java.util.Collection;
@@ -56,30 +59,30 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
     public static final Setting<String> IDP_SSO_REDIRECT_ENDPOINT = Setting.simpleString("xpack.idp.sso_endpoint.redirect", value -> {
         try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.redirect]. Not a valid URI", e);
+            new URL(value);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.redirect]. Not a valid URL", e);
         }
     }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SSO_POST_ENDPOINT = Setting.simpleString("xpack.idp.sso_endpoint.post", value -> {
         try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.post]. Not a valid URI", e);
+            new URL(value);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.sso_endpoint.post]. Not a valid URL", e);
         }
     }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SLO_REDIRECT_ENDPOINT = Setting.simpleString("xpack.idp.slo_endpoint.redirect", value -> {
         try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.redirect]. Not a valid URI", e);
+            new URL(value);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.redirect]. Not a valid URL", e);
         }
     }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SLO_POST_ENDPOINT = Setting.simpleString("xpack.idp.slo_endpoint.post", value -> {
         try {
-            new URI(value);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.post]. Not a valid URI", e);
+            new URL(value);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid value [" + value + "] for  [xpack.idp.slo_endpoint.post]. Not a valid URL", e);
         }
     }, Setting.Property.NodeScope);
     public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
@@ -101,7 +104,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        SamlUtils.initialize();
+        SamlInit.initialize();
         CloudIdp idp = new CloudIdp(environment, settings);
         return List.of();
     }
@@ -111,8 +114,9 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(
-            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class)
+        return List.of(
+            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
+            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class)
         );
     }
 
@@ -124,7 +128,9 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(new RestSamlInitiateSingleSignOnAction());
+        return List.of(
+            new RestSamlInitiateSingleSignOnAction(),
+            new RestSamlValidateAuthenticationRequestAction());
     }
 
     @Override
@@ -138,5 +144,13 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.add(IDP_SSO_POST_ENDPOINT);
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
+    }
+
+    private static URL parseURL(String key, String value) {
+        try {
+            return new URL(value);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid value [" + value + "] for  [" + key + "]. Not a valid URL", e);
+        }
     }
 }

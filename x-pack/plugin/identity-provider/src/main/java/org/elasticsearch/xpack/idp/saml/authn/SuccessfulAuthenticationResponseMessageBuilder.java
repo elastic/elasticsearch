@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.opensaml.core.xml.schema.XSString;
@@ -45,11 +46,12 @@ import java.util.Set;
  */
 public class SuccessfulAuthenticationResponseMessageBuilder {
 
-    private final SamlFactory samlFactory;
     private final Clock clock;
     private final SamlIdentityProvider idp;
+    private final SamlFactory samlFactory;
 
     public SuccessfulAuthenticationResponseMessageBuilder(SamlFactory samlFactory, Clock clock, SamlIdentityProvider idp) {
+        SamlInit.initialize();
         this.samlFactory = samlFactory;
         this.clock = clock;
         this.idp = idp;

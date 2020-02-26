@@ -58,8 +58,8 @@ dependencies {
   compile 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  compile "com.nimbusds:oauth2-oidc-sdk:6.16.5"
-  compile "com.nimbusds:nimbus-jose-jwt:8.2"
+  compile "com.nimbusds:oauth2-oidc-sdk:7.0.2"
+  compile "com.nimbusds:nimbus-jose-jwt:8.6"
   compile "com.nimbusds:lang-tag:1.4.4"
   compile "com.sun.mail:jakarta.mail:1.6.3"
   compile "net.jcip:jcip-annotations:1.0"
@@ -84,7 +84,7 @@ dependencies {
   testCompile('org.apache.kerby:kerb-crypto:1.1.1')
   testCompile('org.apache.kerby:kerb-util:1.1.1')
   testCompile('org.apache.kerby:token-provider:1.1.1')
-  testCompile('com.nimbusds:nimbus-jose-jwt:8.2')
+  testCompile('com.nimbusds:nimbus-jose-jwt:8.6')
   testCompile('net.jcip:jcip-annotations:1.0')
   testCompile('org.apache.kerby:kerb-admin:1.1.1')
   testCompile('org.apache.kerby:kerb-server:1.1.1')
@@ -273,6 +273,7 @@ thirdPartyAudit {
         'org.slf4j.ext.EventData',
         // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
         'org.cryptomator.siv.SivMode',
+        'com.nimbusds.common.contenttype.ContentType',
         // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
         'com.google.crypto.tink.subtle.Ed25519Sign',
         'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',

@@ -82,7 +82,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     private final float requestsPerSecond;
 
     public ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startTimeMillis) {
-        this(reindexRequest, resilient, startTimeMillis, null, null, null, null, null, (RestStatus) null, null,
+        this(reindexRequest, resilient, startTimeMillis, null, null, null, null, null, null, null,
             reindexRequest.getRequestsPerSecond());
     }
 

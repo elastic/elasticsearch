@@ -19,9 +19,10 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.xpack.core.ilm.OnAsyncWaitBranchingStep.BranchingStepListener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -119,8 +120,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             copyMetadataStep, copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
     }
 
-    private TriConsumer<Client, IndexMetaData, AsyncWaitStep.Listener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
-        return (client, indexMetaData, listener) -> {
+    /**
+     * Creates a consumer of parameters needed to evaluate the ILM generated snapshot status in the provided snapshotRepository in an
+     * async way, akin to an equivalent {@link AsyncWaitStep} implementation.
+     */
+    private TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
+        return (client, indexMetaData, branchingStepListener) -> {
 
             LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
 
@@ -128,7 +133,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             final String indexName = indexMetaData.getIndex().getName();
             if (Strings.hasText(snapshotName) == false) {
-                listener.onFailure(new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index " +
+                branchingStepListener.onFailure(new IllegalStateException("snapshot name was not generated for policy [" + policyName +
+                    "] and index " +
                     "[" + indexName + "]"));
                 return;
             }
@@ -141,20 +147,61 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     SnapshotStatus snapshotStatus = statuses.get(0);
                     SnapshotsInProgress.State snapshotState = snapshotStatus.getState();
                     if (snapshotState.equals(SUCCESS)) {
-                        listener.onResponse(true, null);
+                        branchingStepListener.onResponse(true, null);
                     } else if (snapshotState.equals(ABORTED) || snapshotState.equals(FAILED) || snapshotState.equals(MISSING)) {
-                        listener.onFailure(new SnapshotException(snapshotStatus.getSnapshot(),
-                            "unable to create snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" +
-                                policyName + "] execution"));
+                        branchingStepListener.onStopWaitingForCondition(new Info(
+                            "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] is " +
+                                "cannot complete as it is in state [" + snapshotState + "]"));
                     } else {
-                        // TODO add info context with status
-                        listener.onResponse(false, null);
+                        branchingStepListener.onResponse(false, new Info(
+                            "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] is " +
+                                "in state [" + snapshotState + "]. waiting for SUCCESS"));
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    branchingStepListener.onFailure(e);
+                }
+
+                final class Info implements ToXContentObject {
+
+                    final ParseField MESSAGE_FIELD = new ParseField("message");
+
+                    private final String message;
+
+                    Info(String message) {
+                        this.message = message;
+                    }
+
+                    String getMessage() {
+                        return message;
+                    }
+
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        builder.startObject();
+                        builder.field(MESSAGE_FIELD.getPreferredName(), message);
+                        builder.endObject();
+                        return builder;
+                    }
+
+                    @Override
+                    public boolean equals(Object o) {
+                        if (o == null) {
+                            return false;
+                        }
+                        if (getClass() != o.getClass()) {
+                            return false;
+                        }
+                        WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) o;
+                        return Objects.equals(getMessage(), info.getMessage());
+                    }
+
+                    @Override
+                    public int hashCode() {
+                        return Objects.hash(getMessage());
+                    }
                 }
             });
         };

@@ -320,8 +320,14 @@ public abstract class BucketedSort implements Releasable {
     /**
      * Heapify a bucket who's entries are in random order.
      * <p>
+     * This works by validating the heap property on each node, iterating
+     * "upwards", pushing any out of order parents "down". Check out the
+     * <a href="https://en.wikipedia.org/w/index.php?title=Binary_heap&oldid=940542991#Building_a_heap">wikipedia</a>
+     * entry on binary heaps for more about this.
+     * </p>
+     * <p>
      * While this *looks* like it could easily be {@code O(n * log n)}, it is
-     * a fairly well studied algorithm attributed to Floyd there's
+     * a fairly well studied algorithm attributed to Floyd. There's
      * been a bunch of work that puts this at {@code O(n)}, close to 1.88n worst
      * case.
      * </p>
@@ -352,17 +358,17 @@ public abstract class BucketedSort implements Releasable {
             long parentIndex = rootIndex + parent;
             int worst = parent;
             long worstIndex = parentIndex;
-            int left = parent * 2 + 1;
-            long leftIndex = rootIndex + left;
-            if (left < bucketSize) {
+            int leftChild = parent * 2 + 1;
+            long leftIndex = rootIndex + leftChild;
+            if (leftChild < bucketSize) {
                 if (betterThan(worstIndex, leftIndex)) {
-                    worst = left;
+                    worst = leftChild;
                     worstIndex = leftIndex;
                 }
-                int right = left + 1;
-                long rightIndex = rootIndex + right;
-                if (right < bucketSize && betterThan(worstIndex, rightIndex)) {
-                    worst = right;
+                int rightChild = leftChild + 1;
+                long rightIndex = rootIndex + rightChild;
+                if (rightChild < bucketSize && betterThan(worstIndex, rightIndex)) {
+                    worst = rightChild;
                     worstIndex = rightIndex;
                 }
             }

@@ -57,8 +57,6 @@ import static org.mockito.Mockito.when;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
-    boolean requiresRewrite = false;
-
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
@@ -79,10 +77,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
         QueryBuilder innerQueryBuilder = RandomQueryBuilder.createQuery(random());
-        if (randomBoolean()) {
-            requiresRewrite = true;
-            innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
-        }
         NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));
         nqb.ignoreUnmapped(randomBoolean());
@@ -186,13 +180,14 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     public void testMustRewrite() throws IOException {
-        try {
-            super.testMustRewrite();
-        } catch (UnsupportedOperationException e) {
-            if (requiresRewrite == false) {
-                throw e;
-            }
-        }
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder innerQueryBuilder = new TermQueryBuilder("nested1.unmapped_field", "foo");
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("nested1", innerQueryBuilder,
+                RandomPicks.randomFrom(random(), ScoreMode.values()));
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> nestedQueryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 
     public void testIgnoreUnmapped() throws IOException {

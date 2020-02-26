@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -170,30 +169,38 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (ids.isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+            // no mappings yet
+            return new MatchNoneQueryBuilder();
+        }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
-        if (idField == null) {
-            return new MatchNoDocsQuery("No mappings");
+        if (idField == null || ids.isEmpty()) {
+            throw new IllegalStateException("Rewrite first");
         }
-        if (this.ids.isEmpty()) {
-             return Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
+        final DocumentMapper mapper = context.getMapperService().documentMapper();
+        Collection<String> typesForQuery;
+        if (types.length == 0) {
+            typesForQuery = context.queryTypes();
+        } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
+            typesForQuery = Collections.singleton(mapper.type());
         } else {
-            final DocumentMapper mapper = context.getMapperService().documentMapper();
-            Collection<String> typesForQuery;
-            if (types.length == 0) {
-                typesForQuery = context.queryTypes();
-            } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
-                typesForQuery = Collections.singleton(mapper.type());
-            } else {
-                typesForQuery = new HashSet<>(Arrays.asList(types));
-            }
+            typesForQuery = new HashSet<>(Arrays.asList(types));
+        }
 
-            if (typesForQuery.contains(mapper.type())) {
-                return idField.termsQuery(new ArrayList<>(ids), context);
-            } else {
-                return new MatchNoDocsQuery("Type mismatch");
-            }
-            
+        if (typesForQuery.contains(mapper.type())) {
+            return idField.termsQuery(new ArrayList<>(ids), context);
+        } else {
+            return new MatchNoDocsQuery("Type mismatch");
         }
     }
 

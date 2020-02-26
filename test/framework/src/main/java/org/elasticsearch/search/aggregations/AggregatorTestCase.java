@@ -166,7 +166,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext.getQueryShardContext(), null)
+        A aggregator = (A) aggregationBuilder
+            .rewrite(searchContext.getQueryShardContext())
+            .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
     }

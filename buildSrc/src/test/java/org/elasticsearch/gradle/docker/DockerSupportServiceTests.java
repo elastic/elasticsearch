@@ -38,12 +38,12 @@ public class DockerSupportServiceTests extends GradleIntegrationTestCase {
         expected.put("CPE_NAME", "cpe:/o:oracle:linux:6:10:server");
         expected.put("HOME_URL" + "", "https://linux.oracle.com/");
         expected.put("ID", "ol");
-        expected.put("NAME", "Oracle Linux Server");
-        expected.put("ORACLE_BUGZILLA_PRODUCT" + "", "Oracle Linux 6");
+        expected.put("NAME", "oracle linux server");
+        expected.put("ORACLE_BUGZILLA_PRODUCT" + "", "oracle linux 6");
         expected.put("ORACLE_BUGZILLA_PRODUCT_VERSION", "6.10");
-        expected.put("ORACLE_SUPPORT_PRODUCT", "Oracle Linux");
+        expected.put("ORACLE_SUPPORT_PRODUCT", "oracle linux");
         expected.put("ORACLE_SUPPORT_PRODUCT_VERSION", "6.10");
-        expected.put("PRETTY_NAME", "Oracle Linux Server 6.10");
+        expected.put("PRETTY_NAME", "oracle linux server 6.10");
         expected.put("VERSION", "6.10");
         expected.put("VERSION_ID", "6.10");
 
@@ -58,7 +58,7 @@ public class DockerSupportServiceTests extends GradleIntegrationTestCase {
 
         final Map<String, String> results = parseOsRelease(lines);
 
-        final Map<String, String> expected = Map.of("NAME", "Oracle Linux Server");
+        final Map<String, String> expected = Map.of("NAME", "oracle linux server");
 
         assertThat(expected, equalTo(results));
     }
@@ -71,7 +71,7 @@ public class DockerSupportServiceTests extends GradleIntegrationTestCase {
 
         final Map<String, String> results = parseOsRelease(lines);
 
-        final Map<String, String> expected = Map.of("NAME", "Oracle Linux Server");
+        final Map<String, String> expected = Map.of("NAME", "oracle linux server");
 
         assertThat(expected, equalTo(results));
     }

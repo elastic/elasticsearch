@@ -1,0 +1,9 @@
+[role="xpack"]
+[testenv="platinum"]
+[[cat-trained-model]]
+=== cat trained model API
+++++
+<titleabbrev>cat trained model</titleabbrev>
+++++
+
+Returns configuration and usage information about inference trained models.

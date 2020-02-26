@@ -4,10 +4,18 @@
 ["float",id="intro"]
 === Introduction
 
-JSON is great... for computers.  Even if it's pretty-printed, trying
-to find relationships in the data is tedious.  Human eyes, especially
-when looking at a terminal, need compact and aligned text.  The cat API
-aims to meet this need.
+JSON is great... for computers. Even if it's pretty-printed, trying
+to find relationships in the data is tedious. Human eyes, especially
+when looking at a terminal, need compact and aligned text. The cat APIs
+aim to meet this need.
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the
+{kibana-ref}/console-kibana.html[Kibana console] or command line. They are _not_
+intended for use by applications. For application consumption, we recommend
+using a corresponding JSON API.
+====
 
 All the cat commands accept a query string parameter `help` to see all
 the headers and info they provide, and the `/_cat` command alone lists all
@@ -220,6 +228,8 @@ include::cat/alias.asciidoc[]
 include::cat/allocation.asciidoc[]
 
 include::cat/count.asciidoc[]
+
+include::cat/dataframeanalytics.asciidoc[]
 
 include::cat/fielddata.asciidoc[]
 

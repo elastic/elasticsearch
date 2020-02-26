@@ -137,6 +137,10 @@ tag::analyzed-fields-includes[]
 An array of strings that defines the fields that will be included in the analysis.
 end::analyzed-fields-includes[]
 
+tag::assignment-explanation-dfanalytics[]
+Contains messages relating to the selection of a node.
+end::assignment-explanation-dfanalytics[]
+
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the 
 model. The default value is a randomized value between 3 to 4 hours, which

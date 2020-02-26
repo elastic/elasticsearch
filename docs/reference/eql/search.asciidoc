@@ -17,23 +17,24 @@ The following <<docs-bulk,bulk API>> request adds some example log data to the
 ----
 PUT sec_logs/_bulk?refresh
 {"index":{"_index" : "sec_logs"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event_type": "process" , "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event_type": "image_load" , "file": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "image_load" }, "file": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs"}}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event_type": "process" , "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 
 You can now use the EQL search API to search this index using an EQL query.
 
 The following request searches the `sec_logs` index using the EQL query
 specified in the `rule` parameter. The EQL query matches events with an
-`event_type` of `process` that have a `process.name` of `cmd.exe`.
+`event.category` of `process` that have a `process.name` of `cmd.exe`.
 
 [source,console]
 ----
 GET sec_logs/_eql/search
 {
+  "event_type_field": "event.category",
   "rule": """
     process where process.name == "cmd.exe"
   """
@@ -42,5 +43,5 @@ GET sec_logs/_eql/search
 // TEST[continued]
 
 Because the `sec_log` index follows the ECS, you don't need to specify the
-event type or timestamp fields. The request uses the `event_type` and
+event type or timestamp fields. The request uses the `event.category` and
 `@timestamp` fields by default.

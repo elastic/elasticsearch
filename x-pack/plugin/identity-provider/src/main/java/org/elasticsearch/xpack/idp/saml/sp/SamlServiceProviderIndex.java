@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -55,26 +57,58 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final ClusterStateListener clusterStateListener;
     private volatile boolean aliasExists;
+    private volatile boolean templateInstalled;
 
     static final String ALIAS_NAME = "saml-service-provider";
     static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
-    private static final String TEMPLATE_RESOURCE = "/index/saml-service-provider-template.json";
+    private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
     private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
     private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
-    private final ClusterStateListener clusterStateListener;
 
     public SamlServiceProviderIndex(Client client, ClusterService clusterService) {
         this.client = new OriginSettingClient(client, ClientHelper.IDP_ORIGIN);
         this.clusterService = clusterService;
-        clusterStateListener = this::clusterChanged;
+        this.clusterStateListener = this::clusterChanged;
         clusterService.addListener(clusterStateListener);
     }
 
     private void clusterChanged(ClusterChangedEvent clusterChangedEvent) {
         final ClusterState state = clusterChangedEvent.state();
+        installTemplateIfRequired(state);
+        checkForAliasStateChange(state);
+    }
+
+    private void installTemplateIfRequired(ClusterState state) {
+        if (templateInstalled) {
+            return;
+        }
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+        if (isTemplateUpToDate(state)) {
+            templateInstalled = true;
+            return;
+        }
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+        installIndexTemplate(ActionListener.wrap(
+            installed -> {
+                templateInstalled = true;
+                if (installed) {
+                    logger.debug("Template [{}] has been updated", TEMPLATE_NAME);
+                } else {
+                    logger.debug("Template [{}] appears to be up to date", TEMPLATE_NAME);
+                }
+            }, e -> logger.warn(new ParameterizedMessage("Failed to install template [{}]", TEMPLATE_NAME), e)
+        ));
+    }
+
+    private void checkForAliasStateChange(ClusterState state) {
         final AliasOrIndex aliasInfo = state.getMetaData().getAliasAndIndexLookup().get(ALIAS_NAME);
         final boolean previousState = aliasExists;
         this.aliasExists = aliasInfo != null;
@@ -104,13 +138,19 @@ public class SamlServiceProviderIndex implements Closeable {
 
     public void installIndexTemplate(ActionListener<Boolean> listener) {
         final ClusterState state = clusterService.state();
-        if (TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger)) {
+        if (isTemplateUpToDate(state)) {
             listener.onResponse(false);
         }
         final String template = TemplateUtils.loadTemplate(TEMPLATE_RESOURCE, Version.CURRENT.toString(), TEMPLATE_VERSION_SUBSTITUTE);
         final PutIndexTemplateRequest request = new PutIndexTemplateRequest(TEMPLATE_NAME).source(template, XContentType.JSON);
-        client.admin().indices().putTemplate(request, ActionListener.wrap(
-            response -> listener.onResponse(response.isAcknowledged()), listener::onFailure));
+        client.admin().indices().putTemplate(request, ActionListener.wrap(response -> {
+            logger.info("Installed template [{}]", TEMPLATE_NAME);
+            listener.onResponse(true);
+        }, listener::onFailure));
+    }
+
+    private boolean isTemplateUpToDate(ClusterState state) {
+        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
     public void writeDocument(SamlServiceProviderDocument document, ActionListener<String> listener) {
@@ -119,6 +159,14 @@ public class SamlServiceProviderIndex implements Closeable {
             listener.onFailure(exception);
             return;
         }
+        if (templateInstalled) {
+            _writeDocument(document, listener);
+        } else {
+            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, listener), listener::onFailure));
+        }
+    }
+
+    private void _writeDocument(SamlServiceProviderDocument document, ActionListener<String> listener) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              XContentBuilder xContentBuilder = new XContentBuilder(XContentType.JSON.xContent(), out)) {
             document.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);

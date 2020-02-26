@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
@@ -64,6 +65,10 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         value -> parseUrl("xpack.idp.slo_endpoint.redirect", value), Setting.Property.NodeScope);
     public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "https:",
         value -> parseUrl("xpack.idp.slo_endpoint.post", value), Setting.Property.NodeScope);
+    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
+        Setting.Property.NodeScope);
+    public static final Setting<String> IDP_METADATA_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.metadata.signing.keystore.alias",
+        Setting.Property.NodeScope);
     public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString("xpack.idp.organization.name",
         Setting.Property.NodeScope);
 
@@ -80,6 +85,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope);
 
     public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email", Setting.Property.NodeScope);
+
 
     private final Logger logger = LogManager.getLogger();
     private boolean enabled;
@@ -130,8 +136,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
         settings.addAll(List.of(ENABLED_SETTING, IDP_ENTITY_ID, IDP_SLO_REDIRECT_ENDPOINT, IDP_SLO_POST_ENDPOINT,
-            IDP_SSO_REDIRECT_ENDPOINT, IDP_SSO_POST_ENDPOINT, IDP_ORGANIZATION_NAME, IDP_ORGANIZATION_DISPLAY_NAME, IDP_ORGANIZATION_URL,
-            IDP_CONTACT_GIVEN_NAME, IDP_CONTACT_SURNAME, IDP_CONTACT_EMAIL));
+            IDP_SSO_REDIRECT_ENDPOINT, IDP_SSO_POST_ENDPOINT, IDP_SIGNING_KEY_ALIAS, IDP_METADATA_SIGNING_KEY_ALIAS,
+            IDP_ORGANIZATION_NAME, IDP_ORGANIZATION_DISPLAY_NAME, IDP_ORGANIZATION_URL, IDP_CONTACT_GIVEN_NAME, IDP_CONTACT_SURNAME,
+            IDP_CONTACT_EMAIL));
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
     }
 

@@ -1,12 +1,12 @@
 [float]
-[[java_time_migration_guide]]
-=== Java Time Migration Guide
+[[migrate_to_java_time]]
+= Java Time Migration Guide
 
 Since version 7.0 Elasticsearch is using java.time as an underlying implementation of dates parsing, formatting and calculations.
 java.time is in many aspects very similar to joda-time which we previously used. However there are some differences and this guide is meant to
 help you to become compatible.
 
-==== Identifying if you are affected
+== Identifying if you are affected
 You are only affected if you have used any custom date formats in your mappings, pipelines or templates.
 Most of the custom date formats are compatible, but with some there is a change of meaning or missing. More on that below.
 A custom format is specified on a date field like this:
@@ -29,7 +29,7 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/date.html#multip
 
 To make sure if any of the date formats is deprecated run deprecation API or kibana upgrade assistant.
 * <<migration-api-deprecation>>
-include::apis/deprecation.asciidoc[]
+include::../apis/deprecation.asciidoc[]
 
 Sample output of deprecation api will be as follows:
 [source,console]
@@ -37,29 +37,29 @@ Sample output of deprecation api will be as follows:
 This index has date fields with deprecated formats: [[type: doc, field: param2, format: yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]]. Prefix your date format with '8' to use the new specifier.
 --------------------------------------------------
 
-==== Incompatible formats
+== Incompatible formats
 If a pattern contains literals below, that means the pattern is incompatible and needs to be changed.
 
-===== Y - in 6.8 meaning Year of era. It should be replaced to y in 7.0 This is a big change because in 7.0 'Y' means week-based-year.
+=== Y - in 6.8 meaning Year of era. It should be replaced to y in 7.0 This is a big change because in 7.0 'Y' means week-based-year.
 If you don't update your date pattern, you will have problems with search results, parsing and date calculations.
 example:
 YYYY-MM-dd should become yyyy-MM-dd
 
-====== The difference between year-of-era and week based year
+==== The difference between year-of-era and week based year
 For pattern YYYY-ww and date 2019-01-01T00:00:00.000Z  will give 2019-01
 For pattern YYYY-ww and date 2018-12-31T00:00:00.000Z  will give 2019-01 (counter intuitive) because there is >4 days of that week in 2019
 
-===== y - in 6.8 meaning year. It should be replaced to 'u' in 7.0. This is a subtle change, but worth fixing.
+=== y - in 6.8 meaning year. It should be replaced to 'u' in 7.0. This is a subtle change, but worth fixing.
 As previously stated 'y' means year-of-era. 'u' means year. The difference is that year can contain non positive values, whereas 'y' can not. //clarify 0 year
 year-of-era can also be associated with an era field.
 
-===== C - century of era is no longer supported in 7.0. There is no replacement, so you need to preprocess your input.
+=== C - century of era is no longer supported in 7.0. There is no replacement, so you need to preprocess your input.
 https://stackoverflow.com/questions/38354151/how-to-force-java-time-localdate-to-assume-19th-century-as-yy-year-pattern
 
-===== x - in 6.8 meaning week year. It should be replaced with 'Y' in 7.0. Again a big change as 'x' means zone-offset in 7.0.
+=== x - in 6.8 meaning week year. It should be replaced with 'Y' in 7.0. Again a big change as 'x' means zone-offset in 7.0.
 You will get parsing, search problems if you won't update.
 
-===== Z - in 6.8 meaning time zone offset/id. It has similar meaning in 7.0 with a notable difference that it expects different number of literals
+=== Z - in 6.8 meaning time zone offset/id. It has similar meaning in 7.0 with a notable difference that it expects different number of literals
 to parse different forms.
 It also won't parse 'Z' for Zulu timezone. You should consider migrating to 'X' which give you more control of how your time is parsed.
 For instance format YYYY-MM-dd'T'hh:mm:ssZZ
@@ -92,7 +92,7 @@ Pattern YYYY-MM-dd'T'hh:mm:ssZ accepting these dates:
 should be migrated to
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
 
-===== d for day.
+=== d for day.
 This one have the same meaning in 7.0 but are less flexible.
 If your pattern was YYYY-MM-dd in 6.8 and you expects dates in form
 2010-01-01 or 2010-01-1
@@ -101,7 +101,7 @@ yyyy-MM-dd||yyyy-MM-d
 More then 2 digits are not allowed anymore. If you want to parse dates like 2010-01-00001 you need to create a pattern that expects a text literal '000' before 'd'
 yyyy-MM-'000'dd
 
-===== e for name of day
+=== e for name of day
 Also has a similar meaning in 7.0. However was more flexible in 6.8 and allowed to parse short and full text forms.
 if you used EEE YYYY-MM for a format and expected days in form:
 Wed 2020-01 or Wednesday 2020-01
@@ -111,26 +111,26 @@ cccc yyyy-MM||ccc yyyy-MM
 E vs c. E means day-of-week vs c is for localized day-of-week. The difference is that E won't behave correctly for full text forms like Wednesday
 //todo confirm
 
-===== more on text forms EEEE and similar //todo
+=== more on text forms EEEE and similar //todo
 
-===== 'z'
+=== 'z'
 'z' time zone text. Will print 'Z' for Zulu given UTC timezone.
 //todo expand
 
-==== Test with your data
+=== Test with your data
 All of the examples above should be tested with real data. It is likely that you do not need the flexibility joda was giving.
 If you expected your timezone to only be in +01:00 form (XXX in java, ZZ in joda),
 then there is no need to create a new java pattern with so many alternatives.
 
 Consider using this date debugging site for assistance https://esddd.herokuapp.com/
 
-==== Migrating affected mappings
+== Migrating affected mappings
 Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping
 and reindex your data to it.
 You can however update your pipelines or templates. Remember to look for templates you use with tools outside ES.
 If you specified a custom date format there, then you need to update it too.
 
-===== Example migration procedure
+=== Example migration procedure
 Let's assume that you have an index with a date field and custom format
 [source,console]
 ----
@@ -172,6 +172,8 @@ PUT my_index_2
 --------------------------
 
 - Reindex the deprecated format index to new_index_1
+[source,console]
+--------------------------------------------------
 POST _reindex
 {
   "source": {
@@ -181,7 +183,7 @@ POST _reindex
     "index": "my_index_2"
   }
 }
-----
+--------------------------------------------------
 // NOTCONSOLE
 
 - If you were using aliases, update them to a new index
@@ -197,7 +199,7 @@ POST /_aliases
 --------------------------------------------------
 // NOTCONSOLE
 
-===== Update before upgrading to ES7.
+=== Update before upgrading to ES7.
 - update pipeline
 If your pipelines were using a joda style patterns, they also have to be updated. There is no need to create a new pipeline.
 Just update the already existing one.
@@ -259,5 +261,5 @@ PUT _template/template_1
 
 - Upgrade to 7.x
 
-===== External templates
+=== External templates
 Revisit other templates from elastic stack where you used a custom date pattern.

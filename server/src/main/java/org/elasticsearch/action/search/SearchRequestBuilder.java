@@ -41,6 +41,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -428,7 +429,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         for (int i = 0; i < settings.length; i += 2) {
             sb.put(settings[i], settings[i + 1]);
         }
-        sourceBuilder().matches(new MatchesContextBuilder(Map.of(processor, sb.build())));
+        // Cannot use Map.of() here because MatchesContextBuilder may edit the map
+        Map<String, Settings> processors = new HashMap<>();
+        processors.put(processor, sb.build());
+        sourceBuilder().matches(new MatchesContextBuilder(processors));
         return this;
     }
 

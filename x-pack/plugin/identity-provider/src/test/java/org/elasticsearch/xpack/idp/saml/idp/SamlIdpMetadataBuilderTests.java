@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.idp.saml.idp;
 
 import org.elasticsearch.common.util.NamedFormatter;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
@@ -14,6 +15,7 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.w3c.dom.Element;
 
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -26,18 +28,21 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
 
+    private SamlFactory samlFactory;
+
     @Before
     public void setup() throws Exception {
         SamlInit.initialize();
+        samlFactory = new SamlFactory();
     }
 
     public void testSimpleMetadataGeneration() throws Exception {
         final String entityId = "https://idp.org";
         final EntityDescriptor entityDescriptor = new SamlIdPMetadataBuilder(entityId)
-            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, entityId + "/sso/redirect")
+            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, new URL(entityId + "/sso/redirect"))
             .build();
         final Element element = new EntityDescriptorMarshaller().marshall(entityDescriptor);
-        final String xml = SamlUtils.toString(element, false);
+        final String xml = samlFactory.toString(element, false);
         assertThat(xml, equalTo("<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
             "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.org\">" +
             "<md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">" +
@@ -51,10 +56,10 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
         final String entityId = "https://idp.org";
         final EntityDescriptor entityDescriptor = new SamlIdPMetadataBuilder(entityId)
             .withLocale(Locale.forLanguageTag("en"))
-            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, entityId + "/sso/redirect")
-            .withSingleSignOnServiceUrl(SAML2_POST_BINDING_URI, entityId + "/sso/post")
-            .withSingleLogoutServiceUrl(SAML2_REDIRECT_BINDING_URI, entityId + "/slo/redirect")
-            .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI, entityId + "/slo/post")
+            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, new URL(entityId + "/sso/redirect"))
+            .withSingleSignOnServiceUrl(SAML2_POST_BINDING_URI, new URL(entityId + "/sso/post"))
+            .withSingleLogoutServiceUrl(SAML2_REDIRECT_BINDING_URI, new URL(entityId + "/slo/redirect"))
+            .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI, new URL(entityId + "/slo/post"))
             .withNameIdFormat(PERSISTENT)
             .withNameIdFormat(TRANSIENT)
             .wantAuthnRequestsSigned(true)
@@ -64,7 +69,7 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
             .organization("Avengers", "The Avengers", "https://linktotheidp.org")
             .build();
         final Element element = new EntityDescriptorMarshaller().marshall(entityDescriptor);
-        final String xml = SamlUtils.toString(element, false);
+        final String xml = samlFactory.toString(element, false);
 
         // RSA_2048
         final String signingCertificateOne = joinCertificateLines(

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.Duration;
@@ -26,15 +27,12 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final ServiceProviderPrivileges privileges;
     private final Set<String> allowedNameIdFormats;
     private final X509Credential spSigningCredential;
-    private final X509Credential idpSigningCredential;
-    private final X509Credential idpMetadataSigningCredential;
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
     public CloudServiceProvider(String entityId, String assertionConsumerService, Set<String> allowedNameIdFormats,
                                 ServiceProviderPrivileges privileges, boolean signAuthnRequests, boolean signLogoutRequests,
-                                X509Credential spSigningCredential, X509Credential idpSigningCredential,
-                                X509Credential idpMetadataSigningCredential) {
+                                @Nullable X509Credential spSigningCredential) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
@@ -48,8 +46,6 @@ public class CloudServiceProvider implements SamlServiceProvider {
         this.authnExpiry = Duration.standardMinutes(5);
         this.privileges = new ServiceProviderPrivileges("cloud-idp", "service$" + entityId, "action:sso", Map.of());
         this.spSigningCredential = spSigningCredential;
-        this.idpSigningCredential = idpSigningCredential;
-        this.idpMetadataSigningCredential = idpMetadataSigningCredential;
         this.signLogoutRequests = signLogoutRequests;
         this.signAuthnRequests = signAuthnRequests;
 
@@ -83,16 +79,6 @@ public class CloudServiceProvider implements SamlServiceProvider {
     @Override
     public X509Credential getSpSigningCredential() {
         return spSigningCredential;
-    }
-
-    @Override
-    public X509Credential getIdpSigningCredential() {
-        return idpSigningCredential;
-    }
-
-    @Override
-    public X509Credential getIdpMetadataSigningCredential() {
-        return idpMetadataSigningCredential;
     }
 
     @Override

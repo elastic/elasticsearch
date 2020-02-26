@@ -51,7 +51,7 @@ public class SamlMetadataGenerator {
                 return;
             }
             EntityDescriptor metadata = buildEntityDescriptor(sp);
-            final X509Credential signingCredential = sp.getIdpMetadataSigningCredential();
+            final X509Credential signingCredential = idp.getMetadataSigningCredential();
             Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
             listener.onResponse(new SamlGenerateMetadataResponse(samlFactory.toString(metadataElement, false)));
         } catch (Exception e) {
@@ -71,7 +71,7 @@ public class SamlMetadataGenerator {
                 idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI))
             .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI,
                 idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI))
-            .withSigningCertificate(sp.getIdpSigningCredential().getEntityCertificate())
+            .withSigningCertificate(idp.getSigningCredential().getEntityCertificate())
             .withNameIdFormat(PERSISTENT)
             .withNameIdFormat(TRANSIENT)
             .organization(idp.getOrganization())

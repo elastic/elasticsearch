@@ -33,10 +33,6 @@ public interface SamlServiceProvider {
 
     X509Credential getSpSigningCredential();
 
-    X509Credential getIdpSigningCredential();
-
-    X509Credential getIdpMetadataSigningCredential();
-
     boolean shouldSignAuthnRequests();
 
     boolean shouldSignLogoutRequests();

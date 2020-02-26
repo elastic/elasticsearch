@@ -284,7 +284,7 @@ public class SamlIdPMetadataBuilder {
             this.type = Objects.requireNonNull(type, "Contact Person Type is required");
             this.givenName = givenName;
             this.surName = surName;
-            this.email = email;
+            this.email = Objects.requireNonNull(email, "Contact Person email is required");
         }
 
         private static ContactPersonTypeEnumeration getType(String name) {
@@ -303,15 +303,6 @@ public class SamlIdPMetadataBuilder {
         public final String url;
 
         public OrganizationInfo(String organizationName, String displayName, String url) {
-            if (Strings.isNullOrEmpty(organizationName)) {
-                throw new IllegalArgumentException("Organization Name is required");
-            }
-            if (Strings.isNullOrEmpty(displayName)) {
-                throw new IllegalArgumentException("Organization Display Name is required");
-            }
-            if (Strings.isNullOrEmpty(url)) {
-                throw new IllegalArgumentException("Organization URL is required");
-            }
             this.organizationName = organizationName;
             this.displayName = displayName;
             this.url = url;

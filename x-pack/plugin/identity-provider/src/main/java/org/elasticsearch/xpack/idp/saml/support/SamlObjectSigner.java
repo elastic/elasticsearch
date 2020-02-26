@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.opensaml.xmlsec.signature.SignableXMLObject;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
@@ -16,22 +16,22 @@ import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Element;
 
 /**
- * Signs OpenSAML {@link SignableXMLObject} instances using {@link SamlServiceProvider#getIdpSigningCredential()}.
+ * Signs OpenSAML {@link SignableXMLObject} instances using {@link SamlIdentityProvider#getSigningCredential()}.
  */
 public class SamlObjectSigner {
 
-    private final SamlServiceProvider sp;
+    private final SamlIdentityProvider idp;
     private final SamlFactory samlFactory;
 
-    public SamlObjectSigner(SamlFactory samlFactory, SamlServiceProvider sp) {
-        this.samlFactory = samlFactory;
-        this.sp = sp;
+    public SamlObjectSigner(SamlFactory samlFactory, SamlIdentityProvider idp) {
         SamlInit.initialize();
+        this.idp = idp;
+        this.samlFactory = samlFactory;
     }
 
     public Element sign(SignableXMLObject object) {
         final Signature signature = samlFactory.buildObject(Signature.class, Signature.DEFAULT_ELEMENT_NAME);
-        signature.setSigningCredential(sp.getIdpSigningCredential());
+        signature.setSigningCredential(idp.getSigningCredential());
         signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
         signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
         object.setSignature(signature);

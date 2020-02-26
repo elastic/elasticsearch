@@ -67,4 +67,34 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
     }
+
+    public void testMissingSsoRedirectEndpoint() {
+        Settings settings = Settings.builder()
+            .put("path.home", LuceneTestCase.createTempDir())
+            .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
+            .put(IDP_ORGANIZATION_NAME.getKey(), "The Organization")
+            .put(IDP_ORGANIZATION_URL.getKey(), "https://idp.org")
+            .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
+            .build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> new CloudIdp(env, settings));
+        assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
+        assertThat(e.getMessage(), Matchers.containsString("is required"));
+    }
+
+    public void testMalformedOrganizationUrl() {
+        Settings settings = Settings.builder()
+            .put("path.home", LuceneTestCase.createTempDir())
+            .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
+            .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/sso/redirect")
+            .put(IDP_ORGANIZATION_URL.getKey(), "The Org")
+            .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
+            .put(IDP_ORGANIZATION_NAME.getKey(), "The Organization")
+            .build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> new CloudIdp(env, settings));
+        assertThat(e.getMessage(), Matchers.containsString(IDP_ORGANIZATION_URL.getKey()));
+        assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
+    }
+
 }

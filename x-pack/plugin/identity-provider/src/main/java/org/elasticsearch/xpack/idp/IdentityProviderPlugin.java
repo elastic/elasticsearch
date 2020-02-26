@@ -14,7 +14,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -57,56 +56,22 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
     public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "", value -> {
-        if (Strings.hasText(value)) {
-            try {
-                return new URL(value);
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.sso_endpoint.redirect]. Not a valid URL", e);
-            }
-        } else {
-            throw new IllegalArgumentException("[xpack.idp.slo_endpoint.post] cannot be empty");
-        }
-    }, Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SSO_POST_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.post", "", value -> {
-        if (Strings.hasText(value)) {
-            try {
-                return new URL(value);
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.sso_endpoint.post]. Not a valid URL", e);
-            }
-        }
-        return null;
-    }, Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SLO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.redirect", "", value -> {
-        if (Strings.hasText(value)) {
-            try {
-                return new URL(value);
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.slo_endpoint.redirect]. Not a valid URL", e);
-            }
-        }
-        return null;
-    }, Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "", value -> {
-        if (Strings.hasText(value)) {
-            try {
-                return new URL(value);
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [xpack.idp.slo_endpoint.post]. Not a valid URL", e);
-            }
-        }
-        return null;
-    }, Setting.Property.NodeScope);
-
+    public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "https:",
+        value -> parseUrl("xpack.idp.sso_endpoint.redirect", value), Setting.Property.NodeScope);
+    public static final Setting<URL> IDP_SSO_POST_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.post", "https:",
+        value -> parseUrl("xpack.idp.sso_endpoint.post", value), Setting.Property.NodeScope);
+    public static final Setting<URL> IDP_SLO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.redirect", "https:",
+        value -> parseUrl("xpack.idp.slo_endpoint.redirect", value), Setting.Property.NodeScope);
+    public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "https:",
+        value -> parseUrl("xpack.idp.slo_endpoint.post", value), Setting.Property.NodeScope);
     public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString("xpack.idp.organization.name",
         Setting.Property.NodeScope);
 
     public static final Setting<String> IDP_ORGANIZATION_DISPLAY_NAME = Setting.simpleString("xpack.idp.organization.display_name",
-        Setting.Property.NodeScope);
+        IDP_ORGANIZATION_NAME, Setting.Property.NodeScope);
 
-    public static final Setting<String> IDP_ORGANIZATION_URL = Setting.simpleString("xpack.idp.organization.url",
-        Setting.Property.NodeScope);
+    public static final Setting<URL> IDP_ORGANIZATION_URL = new Setting<>("xpack.idp.organization.url", "http:",
+        value -> parseUrl("xpack.idp.organization.url", value), Setting.Property.NodeScope);
 
     public static final Setting<String> IDP_CONTACT_GIVEN_NAME = Setting.simpleString("xpack.idp.contact.given_name",
         Setting.Property.NodeScope);
@@ -114,8 +79,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     public static final Setting<String> IDP_CONTACT_SURNAME = Setting.simpleString("xpack.idp.contact.surname",
         Setting.Property.NodeScope);
 
-    public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email",
-        Setting.Property.NodeScope);
+    public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email", Setting.Property.NodeScope);
 
     private final Logger logger = LogManager.getLogger();
     private boolean enabled;
@@ -169,5 +133,13 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             IDP_SSO_REDIRECT_ENDPOINT, IDP_SSO_POST_ENDPOINT, IDP_ORGANIZATION_NAME, IDP_ORGANIZATION_DISPLAY_NAME, IDP_ORGANIZATION_URL,
             IDP_CONTACT_GIVEN_NAME, IDP_CONTACT_SURNAME, IDP_CONTACT_EMAIL));
         return Collections.unmodifiableList(settings);
+    }
+
+    private static URL parseUrl(String key, String value) {
+        try {
+            return new URL(value);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Not a valid URL", e);
+        }
     }
 }

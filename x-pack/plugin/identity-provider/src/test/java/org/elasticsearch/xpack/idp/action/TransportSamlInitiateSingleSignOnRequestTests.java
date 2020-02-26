@@ -38,6 +38,9 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends ESTestCase {
             .put("xpack.idp.enabled", true)
             .put("xpack.idp.entity_id", "https://idp.cloud.elastic.co")
             .put("xpack.idp.sso_endpoint.redirect", "https://idp.cloud.elastic.co/saml/init")
+            .put("xpack.idp.organization.url", "https://cloud.elastic.co")
+            .put("xpack.idp.organization.name", "Cloud Elastic")
+            .put("xpack.idp.contact.email", "some@other.org")
             .build();
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);

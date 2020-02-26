@@ -38,8 +38,8 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         when(sp.shouldSignAuthnRequests()).thenReturn(true);
         SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://idp.org");
-        when(sp.getIdpMetadataSigningCredential()).thenReturn(null);
-        when(sp.getIdpSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getMetadataSigningCredential()).thenReturn(null);
+        when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
         when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn(new URL("https://idp.org/sso/redirect"));
         when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn(new URL("https://idp.org/slo/post"));
         when(idp.getRegisteredServiceProvider("https://sp.org")).thenReturn(sp);
@@ -107,8 +107,8 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         when(sp.shouldSignAuthnRequests()).thenReturn(true);
         SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://idp.org");
-        when(sp.getIdpMetadataSigningCredential()).thenReturn(readCredentials("RSA", 4096));
-        when(sp.getIdpSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getMetadataSigningCredential()).thenReturn(readCredentials("RSA", 4096));
+        when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
         when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn(new URL("https://idp.org/sso/redirect"));
         when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn(new URL("https://idp.org/slo/post"));
         when(idp.getRegisteredServiceProvider("https://sp.org")).thenReturn(sp);

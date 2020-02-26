@@ -200,7 +200,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             out.writeDoubleArray(leafValue);
         } else {
             if (leafValue.length > 1) {
-                throw new IOException("[leaf_value] only supports multiple values after version 7.7.0");
+                throw new IOException("Multi-class classification models require that all nodes are at least version 7.7.0.");
             }
             if (leafValue.length == 0) {
                 out.writeDouble(Double.NaN);

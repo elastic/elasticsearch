@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -531,6 +532,14 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             accountables.add(Accountables.namedAccountable("tree_node_" + node.getNodeIndex(), node));
         }
         return Collections.unmodifiableCollection(accountables);
+    }
+
+    @Override
+    public Version getMinimalCompatibilityVersion() {
+        if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
+            return Version.V_7_7_0;
+        }
+        return Version.V_7_6_0;
     }
 
     public static class Builder {

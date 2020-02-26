@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
@@ -354,6 +355,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         }
         accountables.add(Accountables.namedAccountable(outputAggregator.getName(), outputAggregator));
         return Collections.unmodifiableCollection(accountables);
+    }
+
+    @Override
+    public Version getMinimalCompatibilityVersion() {
+        return models.stream().map(TrainedModel::getMinimalCompatibilityVersion).max(Version::compareTo).orElse(Version.V_7_6_0);
     }
 
     public static class Builder {

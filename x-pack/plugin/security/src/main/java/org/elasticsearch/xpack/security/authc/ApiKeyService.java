@@ -69,6 +69,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.SecretKeyFactory;
@@ -577,7 +579,7 @@ public class ApiKeyService {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {
-            throw new IllegalStateException("api keys are not enabled");
+            throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }
     }
 

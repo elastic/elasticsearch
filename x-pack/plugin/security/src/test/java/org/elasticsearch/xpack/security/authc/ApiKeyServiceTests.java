@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
@@ -59,8 +62,10 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -433,6 +438,18 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(result.getRoleDescriptors().get(0).getName(), is("a role"));
             assertThat(result.getLimitedByRoleDescriptors().get(0).getName(), is("limited role"));
         }
+    }
+
+    public void testApiKeyServiceDisabled() throws Exception {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        final ApiKeyService service = createApiKeyService(settings);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> service.getApiKeys(randomAlphaOfLength(6), randomAlphaOfLength(8), null, null, new PlainActionFuture<>()));
+
+        assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        assertThat(e, throwableWithMessage("api keys are not enabled"));
+        assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("api_keys"));
     }
 
     public void testApiKeyCache() {

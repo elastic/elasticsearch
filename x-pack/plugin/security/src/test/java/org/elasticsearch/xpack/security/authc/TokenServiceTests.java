@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +44,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
@@ -63,7 +66,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.crypto.SecretKey;
-
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -79,8 +81,11 @@ import java.util.Map;
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -560,20 +565,21 @@ public class TokenServiceTests extends ESTestCase {
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false)
                 .build(),
             Clock.systemUTC(), client, licenseState, securityContext, securityMainIndex, securityTokensIndex, clusterService);
-        IllegalStateException e = expectThrows(IllegalStateException.class,
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
             () -> tokenService.createOAuth2Tokens(null, null, null, true, null));
-        assertEquals("security tokens are not enabled", e.getMessage());
+        assertThat(e, throwableWithMessage("security tokens are not enabled"));
+        assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
 
         PlainActionFuture<UserToken> future = new PlainActionFuture<>();
         tokenService.getAndValidateToken(null, future);
         assertNull(future.get());
 
-        e = expectThrows(IllegalStateException.class, () -> {
-            PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
-            tokenService.invalidateAccessToken((String) null, invalidateFuture);
-            invalidateFuture.actionGet();
-        });
-        assertEquals("security tokens are not enabled", e.getMessage());
+        PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
+        e = expectThrows(ElasticsearchException.class, () -> tokenService.invalidateAccessToken((String) null, invalidateFuture));
+        assertThat(e, throwableWithMessage("security tokens are not enabled"));
+        assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
     }
 
     public void testBytesKeyEqualsHashCode() {

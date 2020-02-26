@@ -78,6 +78,9 @@ configurations {
 compileMinimumRuntimeJava {
   targetCompatibility = 8
   sourceCompatibility = 8
+  tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+  }
 }
 
 jar {

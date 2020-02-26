@@ -70,12 +70,13 @@ public class AliasOrIndexTests extends ESTestCase {
             oneNonHidden.addIndex(indexWithNonHiddenAlias);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> oneNonHidden.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] is hidden set as on ["));
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName +
+                "] has is_hidden set to true on indices ["));
             assertThat(exception.getMessage(), allOf(containsString(hidden1.getIndex().getName()),
                 containsString(hidden2.getIndex().getName()),
                 containsString(hidden3.getIndex().getName())));
-            assertThat(exception.getMessage(), containsString("but as NOT hidden on [" +
-                indexWithNonHiddenAlias.getIndex().getName() + "]; alias must have same hidden setting on all indices"));
+            assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices [" +
+                indexWithNonHiddenAlias.getIndex().getName() + "]; alias must have the same is_hidden setting on all indices"));
         }
 
         {
@@ -85,12 +86,13 @@ public class AliasOrIndexTests extends ESTestCase {
             oneUnspecified.addIndex(indexWithUnspecifiedAlias);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> oneUnspecified.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] is hidden set as on ["));
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName +
+                "] has is_hidden set to true on indices ["));
             assertThat(exception.getMessage(), allOf(containsString(hidden1.getIndex().getName()),
                 containsString(hidden2.getIndex().getName()),
                 containsString(hidden3.getIndex().getName())));
-            assertThat(exception.getMessage(), containsString("but as NOT hidden on [" +
-                indexWithUnspecifiedAlias.getIndex().getName() + "]; alias must have same hidden setting on all indices"));
+            assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices [" +
+                indexWithUnspecifiedAlias.getIndex().getName() + "]; alias must have the same is_hidden setting on all indices"));
         }
 
         {
@@ -106,11 +108,11 @@ public class AliasOrIndexTests extends ESTestCase {
             mostlyVisibleOneHidden.addIndex(hiddenIndex);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> mostlyVisibleOneHidden.computeAndValidateAliasProperties());
-            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] is hidden set as on [" +
-                hiddenIndex.getIndex().getName() + "] but as NOT hidden on ["));
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on " +
+                "indices [" + hiddenIndex.getIndex().getName() + "] but does not have is_hidden set to true on indices ["));
             assertThat(exception.getMessage(), allOf(containsString(indexWithUnspecifiedAlias.getIndex().getName()),
                 containsString(indexWithNonHiddenAlias.getIndex().getName())));
-            assertThat(exception.getMessage(), containsString("but as NOT hidden on ["));
+            assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices ["));
         }
     }
 

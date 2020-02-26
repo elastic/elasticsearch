@@ -184,9 +184,9 @@ public interface AliasOrIndex {
                     .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
                 List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream()
                     .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException("alias [" + aliasName + "] is hidden set as on [" +
-                    Strings.collectionToCommaDelimitedString(hiddenOn) + "] but as NOT hidden on [" +
-                    Strings.collectionToCommaDelimitedString(nonHiddenOn) + "]; alias must have same hidden setting " +
+                throw new IllegalStateException("alias [" + aliasName + "] has is_hidden set to true on indices [" +
+                    Strings.collectionToCommaDelimitedString(hiddenOn) + "] but does not have is_hidden set to true on indices [" +
+                    Strings.collectionToCommaDelimitedString(nonHiddenOn) + "]; alias must have the same is_hidden setting " +
                     "on all indices");
             }
         }

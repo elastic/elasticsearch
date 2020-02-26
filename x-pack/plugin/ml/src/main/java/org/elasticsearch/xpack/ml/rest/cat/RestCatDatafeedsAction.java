@@ -96,7 +96,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
                 .build());
         table.addCell("search.bucket_avg",
             TableColumnAttributeBuilder.builder("the average search time per bucket (millisecond)", false)
-                .setAliases("sba", "bucketTimeMin")
+                .setAliases("sba", "searchBucketAvg")
                 .build());
         table.addCell("search.exp_avg_hour",
             TableColumnAttributeBuilder.builder("the exponential average search time per hour (millisecond)", false)

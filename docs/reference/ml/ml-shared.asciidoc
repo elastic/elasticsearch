@@ -136,6 +136,10 @@ tag::analyzed-fields-includes[]
 An array of strings that defines the fields that will be included in the analysis.
 end::analyzed-fields-includes[]
 
+tag::assignment-explanation[]
+For started {dfeeds} only, contains messages relating to the selection of a node.
+end::assignment-explanation[]
+
 tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
@@ -152,6 +156,10 @@ so do not set the `background_persist_interval` value too low.
 
 --
 end::background-persist-interval[]
+
+tag::bucket-count[]
+The number of buckets processed.
+end::bucket-count[]
 
 tag::bucket-span[]
 The size of the interval that the analysis is aggregated into, typically between
@@ -901,6 +909,11 @@ improve diversity in the ensemble. Therefore, only override this if you are
 confident that the value you choose is appropriate for the data set.
 end::n-neighbors[]
 
+tag::node[]
+For started {dfeeds} only, this information pertains to the node upon which the
+{dfeed} is started.
+end::node[]
+
 tag::num-top-classes[]
 Defines the number of categories for which the predicted 
 probabilities are reported. It must be non-negative. If it is greater than the 
@@ -993,6 +1006,22 @@ tag::scroll-size[]
 The `size` parameter that is used in {es} searches. The default value is `1000`.
 end::scroll-size[]
 
+tag::search-bucket-avg[]
+The average search time per bucket, in milliseconds.
+end::search-bucket-avg[]
+
+tag::search-count[]
+The number of searches run by the {dfeed}.
+end::search-count[]
+
+tag::search-exp-avg-hour[]
+The exponential average search time per hour, in milliseconds.
+end::search-exp-avg-hour[]
+
+tag::search-time[]
+The total time the {dfeed} spent searching, in milliseconds.
+end::search-time[]
+
 tag::size[]
 Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value 
 is `100`.
@@ -1038,6 +1067,16 @@ computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For
 more information, see 
 https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[this wiki page about standardization].
 end::standardization-enabled[]
+
+tag::state-datafeed[]
+The status of the {dfeed}, which can be one of the following values:
++
+--
+* `started`: The {dfeed} is actively receiving data.
+* `stopped`: The {dfeed} is stopped and will not receive data until it is
+re-started.
+--
+end::state-datafeed[]
 
 tag::summary-count-field-name[]
 If this property is specified, the data that is fed to the job is expected to be

@@ -262,7 +262,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      * normal wildcard searches unless explicitly allowed
      */
     public static final Setting<Boolean> INDEX_HIDDEN_SETTING =
-        Setting.boolSetting(SETTING_INDEX_HIDDEN, false, Property.IndexScope, Property.Final);
+        Setting.boolSetting(SETTING_INDEX_HIDDEN, false, Property.Dynamic, Property.IndexScope);
 
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading

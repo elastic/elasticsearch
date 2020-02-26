@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,7 +49,7 @@ public class DatafeedNodeSelector {
         this.jobTask = MlTasks.getJobTask(jobId, tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
-        this.indicesOptions = indicesOptions == null ? IndicesOptions.lenientExpandOpen() : indicesOptions;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
     }
 
     public void checkDatafeedTaskCanBeCreated() {
@@ -119,25 +120,28 @@ public class DatafeedNodeSelector {
             }
 
             String[] concreteIndices;
-            String reason = "cannot start datafeed [" + datafeedId + "] because index ["
-                    + index + "] does not exist, is closed, or is still initializing.";
 
             try {
                 concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, index);
                 if (concreteIndices.length == 0) {
-                    return new AssignmentFailure(reason, true);
+                    return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
+                        + index + "] does not exist, is closed, or is still initializing.", true);
                 }
             } catch (Exception e) {
-                LOGGER.debug(reason, e);
-                return new AssignmentFailure(reason, true);
+                String msg = new ParameterizedMessage("failed resolving indices given [{}] and indices_options [{}]",
+                    index,
+                    indicesOptions).getFormattedMessage();
+                LOGGER.debug("[" + datafeedId + "] " + msg, e);
+                return new AssignmentFailure(
+                    "cannot start datafeed [" + datafeedId + "] because it " + msg + " with exception [" + e.getMessage() + "]",
+                    true);
             }
 
             for (String concreteIndex : concreteIndices) {
                 IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
                 if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
-                    reason = "cannot start datafeed [" + datafeedId + "] because index ["
-                            + concreteIndex + "] does not have all primary shards active yet.";
-                    return new AssignmentFailure(reason, false);
+                    return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
+                        + concreteIndex + "] does not have all primary shards active yet.", false);
                 }
             }
         }

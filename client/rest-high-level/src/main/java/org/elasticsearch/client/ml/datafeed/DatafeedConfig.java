@@ -21,7 +21,6 @@ package org.elasticsearch.client.ml.datafeed;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -240,11 +239,6 @@ public class DatafeedConfig implements ToXContentObject {
 
     private static Map<String, Object> asMap(BytesReference bytesReference) {
         return bytesReference == null ? null : XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 
     /**

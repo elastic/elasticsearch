@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,7 +37,7 @@ class ChunkedDataExtractorContext {
 
     ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, QueryBuilder query, int scrollSize, long start,
                                 long end, @Nullable TimeValue chunkSpan, TimeAligner timeAligner, Map<String, String> headers,
-                                boolean hasAggregations, @Nullable Long histogramInterval, @Nullable IndicesOptions indicesOptions) {
+                                boolean hasAggregations, @Nullable Long histogramInterval, IndicesOptions indicesOptions) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -51,6 +50,6 @@ class ChunkedDataExtractorContext {
         this.headers = headers;
         this.hasAggregations = hasAggregations;
         this.histogramInterval = histogramInterval;
-        this.indicesOptions = indicesOptions == null ? SearchRequest.DEFAULT_INDICES_OPTIONS : indicesOptions;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
     }
 }

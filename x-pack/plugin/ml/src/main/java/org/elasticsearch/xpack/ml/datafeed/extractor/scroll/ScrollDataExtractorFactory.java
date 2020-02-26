@@ -88,10 +88,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
-        if (datafeed.getIndicesOptions() != null) {
-            fieldCapabilitiesRequest.indicesOptions(datafeed.getIndicesOptions());
-        }
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
         // We need capabilities for all fields matching the requested fields' parents so that we can work around
         // multi-fields that are not in source.
         String[] requestFields = job.allInputFields()

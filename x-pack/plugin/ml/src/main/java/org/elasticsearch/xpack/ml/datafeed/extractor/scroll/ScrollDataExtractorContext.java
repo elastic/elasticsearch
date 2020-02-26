@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -30,7 +28,7 @@ class ScrollDataExtractorContext {
 
     ScrollDataExtractorContext(String jobId, TimeBasedExtractedFields extractedFields, List<String> indices, QueryBuilder query,
                                List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize, long start, long end,
-                               Map<String, String> headers, @Nullable IndicesOptions indicesOptions) {
+                               Map<String, String> headers, IndicesOptions indicesOptions) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -40,6 +38,6 @@ class ScrollDataExtractorContext {
         this.start = start;
         this.end = end;
         this.headers = headers;
-        this.indicesOptions = indicesOptions == null ? SearchRequest.DEFAULT_INDICES_OPTIONS : indicesOptions;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
     }
 }

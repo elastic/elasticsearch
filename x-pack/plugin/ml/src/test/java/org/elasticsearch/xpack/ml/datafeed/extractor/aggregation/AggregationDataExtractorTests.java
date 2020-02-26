@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -272,7 +273,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
     private AggregationDataExtractorContext createContext(long start, long end) {
         return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
-                Collections.emptyMap(), null);
+            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS);
     }
 
     @SuppressWarnings("unchecked")

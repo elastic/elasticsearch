@@ -448,10 +448,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
                 randomBoolean()));
             break;
         default:

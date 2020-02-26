@@ -46,13 +46,7 @@ public class RestPutDatafeedAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
-        IndicesOptions indicesOptions = null;
-        if (restRequest.hasParam("expand_wildcards")
-            || restRequest.hasParam("ignore_unavailable")
-            || restRequest.hasParam("allow_no_indices")
-            || restRequest.hasParam("ignore_throttled")) {
-            indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
-        }
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
         XContentParser parser = restRequest.contentParser();
         PutDatafeedAction.Request putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         putDatafeedRequest.timeout(restRequest.paramAsTime("timeout", putDatafeedRequest.timeout()));

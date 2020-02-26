@@ -565,7 +565,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
         return new ChunkedDataExtractorContext(jobId, timeField, indices, query, scrollSize, start, end, chunkSpan,
-                ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval, null);
+            ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval,
+            SearchRequest.DEFAULT_INDICES_OPTIONS);
     }
 
     private static class StubSubExtractor implements DataExtractor {

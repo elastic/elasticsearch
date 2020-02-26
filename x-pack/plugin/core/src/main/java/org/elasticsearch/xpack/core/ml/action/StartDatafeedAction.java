@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -152,7 +153,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(DatafeedParams::setJobId, Job.ID);
             PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
             PARSER.declareObject(DatafeedParams::setIndicesOptions,
-                (p, c) -> IndicesOptions.fromMap(p.map(), IndicesOptions.lenientExpandOpen()),
+                (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
                 DatafeedConfig.INDICES_OPTIONS);
         }
 
@@ -196,9 +197,9 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
+                indicesOptions = IndicesOptions.readIndicesOptions(in);
             } else {
-                indicesOptions = null;
+                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             }
         }
 
@@ -211,7 +212,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
         private List<String> datafeedIndices = Collections.emptyList();
         private String jobId;
-        private IndicesOptions indicesOptions;
+        private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
 
         public String getDatafeedId() {
@@ -263,7 +264,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         }
 
         public DatafeedParams setIndicesOptions(IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
+            this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, DatafeedConfig.INDICES_OPTIONS);
             return this;
         }
 
@@ -286,12 +287,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                if (indicesOptions != null) {
-                    out.writeBoolean(true);
-                    indicesOptions.writeIndicesOptions(out);
-                } else {
-                    out.writeBoolean(false);
-                }
+                indicesOptions.writeIndicesOptions(out);
             }
         }
 
@@ -310,11 +306,11 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             if (datafeedIndices.isEmpty() == false) {
                 builder.field(INDICES.getPreferredName(), datafeedIndices);
             }
-            if (indicesOptions != null) {
-                builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
-                indicesOptions.toXContent(builder, params);
-                builder.endObject();
-            }
+
+            builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
+            indicesOptions.toXContent(builder, params);
+            builder.endObject();
+
             builder.endObject();
             return builder;
         }

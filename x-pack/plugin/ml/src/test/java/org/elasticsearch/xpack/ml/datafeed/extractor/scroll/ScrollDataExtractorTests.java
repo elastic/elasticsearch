@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -444,7 +445,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
         ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap(), null);
+                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS);
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
@@ -490,7 +491,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     private ScrollDataExtractorContext createContext(long start, long end) {
         return new ScrollDataExtractorContext(jobId, extractedFields, indices, query, scriptFields, scrollSize, start, end,
-                Collections.emptyMap(), null);
+            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS);
     }
 
     private SearchResponse createEmptySearchResponse() {

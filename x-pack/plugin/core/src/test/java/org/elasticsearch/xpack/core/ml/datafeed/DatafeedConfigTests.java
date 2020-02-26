@@ -84,11 +84,15 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, long bucketSpanMillis) {
-        return createRandomizedDatafeedConfigBuilder(jobId, bucketSpanMillis).build();
+        return createRandomizedDatafeedConfig(jobId, randomValidDatafeedId(), bucketSpanMillis);
     }
 
-    private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, long bucketSpanMillis) {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
+    public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, String datafeedId, long bucketSpanMillis) {
+        return createRandomizedDatafeedConfigBuilder(jobId, datafeedId, bucketSpanMillis).build();
+    }
+
+    private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
             builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
@@ -139,13 +143,11 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
-        if (randomBoolean()) {
-            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()));
-        }
+        builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()));
         return builder;
     }
 
@@ -372,7 +374,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testToXContentForInternalStorage() throws IOException {
-        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("foo", 300);
+        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("foo", randomValidDatafeedId(), 300);
 
         // headers are only persisted to cluster state
         Map<String, String> headers = new HashMap<>();
@@ -757,7 +759,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             xContentType);
 
         DatafeedConfig parsedDatafeedConfig = doParseInstance(parser);
-        assertEquals(datafeedConfig, parsedDatafeedConfig);
+        assertEquals(datafeedConfig.getAggregations(), parsedDatafeedConfig.getAggregations());
 
         // Assert that the parsed versions of our aggs and queries work as well
         assertEquals(aggBuilder, parsedDatafeedConfig.getParsedAggregations(xContentRegistry()));
@@ -769,7 +771,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             datafeedConfig.writeTo(output);
             try(StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(streamInput);
-                assertEquals(datafeedConfig, streamedDatafeedConfig);
+                assertEquals(datafeedConfig.getAggregations(), streamedDatafeedConfig.getAggregations());
 
                 // Assert that the parsed versions of our aggs and queries work as well
                 assertEquals(aggBuilder, streamedDatafeedConfig.getParsedAggregations(xContentRegistry()));
@@ -947,10 +949,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             break;
         case 11:
             builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),

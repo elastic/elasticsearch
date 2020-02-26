@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -34,9 +33,9 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        public static Request parseRequest(String datafeedId, @Nullable IndicesOptions indicesOptions, XContentParser parser) {
+        public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
-            if (indicesOptions != null) {
+            if (datafeed.getIndicesOptions() == null) {
                 datafeed.setIndicesOptions(indicesOptions);
             }
             datafeed.setId(datafeedId);

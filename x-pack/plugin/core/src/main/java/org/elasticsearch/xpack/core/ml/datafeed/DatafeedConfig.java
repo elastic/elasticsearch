@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
@@ -203,7 +204,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.headers = Collections.unmodifiableMap(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
-        this.indicesOptions = indicesOptions;
+        this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -236,9 +237,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             maxEmptySearches = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
-            indicesOptions = null;
+            indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         }
     }
 
@@ -448,12 +449,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeOptionalVInt(maxEmptySearches);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (indicesOptions != null) {
-                out.writeBoolean(true);
-                indicesOptions.writeIndicesOptions(out);
-            } else {
-                out.writeBoolean(false);
-            }
+            indicesOptions.writeIndicesOptions(out);
         }
     }
 
@@ -494,11 +490,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (indicesOptions != null) {
-            builder.startObject(INDICES_OPTIONS.getPreferredName());
-            indicesOptions.toXContent(builder, params);
-            builder.endObject();
-        }
+        builder.startObject(INDICES_OPTIONS.getPreferredName());
+        indicesOptions.toXContent(builder, params);
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -748,6 +743,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this;
         }
 
+        public IndicesOptions getIndicesOptions() {
+            return this.indicesOptions;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -762,6 +761,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
+            if (indicesOptions == null) {
+                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
                     chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
         }

@@ -1,6 +1,9 @@
 grant {
   permission java.lang.RuntimePermission "setFactory";
 
+  // ApacheXMLSecurityInitializer
+  permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";
+
   // needed because of SAML (cf. o.e.x.c.s.s.RestorableContextClassLoader)
   permission java.lang.RuntimePermission "getClassLoader";
   permission java.lang.RuntimePermission "setContextClassLoader";

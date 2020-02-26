@@ -146,6 +146,21 @@ public class WindowsServiceTests extends PackagingTestCase {
         assertThat(result.stdout, containsString("Failed removing '" + DEFAULT_ID + "' service"));
     }
 
+    public void test16InstallSpecialCharactersInJdkPath() throws IOException {
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) jdk");
+        sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
+
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            Result result = sh.run(serviceScript + " install");
+            assertThat(result.stdout, containsString("The service 'elasticsearch-service-x64' has been installed."));
+        } finally {
+            sh.runIgnoreExitCode(serviceScript + " remove");
+            mv(relocatedJdk, installation.bundledJdk);
+        }
+    }
+
+
     public void test20CustomizeServiceId() {
         String serviceId = "my-es-service";
         String displayName = DEFAULT_DISPLAY_NAME.replace(DEFAULT_ID, serviceId);

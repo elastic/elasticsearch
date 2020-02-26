@@ -51,6 +51,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -99,11 +100,32 @@ public class ArchiveTests extends PackagingTestCase {
         sh.getEnv().put("JAVA_HOME", "doesnotexist");
 
         // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
-        final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
+        final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -V");
         assertThat(runResult.exitCode, is(1));
         assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME"));
 
     }
+
+    public void test32SpecialCharactersInJdkPath() throws Exception {
+        final Installation.Executables bin = installation.executables();
+
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) path");
+        sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
+
+        try {
+            if (distribution().hasJdk) {
+                mv(installation.bundledJdk, relocatedJdk);
+            }
+            // ask for elasticsearch version to avoid starting the app
+            final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
+            assertThat(runResult.stdout, startsWith("Version: "));
+        } finally {
+            if (distribution().hasJdk) {
+                mv(relocatedJdk, installation.bundledJdk);
+            }
+        }
+    }
+
 
     public void test50StartAndStop() throws Exception {
         // cleanup from previous test

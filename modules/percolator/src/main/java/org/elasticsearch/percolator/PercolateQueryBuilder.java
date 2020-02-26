@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -75,6 +76,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
@@ -562,9 +564,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
         String name = this.name != null ? this.name : pft.name();
         QueryShardContext percolateShardContext = wrap(context);
+        PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
-            percolateShardContext,
-            pft.mapUnmappedFieldsAsText);
+            percolateShardContext);
 
         return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
@@ -607,8 +609,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
-                                                 QueryShardContext context,
-                                                 boolean mapUnmappedFieldsAsString) {
+                                                 QueryShardContext context) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
@@ -634,7 +635,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             assert valueLength > 0;
                             QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                             assert in.read() == -1;
-                            return PercolatorFieldMapper.toQuery(context, mapUnmappedFieldsAsString, queryBuilder);
+                            queryBuilder = Rewriteable.rewrite(queryBuilder, context);
+                            return queryBuilder.toQuery(context);
                         }
                     }
                 } else {
@@ -646,6 +648,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     static QueryShardContext wrap(QueryShardContext shardContext) {
         return new QueryShardContext(shardContext) {
+
+            @Override
+            public IndexReader getIndexReader() {
+                // The reader that matters in this context is not the reader of the shard but
+                // the reader of the MemoryIndex. We just use `null` for simplicity.
+                return null;
+            }
 
             @Override
             public BitSetProducer bitsetFilter(Query query) {

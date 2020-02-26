@@ -61,11 +61,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         assertThat(stats.getDistribution(), hasEntry(equalTo("t"), closeTo(.09, .005)));
     }
 
-    public void testTopMetricsSingle() throws IOException {
-        BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
-        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
-        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+    public void testTopMetricsSizeOne() throws IOException {
+        indexTopMetricsData();
         SearchRequest search = new SearchRequest("test");
         search.source().aggregation(new TopMetricsAggregationBuilder(
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
@@ -77,11 +74,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
     }
 
-    public void testTopMetricsDouble() throws IOException {
-        BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
-        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
-        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+    public void testTopMetricsSizeTwo() throws IOException {
+        indexTopMetricsData();
         SearchRequest search = new SearchRequest("test");
         search.source().aggregation(new TopMetricsAggregationBuilder(
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 2, "v"));
@@ -94,5 +88,12 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         metric = top.getTopMetrics().get(1);
         assertThat(metric.getSort(), equalTo(singletonList(1)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 2.0)));
+    }
+
+    private void indexTopMetricsData() throws IOException {
+        BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
     }
 }

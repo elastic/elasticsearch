@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
@@ -31,17 +32,19 @@ public class SecurityRestFilter implements RestHandler {
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
-    private final AuthenticationService service;
+    private final AuthenticationService authenticationService;
+    private final SecondaryAuthenticator secondaryAuthenticator;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
 
-    public SecurityRestFilter(XPackLicenseState licenseState, ThreadContext threadContext, AuthenticationService service,
-                              RestHandler restHandler, boolean extractClientCertificate) {
-        this.restHandler = restHandler;
-        this.service = service;
+    public SecurityRestFilter(XPackLicenseState licenseState, ThreadContext threadContext, AuthenticationService authenticationService,
+                              SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate) {
         this.licenseState = licenseState;
         this.threadContext = threadContext;
+        this.authenticationService = authenticationService;
+        this.secondaryAuthenticator = secondaryAuthenticator;
+        this.restHandler = restHandler;
         this.extractClientCertificate = extractClientCertificate;
     }
 
@@ -53,27 +56,38 @@ public class SecurityRestFilter implements RestHandler {
                 HttpChannel httpChannel = request.getHttpChannel();
                 SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
             }
-            service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
+
+            final String requestUri = request.uri();
+            authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {
                     if (authentication == null) {
-                        logger.trace("No authentication available for REST request [{}]", request.uri());
+                        logger.trace("No authentication available for REST request [{}]", requestUri);
                     } else {
-                        logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
+                        logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
                     }
-                    RemoteHostHeader.process(request, threadContext);
-                    restHandler.handleRequest(request, channel, client);
-                }, e -> {
-                    logger.debug(new ParameterizedMessage("Authentication failed for REST request [{}]", request.uri()), e);
-                    try {
-                        channel.sendResponse(new BytesRestResponse(channel, e));
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.error((Supplier<?>) () ->
-                            new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
-                    }
-            }));
+                    secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(
+                        secondaryAuthentication -> {
+                            if (secondaryAuthentication != null) {
+                                logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
+                            }
+                            RemoteHostHeader.process(request, threadContext);
+                            restHandler.handleRequest(request, channel, client);
+                        },
+                        e -> handleException("Secondary authentication", request, channel, e)));
+                }, e -> handleException("Authentication", request, channel, e)));
         } else {
             restHandler.handleRequest(request, channel, client);
+        }
+    }
+
+    private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
+        logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
+        try {
+            channel.sendResponse(new BytesRestResponse(channel, e));
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.error((Supplier<?>) () ->
+                new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
         }
     }
 

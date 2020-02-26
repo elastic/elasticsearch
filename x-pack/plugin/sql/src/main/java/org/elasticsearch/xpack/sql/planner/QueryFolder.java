@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -40,7 +41,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumeric
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,7 +92,9 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.YEAR_INTERVAL;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -181,7 +185,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {
-                    query = and(plan.source(), qContainer.query(), qt.query);
+                    query = ExpressionTranslators.and(plan.source(), qContainer.query(), qt.query);
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
@@ -283,7 +287,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     field = field.exactAttribute();
                     key = new GroupByValue(aggId, field.name());
                 }
-
                 // handle functions
                 else if (exp instanceof Function) {
                     // dates are handled differently because of date histograms
@@ -322,20 +325,34 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             // date histogram
                             if (isDateBased(h.dataType())) {
                                 Object value = h.interval().value();
-                                // interval of exactly 1 year
-                                if (value instanceof IntervalYearMonth
-                                        && ((IntervalYearMonth) value).interval().equals(Period.ofYears(1))) {
-                                    String calendarInterval = Year.YEAR_INTERVAL;
 
-                                    // When the histogram is `INTERVAL '1' YEAR`, the interval used in the ES date_histogram will be
-                                    // a calendar_interval with value "1y". All other intervals will be fixed_intervals expressed in ms.
+                                // interval of exactly 1 year or 1 month
+                                if (value instanceof IntervalYearMonth &&
+                                        (((IntervalYearMonth) value).interval().equals(Period.ofYears(1)) 
+                                        || ((IntervalYearMonth) value).interval().equals(Period.ofMonths(1)))) {
+                                    Period yearMonth = ((IntervalYearMonth) value).interval();
+                                    String calendarInterval = yearMonth.equals(Period.ofYears(1)) ? YEAR_INTERVAL : MONTH_INTERVAL;
+
+                                    // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in 
+                                    // the ES date_histogram will be a calendar_interval with value "1y" or "1M" respectively.
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
                                     } else if (field instanceof Function) {
                                         key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
                                     }
                                 }
-                                // typical interval
+                                // interval of exactly 1 day
+                                else if (value instanceof IntervalDayTime 
+                                        && ((IntervalDayTime) value).interval().equals(Duration.ofDays(1))) {
+                                    // When the histogram is `INTERVAL '1' DAY` the interval used in 
+                                    // the ES date_histogram will be a calendar_interval with value "1d"
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), DAY_INTERVAL, h.zoneId());
+                                    }
+                                }
+                                // All other intervals will be fixed_intervals expressed in ms.
                                 else {
                                     long intervalAsMillis = Intervals.inMillis(h.interval());
 
@@ -393,20 +410,21 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             }
             return a;
         }
-        
+
         static EsQueryExec fold(AggregateExec a, EsQueryExec exec) {
-            
+
             QueryContainer queryC = exec.queryContainer();
-            
+
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
             Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+            String id = null;
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
                     aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
                 }
             }
-            
+
             if (aliasMap.isEmpty() == false) {
                 Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
                 newAliases.putAll(aliasMap);
@@ -451,7 +469,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     target = ((Alias) ne).child();
                 }
 
-                String id = Expressions.id(target);
+                id = Expressions.id(target);
 
                 // literal
                 if (target.foldable()) {
@@ -587,7 +605,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
             }
-
+            // If we're only selecting literals, we have to still execute the aggregation to create
+            // the correct grouping buckets, in order to return the appropriate number of rows
+            if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
+                for (Expression grouping : a.groupings()) {
+                    GroupByKey matchingGroup = groupingContext.groupFor(grouping);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
+                }
+            }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
         }
 

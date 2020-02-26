@@ -75,9 +75,10 @@ import static org.mockito.Mockito.when;
 
 public class HttpClientTests extends ESTestCase {
 
-    private MockWebServer webServer = new MockWebServer();
+    private final MockWebServer webServer = new MockWebServer();
+    private final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+
     private HttpClient httpClient;
-    private Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
     @Before
     public void init() throws Exception {
@@ -91,7 +92,9 @@ public class HttpClientTests extends ESTestCase {
     @After
     public void shutdown() throws IOException {
         webServer.close();
-        httpClient.close();
+        if (httpClient != null) {
+            httpClient.close();
+        }
     }
 
     public void testBasics() throws Exception {

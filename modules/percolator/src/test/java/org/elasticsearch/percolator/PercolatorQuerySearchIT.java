@@ -48,6 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
@@ -929,5 +930,37 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
+    }
+
+    public void testWrappedWithConstantScore() throws Exception {
+
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setMapping("d", "type=date", "q", "type=percolator")
+        );
+
+        client().prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject().field("q",
+                boolQuery().must(rangeQuery("d").gt("now"))
+            ).endObject())
+            .execute().actionGet();
+
+        client().prepareIndex("test").setId("2")
+            .setSource(jsonBuilder().startObject().field("q",
+                boolQuery().must(rangeQuery("d").lt("now"))
+            ).endObject())
+            .execute().actionGet();
+
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse response = client().prepareSearch("test").setQuery(new PercolateQueryBuilder("q",
+            BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
+            XContentType.JSON)).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch("test").setQuery(constantScoreQuery(new PercolateQueryBuilder("q",
+            BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
+            XContentType.JSON))).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
     }
 }

@@ -19,11 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.api.Augmentation;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -34,11 +30,8 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.time.ZonedDateTime;
-import java.util.BitSet;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,46 +45,19 @@ public final class WriterConstants {
     public static final int ASM_VERSION = Opcodes.ASM5;
     public static final String BASE_INTERFACE_NAME = PainlessScript.class.getName();
     public static final Type BASE_INTERFACE_TYPE = Type.getType(PainlessScript.class);
-    public static final Method CONVERT_TO_SCRIPT_EXCEPTION_METHOD = getAsmMethod(ScriptException.class, "convertToScriptException",
-            Throwable.class, Map.class);
 
     public static final String CLASS_NAME = BASE_INTERFACE_NAME + "$Script";
-    public static final Type CLASS_TYPE   = Type.getObjectType(CLASS_NAME.replace('.', '/'));
+    public static final Type CLASS_TYPE = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
     public static final String CTOR_METHOD_NAME = "<init>";
 
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
-    public static final String GET_NAME_NAME = "getName";
-    public static final Method GET_NAME_METHOD = getAsmMethod(String.class, GET_NAME_NAME);
-
-    public static final String GET_SOURCE_NAME = "getSource";
-    public static final Method GET_SOURCE_METHOD = getAsmMethod(String.class, GET_SOURCE_NAME);
-
-    public static final String GET_STATEMENTS_NAME = "getStatements";
-    public static final Method GET_STATEMENTS_METHOD = getAsmMethod(BitSet.class, GET_STATEMENTS_NAME);
-
-    // All of these types are caught by the main method and rethrown as ScriptException
-    public static final Type PAINLESS_ERROR_TYPE         = Type.getType(PainlessError.class);
-    public static final Type BOOTSTRAP_METHOD_ERROR_TYPE = Type.getType(BootstrapMethodError.class);
-    public static final Type OUT_OF_MEMORY_ERROR_TYPE    = Type.getType(OutOfMemoryError.class);
-    public static final Type STACK_OVERFLOW_ERROR_TYPE   = Type.getType(StackOverflowError.class);
-    public static final Type EXCEPTION_TYPE              = Type.getType(Exception.class);
-    public static final Type PAINLESS_EXPLAIN_ERROR_TYPE = Type.getType(PainlessExplainError.class);
-    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders", PainlessLookup.class);
+    public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
     public static final Type OBJECT_TYPE = Type.getType(Object.class);
-    public static final Type BITSET_TYPE = Type.getType(BitSet.class);
-
-    public static final Type DEFINITION_TYPE = Type.getType(PainlessLookup.class);
-
-    public static final Type COLLECTIONS_TYPE = Type.getType(Collections.class);
-    public static final Method EMPTY_MAP_METHOD = getAsmMethod(Map.class, "emptyMap");
 
     public static final MethodType NEEDS_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
-
-    public static final Type MAP_TYPE  = Type.getType(Map.class);
-    public static final Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
 
     public static final Type ITERATOR_TYPE = Type.getType(Iterator.class);
     public static final Method ITERATOR_HASNEXT = getAsmMethod(boolean.class, "hasNext");
@@ -101,15 +67,9 @@ public final class WriterConstants {
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
 
-    public static final Type FUNCTION_TABLE_TYPE = Type.getType(FunctionTable.class);
-
     // TODO: remove this when the transition from Joda to Java datetimes is completed
     public static final Method JCZDT_TO_ZONEDDATETIME =
             getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
-
-    public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
-
-    public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
      * A Method instance for {@linkplain Pattern}. This isn't available from PainlessLookup because we intentionally don't add it
@@ -126,9 +86,6 @@ public final class WriterConstants {
             String.class, MethodType.class, int.class, int.class, Object[].class);
     static final Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), "$bootstrapDef",
             DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
-    public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
-    public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", PainlessLookup.class,
-            FunctionTable.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
 
@@ -171,8 +128,6 @@ public final class WriterConstants {
 
     // TODO: remove this when the transition from Joda to Java datetimes is completed
     public static final Method DEF_TO_ZONEDDATETIME = getAsmMethod(ZonedDateTime.class, "defToZonedDateTime", Object.class);
-
-    public static final Type DEF_ARRAY_LENGTH_METHOD_TYPE = Type.getMethodType(Type.INT_TYPE, Type.getType(Object.class));
 
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =

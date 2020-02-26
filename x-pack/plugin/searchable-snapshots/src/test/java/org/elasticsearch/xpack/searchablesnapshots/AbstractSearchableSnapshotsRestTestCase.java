@@ -10,7 +10,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -112,7 +112,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, snapshot, restoredIndexName);
-        restoreSnapshot(searchableSnapshotRepository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
+        mountSnapshot(searchableSnapshotRepository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
 
         ensureGreen(restoredIndexName);
 
@@ -272,12 +272,12 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion,
-                                          String renamePattern, String renameReplacement, Settings indexSettings) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot + "/_restore");
+    protected static void mountSnapshot(String repository, String snapshot, boolean waitForCompletion,
+                                        String snapshotIndexName, String mountIndexName, Settings indexSettings) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, mountIndexName + "/_snapshot/mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-        request.setJsonEntity(Strings.toString(new RestoreSnapshotRequest(repository, snapshot)
-            .renamePattern(renamePattern).renameReplacement(renameReplacement).indexSettings(indexSettings)));
+        request.setJsonEntity(Strings.toString(new MountSearchableSnapshotRequest(mountIndexName)
+            .repository(repository).snapshot(snapshot).snapshotIndex(snapshotIndexName).indexSettings(indexSettings)));
 
         final Response response = client().performRequest(request);
         assertThat("Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,

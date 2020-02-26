@@ -39,11 +39,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchableSnapshotsCacheAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
+import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
 import java.util.Collection;
@@ -131,7 +134,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
-            new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class)
+            new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
+            new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class)
         );
     }
 
@@ -141,7 +145,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return List.of(
             new RestSearchableSnapshotsStatsAction(),
-            new RestClearSearchableSnapshotsCacheAction()
+            new RestClearSearchableSnapshotsCacheAction(),
+            new RestMountSearchableSnapshotAction()
         );
     }
 }

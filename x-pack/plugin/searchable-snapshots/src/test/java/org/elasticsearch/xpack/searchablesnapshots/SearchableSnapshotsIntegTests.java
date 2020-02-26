@@ -26,6 +26,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
+import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
@@ -117,30 +119,25 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        assertAcked(client().admin().cluster().preparePutRepository(searchableRepoName)
-            .setType("searchable")
-            .setSettings(Settings.builder()
-                .put("delegate_type", "fs")
-                .put("location", repo)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
         final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster()
-            .prepareRestoreSnapshot(searchableRepoName, snapshotName).setIndices(indexName)
-            .setRenamePattern(indexName)
-            .setRenameReplacement(restoredIndexName)
-            .setIndexSettings(Settings.builder()
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(restoredIndexName);
+        req.snapshotIndex(indexName)
+            .snapshot(snapshotInfo.snapshotId().getName())
+            .repository(fsRepoName)
+            .waitForCompletion(true)
+            .indexSettings(Settings.builder()
                 .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-                .build())
-            .setWaitForCompletion(true).get();
+                .build());
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         final Settings settings
             = client().admin().indices().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
-        assertThat(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(searchableRepoName));
+        assertThat(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(fsRepoName));
         assertThat(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_DIRECTORY_FACTORY_KEY));
         assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(settings));

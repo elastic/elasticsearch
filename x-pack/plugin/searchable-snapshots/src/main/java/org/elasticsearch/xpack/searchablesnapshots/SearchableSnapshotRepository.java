@@ -71,10 +71,14 @@ public class SearchableSnapshotRepository extends FilterRepository {
 
     public SearchableSnapshotRepository(Repository in) {
         super(in);
-        if (in instanceof BlobStoreRepository == false) {
+        // TODO: this is probably terrible, revisit this unwrapping
+        if (in instanceof SearchableSnapshotRepository) {
+            blobStoreRepository = ((SearchableSnapshotRepository) in).blobStoreRepository;
+        } else if (in instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + in + "] does not support searchable snapshots");
+        } else {
+            blobStoreRepository = (BlobStoreRepository) in;
         }
-        blobStoreRepository = (BlobStoreRepository) in;
     }
 
     private Directory makeDirectory(IndexSettings indexSettings, ShardPath shardPath, CacheService cacheService,
@@ -160,16 +164,17 @@ public class SearchableSnapshotRepository extends FilterRepository {
         return (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
             assert repositories != null;
-
-            final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
-            if (repository instanceof SearchableSnapshotRepository == false) {
-                throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
-            }
-
             final CacheService cache = cacheService.get();
             assert cache != null;
 
-            return ((SearchableSnapshotRepository) repository).makeDirectory(indexSettings, shardPath, cache, currentTimeNanosSupplier);
+            final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
+            // TODO: is this okay?
+//            if (repository instanceof SearchableSnapshotRepository == false) {
+//                throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
+//            }
+
+            SearchableSnapshotRepository searchableRepo = new SearchableSnapshotRepository(repository);
+            return searchableRepo.makeDirectory(indexSettings, shardPath, cache, currentTimeNanosSupplier);
         };
     }
 }

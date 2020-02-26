@@ -459,10 +459,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         rewrite(thirdLuceneQuery));
             }
 
-            secondQuery.queryName(randomAlphaOfLengthBetween(1, 10));
-            Query fourthLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
-            assertNotEquals("modifying the query name doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
-                rewrite(fourthLuceneQuery));
+            if (isMatchNoDocs == false) {
+                secondQuery.queryName(randomAlphaOfLengthBetween(1, 10));
+                Query fourthLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+                assertNotEquals("modifying the query name doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
+                    rewrite(fourthLuceneQuery));
+            }
         }
     }
 
@@ -504,12 +506,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
         if (query != null) {
             if (queryBuilder.queryName() != null) {
-                assertThat(query, either(instanceOf(NamedQuery.class)).or(instanceOf(NamedSpanQuery.class)));
+                assertThat(query, either(instanceOf(NamedQuery.class)).or(instanceOf(NamedSpanQuery.class))
+                    .or(instanceOf(MatchNoDocsQuery.class)));
                 if (query instanceof NamedQuery) {
                     NamedQuery namedQuery = (NamedQuery) query;
                     assertThat(namedQuery.getName(), equalTo(queryBuilder.queryName()));
                     query = namedQuery.getQuery();
-                } else {
+                } else if (query instanceof NamedSpanQuery) {
                     NamedSpanQuery namedQuery = (NamedSpanQuery) query;
                     assertThat(namedQuery.getName(), equalTo(queryBuilder.queryName()));
                     query = namedQuery.getQuery();

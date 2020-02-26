@@ -274,11 +274,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (rewritten == this) {
             return rewritten;
         }
-        if (queryName() != null && rewritten.queryName() == null) { // we inherit the name
-            rewritten.queryName(queryName());
-        }
-        if (boost() != DEFAULT_BOOST && rewritten.boost() == DEFAULT_BOOST) {
-            rewritten.boost(boost());
+        if (rewritten instanceof MatchNoneQueryBuilder == false) {
+            if (queryName() != null && rewritten.queryName() == null) { // we inherit the name
+                rewritten.queryName(queryName());
+            }
+            if (boost() != DEFAULT_BOOST && rewritten.boost() == DEFAULT_BOOST) {
+                rewritten.boost(boost());
+            }
         }
         return rewritten;
     }

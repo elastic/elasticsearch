@@ -11,13 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.authn.SuccessfulAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
@@ -36,29 +35,25 @@ import java.util.Set;
 public class TransportSamlInitiateSingleSignOnAction
     extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
 
-    private final ThreadPool threadPool;
+    private final SecurityContext securityContext;
     private final Environment env;
     private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
 
     @Inject
-    public TransportSamlInitiateSingleSignOnAction(ThreadPool threadPool, TransportService transportService,
-                                                   ActionFilters actionFilters, Environment environment) {
+    public TransportSamlInitiateSingleSignOnAction(TransportService transportService,
+                                                   SecurityContext securityContext, ActionFilters actionFilters, Environment environment) {
         super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
-        this.threadPool = threadPool;
+        this.securityContext = securityContext;
         this.env = environment;
     }
 
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
         final SamlFactory samlFactory = new SamlFactory();
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         try {
-            // TODO: Adjust this once secondary auth code is merged in master and use the authentication object of the user
-            // Authentication authentication = authenticationService.getSecondaryAuth();
-            Authentication serviceAccountAuthentication = new AuthenticationContextSerializer().readFromContext(threadContext);
-            SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
+            final SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
             if (null == sp) {
                 final String message =
                     "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";
@@ -66,7 +61,12 @@ public class TransportSamlInitiateSingleSignOnAction
                 listener.onFailure(new IllegalArgumentException(message));
                 return;
             }
-            final UserServiceAuthentication user = buildUserFromAuthentication(serviceAccountAuthentication, sp);
+            final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
+            if (secondaryAuthentication == null) {
+                listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
+                return;
+            }
+            final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
             final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
                 Clock.systemUTC(), idp);
             final Response response = builder.build(user, null);
@@ -80,7 +80,6 @@ public class TransportSamlInitiateSingleSignOnAction
 
     private UserServiceAuthentication buildUserFromAuthentication(Authentication authentication, SamlServiceProvider sp) {
         final User authenticatedUser = authentication.getUser();
-        //TBD Where we will be sourcing the information from, use roles for easier testing now
         final Set<String> groups = new HashSet<>(Arrays.asList(authenticatedUser.roles()));
         return new UserServiceAuthentication(authenticatedUser.principal(), groups, sp);
     }

@@ -530,7 +530,7 @@ public abstract class BucketedSort implements Releasable {
              * we just {@link #advanceExact(int) moved}. This should be fast
              * because it is called twice per competitive hit when in heap
              * mode, once for {@link #docBetterThan(long)} and once
-             * for {@link #setIndexToDocValue(long).
+             * for {@link #setIndexToDocValue(long)}.
              */
             protected abstract double docValue();
 
@@ -621,7 +621,7 @@ public abstract class BucketedSort implements Releasable {
              * we just {@link #advanceExact(int) moved}. This should be fast
              * because it is called twice per competitive hit when in heap
              * mode, once for {@link #docBetterThan(long)} and once
-             * for {@link #setIndexToDocValue(long).
+             * for {@link #setIndexToDocValue(long)}.
              */
             protected abstract float docValue();
 
@@ -696,7 +696,7 @@ public abstract class BucketedSort implements Releasable {
              * we just {@link #advanceExact(int) moved}. This should be fast
              * because it is called twice per competitive hit when in heap
              * mode, once for {@link #docBetterThan(long)} and once
-             * for {@link #setIndexToDocValue(long).
+             * for {@link #setIndexToDocValue(long)}.
              */
             protected abstract long docValue();
 

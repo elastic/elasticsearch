@@ -292,7 +292,7 @@ GET /twitter/_rank_eval
 --------------------------------
 // TEST[setup:twitter]
 
-The `precision` metric takes the following optional parameters
+The `recall` metric takes the following optional parameters
 
 [cols="<,<",options="header",]
 |=======================================================================

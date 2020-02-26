@@ -77,4 +77,8 @@ public class EsQueryExec extends LeafExec {
     public String nodeString() {
         return nodeName() + "[" + index + "," + queryContainer + "]";
     }
+
+    public QueryContainer queryContainer() {
+        return queryContainer;
+    }
 }

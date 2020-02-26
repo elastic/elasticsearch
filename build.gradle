@@ -114,6 +114,7 @@ subprojects {
       ':distribution:tools:keystore-cli',
       ':distribution:tools:launchers',
       ':distribution:tools:plugin-cli',
+      ':qa:os',
       ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]

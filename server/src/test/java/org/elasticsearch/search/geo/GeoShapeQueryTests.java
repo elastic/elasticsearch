@@ -292,6 +292,31 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         assertNotEquals("1", response.getHits().getAt(1).getId());
     }
 
+    public void testRectangleSpanningDateline() throws Exception {
+        XContentBuilder mapping = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        String doc1 = "{\"geo\":{\"coordinates\":[" + "-169," + "0" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc2 = "{\"geo\":{\"coordinates\":[" + "-179," + "0" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc3 = "{\"geo\":{\"coordinates\":[" + "171," + "0" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        org.elasticsearch.geometry.Rectangle rectangle = new org.elasticsearch.geometry.Rectangle(
+            169, -178, 1, -1);
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", rectangle);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertNotEquals("1", response.getHits().getAt(0).getId());
+        assertNotEquals("1", response.getHits().getAt(1).getId());
+    }
+
     public void testPolygonSpanningDateline() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
@@ -356,7 +381,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         assertNotEquals("3", response.getHits().getAt(0).getId());
         assertNotEquals("3", response.getHits().getAt(1).getId());
     }
-
 
     public void testGeometryCollectionRelations() throws Exception {
         XContentBuilder mapping = createDefaultMapping();

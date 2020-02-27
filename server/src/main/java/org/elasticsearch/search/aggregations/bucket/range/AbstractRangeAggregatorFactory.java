@@ -111,6 +111,4 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         return ((RangeAggregationSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
             ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
     }
-
-
 }

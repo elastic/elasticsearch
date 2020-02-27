@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.idp.saml.idp;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataResponse;
+import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
@@ -41,7 +41,7 @@ public class SamlMetadataGenerator {
         SamlInit.initialize();
     }
 
-    public void generateMetadata(String spEntityId, ActionListener<SamlGenerateMetadataResponse> listener) {
+    public void generateMetadata(String spEntityId, ActionListener<SamlMetadataResponse> listener) {
         try {
             // this will be async
             SamlServiceProvider sp = idp.getRegisteredServiceProvider(spEntityId);
@@ -53,7 +53,7 @@ public class SamlMetadataGenerator {
             EntityDescriptor metadata = buildEntityDescriptor(sp);
             final X509Credential signingCredential = idp.getMetadataSigningCredential();
             Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
-            listener.onResponse(new SamlGenerateMetadataResponse(samlFactory.toString(metadataElement, false)));
+            listener.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
         } catch (Exception e) {
             logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
             listener.onFailure(e);

@@ -142,26 +142,25 @@ public class SamlIdPMetadataBuilder {
         return withContact(new ContactInfo(ContactInfo.getType(type), givenName, surName, email));
     }
 
-
     public EntityDescriptor build() throws CertificateEncodingException {
-        final IDPSSODescriptor idpssoDescriptor = new IDPSSODescriptorBuilder().buildObject();
-        idpssoDescriptor.removeAllSupportedProtocols();
-        idpssoDescriptor.addSupportedProtocol(SAMLConstants.SAML20P_NS);
-        idpssoDescriptor.setWantAuthnRequestsSigned(this.wantAuthnRequestsSigned);
+        final IDPSSODescriptor idpSsoDescriptor = new IDPSSODescriptorBuilder().buildObject();
+        idpSsoDescriptor.removeAllSupportedProtocols();
+        idpSsoDescriptor.addSupportedProtocol(SAMLConstants.SAML20P_NS);
+        idpSsoDescriptor.setWantAuthnRequestsSigned(this.wantAuthnRequestsSigned);
         if (nameIdFormats.isEmpty() == false) {
-            idpssoDescriptor.getNameIDFormats().addAll(buildNameIDFormats());
+            idpSsoDescriptor.getNameIDFormats().addAll(buildNameIDFormats());
         }
         if (singleSignOnServiceUrls.isEmpty() == false) {
-            idpssoDescriptor.getSingleSignOnServices().addAll(buildSingleSignOnServices());
+            idpSsoDescriptor.getSingleSignOnServices().addAll(buildSingleSignOnServices());
         }
         if (singleLogoutServiceUrls.isEmpty() == false) {
-            idpssoDescriptor.getSingleLogoutServices().addAll(buildSingleLogoutServices());
+            idpSsoDescriptor.getSingleLogoutServices().addAll(buildSingleLogoutServices());
         }
-        idpssoDescriptor.getKeyDescriptors().addAll(buildKeyDescriptors());
+        idpSsoDescriptor.getKeyDescriptors().addAll(buildKeyDescriptors());
 
         final EntityDescriptor descriptor = new EntityDescriptorBuilder().buildObject();
         descriptor.setEntityID(this.entityId);
-        descriptor.getRoleDescriptors().add(idpssoDescriptor);
+        descriptor.getRoleDescriptors().add(idpSsoDescriptor);
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }

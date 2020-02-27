@@ -16,9 +16,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataAction;
-import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataRequest;
-import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataResponse;
+import org.elasticsearch.xpack.idp.action.SamlMetadataAction;
+import org.elasticsearch.xpack.idp.action.SamlMetadataRequest;
+import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,13 +26,13 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestSamlGenerateMetadataRequest extends BaseRestHandler {
+public class RestSamlMetadataRequest extends BaseRestHandler {
 
-    static final ObjectParser<SamlGenerateMetadataRequest, Void> PARSER =
-        new ObjectParser<>("idp_generate_metadata", SamlGenerateMetadataRequest::new);
+    static final ObjectParser<SamlMetadataRequest, Void> PARSER =
+        new ObjectParser<>("idp_generate_metadata", SamlMetadataRequest::new);
 
     static {
-        PARSER.declareString(SamlGenerateMetadataRequest::setSpEntityId, new ParseField("sp_entity_id"));
+        PARSER.declareString(SamlMetadataRequest::setSpEntityId, new ParseField("sp_entity_id"));
     }
 
     @Override
@@ -48,11 +48,11 @@ public class RestSamlGenerateMetadataRequest extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final SamlGenerateMetadataRequest generateMetadataRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(SamlGenerateMetadataAction.INSTANCE, generateMetadataRequest,
-                new RestBuilderListener<SamlGenerateMetadataResponse>(channel) {
+            final SamlMetadataRequest generateMetadataRequest = PARSER.parse(parser, null);
+            return channel -> client.execute(SamlMetadataAction.INSTANCE, generateMetadataRequest,
+                new RestBuilderListener<SamlMetadataResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(SamlGenerateMetadataResponse response, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(SamlMetadataResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
                         builder.field("metadata", response.getXmlString());
                         builder.endObject();

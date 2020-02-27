@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.idp.saml.idp;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.NamedFormatter;
-import org.elasticsearch.xpack.idp.action.SamlGenerateMetadataResponse;
+import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
@@ -46,9 +46,9 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
 
         SamlFactory factory = new SamlFactory();
         SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
-        PlainActionFuture<SamlGenerateMetadataResponse> future = new PlainActionFuture<>();
+        PlainActionFuture<SamlMetadataResponse> future = new PlainActionFuture<>();
         generator.generateMetadata("https://sp.org", future);
-        SamlGenerateMetadataResponse response = future.actionGet();
+        SamlMetadataResponse response = future.actionGet();
         final String xml = response.getXmlString();
 
         // RSA_2048

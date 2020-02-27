@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class SamlGenerateMetadataAction extends ActionType<SamlGenerateMetadataResponse> {
+public class SamlMetadataAction extends ActionType<SamlMetadataResponse> {
 
     public static final String NAME = "cluster:admin/idp/saml/metadata";
-    public static final SamlGenerateMetadataAction INSTANCE = new SamlGenerateMetadataAction();
+    public static final SamlMetadataAction INSTANCE = new SamlMetadataAction();
 
-    private SamlGenerateMetadataAction() {
-        super(NAME, SamlGenerateMetadataResponse::new);
+    private SamlMetadataAction() {
+        super(NAME, SamlMetadataResponse::new);
     }
 }

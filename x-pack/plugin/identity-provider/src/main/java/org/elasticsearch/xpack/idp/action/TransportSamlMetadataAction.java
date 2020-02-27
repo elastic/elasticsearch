@@ -17,18 +17,18 @@ import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.idp.SamlMetadataGenerator;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
-public class TransportSamlGenerateMetadataAction extends HandledTransportAction<SamlGenerateMetadataRequest, SamlGenerateMetadataResponse> {
+public class TransportSamlMetadataAction extends HandledTransportAction<SamlMetadataRequest, SamlMetadataResponse> {
 
     private final Environment env;
 
     @Inject
-    public TransportSamlGenerateMetadataAction(TransportService transportService, ActionFilters actionFilters, Environment environment) {
-        super(SamlGenerateMetadataAction.NAME, transportService, actionFilters, SamlGenerateMetadataRequest::new);
+    public TransportSamlMetadataAction(TransportService transportService, ActionFilters actionFilters, Environment environment) {
+        super(SamlMetadataAction.NAME, transportService, actionFilters, SamlMetadataRequest::new);
         this.env = environment;
     }
 
     @Override
-    protected void doExecute(Task task, SamlGenerateMetadataRequest request, ActionListener<SamlGenerateMetadataResponse> listener) {
+    protected void doExecute(Task task, SamlMetadataRequest request, ActionListener<SamlMetadataResponse> listener) {
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         final SamlFactory factory = new SamlFactory();
         final String spEntityId = request.getSpEntityId();

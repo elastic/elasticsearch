@@ -12,20 +12,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SamlGenerateMetadataRequest extends ActionRequest {
+public class SamlMetadataRequest extends ActionRequest {
 
     private String spEntityId;
 
-    public SamlGenerateMetadataRequest(StreamInput in) throws IOException {
+    public SamlMetadataRequest(StreamInput in) throws IOException {
         super(in);
         spEntityId = in.readString();
     }
 
-    public SamlGenerateMetadataRequest(String spEntityId) {
+    public SamlMetadataRequest(String spEntityId) {
         this.spEntityId = Objects.requireNonNull(spEntityId, "Service Provider entity id must be provided");
     }
 
-    public SamlGenerateMetadataRequest() {
+    public SamlMetadataRequest() {
         this.spEntityId = null;
     }
 

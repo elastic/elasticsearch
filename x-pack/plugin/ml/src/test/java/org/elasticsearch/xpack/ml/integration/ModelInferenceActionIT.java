@@ -220,41 +220,41 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
 
         List<Map<String, Object>> toInfer = new ArrayList<>();
-        toInfer.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
+        toInfer.add(new HashMap<String, Object>() {{
+            put("field", new HashMap<String, Object>(){{
                 put("foo", 1.0);
                 put("bar", 0.5);
             }});
-            put("other", new HashMap<>(){{
+            put("other", new HashMap<String, Object>(){{
                 put("categorical", "dog");
             }});
         }});
-        toInfer.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
+        toInfer.add(new HashMap<String, Object>() {{
+            put("field", new HashMap<String, Object>(){{
                 put("foo", 0.9);
                 put("bar", 1.5);
             }});
-            put("other", new HashMap<>(){{
+            put("other", new HashMap<String, Object>(){{
                 put("categorical", "cat");
             }});
         }});
 
         List<Map<String, Object>> toInfer2 = new ArrayList<>();
-        toInfer2.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
+        toInfer2.add(new HashMap<String, Object>() {{
+            put("field", new HashMap<String, Object>(){{
                 put("foo", 0.0);
                 put("bar", 0.01);
             }});
-            put("other", new HashMap<>(){{
+            put("other", new HashMap<String, Object>(){{
                 put("categorical", "dog");
             }});
         }});
-        toInfer2.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
+        toInfer2.add(new HashMap<String, Object>() {{
+            put("field", new HashMap<String, Object>(){{
                 put("foo", 1.0);
                 put("bar", 0.0);
             }});
-            put("other", new HashMap<>(){{
+            put("other", new HashMap<String, Object>(){{
                 put("categorical", "cat");
             }});
         }});

@@ -19,6 +19,7 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,6 +81,9 @@ public class DatafeedUpdate implements ToXContentObject {
             DelayedDataCheckConfig.PARSER,
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG);
         PARSER.declareInt(Builder::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
+        PARSER.declareObject(Builder::setIndicesOptions,
+            (p, c) -> IndicesOptions.fromMap(p.map(), new IndicesOptions(IndicesOptions.Option.NONE, IndicesOptions.WildcardStates.NONE)),
+            DatafeedConfig.INDICES_OPTIONS);
     }
 
     private static BytesReference parseBytes(XContentParser parser) throws IOException {
@@ -100,11 +104,12 @@ public class DatafeedUpdate implements ToXContentObject {
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
+    private final IndicesOptions indicesOptions;
 
     private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, BytesReference query,
                            BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize,
                            ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig,
-                           Integer maxEmptySearches) {
+                           Integer maxEmptySearches, IndicesOptions indicesOptions) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -117,6 +122,7 @@ public class DatafeedUpdate implements ToXContentObject {
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
+        this.indicesOptions = indicesOptions;
     }
 
     /**
@@ -157,6 +163,11 @@ public class DatafeedUpdate implements ToXContentObject {
         addOptionalField(builder, DatafeedConfig.SCROLL_SIZE, scrollSize);
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
         addOptionalField(builder, DatafeedConfig.MAX_EMPTY_SEARCHES, maxEmptySearches);
+        if (indicesOptions != null) {
+            builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
+            indicesOptions.toXContent(builder, params);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -211,6 +222,10 @@ public class DatafeedUpdate implements ToXContentObject {
         return maxEmptySearches;
     }
 
+    public IndicesOptions getIndicesOptions() {
+        return indicesOptions;
+    }
+
     private static Map<String, Object> asMap(BytesReference bytesReference) {
         return bytesReference == null ? null : XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
     }
@@ -247,7 +262,8 @@ public class DatafeedUpdate implements ToXContentObject {
             && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
             && Objects.equals(this.scriptFields, that.scriptFields)
             && Objects.equals(this.chunkingConfig, that.chunkingConfig)
-            && Objects.equals(this.maxEmptySearches, that.maxEmptySearches);
+            && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
+            && Objects.equals(this.indicesOptions, that.indicesOptions);
     }
 
     /**
@@ -258,7 +274,7 @@ public class DatafeedUpdate implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, asMap(query), scrollSize, asMap(aggregations), scriptFields,
-            chunkingConfig, delayedDataCheckConfig, maxEmptySearches);
+            chunkingConfig, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
     }
 
     public static Builder builder(String id) {
@@ -279,6 +295,7 @@ public class DatafeedUpdate implements ToXContentObject {
         private ChunkingConfig chunkingConfig;
         private DelayedDataCheckConfig delayedDataCheckConfig;
         private Integer maxEmptySearches;
+        private IndicesOptions indicesOptions;
 
         public Builder(String id) {
             this.id = Objects.requireNonNull(id, DatafeedConfig.ID.getPreferredName());
@@ -297,6 +314,7 @@ public class DatafeedUpdate implements ToXContentObject {
             this.chunkingConfig = config.chunkingConfig;
             this.delayedDataCheckConfig = config.delayedDataCheckConfig;
             this.maxEmptySearches = config.maxEmptySearches;
+            this.indicesOptions = config.indicesOptions;
         }
 
         @Deprecated
@@ -381,9 +399,14 @@ public class DatafeedUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setIndicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
+            return this;
+        }
+
         public DatafeedUpdate build() {
             return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
-                chunkingConfig, delayedDataCheckConfig, maxEmptySearches);
+                chunkingConfig, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
         }
 
         private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

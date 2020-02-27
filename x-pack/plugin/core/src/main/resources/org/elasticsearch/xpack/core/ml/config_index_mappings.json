@@ -290,6 +290,10 @@
       "indices" : {
         "type" : "keyword"
       },
+      "indices_options": {
+        "type" : "object",
+        "enabled" : false
+      },
       "job_id" : {
         "type" : "keyword"
       },

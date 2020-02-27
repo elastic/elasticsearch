@@ -42,8 +42,7 @@ import java.util.List;
  */
 public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesRequest,
-    ListDanglingIndicesResponse,
-    NodeDanglingIndicesRequest,
+    ListDanglingIndicesResponse, NodeListDanglingIndicesRequest,
     NodeListDanglingIndicesResponse> {
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
@@ -63,7 +62,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
             transportService,
             actionFilters,
             ListDanglingIndicesRequest::new,
-            NodeDanglingIndicesRequest::new,
+            NodeListDanglingIndicesRequest::new,
             ThreadPool.Names.MANAGEMENT,
             NodeListDanglingIndicesResponse.class
         );
@@ -81,8 +80,8 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeDanglingIndicesRequest newNodeRequest(ListDanglingIndicesRequest request) {
-        return new NodeDanglingIndicesRequest();
+    protected NodeListDanglingIndicesRequest newNodeRequest(ListDanglingIndicesRequest request) {
+        return new NodeListDanglingIndicesRequest();
     }
 
     @Override
@@ -91,7 +90,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeListDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
+    protected NodeListDanglingIndicesResponse nodeOperation(NodeListDanglingIndicesRequest request, Task task) {
         final DiscoveryNode localNode = transportService.getLocalNode();
 
         final List<DanglingIndexInfo> indexMetaData = new ArrayList<>();

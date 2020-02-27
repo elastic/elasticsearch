@@ -39,7 +39,7 @@ import static org.mockito.Mockito.mock;
 public class RestNodesHotThreadsActionTests extends ESTestCase {
 
     private RestNodesHotThreadsAction action;
-    
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -48,7 +48,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
 
     public void testRouteClusterNodesHotthreads() {
         final HashMap<String, String> params = new HashMap<>();
-        params.put("nodeId", "node_1");
+        params.put("nodeId", "node_test");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
         .withPath("/_cluster/nodes/hotthreads").build();
         try {
@@ -61,7 +61,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
 
     public void testRouteClusterNodesNodeIdHotthreads() {
         final HashMap<String, String> params = new HashMap<>();
-        params.put("nodeId", "node_1");
+        params.put("nodeId", "node_test");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
         .withPath("/_cluster/nodes/{nodeId}/hotthreads").build();
         try {
@@ -74,7 +74,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
 
     public void testRouteNodesHotthreads() {
         final HashMap<String, String> params = new HashMap<>();
-        params.put("nodeId", "node_1");
+        params.put("nodeId", "node_test");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
         .withPath("/_nodes/hotthreads").build();
         try {
@@ -87,7 +87,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
 
     public void testRouteNodesNodeIdHotthreads() {
         final HashMap<String, String> params = new HashMap<>();
-        params.put("nodeId", "node_1");
+        params.put("nodeId", "node_test");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
         .withPath("/_nodes/{nodeId}/hotthreads").build();
         try {

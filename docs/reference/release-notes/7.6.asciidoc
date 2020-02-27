@@ -337,7 +337,7 @@ being smaller than for the best parameter values found so far {ml-pull}915[#915]
 * Optimize decision threshold for classification to maximize minimum class recall {ml-pull}926[#926]
 * Include categorization memory usage in the `model_bytes` field in
 `model_size_stats`, so that it is taken into account in node assignment
-decisions {ml-pull}927[#927] (issue:{ml-issue}724[#724])
+decisions {ml-pull}927[#927] (issue: {ml-issue}724[#724])
 
 Mapping::
 * Add telemetry for flattened fields. {pull}48972[#48972]
@@ -560,7 +560,7 @@ Machine Learning::
 * Make data frame analytics more robust for very short-lived analyses {pull}49282[#49282] (issue: {issue}49095[#49095])
 * Fixes potential memory corruption when determining seasonality {ml-pull}852[#852]
 * Prevent `prediction_field_name` clashing with other fields in {ml} results {ml-pull}861[#861]
-* Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue:{ml-issue}949[#949])
+* Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
 
 Mapping::
 * Ensure that field collapsing works with field aliases. {pull}50722[#50722] (issues: {issue}32648[#32648], {issue}50121[#50121])

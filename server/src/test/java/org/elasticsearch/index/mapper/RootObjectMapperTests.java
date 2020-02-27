@@ -19,13 +19,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
+
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 
 public class RootObjectMapperTests extends ESSingleNodeTestCase {
 
@@ -199,5 +207,193 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> parser.parse("type", new CompressedXContent(mapping)));
         assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
+    }
+
+    public void testIllegalDynamicTemplateUnknownFieldType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("type");
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                mapping.field("match_mapping_type", "string");
+                mapping.startObject("mapping");
+                mapping.field("type", "string");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+        assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));
+        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
+            "\"string\"}}], caused by [No mapper found for type [string]]");
+    }
+
+    public void testIllegalDynamicTemplateUnknownAttribute() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("type");
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                mapping.field("match_mapping_type", "string");
+                mapping.startObject("mapping");
+                mapping.field("type", "keyword");
+                mapping.field("foo", "bar");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+        assertThat(mapper.mappingSource().toString(), containsString("\"foo\":\"bar\""));
+        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
+            "\"foo\":\"bar\",\"type\":\"keyword\"}}], caused by [Unused mapping attributes [{foo=bar}]]");
+    }
+
+    public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("type");
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                mapping.field("match_mapping_type", "string");
+                mapping.startObject("mapping");
+                mapping.field("type", "text");
+                mapping.field("analyzer", "foobar");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+        assertThat(mapper.mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
+        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
+            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] not found for field [__dummy__]]");
+    }
+
+    public void testIllegalDynamicTemplateNoMappingType() throws Exception {
+        MapperService mapperService;
+
+        {
+            XContentBuilder mapping = XContentFactory.jsonBuilder();
+            mapping.startObject();
+            {
+                mapping.startObject("type");
+                mapping.startArray("dynamic_templates");
+                {
+                    mapping.startObject();
+                    mapping.startObject("my_template");
+                    if (randomBoolean()) {
+                        mapping.field("match_mapping_type", "*");
+                    } else {
+                        mapping.field("match", "string_*");
+                    }
+                    mapping.startObject("mapping");
+                    mapping.field("type", "{dynamic_type}");
+                    mapping.field("index_phrases", true);
+                    mapping.endObject();
+                    mapping.endObject();
+                    mapping.endObject();
+                }
+                mapping.endArray();
+                mapping.endObject();
+            }
+            mapping.endObject();
+            mapperService = createIndex("test").mapperService();
+            DocumentMapper mapper =
+                mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+            assertThat(mapper.mappingSource().toString(), containsString("\"index_phrases\":true"));
+        }
+        {
+            boolean useMatchMappingType = randomBoolean();
+            XContentBuilder mapping = XContentFactory.jsonBuilder();
+            mapping.startObject();
+            {
+                mapping.startObject("type");
+                mapping.startArray("dynamic_templates");
+                {
+                    mapping.startObject();
+                    mapping.startObject("my_template");
+                    if (useMatchMappingType) {
+                        mapping.field("match_mapping_type", "*");
+                    } else {
+                        mapping.field("match", "string_*");
+                    }
+                    mapping.startObject("mapping");
+                    mapping.field("type", "{dynamic_type}");
+                    mapping.field("foo", "bar");
+                    mapping.endObject();
+                    mapping.endObject();
+                    mapping.endObject();
+                }
+                mapping.endArray();
+                mapping.endObject();
+            }
+            mapping.endObject();
+            DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+            assertThat(mapper.mappingSource().toString(), containsString("\"foo\":\"bar\""));
+            if (useMatchMappingType) {
+                assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"*\",\"mapping\":{" +
+                    "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], caused by [Unused mapping attributes [{foo=bar}]]");
+            } else {
+                assertWarnings("dynamic template [my_template] has invalid content [{\"match\":\"string_*\",\"mapping\":{" +
+                    "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], caused by [Unused mapping attributes [{foo=bar}]]");
+            }
+        }
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    public void testIllegalDynamicTemplatePre7Dot7Index() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("type");
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                mapping.field("match_mapping_type", "string");
+                mapping.startObject("mapping");
+                mapping.field("type", "string");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+        Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0);
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
+            .build();
+        MapperService mapperService = createIndex("test", indexSettings).mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+        assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));
     }
 }

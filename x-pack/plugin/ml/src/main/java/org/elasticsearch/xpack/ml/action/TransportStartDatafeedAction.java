@@ -242,6 +242,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         DatafeedConfig datafeedConfig = datafeedBuilder.build();
                         params.setDatafeedIndices(datafeedConfig.getIndices());
                         params.setJobId(datafeedConfig.getJobId());
+                        params.setIndicesOptions(datafeedConfig.getIndicesOptions());
                         datafeedConfigHolder.set(datafeedConfig);
                         jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
                     } catch (Exception e) {
@@ -377,12 +378,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         public PersistentTasksCustomMetaData.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
                                                                       ClusterState clusterState) {
             return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getJobId(),
-                    params.getDatafeedIndices()).selectNode();
+                    params.getDatafeedIndices(), params.getIndicesOptions()).selectNode();
         }
 
         @Override
         public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
-            new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getJobId(), params.getDatafeedIndices())
+            new DatafeedNodeSelector(clusterState,
+                resolver,
+                params.getDatafeedId(),
+                params.getJobId(),
+                params.getDatafeedIndices(),
+                params.getIndicesOptions())
                     .checkDatafeedTaskCanBeCreated();
         }
 

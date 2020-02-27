@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -46,6 +48,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
@@ -123,6 +126,14 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setIndicesOptions(IndicesOptions.fromParameters(
+                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                SearchRequest.DEFAULT_INDICES_OPTIONS));
         }
         return builder.build();
     }
@@ -271,6 +282,16 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getAggregations(), equalTo(aggProvider.getAggs()));
     }
 
+    public void testApply_givenIndicesOptions() {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId())
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+            .build()
+            .apply(datafeed, Collections.emptyMap());
+        assertThat(datafeed.getIndicesOptions(), is(not(equalTo(updatedDatafeed.getIndicesOptions()))));
+        assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
+    }
+
     public void testApply_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
@@ -342,7 +363,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(0, 10)) {
+        switch (between(0, 11)) {
         case 0:
             builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
@@ -421,6 +442,23 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 builder.setMaxEmptySearches(randomFrom(-1, 10));
             } else {
                 builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 100);
+            }
+            break;
+        case 11:
+            if (instance.getIndicesOptions() != null) {
+                builder.setIndicesOptions(IndicesOptions.fromParameters(
+                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
+                    Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
+                    Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS));
+            } else {
+                builder.setIndicesOptions(IndicesOptions.fromParameters(
+                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    Boolean.toString(randomBoolean()),
+                    Boolean.toString(randomBoolean()),
+                    Boolean.toString(randomBoolean()),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS));
             }
             break;
         default:

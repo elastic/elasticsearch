@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -98,7 +97,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         this.executionHint = executionHint;
         this.filter = filterBuilder == null
                 ? null
-                : Rewriteable.rewrite(filterBuilder, queryShardContext).toQuery(queryShardContext);
+                : filterBuilder.toQuery(queryShardContext);
         IndexSearcher searcher = queryShardContext.searcher();
         this.supersetNumDocs = filter == null
                 // Important - need to use the doc count that includes deleted docs

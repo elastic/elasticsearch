@@ -60,10 +60,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, ConstantKeywordFieldMapper> {
 
-        public Builder(String name, String value) {
+        public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
+        }
+
+        public Builder setValue(String value) {
             fieldType().setValue(value);
+            return this;
         }
 
         @Override
@@ -83,15 +87,22 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            final Object value = node.remove("value");
-            if (value == null) {
-                throw new MapperParsingException("Property [value] of field [" + name + "] is required and can't be null.");
+            Object value = null;
+            if (node.containsKey("value")) {
+                value = node.remove("value");
+                if (value == null) {
+                    throw new MapperParsingException("Property [value] of field [" + name + "] can't be [null].");
+                }
+                if (value instanceof Number == false && value instanceof CharSequence == false) {
+                    throw new MapperParsingException("Property [value] of field [" + name +
+                            "] must be a number or a string, but got [" + value + "]");
+                }
             }
-            if (value instanceof Number == false && value instanceof CharSequence == false) {
-                throw new MapperParsingException("Property [value] of field [" + name +
-                        "] must be a number or a string, but got [" + value + "]");
+            ConstantKeywordFieldMapper.Builder builder = new ConstantKeywordFieldMapper.Builder(name);
+            if (value != null) {
+                builder.setValue(value.toString());
             }
-            return new ConstantKeywordFieldMapper.Builder(name, value.toString());
+            return builder;
         }
     }
 
@@ -122,11 +133,16 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
-            super.checkCompatibility(otherFT, conflicts);
-            ConstantKeywordFieldType other = (ConstantKeywordFieldType) otherFT;
-            if (Objects.equals(value, other.value) == false) {
-                conflicts.add("mapper [" + name() + "] has different [value]: [" + value + "] vs. [" + other.value + "]");
+        public void checkCompatibility(MappedFieldType newFT, List<String> conflicts) {
+            super.checkCompatibility(newFT, conflicts);
+            ConstantKeywordFieldType newConstantKeywordFT = (ConstantKeywordFieldType) newFT;
+            if (this.value != null) {
+                if (newConstantKeywordFT.value == null) {
+                    conflicts.add("mapper [" + name() + "] cannot unset [value]");
+                } else if (Objects.equals(value, newConstantKeywordFT.value) == false) {
+                    conflicts.add("mapper [" + name() + "] has different [value] from the value that is configured in mappings: [" + value +
+                            "] vs. [" + newConstantKeywordFT.value + "]");
+                }
             }
         }
 
@@ -156,10 +172,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return new ConstantIndexFieldData.Builder(mapperService -> value);
         }
 
-		@Override
-		protected boolean matches(String pattern, QueryShardContext context) {
-			return Regex.simpleMatch(pattern, value);
-		}
+        @Override
+        protected boolean matches(String pattern, QueryShardContext context) {
+            if (value == null) {
+                return false;
+            }
+            return Regex.simpleMatch(pattern, value);
+        }
 
         @Override
         public Query rangeQuery(
@@ -167,6 +186,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 boolean includeLower, boolean includeUpper,
                 ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
                 QueryShardContext context) {
+            if (this.value == null) {
+                return new MatchNoDocsQuery();
+            }
+
             final BytesRef valueAsBytesRef = new BytesRef(value);
             if (lowerTerm != null && BytesRefs.toBytesRef(lowerTerm).compareTo(valueAsBytesRef) >= (includeLower ? 1 : 0)) {
                 return new MatchNoDocsQuery();
@@ -179,10 +202,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-        		boolean transpositions, QueryShardContext context) {
+                boolean transpositions, QueryShardContext context) {
+            if (this.value == null) {
+                return new MatchNoDocsQuery();
+            }
+
             final String termAsString = BytesRefs.toString(value);
             final int maxEdits = fuzziness.asDistance(termAsString);
-            
+
             final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
             for (int cp, i = 0, j = 0; i < termAsString.length(); i += Character.charCount(cp)) {
               termText[j++] = cp = termAsString.codePointAt(i);
@@ -206,6 +233,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (this.value == null) {
+                return new MatchNoDocsQuery();
+            }
+
             final Automaton automaton = new RegExp(value, flags).toAutomaton(maxDeterminizedStates);
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
@@ -217,7 +248,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    protected ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
     }
@@ -242,12 +273,24 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             value =  parser.textOrNull();
         }
 
-        if (Objects.equals(fieldType().value, value) == false) {
+        if (value == null) {
+            throw new IllegalArgumentException("[constant_keyword] field [" + name() + "] doesn't accept [null] values");
+        }
+
+        if (fieldType().value == null) {
+            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType());
+            newFieldType.setValue(value);
+            newFieldType.freeze();
+            Mapper update = new ConstantKeywordFieldMapper(
+                    simpleName(), newFieldType, defaultFieldType, context.indexSettings().getSettings());
+            context.addDynamicMapper(update);
+        } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() +
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
         }
     }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -256,6 +299,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        builder.field("value", fieldType().value());
+        if (fieldType().value() != null) {
+            builder.field("value", fieldType().value());
+        }
     }
 }

@@ -362,8 +362,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             targetOptionsBuilder.options(highlighterBuilder.options);
         }
         if (highlighterBuilder.highlightQuery != null) {
-            targetOptionsBuilder.highlightQuery(
-                    Rewriteable.rewrite(highlighterBuilder.highlightQuery, context).toQuery(context));
+            targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
     }
 

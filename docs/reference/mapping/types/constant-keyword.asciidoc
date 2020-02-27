@@ -68,6 +68,6 @@ The following mapping parameters are accepted:
 
 `value`::
 
-    The value to associate with all documents in the index. This parameter is
-    required and can't be updated on an existing index.
+    The value to associate with all documents in the index. If this parameter
+    is not provided, it is set based on the first document that gets indexed.
 

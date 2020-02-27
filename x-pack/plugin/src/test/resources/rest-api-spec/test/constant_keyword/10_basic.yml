@@ -1,8 +1,8 @@
 setup:
 
   - skip:
-      version: " - 7.99.99" # TODO: make it 7.5.99 after backport
-      reason: "constant_keyword was added in 7.6"
+      version: " - 7.99.99" # TODO: make it 7.6.99 after backport
+      reason: "constant_keyword was added in 7.7"
 
   - do:
       indices.create:

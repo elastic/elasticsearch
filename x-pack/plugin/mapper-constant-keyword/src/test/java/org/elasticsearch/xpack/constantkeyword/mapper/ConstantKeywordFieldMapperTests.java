@@ -55,4 +55,29 @@ public class ConstantKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 "but got [bar]", e.getCause().getMessage());
     }
 
+    public void testDynamicValue() throws Exception {
+        IndexService indexService = createIndex("test");
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
+                .endObject().endObject().endObject().endObject());
+        DocumentMapper mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "foo").endObject());
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        assertNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
+        DocumentMapper updatedMapper = indexService.mapperService().merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        String expectedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
+                .field("value", "foo").endObject().endObject().endObject().endObject());
+        assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
+
+        doc = updatedMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        assertNull(doc.rootDoc().getField("field"));
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
 }

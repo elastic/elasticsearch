@@ -69,11 +69,11 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private static class ConstantKeywordAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class ConstantAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
         private final String value;
 
-        ConstantKeywordAtomicFieldData(String value) {
+        ConstantAtomicFieldData(String value) {
             super(DEFAULT_SCRIPT_FUNCTION);
             this.value = value;
         }
@@ -131,14 +131,14 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private final ConstantKeywordAtomicFieldData atomicFieldData;
+    private final ConstantAtomicFieldData atomicFieldData;
 
     private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-        atomicFieldData = new ConstantKeywordAtomicFieldData(value);
+        atomicFieldData = new ConstantAtomicFieldData(value);
     }
 
     @Override

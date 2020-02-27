@@ -9,6 +9,12 @@ dependencies {
   testCompile project(path: xpackModule('autoscaling'), configuration: 'runtime')
 }
 
+restResources {
+  restApi {
+    includeXpack 'autoscaling'
+  }
+}
+
 task restTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
 }

@@ -14,13 +14,11 @@ configurations {
   dockerPlugins
   dockerSource
   ossDockerSource
-  restSpec
 }
 
 dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
-  restSpec project(':rest-api-spec')
 }
 
 ext.expansions = { oss, local ->
@@ -138,12 +136,8 @@ preProcessFixture {
 }
 
 processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  dependsOn configurations.restSpec
 }
 
 task integTest(type: Test) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumeric
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,6 +92,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.YEAR_INTERVAL;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
@@ -332,14 +335,24 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                                     // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in 
                                     // the ES date_histogram will be a calendar_interval with value "1y" or "1M" respectively.
-                                    // All other intervals will be fixed_intervals expressed in ms.
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
                                     } else if (field instanceof Function) {
                                         key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
                                     }
                                 }
-                                // typical interval
+                                // interval of exactly 1 day
+                                else if (value instanceof IntervalDayTime 
+                                        && ((IntervalDayTime) value).interval().equals(Duration.ofDays(1))) {
+                                    // When the histogram is `INTERVAL '1' DAY` the interval used in 
+                                    // the ES date_histogram will be a calendar_interval with value "1d"
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), DAY_INTERVAL, h.zoneId());
+                                    }
+                                }
+                                // All other intervals will be fixed_intervals expressed in ms.
                                 else {
                                     long intervalAsMillis = Intervals.inMillis(h.interval());
 

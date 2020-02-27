@@ -20,7 +20,7 @@ import java.util.Objects;
  * <p>
  * The next step key will point towards the "wait action fulfilled" step when the condition of the async action is met, and towards the
  * "wait action unfulfilled" step when the client instructs they'd like to stop waiting for the condition using the
- * {@link BranchingStepListener#onStopWaitingForCondition(ToXContentObject)}.
+ * {@link BranchingStepListener#onStopWaitingAndMoveToNextKey(ToXContentObject)}.
  * <p>
  * If the async action that's branching the execution results in a failure, the {@link #getNextStepKey()} is not set (as ILM would move
  * into the {@link ErrorStep} step).
@@ -38,7 +38,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
      *
      * @param key                                the step's key
      * @param nextStepKeyUnfulfilledWaitAction the key of the step to run if the client decides to stop waiting for the condition to be
-     *                                           via {@link BranchingStepListener#onStopWaitingForCondition(ToXContentObject)}
+     *                                           via {@link BranchingStepListener#onStopWaitingAndMoveToNextKey(ToXContentObject)}
      * @param nextStepKeyFulfilledWaitAction   the key of the step to run if the {@link #asyncWaitAction} condition is met
      * @param asyncWaitAction                    the action to execute, would usually be similar to an instance of {@link AsyncWaitStep}
      *                                           but the user has the option to decide to stop waiting for the condition to be fulfilled
@@ -73,7 +73,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
             }
 
             @Override
-            public void onStopWaitingForCondition(ToXContentObject informationContext) {
+            public void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext) {
                 onCompleteConditionMet.set(false);
                 // to the "outside" world the condition was met (as the user decided so) and we're ready to move to the next step.
                 // {@link #getNextStepKey} will now point towards {@link #nextStepKeyUnfulfilledWaitAction)
@@ -89,7 +89,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
      * the client decides not to wait for the condition to be met anymore.
      */
     interface BranchingStepListener extends AsyncWaitStep.Listener {
-        void onStopWaitingForCondition(ToXContentObject informationContext);
+        void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext);
     }
 
     /**

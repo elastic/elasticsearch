@@ -149,7 +149,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     if (snapshotState.equals(SUCCESS)) {
                         branchingStepListener.onResponse(true, null);
                     } else if (snapshotState.equals(ABORTED) || snapshotState.equals(FAILED) || snapshotState.equals(MISSING)) {
-                        branchingStepListener.onStopWaitingForCondition(new Info(
+                        branchingStepListener.onStopWaitingAndMoveToNextKey(new Info(
                             "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] is " +
                                 "cannot complete as it is in state [" + snapshotState + "]"));
                     } else {

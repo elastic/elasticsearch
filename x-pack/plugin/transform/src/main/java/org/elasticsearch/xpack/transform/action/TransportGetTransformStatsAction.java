@@ -129,9 +129,18 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
-                request.setExpandedIds(hitsAndIds.v2());
                 final ClusterState state = clusterService.state();
-                request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
+                String[] taskNodes = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+
+                // no running task for the given ids, to avoid sending a request to every node, stop here
+                if (taskNodes.length == 0) {
+                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
+                    return;
+                }
+
+                request.setNodes(taskNodes);
+                request.setExpandedIds(hitsAndIds.v2());
+
                 super.doExecute(task, request, ActionListener.wrap(response -> {
                     PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                     if (tasksInProgress != null) {

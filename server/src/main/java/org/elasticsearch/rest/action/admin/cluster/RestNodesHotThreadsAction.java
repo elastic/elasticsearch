@@ -19,10 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,6 +41,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestNodesHotThreadsAction.class));
+    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated endpoints used. " + 
+            "Those are the synonyms of other endpoints";
 
     @Override
     public List<Route> routes() {
@@ -60,6 +67,12 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.rawPath().equals("/_cluster/nodes/hotthreads") 
+        || request.rawPath().equals("/_cluster/nodes/{nodeId}/hotthreads")
+        || request.rawPath().equals("/_nodes/hotthreads") 
+        || request.rawPath().equals("/_nodes/{nodeId}/hotthreads")) {
+            deprecationLogger.deprecated(LOCAL_DEPRECATED_MESSAGE);
+        }
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));

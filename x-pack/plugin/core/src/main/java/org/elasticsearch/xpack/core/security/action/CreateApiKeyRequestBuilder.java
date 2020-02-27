@@ -32,10 +32,10 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "api_key_request", false, (args, v) -> {
-        return new CreateApiKeyRequest((String) args[0], (List<RoleDescriptor>) args[1],
-            TimeValue.parseTimeValue((String) args[2], null, "expiration"));
-    });
+            "api_key_request", false, (args, v) -> {
+                return new CreateApiKeyRequest((String) args[0], (List<RoleDescriptor>) args[1],
+                        TimeValue.parseTimeValue((String) args[2], null, "expiration"));
+            });
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));

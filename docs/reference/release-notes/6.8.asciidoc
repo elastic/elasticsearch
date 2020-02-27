@@ -1,3 +1,16 @@
+[[release-notes-6.8.7]]
+== {es} version 6.8.7
+
+coming::[6.8.7]
+
+[discrete]
+[[bug-6.8.7]]
+=== Bug fixes
+
+Machine Learning::
+* Include out-of-order as well as in-order terms in categorization reverse
+searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
+
 [[release-notes-6.8.6]]
 == {es} version 6.8.6
 
@@ -35,7 +48,7 @@ Features/Java High Level REST Client::
 * Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])
 
 Machine Learning::
-* [ML] Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
+* Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
 
 Recovery::
 * Ignore Lucene index in peer recovery if translog corrupted {pull}49114[#49114]

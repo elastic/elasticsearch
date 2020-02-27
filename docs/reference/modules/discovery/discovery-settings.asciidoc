@@ -11,7 +11,7 @@ May also be a single string containing the addresses separated by commas. Each
 address has the format `host:port` or `host`. The `host` is either a host name
 to be resolved by DNS, an IPv4 address, or an IPv6 address. IPv6 addresses
 must be enclosed in square brackets. If a host name resolves via DNS to multiple
-addresses then Elasticsearch uses all of them. DNS lookups are subject to
+addresses, {es} uses all of them. DNS lookups are subject to
 <<networkaddress-cache-ttl,JVM DNS caching>>. If the `port` is not given then it
 is determined by checking the following settings in order:
 

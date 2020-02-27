@@ -20,11 +20,9 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.elasticsearch.painless.symbol.ScopeTable.Variable;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
@@ -48,22 +46,14 @@ public class FunctionNode extends IRNode {
 
     /* ---- end tree structure, begin node data ---- */
 
-    private ScriptRoot scriptRoot;
-    private String name;
-    private Class<?> returnType;
-    private List<Class<?>> typeParameters = new ArrayList<>();
-    private List<String> parameterNames = new ArrayList<>();
-    private boolean isStatic;
-    private boolean isSynthetic;
-    private int maxLoopCounter;
-
-    public void setScriptRoot(ScriptRoot scriptRoot) {
-        this.scriptRoot = scriptRoot;
-    }
-
-    public ScriptRoot getScriptRoot() {
-        return scriptRoot;
-    }
+    protected String name;
+    Class<?> returnType;
+    List<Class<?>> typeParameters = new ArrayList<>();
+    List<String> parameterNames = new ArrayList<>();
+    protected boolean isStatic;
+    protected boolean hasVarArgs;
+    protected boolean isSynthetic;
+    protected int maxLoopCounter;
 
     public void setName(String name) {
         this.name = name;
@@ -105,6 +95,14 @@ public class FunctionNode extends IRNode {
         return isStatic;
     }
 
+    public void setVarArgs(boolean hasVarArgs) {
+        this.hasVarArgs = hasVarArgs;
+    }
+
+    public boolean hasVarArgs() {
+        return hasVarArgs;
+    }
+
     public void setSynthetic(boolean isSythetic) {
         this.isSynthetic = isSythetic;
     }
@@ -124,13 +122,17 @@ public class FunctionNode extends IRNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         int access = Opcodes.ACC_PUBLIC;
 
         if (isStatic) {
             access |= Opcodes.ACC_STATIC;
         } else {
             scopeTable.defineInternalVariable(Object.class, "this");
+        }
+
+        if (hasVarArgs) {
+            access |= Opcodes.ACC_VARARGS;
         }
 
         if (isSynthetic) {
@@ -162,7 +164,7 @@ public class FunctionNode extends IRNode {
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        blockNode.write(classWriter, methodWriter, globals, scopeTable.newScope());
+        blockNode.write(classWriter, methodWriter, scopeTable.newScope());
 
         methodWriter.endMethod();
     }

@@ -1,10 +1,7 @@
 setup:
-  - do:
-      cluster.health:
-        wait_for_status: green
-        wait_for_nodes: 3
-        # wait for long enough that we give delayed unassigned shards to stop being delayed
-        timeout: 70s
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/52793"
+      version: all
 
 ---
 "Test old cluster datafeed without aggs":

@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/52793"
+      version: all
   - do:
      cluster.health:
         wait_for_status: green

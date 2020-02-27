@@ -155,7 +155,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
         }
 
-        CollectionUtil.introSort(buckets, ORDER.comparator(this));
+        CollectionUtil.introSort(buckets, ORDER.comparator());
         return new StringRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
     }
 

@@ -84,16 +84,25 @@ public class CopyRestApiTask extends DefaultTask {
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {
-        xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-        ConfigurableFileCollection fileCollection = getProject().files(xpackConfig.getAsFileTree().matching(xpackPatternSet));
-        if (BuildParams.isInternal()) {
-            corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            fileCollection.plus(coreConfig.getAsFileTree().matching(corePatternSet));
-        } else {
-            fileCollection.plus(coreConfig);
+        FileTree coreFileTree = null;
+        FileTree xpackFileTree = null;
+        if (includeXpack.get().isEmpty() == false) {
+            xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
         }
+        boolean projectHasYamlRestTests = projectHasYamlRestTests();
+        if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
+            if (BuildParams.isInternal()) {
+                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+                coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
+            } else {
+                coreFileTree = coreConfig.getAsFileTree(); // jar file
+            }
+        }
+        ConfigurableFileCollection fileCollection = getProject().files(coreFileTree, xpackFileTree);
+
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
-        return projectHasYamlRestTests() || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
+        return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
             ? fileCollection.getAsFileTree()
             : null;
     }
@@ -148,15 +157,13 @@ public class CopyRestApiTask extends DefaultTask {
             return false;
         }
         try {
-            if (testSourceResourceDir != null) {
-                return new File(testSourceResourceDir, "rest-api-spec/test").exists() == false
-                    || Files.walk(testSourceResourceDir.toPath().resolve("rest-api-spec/test"))
-                        .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+            if (testSourceResourceDir != null && new File(testSourceResourceDir, "rest-api-spec/test").exists()) {
+                return Files.walk(testSourceResourceDir.toPath().resolve("rest-api-spec/test"))
+                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
             }
-            if (testOutputResourceDir != null) {
-                return new File(testOutputResourceDir, "rest-api-spec/test").exists() == false
-                    || Files.walk(testOutputResourceDir.toPath().resolve("rest-api-spec/test"))
-                        .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+            if (testOutputResourceDir != null && new File(testOutputResourceDir, "rest-api-spec/test").exists()) {
+                return Files.walk(testOutputResourceDir.toPath().resolve("rest-api-spec/test"))
+                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
             }
         } catch (IOException e) {
             throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);

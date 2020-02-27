@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1016,6 +1017,33 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
 
         }
+    }
+
+    public void testHiddenIndexWithVisibleAliasOverlappingNameResolution() {
+        final String hiddenIndex = "my-hidden-index";
+        final String hiddenAlias = "my-hidden-alias";
+        final String visibleAlias = "my-visible-alias";
+
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
+
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                .state(State.OPEN)
+                .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true))
+                .putAlias(AliasMetaData.builder(visibleAlias).build()));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        String[] indexNames;
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-*");
+        assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-hidden*");
+        assertThat(Arrays.asList(indexNames), empty());
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-*", "-my-visible*");
+        assertThat(Arrays.asList(indexNames), empty());
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "my-hidden*", "-my-hidden-a*");
+        assertThat(Arrays.asList(indexNames), empty());
     }
 
     /**

@@ -36,7 +36,7 @@ import java.util.Arrays;
  * More specifically, it maintains an index to the current executing bulk item, which allows execution
  * to stop and wait for external events such as mapping updates.
  */
-class BulkPrimaryExecutionContext {
+class BulkExecutionContext {
 
     enum ItemProcessingState {
         /** Item execution is ready to start, no operations have been performed yet */
@@ -52,11 +52,6 @@ class BulkPrimaryExecutionContext {
          * submitted
          */
         WAIT_FOR_MAPPING_UPDATE,
-        /**
-         * The request should be executed again, but there is no need to wait for an external event.
-         * This is needed to support retry on conflicts during updates.
-         */
-        IMMEDIATE_RETRY,
         /** The request has been executed on the primary shard (successfully or not) */
         EXECUTED,
         /**
@@ -78,7 +73,7 @@ class BulkPrimaryExecutionContext {
     private int retryCounter;
 
 
-    BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
+    BulkExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
         this.indexContexts = new IndexShard.IndexContext[request.items().length];
         this.primary = primary;
@@ -138,11 +133,6 @@ class BulkPrimaryExecutionContext {
     /** returns true if the request needs to wait for a mapping update to arrive from the master */
     public boolean requiresWaitingForMappingUpdate() {
         return currentItemState == ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
-    }
-
-    /** returns true if the current request should be retried without waiting for an external event */
-    public boolean requiresImmediateRetry() {
-        return currentItemState == ItemProcessingState.IMMEDIATE_RETRY;
     }
 
     /**
@@ -321,10 +311,6 @@ class BulkPrimaryExecutionContext {
                 break;
             case WAIT_FOR_MAPPING_UPDATE:
                 assert requestToExecute == null;
-                assert executionResult == null : executionResult;
-                break;
-            case IMMEDIATE_RETRY:
-                assert requestToExecute != null;
                 assert executionResult == null : executionResult;
                 break;
             case EXECUTED:

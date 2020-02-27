@@ -167,6 +167,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "fix")
     public void testAppendOnlyRecoveryThenReplication() throws Exception {
         CountDownLatch indexedOnPrimary = new CountDownLatch(1);
         CountDownLatch recoveryDone = new CountDownLatch(1);

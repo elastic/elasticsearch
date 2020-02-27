@@ -832,7 +832,7 @@ public class InternalEngine extends Engine {
             this.index = index;
         }
 
-        public IndexResult performIndex() throws IOException {
+        public void performIndex() throws IOException {
             assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
             final boolean doThrottle = index.origin().isRecovery() == false;
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
@@ -898,7 +898,6 @@ public class InternalEngine extends Engine {
                     }
                 }
                 this.indexResult = indexResult;
-                return indexResult;
             } catch (IOException | RuntimeException e) {
                 handleException(index,e);
                 throw e;

@@ -893,7 +893,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         private IndexContext(Engine.IndexResult prepareFailure) {
             this.index = null;
             this.stepWiseIndex = null;
-            this.prepareFailure = indexResult;
+            this.prepareFailure = prepareFailure;
         }
 
         private Engine.IndexResult prepareIndexFailure() {

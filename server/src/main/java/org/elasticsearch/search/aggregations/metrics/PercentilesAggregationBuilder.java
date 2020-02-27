@@ -99,11 +99,17 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             throw new IllegalArgumentException("[percents] must not be empty: [" + aggName + "]");
         }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
+        double previousPercent = -1.0;
         Arrays.sort(sortedPercents);
         for (double percent : sortedPercents) {
             if (percent < 0.0 || percent > 100.0) {
                 throw new IllegalArgumentException("percent must be in [0,100], got [" + percent + "]: [" + aggName + "]");
             }
+
+            if (percent == previousPercent) {
+                throw new IllegalArgumentException("percent [" + percent + "] has been specified twice: [" + aggName + "]");
+            }
+            previousPercent = percent;
         }
         return sortedPercents;
     }

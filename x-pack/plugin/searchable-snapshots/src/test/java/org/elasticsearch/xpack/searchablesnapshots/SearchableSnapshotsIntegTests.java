@@ -22,10 +22,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
@@ -143,14 +141,6 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
 
-        if (randomBoolean()) {
-            assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(restoredIndexName)).actionGet());
-            ensureGreen(restoredIndexName);
-
-            // ensure that the index really was frozen by searching it without ignore_throttled=false and checking that it returns nothing
-            final TotalHits totalHits = client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get().getHits().getTotalHits();
-            assertThat(totalHits, equalTo(new TotalHits(0L, TotalHits.Relation.EQUAL_TO)));
-        }
 
         internalCluster().fullRestart();
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);

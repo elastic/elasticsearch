@@ -58,7 +58,7 @@ Valid columns are:
 `assignment_explanation`, `ae`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
 
-`bucket.count`, `bc`, `bucketCount`:::
+`buckets.count`, `bc`, `bucketsCount`:::
 (Default)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
@@ -122,7 +122,7 @@ GET _cat/ml/datafeeds?v
 
 [source,console-result]
 ----
-id                              state bucket.count search.count
+id                              state buckets.count search.count
 datafeed-high_sum_total_sales stopped 743          7
 datafeed-low_request_rate     stopped 1457         3
 datafeed-response_code_rates  stopped 1460         18

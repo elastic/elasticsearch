@@ -59,23 +59,23 @@ Valid columns are:
 `assignment_explanation`, `ae`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-anomaly-jobs]
 
-`bucket.count`, `bc`, `bucketCount`:::
+`buckets.count`, `bc`, `bucketsCount`:::
 (Default)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count-anomaly-jobs]
 
-`bucket.time.exp_avg`, `btea`, `bucketTimeExpAvg`:::
+`buckets.time.exp_avg`, `btea`, `bucketsTimeExpAvg`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average]
 
-`bucket.time.exp_avg_hour`, `bteah`, `bucketTimeExpAvgHour`:::
+`buckets.time.exp_avg_hour`, `bteah`, `bucketsTimeExpAvgHour`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average-hour]
 
-`bucket.time.max`, `btmax`, `bucketTimeMax`:::
+`buckets.time.max`, `btmax`, `bucketsTimeMax`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-maximum]
 
-`bucket.time.min`, `btmin`, `bucketTimeMin`:::
+`buckets.time.min`, `btmin`, `bucketsTimeMin`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-minimum]
 
-`bucket.time.total`, `btt`, `bucketTimeTotal`:::
+`buckets.time.total`, `btt`, `bucketsTimeTotal`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
 
 `data.buckets`, `db`, `dataBuckets`:::
@@ -127,48 +127,47 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=processed-record-count]
 `data.sparse_buckets`, `dsb`, `dataSparseBuckets`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 
-`forecast.memory.avg`, `fmavg`, `forecastMemoryAvg`:::
+`forecasts.memory.avg`, `fmavg`, `forecastsMemoryAvg`:::
 The average memory usage in bytes for forecasts related to the {anomaly-job}.
   
-`forecast.memory.max`, `fmmax`, `forecastsMemoryMax`:::
+`forecasts.memory.max`, `fmmax`, `forecastsMemoryMax`:::
 The maximum memory usage in bytes for forecasts related to the {anomaly-job}.
-//TBD: Is there a reason why this "forecasts" is plural?
 
-`forecast.memory.min`, `fmmin`, `forecastMemoryMin`:::
+`forecasts.memory.min`, `fmmin`, `forecastsMemoryMin`:::
 The minimum memory usage in bytes for forecasts related to the {anomaly-job}.
 
-`forecast.memory.total`, `fmt`, `forecastMemoryTotal`:::
+`forecasts.memory.total`, `fmt`, `forecastsMemoryTotal`:::
 The total memory usage in bytes for forecasts related to the {anomaly-job}.                      
   
-`forecast.records.avg`, `fravg`, `forecastRecordsAvg`:::
+`forecasts.records.avg`, `fravg`, `forecastsRecordsAvg`:::
 The average number of `model_forecast` documents written for forecasts related
 to the {anomaly-job}.
 
-`forecast.records.max`, `frmax`, `forecastRecordsMax`:::
+`forecasts.records.max`, `frmax`, `forecastsRecordsMax`:::
 The maximum number of `model_forecast` documents written for forecasts related
 to the {anomaly-job}.
 
-`forecast.records.min`, `frmin`, `forecastRecordsMin`:::
+`forecasts.records.min`, `frmin`, `forecastsRecordsMin`:::
 The minimum number of `model_forecast` documents written for forecasts related
 to the {anomaly-job}.
 
-`forecast.records.total`, `frt`, `forecastRecordsTotal`:::
+`forecasts.records.total`, `frt`, `forecastsRecordsTotal`:::
 The total number of `model_forecast` documents written for forecasts related to
 the {anomaly-job}.                         
                                                    
-`forecast.time.avg`, `ftavg`, `forecastTimeAvg`:::
+`forecasts.time.avg`, `ftavg`, `forecastsTimeAvg`:::
 The average runtime in milliseconds for forecasts related to the {anomaly-job}.
 
-`forecast.time.max`, `ftmax`, `forecastTimeMax`:::
+`forecasts.time.max`, `ftmax`, `forecastsTimeMax`:::
 The maximum runtime in milliseconds for  forecasts related to the {anomaly-job}.
 
-`forecast.time.min`, `ftmin`, `forecastTimeMin`:::
+`forecasts.time.min`, `ftmin`, `forecastsTimeMin`:::
 The minimum runtime in milliseconds for forecasts related to the {anomaly-job}.
 
-`forecast.time.total`, `ftt`, `forecastTimeTotal`:::
+`forecasts.time.total`, `ftt`, `forecastsTimeTotal`:::
 The total runtime in milliseconds for forecasts related to the {anomaly-job}.
 
-`forecast.total`, `ft`, `forecastTotal`:::
+`forecasts.total`, `ft`, `forecastsTotal`:::
 (Default)
 include::{docdir}/ml/ml-shared.asciidoc[tag=forecast-total]
 

@@ -57,8 +57,11 @@ public class DanglingIndicesState implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
     /**
-     * Controls whether dangling indices should be automatically imported into the cluster
+     * Controls whether dangling indices should be automatically detected and imported into the cluster
      * state upon discovery. This setting is deprecated - use the <code>_dangling</code> API instead.
+     * If disabled, dangling indices will not be automatically detected.
+     *
+     * @see org.elasticsearch.action.admin.indices.dangling
      */
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
@@ -71,6 +74,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices danglingIndicesAllocator;
     private final boolean isAutoImportDanglingIndicesEnabled;
+    private final ClusterService clusterService;
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
@@ -80,14 +84,17 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.danglingIndicesAllocator = danglingIndicesAllocator;
+        this.clusterService = clusterService;
 
         this.isAutoImportDanglingIndicesEnabled = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
 
-        clusterService.addListener(this);
-
-        if (this.isAutoImportDanglingIndicesEnabled == false) {
-            logger.warn(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey()
-                + " is disabled, dangling indices will not be automatically detected or imported and must be managed manually");
+        if (this.isAutoImportDanglingIndicesEnabled) {
+            clusterService.addListener(this);
+        } else {
+            logger.warn(
+                AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey()
+                    + " is disabled, dangling indices will not be automatically detected or imported and must be managed manually"
+            );
         }
     }
 
@@ -100,6 +107,8 @@ public class DanglingIndicesState implements ClusterStateListener {
      * new dangling indices, and allocating outstanding ones.
      */
     public void processDanglingIndices(final MetaData metaData) {
+        assert this.isAutoImportDanglingIndicesEnabled;
+
         if (nodeEnv.hasNodeFile() == false) {
             return;
         }
@@ -109,11 +118,17 @@ public class DanglingIndicesState implements ClusterStateListener {
     }
 
     /**
-     * The current set of dangling indices.
+     * Either return the current set of dangling indices, if auto-import is enabled, otherwise
+     * scan for dangling indices right away.
+     * @return a map of currently-known dangling indices
      */
     public Map<Index, IndexMetaData> getDanglingIndices() {
-        // This might be a good use case for CopyOnWriteHashMap
-        return Map.copyOf(danglingIndices);
+        if (this.isAutoImportDanglingIndicesEnabled) {
+            // This might be a good use case for CopyOnWriteHashMap
+            return Map.copyOf(this.danglingIndices);
+        } else {
+            return findNewDanglingIndices(emptyMap(), this.clusterService.state().metaData());
+        }
     }
 
     /**
@@ -149,7 +164,7 @@ public class DanglingIndicesState implements ClusterStateListener {
             }
         }
 
-        danglingIndices.putAll(findNewDanglingIndices(metaData));
+        danglingIndices.putAll(findNewDanglingIndices(danglingIndices, metaData));
     }
 
     /**
@@ -157,12 +172,12 @@ public class DanglingIndicesState implements ClusterStateListener {
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
      */
-    public Map<Index, IndexMetaData> findNewDanglingIndices(final MetaData metaData) {
+    public Map<Index, IndexMetaData> findNewDanglingIndices(final Map<Index, IndexMetaData> existingDanglingIndices, final MetaData metaData) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
         }
-        excludeIndexPathIds.addAll(map(danglingIndices.keySet(), Index::getUUID));
+        excludeIndexPathIds.addAll(map(existingDanglingIndices.keySet(), Index::getUUID));
         try {
             final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());

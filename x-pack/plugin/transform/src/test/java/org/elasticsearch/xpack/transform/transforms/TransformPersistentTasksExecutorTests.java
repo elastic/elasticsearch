@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
 public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeVersionAssignment() {
-        DiscoveryNodes.Builder nodes = buildNodes(true, true, true, true);
+        DiscoveryNodes.Builder nodes = buildNodes(false, true, true, true, true);
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
@@ -77,7 +77,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeAssignmentProblems() {
         // no data nodes
-        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false);
+        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
@@ -85,29 +85,20 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
-            equalTo("Not starting transform [new-task-id], reasons [" + "non-data-node-1:not a data node" + "]")
+            equalTo("Not starting transform [new-task-id], reasons [current-data-node-with-transform-disabled:transform not enabled]")
         );
 
-        // data nodes with transform disabled
-        nodes = buildNodes(false, false, false, true);
+        // dedicated transform node
+        nodes = buildNodes(true, false, false, false, true);
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, true), cs);
-        assertNull(assignment.getExecutorNode());
-        assertThat(
-            assignment.getExplanation(),
-            equalTo(
-                "Not starting transform [new-task-id], reasons ["
-                    + "current-data-node-with-transform-disabled:transform not enabled"
-                    + "|"
-                    + "non-data-node-1:not a data node"
-                    + "]"
-            )
-        );
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs);
+        assertNotNull(assignment.getExecutorNode());
+        assertThat(assignment.getExecutorNode(), equalTo("dedicated-transform-node"));
 
         // only an old node
-        nodes = buildNodes(true, false, false, false);
+        nodes = buildNodes(false, true, false, false, true);
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
@@ -117,7 +108,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             assignment.getExplanation(),
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
-                    + "non-data-node-1:not a data node"
+                    + "current-data-node-with-transform-disabled:transform not enabled"
                     + "|"
                     + "past-data-node-1:node has version: 7.5.0 but transform requires at least 7.7.0"
                     + "]"
@@ -129,7 +120,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assertThat(assignment.getExecutorNode(), equalTo("past-data-node-1"));
 
         // no remote
-        nodes = buildNodes(false, false, true, false);
+        nodes = buildNodes(false, false, false, true, false);
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
@@ -141,8 +132,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
                     + "transform requires a remote connection but remote is disabled"
-                    + "|"
-                    + "non-data-node-1:not a data node"
                     + "]"
             )
         );
@@ -152,7 +141,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assertThat(assignment.getExecutorNode(), equalTo("current-data-node-with-0-tasks-transform-remote-disabled"));
 
         // no remote and disabled
-        nodes = buildNodes(false, false, true, true);
+        nodes = buildNodes(false, false, false, true, true);
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
@@ -165,12 +154,12 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
                     + "transform requires a remote connection but remote is disabled"
                     + "|"
-                    + "current-data-node-with-transform-disabled:transform not enabled|non-data-node-1:not a data node"
+                    + "current-data-node-with-transform-disabled:transform not enabled"
                     + "]"
             )
         );
         // old node, we do not know if remote is enabled
-        nodes = buildNodes(true, false, true, false);
+        nodes = buildNodes(false, true, false, true, false);
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
@@ -251,10 +240,11 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private DiscoveryNodes.Builder buildNodes(
-        boolean pastNode,
+        boolean dedicatedTransformNode,
+        boolean pastDataNode,
         boolean transformRemoteNodes,
         boolean transformLocanOnlyNodes,
-        boolean transformDisabledNode
+        boolean currentDataNode
     ) {
 
         Map<String, String> transformNodeAttributes = new HashMap<>();
@@ -267,18 +257,21 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         transformNodeAttributesNoRemote.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "true");
         transformNodeAttributesNoRemote.put(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR, "false");
 
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+
+        if (dedicatedTransformNode) {
+            nodes.add(
                 new DiscoveryNode(
-                    "non-data-node-1",
+                    "dedicated-transform-node",
                     buildNewFakeTransportAddress(),
                     transformNodeAttributes,
                     Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                     Version.CURRENT
                 )
             );
+        }
 
-        if (pastNode) {
+        if (pastDataNode) {
             nodes.add(
                 new DiscoveryNode(
                     "past-data-node-1",
@@ -296,7 +289,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "current-data-node-with-2-tasks",
                     buildNewFakeTransportAddress(),
                     transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE)),
                     Version.CURRENT
                 )
             )
@@ -305,7 +298,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                         "current-data-node-with-1-tasks",
                         buildNewFakeTransportAddress(),
                         transformNodeAttributes,
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE)),
                         Version.CURRENT
                     )
                 );
@@ -323,7 +316,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
         }
 
-        if (transformDisabledNode) {
+        if (currentDataNode) {
             nodes.add(
                 new DiscoveryNode(
                     "current-data-node-with-transform-disabled",

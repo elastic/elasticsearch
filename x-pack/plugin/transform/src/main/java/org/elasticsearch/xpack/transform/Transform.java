@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -152,7 +153,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      */
     public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        XPackSettings.TRANSFORM_ENABLED,
+        settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings) && DiscoveryNode.isDataNode(settings)),
         Property.NodeScope
     );
 
@@ -343,9 +344,13 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
         String transformRemoteEnabledNodeAttribute = "node.attr." + TRANSFORM_REMOTE_ENABLED_NODE_ATTR;
 
+        if (enabled == false) {
+            return Settings.EMPTY;
+        }
+
         if (settings.get(transformEnabledNodeAttribute) != null || settings.get(transformRemoteEnabledNodeAttribute) != null) {
             throw new IllegalArgumentException(
-                "Directly setting transform node attributes is not permitted," + " please use the documented node settings instead"
+                "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
             );
         }
 

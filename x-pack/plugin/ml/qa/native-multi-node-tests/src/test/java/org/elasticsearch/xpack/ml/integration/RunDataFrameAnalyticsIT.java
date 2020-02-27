@@ -548,7 +548,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52654")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 

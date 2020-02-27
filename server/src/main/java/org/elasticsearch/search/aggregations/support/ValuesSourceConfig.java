@@ -152,6 +152,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             valueFormat = new DocValueFormat.Decimal(format);
         }
         if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
+            //todo pg debug this..
             valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS);
         }

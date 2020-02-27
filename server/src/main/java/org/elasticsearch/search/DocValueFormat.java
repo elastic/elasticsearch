@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
@@ -198,7 +199,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatter.forPattern(in.readString());
+            String input = in.readString();
+            //todo pg need to test this..
+            if (Joda.isJodaStyleIndex(in.getVersion(), input)) {
+                this.formatter = Joda.forPattern(input);
+            }else{
+                this.formatter = DateFormatter.forPattern(input);
+            }
+            System.out.println("he "+input);
             this.parser = formatter.toDateMathParser();
             String zoneId = in.readString();
             if (in.getVersion().before(Version.V_7_0_0)) {

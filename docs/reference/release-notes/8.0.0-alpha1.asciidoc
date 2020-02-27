@@ -4,12 +4,15 @@
 The changes listed below have been released for the first time in {es}
 8.0.0-alpha1.
 
-coming[8.0.0]
-
 [[breaking-8.0.0-alpha1]]
 [float]
 === Breaking changes
 
+Aggregations::
+* Disallow specifying the same percentile multiple times in percentiles aggregation {pull}52257[#52257]
+
 Mapping::
 * Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time.
   (e.g. incorrect analyzer settings or unknown field types). {pull}51233[#51233]
+
+coming[8.0.0]

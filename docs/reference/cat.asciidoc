@@ -227,6 +227,8 @@ include::cat/alias.asciidoc[]
 
 include::cat/allocation.asciidoc[]
 
+include::cat/anomaly-detectors.asciidoc[]
+
 include::cat/count.asciidoc[]
 
 include::cat/dataframeanalytics.asciidoc[]

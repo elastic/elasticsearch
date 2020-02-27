@@ -225,6 +225,11 @@ public abstract class InternalOrder extends BucketOrder {
         }
     }
 
+    /**
+     * {@link BucketOrder} implementation for simple, fixed orders like
+     * {@link InternalOrder#COUNT_ASC}. Complex implementations should not
+     * use this.
+     */
     private static class SimpleOrder extends InternalOrder {
         private final byte id;
         private final String key;

@@ -101,9 +101,11 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
     }
 
     /**
-     * Validate an aggregation against an aggregator.
+     * Validate an aggregation against an {@linkplain Aggregator}.
+     * @throws AggregationExecutionException when the ordering is invalid
+     *         for this {@linkplain Aggregator}.
      */
-    public final void validate(Aggregator aggregator) {
+    public final void validate(Aggregator aggregator) throws AggregationExecutionException{
         /*
          * Building partiallyBuiltBucketComparator and throwing it away is enough
          * to validate this order because doing so checks all of the appropriate

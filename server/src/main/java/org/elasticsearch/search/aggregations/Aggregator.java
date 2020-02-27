@@ -132,6 +132,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Builds a comparator that compares two buckets aggregated by this {@linkplain Aggregator}.
+     * <p>
+     * The default implementation throws an exception but we override it on aggregations that support sorting.
      */
     public BucketComparator bucketComparator(String key, SortOrder order) {
         throw new IllegalArgumentException("Buckets can only be sorted on a sub-aggregator path " +

@@ -280,7 +280,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testCompilationStatsOnCacheHit() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.getKey(), 1);
+        builder.put(ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
         ScriptContext<?> context = randomFrom(contexts.values());
@@ -297,7 +297,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.getKey(), 1);
+        builder.put(ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));

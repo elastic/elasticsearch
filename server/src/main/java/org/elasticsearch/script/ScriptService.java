@@ -94,22 +94,22 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 }
             };
 
-    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING_DEPRECATED =
+    public static final Setting<Integer> SCRIPT_GENERAL_CACHE_SIZE_SETTING =
         Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
-    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED =
+    public static final Setting<TimeValue> SCRIPT_GENERAL_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
-    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED =
+    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_GENERAL_MAX_COMPILATIONS_RATE =
             new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
 
     // Per-context settings
-    static final String contextPrefix = "script.context.";
+    static final String CONTEXT_PREFIX = "script.context.";
 
     // script.context.<context-name>.{cache_max_size, cache_expire, max_compilations_rate}
     public static final Setting.AffixSetting<Integer> SCRIPT_CACHE_SIZE_SETTING =
         Setting.affixKeySetting(
-            contextPrefix,
+            CONTEXT_PREFIX,
             "cache_max_size",
             key -> Setting.intSetting(
                 key,
@@ -120,7 +120,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         );
     public static final Setting.AffixSetting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.affixKeySetting(
-            contextPrefix,
+            CONTEXT_PREFIX,
             "cache_expire",
             key -> Setting.positiveTimeSetting(
                 key,
@@ -130,7 +130,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         );
     public static final Setting.AffixSetting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
         Setting.affixKeySetting(
-            contextPrefix,
+            CONTEXT_PREFIX,
             "max_compilations_rate",
             key -> new Setting<>(
                 key,
@@ -249,10 +249,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     ScriptCache initCache(Settings settings, Map<String, ScriptCache> contextCache, Set<String> contextNames) {
         if (useGeneralCacheSettings(settings)) {
             return new ScriptCache(
-                SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.get(settings),
-                SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED.get(settings),
+                SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings),
+                SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
                 compilationLimitsEnabled() ?
-                    SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.get(settings):
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.get(settings):
                     new Tuple<>(0, TimeValue.ZERO)
             );
         }
@@ -319,15 +319,18 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     static boolean useGeneralCacheSettings(Settings settings) {
         Set<String> generalKeys = new HashSet<>();
         Set<String> contextKeys = new HashSet<>();
+        if (SCRIPT_GENERAL_CACHE_SIZE_SETTING.exists(settings)) {
+            generalKeys.add(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey());
+        }
+        if (SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.exists(settings)) {
+            generalKeys.add(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey());
+        }
+        if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.exists(settings)) {
+            generalKeys.add(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.getKey());
+        }
+
         for (String key: settings.keySet()) {
-            if (SCRIPT_CACHE_SIZE_SETTING_DEPRECATED.match(key) ||
-                SCRIPT_CACHE_EXPIRE_SETTING_DEPRECATED.match(key) ||
-                SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.match(key)) {
-
-                generalKeys.add(key);
-
-            } else if (
-                SCRIPT_CACHE_SIZE_SETTING.getRawKey().match(key) ||
+            if (SCRIPT_CACHE_SIZE_SETTING.getRawKey().match(key) ||
                 SCRIPT_CACHE_EXPIRE_SETTING.getRawKey().match(key) ||
                 SCRIPT_MAX_COMPILATIONS_RATE.getRawKey().match(key)) {
 
@@ -383,7 +386,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
         clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);
-        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED,
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE,
                 // Don't deref potentially null generalCache
                 r -> {
                     if (generalCache != null) {
@@ -395,8 +398,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                         // This validator is run on every settings update.
                         // Here we try to detect if it's a spurious update to the default.
                         // This _will_ allow through bad updates to the default.
-                        if (SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.getDefault(Settings.EMPTY).equals(s) &&
-                            SCRIPT_MAX_COMPILATIONS_RATE_DEPRECATED.exists(settings) == false) {
+                        if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.getDefault(Settings.EMPTY).equals(s)) {
                             return;
                         }
                         throw new IllegalArgumentException("Using context script caches rather than general script cache");

@@ -1,7 +1,7 @@
 ---
 "sort by long field":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -61,7 +61,7 @@
 ---
 "sort by double field":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -115,7 +115,7 @@
 ---
 "sort by scaled float field":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -169,7 +169,7 @@
 ---
 "sort by keyword field fails":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -204,7 +204,7 @@
 ---
 "sort by score":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -245,7 +245,7 @@
 ---
 "sort by numeric script":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -276,7 +276,7 @@
 ---
 "sort by string script fails":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -315,7 +315,7 @@
 ---
 "sort by geo_distance":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -376,7 +376,7 @@
 ---
 "inside terms":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -452,7 +452,7 @@
 ---
 "size is index setting":
   - skip:
-      version: " - 7.7.0"
+      version: " - 7.6.99"
       reason: added in 7.7.0
 
   - do:
@@ -487,7 +487,7 @@
                   field: v
                 sort:
                   s: desc
-  - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
+  - match: { error.root_cause.0.reason: "[top_metrics.size] must not be more than [10] but was [100]. This limit can be set by changing the [index.top_metrics_max_size] index level setting." }
 
   - do:
       indices.put_settings:

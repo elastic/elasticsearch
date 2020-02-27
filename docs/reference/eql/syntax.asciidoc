@@ -42,29 +42,15 @@ the `event_type_field` parameter of the EQL search API.
 [[eql-syntax-match-any-event-type]]
 ===== Match any event type
 
-To match events of any type, use the `any` keyword.
+To match events of any type, use the `any` keyword. You can also use the `any`
+keyword to search for documents without a event type field.
 
-For example, the following EQL query matches any event with a
+For example, the following EQL query matches any documents with a
 `network.protocol` field value of `http`:
 
 [source,eql]
 ----
 any where network.protocol == "http"
-----
-
-[discrete]
-[[eql-syntax-event-types-starting-with-digits]]
-===== Event types starting with digits
-
-EQL queries cannot start with a digit. To match event types starting with a
-digit, use the `any` keyword with a condition for the event type field.
-
-For example, the following EQL query uses `event_type` as the event type field.
-The query only matches `42_process` events:
-
-[source,eql]
-----
-any where event_type === `42_process`
 ----
 
 [discrete]

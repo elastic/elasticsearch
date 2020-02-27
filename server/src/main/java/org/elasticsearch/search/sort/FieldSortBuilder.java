@@ -418,7 +418,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
             throw new IllegalArgumentException("sorting by _doc is not supported");
         }
@@ -438,11 +438,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
-                    fieldType.docValueFormat(null, null));
+                    fieldType.docValueFormat(null, null), bucketSize, extra);
         }
         try {
             return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
-                    fieldType.docValueFormat(null, null));
+                    fieldType.docValueFormat(null, null), bucketSize, extra);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("error building sort for field [" + fieldName + "] of type ["
                     + fieldType.typeName() + "] in index [" + context.index().getName() + "]: " + e.getMessage(), e);

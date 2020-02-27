@@ -48,17 +48,20 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     public static final String NAME = "top_metrics";
 
     private final SortBuilder<?> sort;
+    private final int size;
     private final String metric;
 
     /**
      * Build the request.
      * @param name the name of the metric
      * @param sort the sort key used to select the top metrics
+     * @param size number of results to return per bucket
      * @param metric the name of the field to select
      */
-    public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, String metric) {
+    public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, int size, String metric) {
         super(name);
         this.sort = sort;
+        this.size = size;
         this.metric = metric;
     }
 
@@ -74,6 +77,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             builder.startArray("sort");
             sort.toXContent(builder, params);
             builder.endArray();
+            builder.field("size", size);
             builder.startObject("metric").field("field", metric).endObject();
         }
         return builder.endObject();

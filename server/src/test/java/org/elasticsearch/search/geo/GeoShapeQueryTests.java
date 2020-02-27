@@ -328,8 +328,11 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         String doc2 = "{\"geo\":{\"coordinates\":[" + "-179," + "7" + "]," + "\"type\":\"Point\"}}";
         client().index(new IndexRequest("test").id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
-        String doc3 = "{\"geo\":{\"coordinates\":[" + "171," + "7" + "]," + "\"type\":\"Point\"}}";
+        String doc3 = "{\"geo\":{\"coordinates\":[" + "179," + "7" + "]," + "\"type\":\"Point\"}}";
         client().index(new IndexRequest("test").id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc4 = "{\"geo\":{\"coordinates\":[" + "171," + "7" + "]," + "\"type\":\"Point\"}}";
+        client().index(new IndexRequest("test").id("4").source(doc4, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
                     .coordinate(-177, 10)
@@ -341,9 +344,11 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value);
         assertNotEquals("1", response.getHits().getAt(0).getId());
-        assertNotEquals("3", response.getHits().getAt(0).getId());
+        assertNotEquals("4", response.getHits().getAt(0).getId());
+        assertNotEquals("1", response.getHits().getAt(1).getId());
+        assertNotEquals("4", response.getHits().getAt(1).getId());
     }
 
     public void testMultiPolygonSpanningDateline() throws Exception {

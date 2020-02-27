@@ -71,25 +71,13 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
     protected Query getVectorQueryFromShape(
         Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        /*
+        move this logic inside the visitor and decompose the polygons in the methods
+        visit(MultiPolygon multiPolygon) and visit(Polygon polygon). Note that the query accepts an
+         array and therefore the boolean query is not necessary.
+         */
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
-        if (queryShape.type().equals(ShapeType.POLYGON)) {
-            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
-            GeoPolygonDecomposer.decomposePolygon(
-                (org.elasticsearch.geometry.Polygon) queryShape, true, collector);
-            if (collector.size() < 1) {
-                return new MatchNoDocsQuery();
-            } else {
-                BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-                BooleanClause.Occur occur = BooleanClause.Occur.FILTER;
-                for (Polygon component : collector) {
-                    bqb.add(component.visit(shapeVisitor), occur);
-                }
-                return bqb.build();
-            }
-        } else {
-            return queryShape.visit(shapeVisitor);
-        }
-
+        return queryShape.visit(shapeVisitor);
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {

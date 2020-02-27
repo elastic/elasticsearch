@@ -30,19 +30,19 @@ import java.util.List;
 /**
  * Used when querying every node in the cluster for dangling indices, in response to a list request.
  */
-public class NodeDanglingIndicesResponse extends BaseNodeResponse {
+public class NodeListDanglingIndicesResponse extends BaseNodeResponse {
     private final List<DanglingIndexInfo> indexMetaData;
 
     public List<DanglingIndexInfo> getDanglingIndices() {
         return this.indexMetaData;
     }
 
-    public NodeDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexMetaData) {
+    public NodeListDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexMetaData) {
         super(node);
         this.indexMetaData = indexMetaData;
     }
 
-    protected NodeDanglingIndicesResponse(StreamInput in) throws IOException {
+    protected NodeListDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
         this.indexMetaData = in.readList(DanglingIndexInfo::new);
     }

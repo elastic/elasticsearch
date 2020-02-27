@@ -42,7 +42,7 @@ import java.util.Map;
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
  */
-public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingIndicesResponse> implements StatusToXContentObject {
+public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements StatusToXContentObject {
 
     public ListDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
@@ -50,7 +50,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
 
     public ListDanglingIndicesResponse(
         ClusterName clusterName,
-        List<NodeDanglingIndicesResponse> nodes,
+        List<NodeListDanglingIndicesResponse> nodes,
         List<FailedNodeException> failures
     ) {
         super(clusterName, nodes, failures);
@@ -64,7 +64,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
     private Collection<AggregatedDanglingIndexInfo> resultsByIndexUUID() {
         Map<String, AggregatedDanglingIndexInfo> byIndexUUID = new HashMap<>();
 
-        for (NodeDanglingIndicesResponse nodeResponse : this.getNodes()) {
+        for (NodeListDanglingIndicesResponse nodeResponse : this.getNodes()) {
             for (DanglingIndexInfo info : nodeResponse.getDanglingIndices()) {
                 final String indexUUID = info.getIndexUUID();
 
@@ -105,12 +105,12 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeDanglingI
     }
 
     @Override
-    protected List<NodeDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeDanglingIndicesResponse::new);
+    protected List<NodeListDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeListDanglingIndicesResponse::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<NodeDanglingIndicesResponse> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<NodeListDanglingIndicesResponse> nodes) throws IOException {
         out.writeList(nodes);
     }
 

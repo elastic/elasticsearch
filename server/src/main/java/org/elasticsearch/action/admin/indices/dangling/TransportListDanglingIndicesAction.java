@@ -44,7 +44,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesRequest,
     ListDanglingIndicesResponse,
     NodeDanglingIndicesRequest,
-    NodeDanglingIndicesResponse> {
+    NodeListDanglingIndicesResponse> {
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
@@ -65,7 +65,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
             ListDanglingIndicesRequest::new,
             NodeDanglingIndicesRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodeDanglingIndicesResponse.class
+            NodeListDanglingIndicesResponse.class
         );
         this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
@@ -74,10 +74,10 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     @Override
     protected ListDanglingIndicesResponse newResponse(
         ListDanglingIndicesRequest request,
-        List<NodeDanglingIndicesResponse> nodeDanglingIndicesResponses,
+        List<NodeListDanglingIndicesResponse> nodeListDanglingIndicesResponse,
         List<FailedNodeException> failures
     ) {
-        return new ListDanglingIndicesResponse(clusterService.getClusterName(), nodeDanglingIndicesResponses, failures);
+        return new ListDanglingIndicesResponse(clusterService.getClusterName(), nodeListDanglingIndicesResponse, failures);
     }
 
     @Override
@@ -86,12 +86,12 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeDanglingIndicesResponse newNodeResponse(StreamInput in) throws IOException {
-        return new NodeDanglingIndicesResponse(in);
+    protected NodeListDanglingIndicesResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodeListDanglingIndicesResponse(in);
     }
 
     @Override
-    protected NodeDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
+    protected NodeListDanglingIndicesResponse nodeOperation(NodeDanglingIndicesRequest request, Task task) {
         final DiscoveryNode localNode = transportService.getLocalNode();
 
         final List<DanglingIndexInfo> indexMetaData = new ArrayList<>();
@@ -106,6 +106,6 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
             indexMetaData.add(danglingIndexInfo);
         }
 
-        return new NodeDanglingIndicesResponse(localNode, indexMetaData);
+        return new NodeListDanglingIndicesResponse(localNode, indexMetaData);
     }
 }

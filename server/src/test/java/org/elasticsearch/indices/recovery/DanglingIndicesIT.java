@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexReques
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.NodeDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.NodeListDanglingIndicesResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -216,10 +216,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
             assertThat("Didn't get responses from all nodes", nodeResponses, hasSize(3));
 
-            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
                 if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
                     assertThat("Expected node that was stopped to have one dangling index", nodeResponse.getDanglingIndices(), hasSize(1));
 
@@ -268,9 +268,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
-            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
                 if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
@@ -343,9 +343,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
-            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
                 if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
@@ -412,9 +412,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
-            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
                 if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
@@ -437,9 +437,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
-            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
                 assertThat(
                     map(nodeResponse.getDanglingIndices(), DanglingIndexInfo::getIndexName).toString(),
                     nodeResponse.getDanglingIndices(),
@@ -532,9 +532,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
-            for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
                 if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
@@ -569,11 +569,11 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             .actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
-        final List<NodeDanglingIndicesResponse> nodeResponses = response.getNodes();
+        final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
         final List<DanglingIndexInfo> results = new ArrayList<>();
 
-        for (NodeDanglingIndicesResponse nodeResponse : nodeResponses) {
+        for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
             results.addAll(nodeResponse.getDanglingIndices());
         }
 

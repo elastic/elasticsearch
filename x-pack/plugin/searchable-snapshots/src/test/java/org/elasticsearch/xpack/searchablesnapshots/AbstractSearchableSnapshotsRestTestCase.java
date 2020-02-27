@@ -119,12 +119,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
-        if (randomBoolean()) {
-            final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
-            client().performRequest(closeRequest);
-            ensureGreen(restoredIndexName);
-        }
-
         logger.info("deleting snapshot [{}]", snapshot);
         deleteSnapshot(repository, snapshot, false);
 

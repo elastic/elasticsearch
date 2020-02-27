@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.Version;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,7 +40,8 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         super(in);
         Mode mode = in.readEnum(Mode.class);
         String clientId = in.readOptionalString();
-        requestInfo = new RequestInfo(mode, clientId);
+        String clientVersion = in.readOptionalString();
+        requestInfo = new RequestInfo(mode, clientId, clientVersion);
     }
 
     @Override
@@ -56,6 +58,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         super.writeTo(out);
         out.writeEnum(requestInfo.mode());
         out.writeOptionalString(requestInfo.clientId());
+        out.writeOptionalString(requestInfo.clientVersion() == null ? null : requestInfo.clientVersion().toString());
     }
     
     public RequestInfo requestInfo() {
@@ -84,6 +87,14 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
 
     public void clientId(String clientId) {
         this.requestInfo.clientId(clientId);
+    }
+
+    public void clientVersion(String clientVersion) {
+        requestInfo.clientVersion(clientVersion);
+    }
+
+    public Version clientVersion() {
+        return requestInfo.clientVersion();
     }
 
     @Override

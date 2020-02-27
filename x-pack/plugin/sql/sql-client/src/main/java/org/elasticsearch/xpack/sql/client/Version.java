@@ -16,37 +16,20 @@ import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
-public class Version {
+public class Version extends org.elasticsearch.xpack.sql.proto.Version {
 
     public static final Version CURRENT;
-    public final String version;
     public final String hash;
-    public final byte major;
-    public final byte minor;
-    public final byte revision;
 
     private Version(String version, String hash, byte... parts) {
-        this.version = version;
+        super(version, parts);
         this.hash = hash;
-        this.major = parts[0];
-        this.minor = parts[1];
-        this.revision = parts[2];
     }
 
     public static Version fromString(String version) {
         return new Version(version, "Unknown", from(version));
     }
 
-    static byte[] from(String ver) {
-        String[] parts = ver.split("[.-]");
-        // Allow for optional snapshot and qualifier
-        if (parts.length < 3 || parts.length > 5) {
-            throw new IllegalArgumentException("Invalid version " + ver);
-        }
-        else {
-            return new byte[] { Byte.parseByte(parts[0]), Byte.parseByte(parts[1]), Byte.parseByte(parts[2]) };
-        }
-    }
 
     static {
         // check classpath

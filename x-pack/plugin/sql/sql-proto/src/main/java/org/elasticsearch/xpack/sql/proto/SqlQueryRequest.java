@@ -180,6 +180,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (clientId() != null) {
             builder.field("client_id", clientId());
         }
+        if (clientVersion() != null) {
+            builder.field("client_version", clientVersion().toString());
+        }
         if (this.params != null && this.params.isEmpty() == false) {
             builder.startArray("params");
             for (SqlTypedParamValue val : this.params) {

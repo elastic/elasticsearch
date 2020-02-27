@@ -72,7 +72,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if ((false == Strings.hasText(query())) && Strings.hasText(cursor) == false) {
             validationException = addValidationError("one of [query] or [cursor] is required", validationException);
         }

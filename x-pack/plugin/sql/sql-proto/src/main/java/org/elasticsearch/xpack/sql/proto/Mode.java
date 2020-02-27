@@ -33,4 +33,9 @@ public enum Mode {
     public static boolean isDriver(Mode mode) {
         return mode == JDBC || mode == ODBC;
     }
+
+    // TODO: replace all "== Mode.CLI"?
+    public static boolean isCli(Mode mode) {
+        return mode == CLI;
+    }
 }

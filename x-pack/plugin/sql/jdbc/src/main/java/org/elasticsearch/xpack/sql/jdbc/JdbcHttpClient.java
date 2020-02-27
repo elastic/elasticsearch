@@ -62,7 +62,7 @@ class JdbcHttpClient {
                 null,
                 Boolean.FALSE,
                 null,
-                new RequestInfo(Mode.JDBC),
+                new RequestInfo(Mode.JDBC, Version.CURRENT),
                 conCfg.fieldMultiValueLeniency(),
                 conCfg.indexIncludeFrozen(),
                 conCfg.binaryCommunication());

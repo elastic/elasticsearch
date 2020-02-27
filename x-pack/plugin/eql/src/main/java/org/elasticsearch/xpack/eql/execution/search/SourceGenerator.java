@@ -45,10 +45,7 @@ public abstract class SourceGenerator {
         // Iterate through all the columns requested, collecting the fields that
         // need to be retrieved from the result documents
 
-        // NB: the sortBuilder takes care of eliminating duplicates
-        container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
-        sortBuilder.build(source);
-        optimize(sortBuilder, source);
+        source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 
         // set fetch size
         if (size != null) {
@@ -62,22 +59,9 @@ public abstract class SourceGenerator {
         return source;
     }
 
-    private static void optimize(QlSourceBuilder qlSource, SearchSourceBuilder builder) {
-        if (qlSource.noSource()) {
-            disableSource(builder);
-        }
-    }
-
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
         if (query.shouldTrackHits()) {
             builder.trackTotalHits(true);
-        }
-    }
-
-    private static void disableSource(SearchSourceBuilder builder) {
-        builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        if (builder.storedFields() == null) {
-            builder.storedFields(NO_STORED_FIELD);
         }
     }
 }

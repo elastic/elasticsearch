@@ -23,7 +23,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.common.time.DateUtils;
 import org.junit.Before;
+
+import java.time.format.DateTimeFormatter;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,7 +38,6 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testBasicSearch() throws Exception {
-
         Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
         doc1.setJsonEntity("{\"event_subtype_full\": \"already_running\", " +
                 "\"event_type\": \"process\", " +
@@ -59,6 +61,33 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertNull(response.hits().sequences());
         assertNull(response.hits().counts());
         assertNotNull(response.hits().events());
+        assertThat(response.hits().events().size(), equalTo(1));
+    }
+
+    public void testLargeMapping() throws Exception {
+        Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
+
+        String now = DateUtils.nowWithMillisResolution().format(DateTimeFormatter.ISO_DATE_TIME);
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        for (int i = 0; i < 250; i++) {
+            sb.append("\"datetime" + i + "\":\"" + now + "\"");
+            sb.append(",");
+        }
+        sb.append("\"event_type\": \"process\",");
+        sb.append("\"serial_event_id\": 1");
+        sb.append("}");
+        doc1.setJsonEntity(sb.toString());
+
+        client().performRequest(doc1);
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
+
+
+        EqlClient eql = highLevelClient().eql();
+        EqlSearchRequest request = new EqlSearchRequest("index", "process where true");
+        EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
+        assertNotNull(response);
+        assertNotNull(response.hits());
         assertThat(response.hits().events().size(), equalTo(1));
     }
 }

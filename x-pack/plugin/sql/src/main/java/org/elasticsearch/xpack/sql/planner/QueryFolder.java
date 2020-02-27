@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -376,15 +375,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             // numeric histogram
                             else {
                                 if (field instanceof FieldAttribute || field instanceof Function) {
-                                    Double interval;
-                                    if (h.interval().foldable()) {
-                                        interval = (Double) SqlDataTypeConverter.convert(h.interval().fold(), DataTypes.DOUBLE);
-                                    } else {
-                                        throw new QlIllegalArgumentException("Cannot determine value for {}", h.interval());
-                                    }
+                                    Double interval = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(h.interval()),
+                                            DataTypes.DOUBLE);
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field), interval);
-                                    } else if (field instanceof Function) {
+                                    } else {
                                         key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(), interval);
                                     }
                                 }

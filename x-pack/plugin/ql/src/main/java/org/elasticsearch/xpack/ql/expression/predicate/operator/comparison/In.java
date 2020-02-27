@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -106,11 +106,7 @@ public class In extends ScalarFunction {
     protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
         List<Object> values = new ArrayList<>(list.size());
         for (Expression e : list) {
-            if (e.foldable()) {
-                values.add(DataTypeConverter.convert(e.fold(), dataType));
-            } else {
-                throw new QlIllegalArgumentException("Cannot determine value for {}", e);
-            }
+            values.add(DataTypeConverter.convert(Foldables.valueOf(e), dataType));
         }
         return values;
     }

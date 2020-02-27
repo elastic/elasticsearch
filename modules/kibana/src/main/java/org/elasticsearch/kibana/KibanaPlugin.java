@@ -46,6 +46,8 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
+import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
+import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
@@ -100,6 +102,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             // apis used specifically by reporting
             new KibanaWrappedRestHandler(new RestGetIndicesAction(), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestIndexAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new CreateHandler(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new AutoIdHandler(nodesInCluster), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestUpdateAction(), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestSearchScrollAction(), allowedIndexPatterns),
             new KibanaWrappedRestHandler(new RestClearScrollAction(), allowedIndexPatterns)

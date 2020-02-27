@@ -22,20 +22,62 @@ package org.elasticsearch.kibana;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class KibanaSystemIndexIT extends ESRestTestCase {
 
+    public void testCreateIndex() throws IOException {
+        Request request = new Request("PUT", "/_kibana/.kibana-1");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testAliases() throws IOException {
+        Request request = new Request("PUT", "/_kibana/.kibana-1");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        request = new Request("PUT", "/_kibana/.kibana-1/_alias/.kibana");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        request = new Request("GET", "/_kibana/_aliases");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString(".kibana"));
+    }
+
     public void testBulkToKibanaIndex() throws IOException {
         Request request = new Request("POST", "/_kibana/_bulk");
         request.setJsonEntity("{ \"index\" : { \"_index\" : \".kibana\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testRefresh() throws IOException {
+        Request request = new Request("POST", "/_kibana/_bulk");
+        request.setJsonEntity("{ \"index\" : { \"_index\" : \".kibana\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        request = new Request("GET", "/_kibana/.kibana/_refresh");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        Request getRequest = new Request("GET", "/_kibana/.kibana/_doc/1");
+        Response getResponse = client().performRequest(getRequest);
+        assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
+        String responseBody = EntityUtils.toString(getResponse.getEntity());
+        assertThat(responseBody, containsString("foo"));
+        assertThat(responseBody, containsString("bar"));
     }
 
     public void testGetFromKibanaIndex() throws IOException {
@@ -122,5 +164,86 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         dbqRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
         Response dbqResponse = client().performRequest(dbqRequest);
         assertThat(dbqResponse.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testUpdateIndexSettings() throws IOException {
+        Request request = new Request("PUT", "/_kibana/.kibana-1");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        request = new Request("PUT", "/_kibana/.kibana-1/_settings");
+        request.setJsonEntity("{ \"index.blocks.read_only\" : false }");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testGetIndex() throws IOException {
+        Request request = new Request("PUT", "/_kibana/.kibana-1");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        request = new Request("GET", "/_kibana/.kibana-1");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString(".kibana-1"));
+    }
+
+    public void testIndexingAndUpdatingDocs() throws IOException {
+        Request request = new Request("PUT", "/_kibana/.kibana-1/_doc/1");
+        request.setJsonEntity("{ \"foo\" : \"bar\" }");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(201));
+
+        request = new Request("PUT", "/_kibana/.kibana-1/_create/2");
+        request.setJsonEntity("{ \"foo\" : \"bar\" }");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(201));
+
+        request = new Request("POST", "/_kibana/.kibana-1/_doc");
+        request.setJsonEntity("{ \"foo\" : \"bar\" }");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(201));
+
+        request = new Request("GET", "/_kibana/.kibana-1/_refresh");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        request = new Request("POST", "/_kibana/.kibana-1/_update/1");
+        request.setJsonEntity("{ \"doc\" : { \"foo\" : \"baz\" } }");
+        response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testScrollingDocs() throws IOException {
+        Request request = new Request("POST", "/_kibana/_bulk");
+        request.setJsonEntity("{ \"index\" : { \"_index\" : \".kibana\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n" +
+            "{ \"index\" : { \"_index\" : \".kibana\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n" +
+            "{ \"index\" : { \"_index\" : \".kibana\", \"_id\" : \"3\" } }\n{ \"baz\" : \"tag\" }\n");
+        request.addParameter("refresh", "true");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        Request searchRequest = new Request("GET", "/_kibana/.kibana/_search");
+        searchRequest.setJsonEntity("{ \"size\" : 1,\n\"query\" : { \"match_all\" : {} } }\n");
+        searchRequest.addParameter("scroll", "1m");
+        response = client().performRequest(searchRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        assertNotNull(map.get("_scroll_id"));
+        String scrollId = (String) map.get("_scroll_id");
+
+        Request scrollRequest = new Request("POST", "/_kibana/_search/scroll");
+        scrollRequest.addParameter("scroll_id", scrollId);
+        scrollRequest.addParameter("scroll", "1m");
+        response = client().performRequest(scrollRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        assertNotNull(map.get("_scroll_id"));
+        scrollId = (String) map.get("_scroll_id");
+
+        Request clearScrollRequest = new Request("DELETE", "/_kibana/_search/scroll");
+        clearScrollRequest.addParameter("scroll_id", scrollId);
+        response = client().performRequest(clearScrollRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 }

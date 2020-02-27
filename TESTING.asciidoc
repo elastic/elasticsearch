@@ -279,8 +279,9 @@ operations to be executed and the obtained results that need to be tested.
 
 The YAML files support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
 
-The REST tests are run automatically when executing the "./gradlew check" command. To run only the
-REST tests use the following command:
+The REST tests are run automatically when executing the "./gradlew check"
+command. To run only REST tests for open-source features use the following
+command:
 
 ---------------------------------------------------------------------------
 ./gradlew :distribution:archives:integ-test-zip:integTest   \
@@ -293,6 +294,19 @@ A specific test case can be run with
 ./gradlew :distribution:archives:integ-test-zip:integTest \
   -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT" \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
+---------------------------------------------------------------------------
+
+To run REST tests of licensed features, use the following command:
+
+---------------------------------------------------------------------------
+./gradlew :x-pack:plugin:integTest
+---------------------------------------------------------------------------
+
+A specific test case can be run with
+
+---------------------------------------------------------------------------
+./gradlew :x-pack:plugin:integTest \
+  -Dtests.method="test {p0=indices.freeze/10_basic/Basic}"
 ---------------------------------------------------------------------------
 
 `*Yaml*IT` are the executable test classes that runs all the

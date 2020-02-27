@@ -100,26 +100,6 @@ public final class EComp extends AExpression {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
         }
 
-        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            if (promotedType == boolean.class) {
-                constant = (boolean)left.constant == (boolean)right.constant;
-            } else if (promotedType == int.class) {
-                constant = (int)left.constant == (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant == (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant == (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant == (double)right.constant;
-            } else if (!left.isNull) {
-                constant = left.constant.equals(right.constant);
-            } else if (!right.isNull) {
-                constant = right.constant.equals(null);
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         actual = boolean.class;
     }
 
@@ -143,22 +123,6 @@ public final class EComp extends AExpression {
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
-        }
-
-        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            if (promotedType == boolean.class) {
-                constant = (boolean)left.constant == (boolean)right.constant;
-            } else if (promotedType == int.class) {
-                constant = (int)left.constant == (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant == (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant == (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant == (double)right.constant;
-            } else {
-                constant = left.constant == right.constant;
-            }
         }
 
         actual = boolean.class;
@@ -191,26 +155,6 @@ public final class EComp extends AExpression {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
         }
 
-        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            if (promotedType == boolean.class) {
-                constant = (boolean)left.constant != (boolean)right.constant;
-            } else if (promotedType == int.class) {
-                constant = (int)left.constant != (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant != (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant != (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant != (double)right.constant;
-            } else if (!left.isNull) {
-                constant = !left.constant.equals(right.constant);
-            } else if (!right.isNull) {
-                constant = !right.constant.equals(null);
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         actual = boolean.class;
     }
 
@@ -234,22 +178,6 @@ public final class EComp extends AExpression {
 
         if (left.isNull && right.isNull) {
             throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
-        }
-
-        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            if (promotedType == boolean.class) {
-                constant = (boolean)left.constant != (boolean)right.constant;
-            } else if (promotedType == int.class) {
-                constant = (int)left.constant != (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant != (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant != (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant != (double)right.constant;
-            } else {
-                constant = left.constant != right.constant;
-            }
         }
 
         actual = boolean.class;
@@ -278,20 +206,6 @@ public final class EComp extends AExpression {
         left = left.cast(scriptRoot, variables);
         right = right.cast(scriptRoot, variables);
 
-        if (left.constant != null && right.constant != null) {
-            if (promotedType == int.class) {
-                constant = (int)left.constant >= (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant >= (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant >= (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant >= (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         actual = boolean.class;
     }
 
@@ -317,20 +231,6 @@ public final class EComp extends AExpression {
 
         left = left.cast(scriptRoot, variables);
         right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promotedType == int.class) {
-                constant = (int)left.constant > (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant > (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant > (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant > (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
 
         actual = boolean.class;
     }
@@ -358,20 +258,6 @@ public final class EComp extends AExpression {
         left = left.cast(scriptRoot, variables);
         right = right.cast(scriptRoot, variables);
 
-        if (left.constant != null && right.constant != null) {
-            if (promotedType == int.class) {
-                constant = (int)left.constant <= (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant <= (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant <= (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant <= (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         actual = boolean.class;
     }
 
@@ -397,20 +283,6 @@ public final class EComp extends AExpression {
 
         left = left.cast(scriptRoot, variables);
         right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promotedType == int.class) {
-                constant = (int)left.constant < (int)right.constant;
-            } else if (promotedType == long.class) {
-                constant = (long)left.constant < (long)right.constant;
-            } else if (promotedType == float.class) {
-                constant = (float)left.constant < (float)right.constant;
-            } else if (promotedType == double.class) {
-                constant = (double)left.constant < (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
 
         actual = boolean.class;
     }

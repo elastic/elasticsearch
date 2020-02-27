@@ -349,8 +349,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
                             @Override
                             public void onFailure(Exception e) {
-                                if (e instanceof ConnectTransportException ||
-                                    e instanceof IllegalStateException) {
+                                if (e instanceof ConnectTransportException || e instanceof IllegalStateException) {
                                     // ISE if we fail the handshake with an version incompatible node
                                     // fair enough we can't connect just move on
                                     logger.debug(() -> new ParameterizedMessage("failed to connect to node {}", node), e);

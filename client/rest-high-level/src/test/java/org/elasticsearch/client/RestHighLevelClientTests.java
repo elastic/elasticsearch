@@ -98,6 +98,7 @@ import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
 import org.elasticsearch.index.rankeval.MeanReciprocalRank;
 import org.elasticsearch.index.rankeval.MetricDetail;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
+import org.elasticsearch.index.rankeval.RecallAtK;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
@@ -676,7 +677,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
         int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
         int expectedSuggestions = 3;
+
+        // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -692,7 +697,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(57, namedXContents.size());
+        assertEquals(59, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -706,13 +711,15 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
-        assertEquals(Integer.valueOf(4), categories.get(EvaluationMetric.class));
+        assertEquals(Integer.valueOf(5), categories.get(EvaluationMetric.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
+        assertTrue(names.contains(RecallAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(4), categories.get(MetricDetail.class));
+        assertEquals(Integer.valueOf(5), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
+        assertTrue(names.contains(RecallAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
@@ -880,6 +887,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we

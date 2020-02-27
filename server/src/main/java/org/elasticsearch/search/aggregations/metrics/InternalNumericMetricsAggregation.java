@@ -107,7 +107,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         @Override
         public final double sortValue(String key) {
             if (key == null) {
-                throw new IllegalArgumentException("Missing value key in [" + key+ "] which refers to a multi-value metric aggregation");
+                throw new IllegalArgumentException("Missing value key in [" + key + "] which refers to a multi-value metric aggregation");
             }
             return value(key);
         }

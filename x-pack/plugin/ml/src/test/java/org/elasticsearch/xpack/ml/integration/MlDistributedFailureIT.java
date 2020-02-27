@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -231,10 +232,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         PostDataAction.Response postDataResponse = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
         assertEquals(1L, postDataResponse.getDataCounts().getInputRecordCount());
 
-        // Confirm the job state is now failed
-        jobStatsRequest = new GetJobsStatsAction.Request(jobId);
-        jobStatsResponse = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet();
-        assertEquals(JobState.FAILED, jobStatsResponse.getResponse().results().get(0).getState());
+        // Confirm the job state is now failed - this may take a while to update in cluster state
+        assertBusy(() -> {
+            GetJobsStatsAction.Request jobStatsRequest2 = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response jobStatsResponse2 = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest2).actionGet();
+            assertEquals(JobState.FAILED, jobStatsResponse2.getResponse().results().get(0).getState());
+        });
 
         // It's impossible to reliably get the datafeed into a stopping state at the point when the ML node is removed from the cluster
         // using externally accessible actions.  The only way this situation could occur in reality is through extremely unfortunate
@@ -242,17 +245,26 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // stopping.
         PersistentTasksCustomMetaData tasks = clusterService().state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
+
+        // It is possible that the datafeed has already detected the job failure and
+        // terminated itself. In this happens there is no persistent task to stop
+        assumeFalse("The datafeed task is null most likely because the datafeed detected the job had failed. " +
+                "This is expected to happen extremely rarely but the test cannot continue in these circumstances.", task == null);
+
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
-            new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
+                new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
         PersistentTaskResponse updatePersistentTaskStatusResponse =
-            client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
+                client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
         assertNotNull(updatePersistentTaskStatusResponse.getTask());
 
-        // Confirm the datafeed state is now stopping
-        GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-        GetDatafeedsStatsAction.Response datafeedStatsResponse =
-            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
-        assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response datafeedStatsResponse =
+                    client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+            assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        });
+
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
@@ -265,10 +277,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
         assertTrue(stopDatafeedResponse.isStopped());
 
-        // Confirm the datafeed state is now stopped
-        datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-        datafeedStatsResponse = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
-        assertEquals(DatafeedState.STOPPED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+        // Confirm the datafeed state is now stopped - shouldn't need a busy check here as
+        // the stop endpoint shouldn't return until its effects are externally visible
+        GetDatafeedsStatsAction.Request datafeedStatsRequest2 = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response datafeedStatsResponse2 =
+            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest2).actionGet();
+        assertEquals(DatafeedState.STOPPED, datafeedStatsResponse2.getResponse().results().get(0).getDatafeedState());
 
         // We should be allowed to force stop the unassigned failed job
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
@@ -451,6 +465,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // else.
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
 
+        // The timeout here was increased from 10 seconds to 20 seconds in response to the changes in
+        // https://github.com/elastic/elasticsearch/pull/50907 - now that the cluster state is stored
+        // in a Lucene index it can take a while to update when there are many updates in quick
+        // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -471,7 +489,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                     .getResponse().results().get(0);
             assertEquals(DatafeedState.STARTED, datafeedStats.getDatafeedState());
             assertNotNull(datafeedStats.getNode());
-        });
+        }, 20, TimeUnit.SECONDS);
 
         long numDocs2 = randomIntBetween(2, 64);
         long now2 = System.currentTimeMillis();
@@ -485,6 +503,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     // are what we expect them to be:
     private static DataCounts getDataCountsFromIndex(String jobId) {
         SearchResponse searchResponse = client().prepareSearch()
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
                 .get();
         if (searchResponse.getHits().getTotalHits().value != 1) {

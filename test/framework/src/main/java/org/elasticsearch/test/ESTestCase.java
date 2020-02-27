@@ -117,6 +117,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -1172,6 +1174,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
 
+    /**
+     * Create a copy of an original {@link NamedWriteable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}.
+     */
+    public static <T extends NamedWriteable> T copyNamedWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+            Class<T> categoryClass) throws IOException {
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+    }
+
+    /**
+     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
+     * a {@link Version} argument which will be used to write and read back the object.
+     */
+    public static <T extends NamedWriteable> T copyNamedWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+                                                        Class<T> categoryClass, Version version) throws IOException {
+        return copyInstance(original, namedWriteableRegistry,
+                (out, value) -> out.writeNamedWriteable(value),
+                in -> in.readNamedWriteable(categoryClass), version);
+    }
+
     protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
                                       Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -1372,5 +1394,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
+    }
+
+    protected static InetAddress randomIp(boolean v4) {
+        try {
+            if (v4) {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                return InetAddress.getByAddress(ipv4);
+            } else {
+                byte[] ipv6 = new byte[16];
+                random().nextBytes(ipv6);
+                return InetAddress.getByAddress(ipv6);
+            }
+        } catch (UnknownHostException e) {
+            throw new AssertionError();
+        }
     }
 }

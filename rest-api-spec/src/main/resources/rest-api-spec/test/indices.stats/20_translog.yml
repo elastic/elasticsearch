@@ -52,7 +52,7 @@
 ---
 "Translog retention settings are no long supported":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "translog retention settings are no longer supported in 8.0"
   - do:
       catch: /illegal_argument_exception/
@@ -107,6 +107,10 @@
         metric: [ translog ]
   - match: { indices.test.primaries.translog.operations: 1 }
   - match: { indices.test.primaries.translog.uncommitted_operations: 1 }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       indices.close:
         index: test

@@ -78,21 +78,12 @@ public class RpmPreservationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
 
         sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
-        Stream.of(
-            "elasticsearch.yml",
-            "jvm.options",
-            "log4j2.properties"
-        )
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
         if (distribution().isDefault()) {
-            Stream.of(
-                "role_mapping.yml",
-                "roles.yml",
-                "users",
-                "users_roles"
-            )
+            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
                 .map(each -> installation.config(each))
                 .forEach(path -> append(path, "# foo"));
         }
@@ -119,27 +110,18 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertThat(installation.config, fileExists());
         assertThat(installation.config("elasticsearch.keystore"), fileExists());
 
-        Stream.of(
-            "elasticsearch.yml",
-            "jvm.options",
-            "log4j2.properties"
-        ).forEach(this::assertConfFilePreserved);
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
         if (distribution().isDefault()) {
-            Stream.of(
-                "role_mapping.yml",
-                "roles.yml",
-                "users",
-                "users_roles"
-            ).forEach(this::assertConfFilePreserved);
+            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
         }
     }
 
     private void assertConfFilePreserved(String configFile) {
         final Path original = installation.config(configFile);
         final Path saved = installation.config(configFile + ".rpmsave");
-        assertConfFilePreserved(original ,saved);
+        assertConfFilePreserved(original, saved);
     }
 
     private void assertConfFilePreserved(final Path original, final Path saved) {

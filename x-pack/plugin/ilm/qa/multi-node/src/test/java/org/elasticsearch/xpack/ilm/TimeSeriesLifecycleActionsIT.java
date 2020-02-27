@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,9 +28,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.FreezeStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -205,6 +208,46 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
+    public void testRetryFailedDeleteAction() throws Exception {
+        createIndexWithSettings(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, false));
+
+        createNewSingletonPolicy("delete", new DeleteAction());
+
+        Request request = new Request("PUT", index + "/_settings");
+        request.setJsonEntity("{\"index.blocks.read_only\": true, \"index.lifecycle.name\": \"" + policy + "\"}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(DeleteStep.NAME)));
+        assertTrue(indexExists(index));
+
+        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertFalse(indexExists(index)));
+    }
+
+    public void testRetryFreezeDeleteAction() throws Exception {
+        createNewSingletonPolicy("cold", new FreezeAction());
+
+        createIndexWithSettings(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_READ_ONLY, true)
+            .put("index.lifecycle.name", policy));
+
+        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(FreezeStep.NAME)));
+        assertFalse(getOnlyIndexSettings(index).containsKey("index.frozen"));
+
+        Request request = new Request("PUT", index + "/_settings");
+        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertThat(getOnlyIndexSettings(index).get("index.frozen"), equalTo("true")));
+    }
+
     public void testRetryFailedShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
@@ -329,64 +372,78 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(slmPolicy));
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo("wait-for-snapshot")));
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
         String repo = createSnapshotRepo();
-        createSlmPolicy(smlPolicy, repo);
+        createSlmPolicy(slmPolicy, repo);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            //wait for step to notice that the slm policy is created and to get out of error
+            assertThat(indexILMState.get("failed_step"), nullValue());
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+        }, slmPolicy);
 
-        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
-
-        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
-        assertOK(client().performRequest(request));
-
-        request = new Request("DELETE", "/_snapshot/" + repo);
-        assertOK(client().performRequest(request));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete")), slmPolicy);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50781")
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        String smlPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy("delete", new WaitForSnapshotAction(smlPolicy));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        createNewSingletonPolicy("delete", new WaitForSnapshotAction(slmPolicy));
 
         String repo = createSnapshotRepo();
-        createSlmPolicy(smlPolicy, repo);
+        createSlmPolicy(slmPolicy, repo);
 
-        Request request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
+
+        //wait for slm to finish execution
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "/_slm/policy/" + slmPolicy));
+            try (InputStream is = response.getEntity().getContent()) {
+                Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                assertEquals(1, ((Map<?, ?>) ((Map<?, ?>) responseMap.get(slmPolicy)).get("stats")).get("snapshots_taken"));
+            }
+        }, slmPolicy);
 
         updatePolicy(index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("wait_for_snapshot")));
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getName(), equalTo("wait-for-snapshot")));
 
-        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
+        assertBusy( () -> {
+            Map<String, Object> indexILMState = explainIndex(index);
+            assertThat(indexILMState.get("failed_step"), nullValue());
+            assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
+            assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+        }, slmPolicy);
+
+        request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
 
-        request = new Request("PUT", "/_slm/policy/" + smlPolicy + "/_execute");
-        assertOK(client().performRequest(request));
+        //wait for slm to finish execution
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "/_slm/policy/" + slmPolicy));
+            try (InputStream is = response.getEntity().getContent()) {
+                Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                assertEquals(2, ((Map<?, ?>) ((Map<?, ?>) responseMap.get(slmPolicy)).get("stats")).get("snapshots_taken"));
+            }
+        }, slmPolicy);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("completed")), 2, TimeUnit.MINUTES);
-
-        request = new Request("DELETE", "/_slm/policy/" + smlPolicy);
-        assertOK(client().performRequest(request));
-
-        request = new Request("DELETE", "/_snapshot/" + repo);
-        assertOK(client().performRequest(request));
+        assertBusy(() -> assertThat(getStepKeyForIndex(index).getAction(), equalTo("complete")), slmPolicy);
     }
 
     public void testDelete() throws Exception {
@@ -1176,26 +1233,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
         // increases the wait time between calls exponentially, we might miss the window where the policy is on
         // {@link WaitForRolloverReadyStep} and the move to `attempt-rollover` request will not be successful.
-        waitUntil(() -> {
+        assertTrue(waitUntil(() -> {
             try {
                 return client().performRequest(moveToStepRequest).getStatusLine().getStatusCode() == 200;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS));
 
         // Similar to above, using {@link #waitUntil} as we want to make sure the `attempt-rollover` step started failing and is being
         // retried (which means ILM moves back and forth between the `attempt-rollover` step and the `error` step)
-        waitUntil(() -> {
+        assertTrue("ILM did not start retrying the attempt-rollover step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals("attempt-rollover") && retryCount != null && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS));
 
         deleteIndex(rolledIndex);
 
@@ -1237,16 +1294,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(moveToStepRequest);
 
-        waitUntil(() -> {
+        assertTrue("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null
+                    && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        });
+        }, 30, TimeUnit.SECONDS));
 
         index(client(), index, "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "/_refresh");
@@ -1432,16 +1490,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(startReq));
 
         // Wait until an error has occurred.
-        waitUntil(() -> {
+        assertTrue("ILM did not start retrying the init step", waitUntil(() -> {
             try {
                 Map<String, Object> explainIndexResponse = explainIndex(index);
-                String step = (String) explainIndexResponse.get("step");
+                String failedStep = (String) explainIndexResponse.get("failed_step");
                 Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return step != null && step.equals(InitializePolicyContextStep.KEY.getAction()) && retryCount != null && retryCount >= 1;
+                return failedStep != null && failedStep.equals(InitializePolicyContextStep.KEY.getAction()) && retryCount != null
+                    && retryCount >= 1;
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS));
 
         // Turn origination date parsing back off
         updateIndexSettings(index, Settings.builder()
@@ -1534,9 +1593,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success,
                                         @Nullable String phase, @Nullable String action, String stepName) throws IOException {
+        assertOK(client().performRequest(new Request("POST", indexName + "/_refresh")));
         logger.info("--> checking for history item [{}], [{}], success: [{}], phase: [{}], action: [{}], step: [{}]",
             policyName, indexName, success, phase, action, stepName);
-        final Request historySearchRequest = new Request("GET", "ilm-history*/_search");
+        final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
         historySearchRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
             "    \"bool\": {\n" +
@@ -1603,7 +1663,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 try (InputStream is = allResultsResp.getEntity().getContent()) {
                     allResultsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                logger.info("--> expected at least 1 hit, got 0. All history for index [{}]: {}", index, allResultsMap);
+                logger.info("--> expected at least 1 hit, got 0. All history for index [{}]: {}", indexName, allResultsMap);
             }
             assertThat(hits, greaterThanOrEqualTo(1));
         } catch (ResponseException e) {
@@ -1613,7 +1673,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-1-000001");
+        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-2-000001");
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
@@ -1803,11 +1863,29 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .field("type", "fs")
                 .startObject("settings")
                 .field("compress", randomBoolean())
-                .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", "256b")
+                //random location to avoid clash with other snapshots
+                .field("location", System.getProperty("tests.path.repo")+ "/" + randomAlphaOfLengthBetween(4, 10))
+                .field("max_snapshot_bytes_per_sec", "100m")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));
         return repo;
+    }
+
+    //adds debug information for waitForSnapshot tests
+    private void assertBusy(CheckedRunnable<Exception> runnable, String slmPolicy) throws Exception {
+        assertBusy(() -> {
+            try {
+                runnable.run();
+            } catch (AssertionError e) {
+                Map<String, Object> slm;
+                try (InputStream is = client().performRequest(new Request("GET", "/_slm/policy/" + slmPolicy)).getEntity().getContent()) {
+                    slm = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, false);
+                } catch (Exception ignored) {
+                    slm = new HashMap<>();
+                }
+                throw new AssertionError("Index:" + explainIndex(index) + "\nSLM:" + slm, e);
+            }
+        });
     }
 }

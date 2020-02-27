@@ -187,7 +187,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     EsExecutors.numberOfProcessors(Settings.EMPTY),
                     TimeValue.timeValueMinutes(1));
 
-            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
 
             threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
 

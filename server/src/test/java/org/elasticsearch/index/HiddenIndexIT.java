@@ -77,6 +77,15 @@ public class HiddenIndexIT extends ESIntegTestCase {
             .get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);
+
+        // make index not hidden
+        assertAcked(client().admin().indices().prepareUpdateSettings("hidden-index")
+            .setSettings(Settings.builder().put("index.hidden", false).build())
+            .get());
+        searchResponse =
+            client().prepareSearch(randomFrom("*", "_all", "h*", "*index")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
+        matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> "hidden-index".equals(hit.getIndex()));
+        assertTrue(matchedHidden);
     }
 
     public void testGlobalTemplatesDoNotApply() {

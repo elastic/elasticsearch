@@ -219,7 +219,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         aggregationBuilder.precision(precision);
         if (geoBoundingBox != null) {

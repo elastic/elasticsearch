@@ -336,9 +336,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
-                SearchContext searchContext = createSearchContext(indexReader, indexSearcher.getSimilarity(), createIndexSettings(),
-                        new MatchAllDocsQuery(), new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)),
-                        breaker, doubleFields());
+                SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), new MatchAllDocsQuery(),
+                        new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)), breaker, doubleFields());
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 Aggregator aggregator = builder.build(searchContext.getQueryShardContext(), null)
                     .create(searchContext, null, true);

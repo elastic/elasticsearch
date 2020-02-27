@@ -1235,7 +1235,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
                 if (configure != null) {

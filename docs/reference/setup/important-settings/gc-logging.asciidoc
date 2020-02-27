@@ -1,7 +1,25 @@
 [[gc-logging]]
 === GC logging
 
-By default, Elasticsearch enables GC logs. These are configured in
-<<jvm-options,`jvm.options`>> and default to the same default location as the
-Elasticsearch logs. The default configuration rotates the logs every 64 MB and
-can consume up to 2 GB of disk space.
+By default, {es} enables GC logs. These are configured in
+<<jvm-options,`jvm.options`>> and default to the same default location as
+the Elasticsearch logs. The default configuration rotates the logs every 64
+MB and can consume up to 2 GB of disk space.
+
+You can change the default GC logging configuration. Since the preferred
+method of <<jvm-options,configuring JVM options>> is not to edit the
+default `jvm.options` file, you will need to configure the JVM first to
+disable GC logging, in order to cancel out the default {es} configuration,
+and then to re-enable logging as you require. See
+https://openjdk.java.net/jeps/158[JEP 158: Unified JVM Logging] for details
+of how to configure logging.
+
+For example, if you are running {es} using <<docker,Docker>>, you can
+choose to send GC logs to standard error (`stderr`) and let your container
+orchestrator handle the output. If you were using the `ES_JAVA_OPTS`
+environment variable, you would specify:
+
+[source,sh]
+--------------------------------------------
+docker run -e ES_JAVA_OPTS="-Xlog:disable -Xlog:gc=debug:stderr" # etc
+--------------------------------------------

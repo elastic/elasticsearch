@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.index.mapper.Mapper;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
+import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregatorFactory;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
@@ -99,6 +101,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
         modules.add(b -> XPackPlugin.bindFeatureSet(b, AnalyticsFeatureSet.class));
         return modules;
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return singletonList(TopMetricsAggregatorFactory.MAX_BUCKET_SIZE);
     }
 
     @Override

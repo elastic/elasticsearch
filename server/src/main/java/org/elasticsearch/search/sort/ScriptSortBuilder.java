@@ -313,8 +313,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
-        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW);
+    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
     }
 
     private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {
@@ -369,7 +369,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
+                    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                            int bucketSize, BucketedSort.ExtraData extra) {
                         throw new IllegalArgumentException("error building sort for [_script]: "
                                 + "script sorting only supported on [numeric] scripts but was [" + type + "]");
                     }

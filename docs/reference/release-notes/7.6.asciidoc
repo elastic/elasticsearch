@@ -44,8 +44,8 @@ Infra/Packaging::
 * Limit _FILE env var support to specific vars {pull}52525[#52525] (issue: {issue}52503[#52503])
 
 Machine Learning::
-* [ML][Inference] don't return inflated definition when storing trained models {pull}52573[#52573]
-* [Ml] Validate tree feature index is within range {pull}52460[#52460]
+* Don't return inflated definition when storing trained models {pull}52573[#52573]
+* Validate tree feature index is within range {pull}52460[#52460]
 
 Network::
 * Remove seeds dependency for remote cluster settings {pull}52796[#52796]

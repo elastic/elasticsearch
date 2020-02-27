@@ -199,6 +199,18 @@ if (project != rootProject) {
     }
   }
 
+  // Track reaper jar as a test input using runtime classpath normalization strategy
+  tasks.withType(Test).configureEach {
+    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+  }
+
+  normalization {
+    runtimeClasspath {
+      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+      ignore('META-INF/reaper.jar')
+    }
+  }
+
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
 

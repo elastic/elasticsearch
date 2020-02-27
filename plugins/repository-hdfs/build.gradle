@@ -153,7 +153,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       onlyIf { BuildParams.inFipsJvm == false }
       if (integTestTaskName.contains("Ha")) {
         Path portsFile
-        File portsFileDir = file("${workingDir}/ports")
+        File portsFileDir = file("${workingDir}/hdfsFixture")
         if (integTestTaskName.contains("Secure")) {
           portsFile = buildDir.toPath()
             .resolve("fixtures")

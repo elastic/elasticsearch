@@ -130,7 +130,7 @@ public class DataFrameAnalyticsManager {
             , listener::onFailure
         );
 
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, createIndexListener);
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, createIndexListener);
     }
 
     private void executeStartingJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

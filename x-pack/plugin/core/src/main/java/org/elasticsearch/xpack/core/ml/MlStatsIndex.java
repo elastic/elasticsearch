@@ -5,17 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 /**
@@ -45,35 +40,11 @@ public class MlStatsIndex {
     /**
      * Creates the first concrete .ml-stats-000001 index (if necessary)
      * Creates the .ml-stats-write alias for that index.
+     * The listener will be notified with a boolean to indicate if the index was created because of this call,
+     * but unless there is a failure after this method returns the index and alias should be present.
      */
-    public static void createStatsIndexAndAliasIfNecessary(Client client, ClusterState state, ActionListener<Boolean> listener) {
-
-        if (state.getMetaData().getAliasAndIndexLookup().containsKey(writeAlias())) {
-            listener.onResponse(false);
-            return;
-        }
-
-        ActionListener<CreateIndexResponse> createIndexListener = ActionListener.wrap(
-            createIndexResponse -> listener.onResponse(true),
-            error -> {
-                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceAlreadyExistsException) {
-                    listener.onResponse(true);
-                } else {
-                    listener.onFailure(error);
-                }
-            }
-        );
-
-        CreateIndexRequest createIndexRequest = client.admin()
-            .indices()
-            .prepareCreate(TEMPLATE_NAME + "-000001")
-            .addAlias(new Alias(writeAlias()).writeIndex(true))
-            .request();
-
-        ClientHelper.executeAsyncWithOrigin(client,
-            ClientHelper.ML_ORIGIN,
-            CreateIndexAction.INSTANCE,
-            createIndexRequest,
-            createIndexListener);
+    public static void createStatsIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
+                                                           ActionListener<Boolean> listener) {
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(client, state, resolver, TEMPLATE_NAME, writeAlias(), listener);
     }
 }

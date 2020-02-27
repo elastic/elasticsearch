@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -8,6 +7,13 @@ apply plugin: 'elasticsearch.standalone-test'
 dependencies {
   testCompile project(':x-pack:qa')
   testCompile project(':client:rest-high-level')
+}
+
+restResources {
+  restApi {
+    includeCore '*'
+    includeXpack '*'
+  }
 }
 
 forbiddenPatterns {
@@ -19,24 +25,6 @@ String outputDir = "${buildDir}/generated-resources/${project.name}"
 tasks.register("bwcTest") {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  dependsOn configurations.restSpec
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
-    include 'rest-api-spec/api/**'
-  }
 }
 
 task copyTestNodeKeyMaterial(type: Copy) {

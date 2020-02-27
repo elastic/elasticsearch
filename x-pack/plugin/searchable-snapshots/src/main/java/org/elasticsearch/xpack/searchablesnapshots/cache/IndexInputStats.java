@@ -38,10 +38,10 @@ public class IndexInputStats {
     private final Counter contiguousReads = new Counter();
     private final Counter nonContiguousReads = new Counter();
 
-    private final Counter directBytesRead = new Counter();
+    private final TimedCounter directBytesRead = new TimedCounter();
 
     private final Counter cachedBytesRead = new Counter();
-    private final Counter cachedBytesWritten = new Counter();
+    private final TimedCounter cachedBytesWritten = new TimedCounter();
 
     public IndexInputStats(long fileLength) {
         this(fileLength, SEEKING_THRESHOLD.getBytes());
@@ -69,12 +69,12 @@ public class IndexInputStats {
         cachedBytesRead.add(bytesRead);
     }
 
-    public void addCachedBytesWritten(int bytesWritten) {
-        cachedBytesWritten.add(bytesWritten);
+    public void addCachedBytesWritten(int bytesWritten, long nanoseconds) {
+        cachedBytesWritten.add(bytesWritten, nanoseconds);
     }
 
-    public void addDirectBytesRead(int bytesRead) {
-        directBytesRead.add(bytesRead);
+    public void addDirectBytesRead(int bytesRead, long nanoseconds) {
+        directBytesRead.add(bytesRead, nanoseconds);
     }
 
     public void incrementBytesRead(long previousPosition, long currentPosition, int bytesRead) {
@@ -143,7 +143,7 @@ public class IndexInputStats {
         return nonContiguousReads;
     }
 
-    public Counter getDirectBytesRead() {
+    public TimedCounter getDirectBytesRead() {
         return directBytesRead;
     }
 
@@ -151,12 +151,12 @@ public class IndexInputStats {
         return cachedBytesRead;
     }
 
-    public Counter getCachedBytesWritten() {
+    public TimedCounter getCachedBytesWritten() {
         return cachedBytesWritten;
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
-    private boolean isLargeSeek(long delta) {
+    boolean isLargeSeek(long delta) {
         return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
     }
 
@@ -198,4 +198,19 @@ public class IndexInputStats {
             return value;
         }
     }
+
+    public static class TimedCounter extends Counter {
+
+        private final LongAdder totalNanoseconds = new LongAdder();
+
+        void add(final long value, final long nanoseconds) {
+            super.add(value);
+            totalNanoseconds.add(nanoseconds);
+        }
+
+        public long totalNanoseconds() {
+            return totalNanoseconds.sum();
+        }
+    }
+
 }

@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.SqlFoldables;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
@@ -278,7 +278,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, p.projections().size());
         Alias a = (Alias) p.projections().get(0);
         In i = (In) a.child();
-        assertThat(Foldables.valuesOf(i.list(), INTEGER), contains(1, 2, 3, 4));
+        assertThat(SqlFoldables.valuesOf(i.list(), INTEGER), contains(1, 2, 3, 4));
     }
 
     public void testConstantFoldingIn_RightValueIsNull() {

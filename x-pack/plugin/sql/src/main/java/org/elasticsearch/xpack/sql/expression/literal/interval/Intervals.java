@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 
 import java.time.Duration;
 import java.time.Period;

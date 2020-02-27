@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.SqlFoldables;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
@@ -361,10 +361,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             else {
                                 if (field instanceof FieldAttribute) {
                                     key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field),
-                                            Foldables.doubleValueOf(h.interval()));
+                                            SqlFoldables.doubleValueOf(h.interval()));
                                 } else if (field instanceof Function) {
                                     key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(),
-                                            Foldables.doubleValueOf(h.interval()));
+                                            SqlFoldables.doubleValueOf(h.interval()));
                                 }
                             }
                             if (key == null) {
@@ -741,7 +741,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(LimitExec plan) {
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
-                int limit = Foldables.intValueOf(plan.limit());
+                int limit = SqlFoldables.intValueOf(plan.limit());
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));

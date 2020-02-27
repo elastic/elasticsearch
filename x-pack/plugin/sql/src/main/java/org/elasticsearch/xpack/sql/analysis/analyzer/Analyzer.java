@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Join;

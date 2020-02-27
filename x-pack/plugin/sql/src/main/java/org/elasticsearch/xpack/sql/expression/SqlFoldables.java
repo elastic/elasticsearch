@@ -17,19 +17,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public abstract class Foldables {
+public abstract class SqlFoldables {
 
     @SuppressWarnings("unchecked")
     private static <T> T valueOf(Expression e, DataType to) {
         if (e.foldable()) {
             return (T) SqlDataTypeConverter.convert(e.fold(), to);
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
-    }
-
-    public static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }

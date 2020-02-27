@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.util;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.SqlFoldables;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -187,7 +187,7 @@ public final class DateUtils {
 
         if (precisionExpression != null) {
             try {
-                precision = Foldables.intValueOf(precisionExpression);
+                precision = SqlFoldables.intValueOf(precisionExpression);
             } catch (Exception e) {
                 throw new ParsingException(precisionExpression.source(), "invalid precision; " + e.getMessage());
             }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -45,6 +46,7 @@ import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.ROUTING;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION_TYPE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -215,5 +217,34 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> SimulatePipelineRequest.parseWithPipelineId(pipelineId, requestContent, false, ingestService));
         assertThat(e.getMessage(), equalTo("pipeline [" + pipelineId + "] does not exist"));
+    }
+
+    public void testNotValidDocs() {
+        Map<String, Object> requestContent = new HashMap<>();
+        List<Map<String, Object>> docs = new ArrayList<>();
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        List<Map<String, Object>> processors = new ArrayList<>();
+        pipelineConfig.put("processors", processors);
+        requestContent.put(Fields.DOCS, docs);
+        requestContent.put(Fields.PIPELINE, pipelineConfig);
+        Exception e1 = expectThrows(IllegalArgumentException.class,
+            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
+        assertThat(e1.getMessage(), equalTo("must specify at least one doc"));
+
+        List<String> stringList = new ArrayList<>();
+        stringList.add("test");
+        pipelineConfig.put("processors", processors);
+        requestContent.put(Fields.DOCS, stringList);
+        requestContent.put(Fields.PIPELINE, pipelineConfig);
+        Exception e2 = expectThrows(IllegalArgumentException.class,
+            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
+        assertThat(e2.getMessage(), equalTo("expected map in docs but found not"));
+
+        docs.add(new HashMap<>());
+        requestContent.put(Fields.DOCS, docs);
+        requestContent.put(Fields.PIPELINE, pipelineConfig);
+        Exception e3 = expectThrows(ElasticsearchParseException.class,
+            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
+        assertThat(e3.getMessage(), containsString("required property is missing"));
     }
 }

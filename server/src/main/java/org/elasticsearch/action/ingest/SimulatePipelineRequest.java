@@ -173,8 +173,15 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     private static List<IngestDocument> parseDocs(Map<String, Object> config) {
         List<Map<String, Object>> docs =
             ConfigurationUtils.readList(null, null, config, Fields.DOCS);
+        if (docs.isEmpty()) {
+            throw new IllegalArgumentException("must specify at least one doc");
+        }
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
-        for (Map<String, Object> dataMap : docs) {
+        for (Object object : docs) {
+            if ((object instanceof Map) ==  false) {
+                throw new IllegalArgumentException("expected map in docs but found not");
+            }
+            Map<String, Object> dataMap = (Map<String, Object>) object;
             Map<String, Object> document = ConfigurationUtils.readMap(null, null,
                 dataMap, Fields.SOURCE);
             String index = ConfigurationUtils.readStringOrIntProperty(null, null,

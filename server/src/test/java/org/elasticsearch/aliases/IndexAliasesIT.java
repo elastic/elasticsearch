@@ -1135,7 +1135,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias)));
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
-            AcknowledgedResponse res = admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)).get();
+            AcknowledgedResponse res = admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)).get();
         });
         logger.error("exception: {}", ex.getMessage());
         assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));

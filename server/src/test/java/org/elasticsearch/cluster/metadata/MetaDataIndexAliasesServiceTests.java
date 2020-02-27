@@ -435,12 +435,14 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         }
 
         {
-            Exception exception = expectThrows(IllegalStateException.class, () -> applyHiddenAliasMix(before, true, randomFrom(false, null)));
+            Exception exception = expectThrows(IllegalStateException.class,
+                () -> applyHiddenAliasMix(before, true, randomFrom(false, null)));
             assertThat(exception.getMessage(), startsWith("alias [alias] has is_hidden set to true on indices ["));
         }
 
         {
-            Exception exception = expectThrows(IllegalStateException.class, () -> applyHiddenAliasMix(before, randomFrom(false, null), true));
+            Exception exception = expectThrows(IllegalStateException.class,
+                () -> applyHiddenAliasMix(before, randomFrom(false, null), true));
             assertThat(exception.getMessage(), startsWith("alias [alias] has is_hidden set to true on indices ["));
         }
     }

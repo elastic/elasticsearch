@@ -54,10 +54,10 @@ public class NodeTests extends RestClientTestCase {
         assertEquals("[host=http://1, bound=[http://1, http://2]]", new Node(new HttpHost("1"),
                 new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))), null, null, null, null).toString());
         assertEquals(
-                "[host=http://1, bound=[http://1, http://2], name=nam, version=ver, roles=master, attributes={foo=[bar], baz=[bort, zoom]}]",
+                "[host=http://1, bound=[http://1, http://2], "
+                    + "name=nam, version=ver, roles=master, attributes={foo=[bar], baz=[bort, zoom]}]",
                 new Node(new HttpHost("1"), new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))),
                     "nam", "ver", new Roles(Collections.singleton("master")), attributes).toString());
-
     }
 
     public void testEqualsAndHashCode() {

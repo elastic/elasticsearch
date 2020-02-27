@@ -85,7 +85,7 @@ public class DeflateCompressor implements Compressor {
         final Inflater inflater = new Inflater(nowrap);
         InputStream decompressedIn = new InflaterInputStream(in, inflater, BUFFER_SIZE);
         decompressedIn = new BufferedInputStream(decompressedIn, BUFFER_SIZE);
-        return new InputStreamStreamInput(decompressedIn) {
+        final InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(decompressedIn) {
             final AtomicBoolean closed = new AtomicBoolean(false);
 
             public void close() throws IOException {
@@ -99,6 +99,9 @@ public class DeflateCompressor implements Compressor {
                 }
             }
         };
+
+        inputStreamStreamInput.setVersion(in.getVersion());
+        return inputStreamStreamInput;
     }
 
     @Override
@@ -109,7 +112,7 @@ public class DeflateCompressor implements Compressor {
         final boolean syncFlush = true;
         DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
         OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
-        return new OutputStreamStreamOutput(compressedOut) {
+        final OutputStreamStreamOutput outputStreamStreamOutput = new OutputStreamStreamOutput(compressedOut) {
             final AtomicBoolean closed = new AtomicBoolean(false);
 
             public void close() throws IOException {
@@ -123,5 +126,7 @@ public class DeflateCompressor implements Compressor {
                 }
             }
         };
+        outputStreamStreamOutput.setVersion(out.getVersion());
+        return outputStreamStreamOutput;
     }
 }

@@ -45,8 +45,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
@@ -54,8 +54,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -263,6 +263,7 @@ public class QueryPhase implements SearchPhase {
             } else {
                 timeoutRunnable = null;
             }
+            searcher.setCheckTimeout(timeoutRunnable);
 
             final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
@@ -271,21 +272,22 @@ public class QueryPhase implements SearchPhase {
             } else {
                 cancellationRunnable = null;
             }
+            searcher.setCheckCancelled(cancellationRunnable);
 
-            final Runnable checkCancelled;
-            if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> {
-                    timeoutRunnable.run();
-                    cancellationRunnable.run();
-                };
-            } else if (timeoutRunnable != null) {
-                checkCancelled = timeoutRunnable;
-            } else if (cancellationRunnable != null) {
-                checkCancelled = cancellationRunnable;
-            } else {
-                checkCancelled = null;
-            }
-            searcher.setCheckCancelled(checkCancelled);
+//            final Runnable checkCancelled;
+//            if (timeoutRunnable != null && cancellationRunnable != null) {
+//                checkCancelled = () -> {
+//                    timeoutRunnable.run();
+//                    cancellationRunnable.run();
+//                };
+//            } else if (timeoutRunnable != null) {
+//                checkCancelled = timeoutRunnable;
+//            } else if (cancellationRunnable != null) {
+//                checkCancelled = cancellationRunnable;
+//            } else {
+//                checkCancelled = null;
+//            }
+//            searcher.setCheckCancelled(checkCancelled);
 
             boolean shouldRescore;
             // if we are optimizing sort and there are no other collectors
@@ -310,6 +312,8 @@ public class QueryPhase implements SearchPhase {
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                 queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
+            // Search phase has finished, no longer need to check for timeout
+            searcher.unsetCheckTimeout();
             return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);

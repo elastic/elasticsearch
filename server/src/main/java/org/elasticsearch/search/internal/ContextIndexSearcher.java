@@ -73,7 +73,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -88,22 +87,22 @@ public class ContextIndexSearcher extends IndexSearcher {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private Runnable checkCancelled;
+    private Runnable checkTimeout;
+    private DirReaderCancellable dirReaderCancellable;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, true);
+        this(reader, similarity, queryCache, queryCachingPolicy, new DirReaderCancellable());
     }
 
-    // TODO: Remove the 2nd constructor and the shouldWrap so that we always wrap the IndexReader.
+    // TODO: Make the 2nd constructor private so that the dirCancellable is never null and the IndexReader is always wrapped.
     // Some issues must be fixed regarding tests deriving from AggregatorTestCase and more specifically
     // the use of searchAndReduce and the ShardSearcher sub-searchers.
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                boolean shouldWrap) throws IOException {
-        super(shouldWrap? new CancellableDirectoryReader((DirectoryReader) reader, new Cancellable()) : reader);
-        if (shouldWrap) {
-            ((CancellableDirectoryReader) getIndexReader()).setCheckCancelled(() -> checkCancelled);
-        }
+                                DirReaderCancellable dirReaderCancellable) throws IOException {
+        super(dirReaderCancellable != null? new CancellableDirectoryReader((DirectoryReader) reader, dirReaderCancellable) : reader);
+        this.dirReaderCancellable = dirReaderCancellable;
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -115,10 +114,24 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     /**
      * Set a {@link Runnable} that will be run on a regular basis while
-     * collecting documents.
+     * collecting documents and check for query cancellation.
      */
     public void setCheckCancelled(Runnable checkCancelled) {
         this.checkCancelled = checkCancelled;
+        this.dirReaderCancellable.setCheckCancelled(checkCancelled);
+    }
+
+    /**
+     * Set a {@link Runnable} that will be run on a regular basis while
+     * collecting documents and check for query timeout.
+     */
+    public void setCheckTimeout(Runnable checkTimeout) {
+        this.checkTimeout = checkTimeout;
+        this.dirReaderCancellable.setCheckTimeout(checkTimeout);
+    }
+
+    public void unsetCheckTimeout() {
+        this.dirReaderCancellable.unsetCheckTimeout();
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -165,6 +178,9 @@ public class ContextIndexSearcher extends IndexSearcher {
     private void checkCancelled() {
         if (checkCancelled != null) {
             checkCancelled.run();
+        }
+        if (checkTimeout != null) {
+            checkTimeout.run();
         }
     }
 
@@ -349,20 +365,13 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class CancellableDirectoryReader extends FilterDirectoryReader {
 
-        private final Cancellable checkCancelled;
-
-        private CancellableDirectoryReader(DirectoryReader in, Cancellable checkCancelled) throws IOException {
+        private CancellableDirectoryReader(DirectoryReader in, DirReaderCancellable cancellable) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new CancellableLeafReader(reader, checkCancelled);
+                    return new CancellableLeafReader(reader, cancellable);
                 }
             });
-            this.checkCancelled = checkCancelled;
-        }
-
-        private void setCheckCancelled(Supplier<Runnable> checkCancelled) {
-            this.checkCancelled.setCancellable(checkCancelled);
         }
 
         @Override
@@ -381,7 +390,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class CancellableLeafReader extends ExitableDirectoryReader.ExitableFilterAtomicReader {
 
-        private CancellableLeafReader(LeafReader leafReader, Cancellable checkCancelled)  {
+        private CancellableLeafReader(LeafReader leafReader, DirReaderCancellable checkCancelled)  {
             super(leafReader, checkCancelled);
         }
 
@@ -412,34 +421,41 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Implementation of {@link QueryTimeout} with a Runnable task.
+     * Implementation of {@link QueryTimeout} with Runnable tasks.
      */
-    private static class Cancellable implements QueryTimeout {
+    private static class DirReaderCancellable implements QueryTimeout {
 
-        private Supplier<Runnable> cancellable;
+        private Runnable checkCancelled = null;
+        private Runnable checkTimeout = null;
 
-        public void setCancellable(Supplier<Runnable> cancellable) {
-            this.cancellable = cancellable;
+        private void setCheckCancelled(Runnable checkCancelled) {
+            this.checkCancelled = checkCancelled;
+        }
+
+        private void setCheckTimeout(Runnable checkTimeout) {
+            this.checkTimeout = checkTimeout;
+        }
+
+        private void unsetCheckTimeout() {
+            this.checkTimeout = null;
         }
 
         @Override
         public boolean shouldExit() {
-            assert cancellable != null : "checkCancelled must be set immediately after the construction of CancellableIndexReader";
-            if (cancellable.get() == null) {
-                return false;
+            if (checkCancelled != null) {
+                checkCancelled.run();
             }
-            try {
-                cancellable.get().run();
-                return false;
-            } catch (Exception e) {
-                return true;
+            if (checkTimeout != null) {
+                checkTimeout.run();
             }
+            // Always return false and rely on checkCancelled or checkTimeout to throw
+            // the appropriate exception
+            return false;
         }
 
         @Override
         public boolean isTimeoutEnabled() {
-            assert cancellable != null : "checkCancelled must be set immediately after the construction of CancellableIndexReader";
-            return cancellable.get() != null;
+            return checkCancelled != null || checkTimeout != null;
         }
     }
 }

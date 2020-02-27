@@ -138,7 +138,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                 addToFilter(filter, b);
             }
         }
-        CollectionUtil.introSort(rare, order.comparator(null));
+        CollectionUtil.introSort(rare, order.comparator());
         return createWithFilter(name, rare, filter);
     }
 

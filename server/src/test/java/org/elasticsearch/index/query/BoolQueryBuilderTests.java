@@ -277,6 +277,12 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
     }
 
+    public void testMinimumShouldMatchNumber() throws IOException {
+        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : 1 } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertEquals("1", builder.minimumShouldMatch());
+    }
+
     /**
      * test that unknown query names in the clauses throw an error
      */

@@ -284,7 +284,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         PARSER.declareObjectArray((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p),
             FILTER);
         PARSER.declareBoolean(BoolQueryBuilder::adjustPureNegative, ADJUST_PURE_NEGATIVE);
-        PARSER.declareString(BoolQueryBuilder::minimumShouldMatch, MINIMUM_SHOULD_MATCH);
+        PARSER.declareField(BoolQueryBuilder::minimumShouldMatch, (p, c) -> p.text(),
+            MINIMUM_SHOULD_MATCH, ObjectParser.ValueType.VALUE);
         PARSER.declareString(BoolQueryBuilder::queryName, NAME_FIELD);
         PARSER.declareFloat(BoolQueryBuilder::boost, BOOST_FIELD);
     }

@@ -19,19 +19,16 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.ExitableDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.QueryTimeout;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -53,11 +50,14 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -388,42 +388,45 @@ public class ContextIndexSearcher extends IndexSearcher {
     /**
      * Wraps a leaf reader with a cancellable task
      */
-    private static class CancellableLeafReader extends ExitableDirectoryReader.ExitableFilterAtomicReader {
+    private static class CancellableLeafReader extends FilterLeafReader {
 
-        private CancellableLeafReader(LeafReader leafReader, DirReaderCancellable checkCancelled)  {
-            super(leafReader, checkCancelled);
+        private final DirReaderCancellable cancellable;
+
+        private CancellableLeafReader(LeafReader leafReader, DirReaderCancellable cancellable)  {
+            super(leafReader);
+            this.cancellable = cancellable;
         }
 
         @Override
-        public NumericDocValues getNumericDocValues(String field) throws IOException {
-            return in.getNumericDocValues(field);
+        public PointValues getPointValues(String field) throws IOException {
+            final PointValues pointValues = in.getPointValues(field);
+            if (pointValues == null) {
+                return null;
+            }
+            return (cancellable.isEnabled()) ? new ExitablePointValues(pointValues, cancellable) : pointValues;
         }
 
         @Override
-        public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-            return in.getBinaryDocValues(field);
+        public Terms terms(String field) throws IOException {
+            Terms terms = in.terms(field);
+            if (terms == null) {
+                return null;
+            }
+            return (cancellable.isEnabled() && terms instanceof CompletionTerms == false) ? new ExitableTerms(terms, cancellable) : terms;
         }
 
         @Override
-        public SortedDocValues getSortedDocValues(String field) throws IOException {
-            return in.getSortedDocValues(field);
+        public CacheHelper getCoreCacheHelper() {
+            return in.getCoreCacheHelper();
         }
 
         @Override
-        public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
-            return in.getSortedNumericDocValues(field);
-        }
-
-        @Override
-        public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
-            return in.getSortedSetDocValues(field);
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 
-    /**
-     * Implementation of {@link QueryTimeout} with Runnable tasks.
-     */
-    private static class DirReaderCancellable implements QueryTimeout {
+    private static class DirReaderCancellable {
 
         private Runnable checkCancelled = null;
         private Runnable checkTimeout = null;
@@ -440,22 +443,177 @@ public class ContextIndexSearcher extends IndexSearcher {
             this.checkTimeout = null;
         }
 
-        @Override
-        public boolean shouldExit() {
+        void checkCancelled() {
             if (checkCancelled != null) {
                 checkCancelled.run();
             }
             if (checkTimeout != null) {
                 checkTimeout.run();
             }
-            // Always return false and rely on checkCancelled or checkTimeout to throw
-            // the appropriate exception
-            return false;
+        }
+
+        private boolean isEnabled() {
+            return checkCancelled != null || checkTimeout != null;
+        }
+    }
+
+    /**
+     * Wrapper class for terms that check for query cancellation or timeout.
+     */
+    public static class ExitableTerms extends FilterLeafReader.FilterTerms {
+
+        private final DirReaderCancellable cancellable;
+
+        /** Constructor **/
+        public ExitableTerms(Terms terms, DirReaderCancellable cancellable) {
+            super(terms);
+            this.cancellable = cancellable;
         }
 
         @Override
-        public boolean isTimeoutEnabled() {
-            return checkCancelled != null || checkTimeout != null;
+        public TermsEnum intersect(CompiledAutomaton compiled, BytesRef startTerm) throws IOException {
+            return new ExitableTermsEnum(in.intersect(compiled, startTerm), cancellable);
+        }
+
+        @Override
+        public TermsEnum iterator() throws IOException {
+            return new ExitableTermsEnum(in.iterator(), cancellable);
+        }
+    }
+
+    /**
+     * Wrapper class for TermsEnum that is used by ExitableTerms for implementing an
+     * exitable enumeration of terms.
+     */
+    private static class ExitableTermsEnum extends FilterLeafReader.FilterTermsEnum {
+
+        private final DirReaderCancellable cancellable;
+
+        /** Constructor **/
+        private ExitableTermsEnum(TermsEnum termsEnum, DirReaderCancellable cancellable) {
+            super(termsEnum);
+            this.cancellable = cancellable;
+            this.cancellable.checkCancelled();
+        }
+
+        @Override
+        public BytesRef next() throws IOException {
+            // Before every iteration, check if the iteration should exit
+            this.cancellable.checkCancelled();
+            return in.next();
+        }
+    }
+
+    /**
+     * Wrapper class for PointValues that checks for cancellation and timeout.
+     */
+    private static class ExitablePointValues extends PointValues {
+
+        private final PointValues in;
+        private final DirReaderCancellable cancellable;
+
+        private ExitablePointValues(PointValues in, DirReaderCancellable cancellable) {
+            this.in = in;
+            this.cancellable = cancellable;
+            this.cancellable.checkCancelled();
+        }
+
+        @Override
+        public void intersect(IntersectVisitor visitor) throws IOException {
+            cancellable.checkCancelled();
+            in.intersect(new ExitableIntersectVisitor(visitor, cancellable));
+        }
+
+        @Override
+        public long estimatePointCount(IntersectVisitor visitor) {
+            cancellable.checkCancelled();
+            return in.estimatePointCount(visitor);
+        }
+
+        @Override
+        public byte[] getMinPackedValue() throws IOException {
+            cancellable.checkCancelled();
+            return in.getMinPackedValue();
+        }
+
+        @Override
+        public byte[] getMaxPackedValue() throws IOException {
+            cancellable.checkCancelled();
+            return in.getMaxPackedValue();
+        }
+
+        @Override
+        public int getNumDimensions() throws IOException {
+            cancellable.checkCancelled();
+            return in.getNumDimensions();
+        }
+
+        @Override
+        public int getNumIndexDimensions() throws IOException {
+            cancellable.checkCancelled();
+            return in.getNumIndexDimensions();
+        }
+
+        @Override
+        public int getBytesPerDimension() throws IOException {
+            cancellable.checkCancelled();
+            return in.getBytesPerDimension();
+        }
+
+        @Override
+        public long size() {
+            cancellable.checkCancelled();
+            return in.size();
+        }
+
+        @Override
+        public int getDocCount() {
+            cancellable.checkCancelled();
+            return in.getDocCount();
+        }
+    }
+
+    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+
+        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+
+        private final PointValues.IntersectVisitor in;
+        private final DirReaderCancellable cancellable;
+        private int calls;
+
+        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, DirReaderCancellable cancellable) {
+            this.in = in;
+            this.cancellable = cancellable;
+        }
+
+        private void checkAndThrowWithSampling() {
+            if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                cancellable.checkCancelled();
+            }
+        }
+
+        @Override
+        public void visit(int docID) throws IOException {
+            checkAndThrowWithSampling();
+            in.visit(docID);
+        }
+
+        @Override
+        public void visit(int docID, byte[] packedValue) throws IOException {
+            checkAndThrowWithSampling();
+            in.visit(docID, packedValue);
+        }
+
+        @Override
+        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+            cancellable.checkCancelled();
+            return in.compare(minPackedValue, maxPackedValue);
+        }
+
+        @Override
+        public void grow(int count) {
+            cancellable.checkCancelled();
+            in.grow(count);
         }
     }
 }

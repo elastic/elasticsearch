@@ -274,21 +274,6 @@ public class QueryPhase implements SearchPhase {
             }
             searcher.setCheckCancelled(cancellationRunnable);
 
-//            final Runnable checkCancelled;
-//            if (timeoutRunnable != null && cancellationRunnable != null) {
-//                checkCancelled = () -> {
-//                    timeoutRunnable.run();
-//                    cancellationRunnable.run();
-//                };
-//            } else if (timeoutRunnable != null) {
-//                checkCancelled = timeoutRunnable;
-//            } else if (cancellationRunnable != null) {
-//                checkCancelled = cancellationRunnable;
-//            } else {
-//                checkCancelled = null;
-//            }
-//            searcher.setCheckCancelled(checkCancelled);
-
             boolean shouldRescore;
             // if we are optimizing sort and there are no other collectors
             if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {

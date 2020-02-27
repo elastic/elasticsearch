@@ -18,23 +18,18 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -269,23 +264,4 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
     }
-
-
-//    @Override
-//    protected Collection<Class<? extends Plugin>> getPlugins() {
-////        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-////        plugins.add(AggregateMetricMapperPlugin.class);
-////        plugins.add(LocalStateCompositeXPackPlugin.class);
-////        return plugins;
-//        return null;
-//    }
-
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(new AnalyticsPlugin()));
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
-
 }

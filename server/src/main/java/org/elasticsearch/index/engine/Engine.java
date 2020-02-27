@@ -356,6 +356,8 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public abstract InternalEngine.StepWiseIndex initiateIndex(Index index);
+
     /**
      * Perform document index operation on the engine
      * @param index operation to perform

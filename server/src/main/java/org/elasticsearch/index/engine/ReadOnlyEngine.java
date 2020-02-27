@@ -267,6 +267,12 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public InternalEngine.StepWiseIndex initiateIndex(Index index) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("indexing is not supported on a read-only engine");
+    }
+
+    @Override
     public IndexResult index(Index index) {
         assert false : "this should not be called";
         throw new UnsupportedOperationException("indexing is not supported on a read-only engine");

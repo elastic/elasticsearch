@@ -352,7 +352,8 @@ public class SearchModule {
                 .addResultReader(InternalMax::new)
                 .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(StatsAggregationBuilder.NAME, StatsAggregationBuilder::new, StatsAggregationBuilder::parse)
-                .addResultReader(InternalStats::new));
+            .addResultReader(InternalStats::new)
+            .setAggregatorRegistrar(StatsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
                 ExtendedStatsAggregationBuilder::parse).addResultReader(InternalExtendedStats::new));
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,

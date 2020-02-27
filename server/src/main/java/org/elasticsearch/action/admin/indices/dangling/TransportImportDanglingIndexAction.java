@@ -135,15 +135,11 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                         return;
                     }
 
-                    if (metaDataSortedByVersion.size() > 1) {
-                        logger.debug(
-                            "Metadata versions "
-                                + map(metaDataSortedByVersion, IndexMetaData::getVersion)
-                                + " found for UUID ["
-                                + indexUUID
-                                + "], selecting the highest"
-                        );
-                    }
+                    logger.debug(
+                        "Metadata versions {}  found for UUID [{}], selecting the highest",
+                        map(metaDataSortedByVersion, IndexMetaData::getVersion),
+                        indexUUID
+                    );
 
                     listener.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
                 }

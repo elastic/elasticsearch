@@ -19,7 +19,7 @@ testClusters.integTest {
 
 restResources {
   restApi {
-    includeCore 'indices', 'bulk', 'snapshot', 'nodes'
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
     includeXpack 'searchable_snapshots'
   }
 }

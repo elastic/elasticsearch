@@ -39,12 +39,7 @@ import static org.mockito.Mockito.mock;
 public class RestNodesHotThreadsActionTests extends ESTestCase {
 
     private RestNodesHotThreadsAction action;
-    private String[] deprecatedEndPoint = {
-        "/_cluster/nodes/hotthreads"
-        , "/_cluster/nodes/{nodeId}/hotthreads"
-        , "/_nodes/hotthreads"
-        , "/_nodes/{nodeId}/hotthreads"};
-
+    
     @Override
     public void setUp() throws Exception {
         super.setUp();

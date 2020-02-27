@@ -226,6 +226,39 @@ public class MetaDataTests extends ESTestCase {
         assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
     }
 
+    public void testValidateHiddenAliasConsistency() {
+        String alias = randomAlphaOfLength(5);
+        String indexA = randomAlphaOfLength(6);
+        String indexB = randomAlphaOfLength(7);
+
+        {
+            Exception ex = expectThrows(IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, true, indexB, randomFrom(false, null)).build());
+            assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+        }
+
+        {
+            Exception ex = expectThrows(IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, randomFrom(false, null), indexB, true).build());
+            assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+        }
+    }
+
+    private MetaData.Builder buildMetadataWithHiddenIndexMix(String aliasName, String indexAName, Boolean indexAHidden,
+                                                             String indexBName, Boolean indexBHidden) {
+        IndexMetaData.Builder indexAMeta = IndexMetaData.builder(indexAName)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder(aliasName).isHidden(indexAHidden).build());
+        IndexMetaData.Builder indexBMeta = IndexMetaData.builder(indexBName)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder(aliasName).isHidden(indexBHidden).build());
+        return MetaData.builder().put(indexAMeta).put(indexBMeta);
+    }
+
     public void testResolveIndexRouting() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))

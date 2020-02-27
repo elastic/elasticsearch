@@ -206,11 +206,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                                      boolean explicitWriteIndex) {
         if (explicitWriteIndex) {
             return List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
-                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false));
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true, null),
+                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false, null));
         } else {
             return List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null, null),
                 new AliasAction.Remove(oldIndex, request.getAlias()));
         }
     }

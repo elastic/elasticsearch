@@ -85,11 +85,13 @@ public abstract class AliasAction {
         @Nullable
         private final Boolean writeIndex;
 
+        @Nullable final Boolean isHidden;
+
         /**
          * Build the operation.
          */
-        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting,
-                   @Nullable String searchRouting, @Nullable Boolean writeIndex) {
+        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting,
+                   @Nullable Boolean writeIndex, Boolean isHidden) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
@@ -99,6 +101,7 @@ public abstract class AliasAction {
             this.indexRouting = indexRouting;
             this.searchRouting = searchRouting;
             this.writeIndex = writeIndex;
+            this.isHidden = isHidden;
         }
 
         /**
@@ -112,6 +115,10 @@ public abstract class AliasAction {
             return writeIndex;
         }
 
+        public Boolean isHidden() {
+            return isHidden;
+        }
+
         @Override
         boolean removeIndex() {
             return false;
@@ -122,7 +129,7 @@ public abstract class AliasAction {
             aliasValidator.validate(alias, indexRouting, filter, writeIndex);
 
             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)
-                    .searchRouting(searchRouting).writeIndex(writeIndex).build();
+                    .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
 
             // Check if this alias already exists
             AliasMetaData currentAliasMd = index.getAliases().get(alias);

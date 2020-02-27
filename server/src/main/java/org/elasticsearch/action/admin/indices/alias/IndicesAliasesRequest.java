@@ -97,6 +97,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
         private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
         private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
+        private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -193,6 +194,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, INDEX_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
+            ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
         private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
@@ -231,6 +233,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private String indexRouting;
         private String searchRouting;
         private Boolean writeIndex;
+        private Boolean isHidden;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -248,6 +251,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
             writeIndex = in.readOptionalBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Update on backport
+                isHidden = in.readOptionalBoolean();
+            }
             originalAliases = in.readStringArray();
         }
 
@@ -261,6 +267,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
             out.writeOptionalBoolean(writeIndex);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Update on backport
+                out.writeOptionalBoolean(isHidden);
+            }
             out.writeStringArray(originalAliases);
         }
 
@@ -434,6 +443,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return writeIndex;
         }
 
+        public AliasActions isHidden(Boolean isHidden) {
+            if (type != AliasActions.Type.ADD) {
+                throw new IllegalArgumentException("[" + IS_HIDDEN.getPreferredName() + "] is unsupported for [" + type + "]");
+            }
+            this.isHidden = isHidden;
+            return this;
+        }
+
+        public Boolean isHidden() {
+            return isHidden;
+        }
+
         @Override
         public String[] aliases() {
             return aliases;
@@ -491,6 +512,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             }
             if (null != writeIndex) {
                 builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+            }
+            if (null != isHidden) {
+                builder.field(IS_HIDDEN.getPreferredName(), isHidden);
             }
             builder.endObject();
             builder.endObject();

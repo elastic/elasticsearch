@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -40,14 +41,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.common.util.CollectionUtils.map;
+import java.util.stream.Collectors;
 
 /**
  * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
@@ -58,6 +56,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
+    private final NodeClient nodeClient;
 
     @Inject
     public TransportDeleteDanglingIndexAction(
@@ -66,7 +65,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Settings settings
+        Settings settings,
+        NodeClient nodeClient
     ) {
         super(
             DeleteDanglingIndexAction.NAME,
@@ -78,6 +78,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             indexNameExpressionResolver
         );
         this.settings = settings;
+        this.nodeClient = nodeClient;
     }
 
     @Override
@@ -104,7 +105,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                 // This flag is checked at this point so that we always check that the supplied index ID
                 // does correspond to a dangling index.
                 if (deleteRequest.isAcceptDataLoss() == false) {
-                    throw new IllegalArgumentException("accept_data_loss must be set to true");
+                    deleteListener.onFailure(new IllegalArgumentException("accept_data_loss must be set to true"));
+                    return;
                 }
 
                 String indexName = indexToDelete.getName();
@@ -166,53 +168,40 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
-        this.transportService.sendRequest(
-            this.transportService.getLocalNode(),
-            FindDanglingIndexAction.NAME,
-            new FindDanglingIndexRequest(indexUUID),
-            new TransportResponseHandler<FindDanglingIndexResponse>() {
-                @Override
-                public void handleResponse(FindDanglingIndexResponse response) {
-                    if (response.hasFailures()) {
-                        for (FailedNodeException failure : response.failures()) {
-                            logger.error("Failed to query " + failure.nodeId(), failure);
-                        }
+        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID), new ActionListener<>() {
+            @Override
+            public void onResponse(FindDanglingIndexResponse response) {
+                if (response.hasFailures()) {
+                    final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
+                    ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
 
-                        listener.onFailure(
-                            new ElasticsearchException("Failed to query nodes: " + map(response.failures(), FailedNodeException::nodeId))
-                        );
-                        return;
+                    for (FailedNodeException failure : response.failures()) {
+                        logger.error("Failed to query node [" + failure.nodeId() + "]", failure);
+                        e.addSuppressed(failure);
                     }
 
-                    final List<NodeFindDanglingIndexResponse> nodes = response.getNodes();
+                    listener.onFailure(e);
+                    return;
+                }
 
-                    for (NodeFindDanglingIndexResponse nodeResponse : nodes) {
-                        for (IndexMetaData danglingIndexMetaData : nodeResponse.getDanglingIndexMetaData()) {
-                            if (danglingIndexMetaData.getIndexUUID().equals(indexUUID)) {
-                                listener.onResponse(danglingIndexMetaData.getIndex());
-                                return;
-                            }
+                final List<NodeFindDanglingIndexResponse> nodes = response.getNodes();
+
+                for (NodeFindDanglingIndexResponse nodeResponse : nodes) {
+                    for (IndexMetaData danglingIndexMetaData : nodeResponse.getDanglingIndexMetaData()) {
+                        if (danglingIndexMetaData.getIndexUUID().equals(indexUUID)) {
+                            listener.onResponse(danglingIndexMetaData.getIndex());
+                            return;
                         }
                     }
-
-                    listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
                 }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public FindDanglingIndexResponse read(StreamInput in) throws IOException {
-                    return new FindDanglingIndexResponse(in);
-                }
+                listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
             }
-        );
+
+            @Override
+            public void onFailure(Exception exp) {
+                listener.onFailure(exp);
+            }
+        });
     }
 }

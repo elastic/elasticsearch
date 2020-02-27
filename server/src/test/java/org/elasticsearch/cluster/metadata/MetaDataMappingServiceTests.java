@@ -113,17 +113,4 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(previousVersion));
     }
 
-    public void testGetRequestIndex() {
-        String source = "{\"properties\":{\"id\":{\"type\":\"long\"}}}";
-        String indexName = "test";
-        final IndexService indexService = createIndex(indexName, client().admin().indices().prepareCreate(indexName));
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(source);
-        request.indices(new Index[]{indexService.index()});
-
-        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
-
-        String requestIndex = mappingService.getRequestIndex(request);
-        assertEquals(indexService.index().toString(), requestIndex);
-    }
-
 }

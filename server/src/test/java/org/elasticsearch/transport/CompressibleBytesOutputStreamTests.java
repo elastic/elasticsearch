@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -33,7 +34,11 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
     public void testStreamWithoutCompression() throws IOException {
         BytesStream bStream = new ZeroOutOnCloseStream();
+        if (randomBoolean()) {
+            bStream.setVersion(VersionUtils.randomVersion(random()));
+        }
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, false);
+        assertEquals(bStream.getVersion(), stream.getVersion());
 
         byte[] expectedBytes = randomBytes(randomInt(30));
         stream.write(expectedBytes);
@@ -61,7 +66,11 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
     public void testStreamWithCompression() throws IOException {
         BytesStream bStream = new ZeroOutOnCloseStream();
+        if (randomBoolean()) {
+            bStream.setVersion(VersionUtils.randomVersion(random()));
+        }
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, true);
+        assertEquals(bStream.getVersion(), stream.getVersion());
 
         byte[] expectedBytes = randomBytes(randomInt(30));
         stream.write(expectedBytes);
@@ -88,7 +97,11 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
     public void testCompressionWithCallingMaterializeFails() throws IOException {
         BytesStream bStream = new ZeroOutOnCloseStream();
+        if (randomBoolean()) {
+            bStream.setVersion(VersionUtils.randomVersion(random()));
+        }
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, true);
+        assertEquals(bStream.getVersion(), stream.getVersion());
 
         byte[] expectedBytes = randomBytes(between(1, 30));
         stream.write(expectedBytes);

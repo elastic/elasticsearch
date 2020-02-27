@@ -22,7 +22,6 @@ package org.elasticsearch.kibana;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -37,13 +36,6 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         request.setJsonEntity("{ \"index\" : { \"_index\" : \".kibana\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
-
-        Request invalidIndexRequest = new Request("POST", "/_kibana/_bulk");
-        invalidIndexRequest.setJsonEntity("{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(invalidIndexRequest));
-        response = e.getResponse();
-        assertThat(response.getStatusLine().getStatusCode(), is(400));
-        assertThat(EntityUtils.toString(response.getEntity()), containsString("does not fall within the set"));
     }
 
     public void testGetFromKibanaIndex() throws IOException {
@@ -60,12 +52,6 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         String responseBody = EntityUtils.toString(getResponse.getEntity());
         assertThat(responseBody, containsString("foo"));
         assertThat(responseBody, containsString("bar"));
-
-        Request invalidIndexRequest = new Request("GET", "/_kibana/test/_doc/1");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(invalidIndexRequest));
-        Response invalidResponse = e.getResponse();
-        assertThat(invalidResponse.getStatusLine().getStatusCode(), is(400));
-        assertThat(EntityUtils.toString(invalidResponse.getEntity()), containsString("does not fall within the set"));
     }
 
     public void testMultiGetFromKibanaIndex() throws IOException {
@@ -87,14 +73,6 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         assertThat(responseBody, containsString("bar"));
         assertThat(responseBody, containsString("baz"));
         assertThat(responseBody, containsString("tag"));
-
-        Request invalidIndexRequest = new Request("GET", "/_kibana/_mget");
-        invalidIndexRequest.setJsonEntity("{ \"docs\" : [ { \"_index\" : \"test\", \"_id\" : \"1\" }, " +
-            "{ \"_index\" : \"test\", \"_id\" : \"2\" } ] }\n");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(invalidIndexRequest));
-        Response invalidResponse = e.getResponse();
-        assertThat(invalidResponse.getStatusLine().getStatusCode(), is(400));
-        assertThat(EntityUtils.toString(invalidResponse.getEntity()), containsString("does not fall within the set"));
     }
 
     public void testSearchFromKibanaIndex() throws IOException {
@@ -115,13 +93,6 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         assertThat(responseBody, containsString("bar"));
         assertThat(responseBody, containsString("baz"));
         assertThat(responseBody, containsString("tag"));
-
-        Request invalidIndexRequest = new Request("GET", "/_kibana/test/_search");
-        invalidIndexRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(invalidIndexRequest));
-        Response invalidResponse = e.getResponse();
-        assertThat(invalidResponse.getStatusLine().getStatusCode(), is(400));
-        assertThat(EntityUtils.toString(invalidResponse.getEntity()), containsString("does not fall within the set"));
     }
 
     public void testDeleteFromKibanaIndex() throws IOException {
@@ -136,12 +107,6 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         Request deleteRequest = new Request("DELETE", "/_kibana/.kibana/_doc/1");
         Response deleteResponse = client().performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
-
-        Request invalidIndexRequest = new Request("DELETE", "/_kibana/test/_doc/1");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(invalidIndexRequest));
-        Response invalidResponse = e.getResponse();
-        assertThat(invalidResponse.getStatusLine().getStatusCode(), is(400));
-        assertThat(EntityUtils.toString(invalidResponse.getEntity()), containsString("does not fall within the set"));
     }
 
     public void testDeleteByQueryFromKibanaIndex() throws IOException {
@@ -157,12 +122,5 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         dbqRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
         Response dbqResponse = client().performRequest(dbqRequest);
         assertThat(dbqResponse.getStatusLine().getStatusCode(), is(200));
-
-        Request invalidIndexRequest = new Request("POST", "/_kibana/.test/_delete_by_query");
-        invalidIndexRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(invalidIndexRequest));
-        Response invalidResponse = e.getResponse();
-        assertThat(invalidResponse.getStatusLine().getStatusCode(), is(400));
-        assertThat(EntityUtils.toString(invalidResponse.getEntity()), containsString("does not fall within the set"));
     }
 }

@@ -36,7 +36,7 @@ public class KibanaPluginTests extends ESTestCase {
         assertThat(new KibanaPlugin().getSettings(), contains(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING));
         assertThat(new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY).stream()
             .map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toUnmodifiableList()),
-            contains(".kibana", ".kibana_task_manager", ".reporting"));
+            contains(".kibana*", ".reporting"));
         final List<String> names = List.of("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(6));
         final List<String> namesFromDescriptors = new KibanaPlugin().getSystemIndexDescriptors(
                 Settings.builder().putList(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING.getKey(), names).build()

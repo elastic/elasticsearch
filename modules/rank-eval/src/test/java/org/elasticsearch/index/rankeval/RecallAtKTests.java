@@ -22,6 +22,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -114,7 +115,7 @@ public class RecallAtKTests extends ESTestCase {
         int k = 5;
         SearchHit[] hits = new SearchHit[k];
         for (int i = 0; i < k; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
 
@@ -236,7 +237,7 @@ public class RecallAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

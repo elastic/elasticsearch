@@ -447,9 +447,8 @@ public final class TokenService {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
-            final String index = tokensIndex.aliasName();
-            final String documentId = getTokenDocumentId(userTokenId);
-            final GetRequest getRequest = client.prepareGet(index, documentId).request();
+            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
+                    getTokenDocumentId(userTokenId)).request();
             final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),

@@ -568,7 +568,7 @@ public class ApiKeyService {
         }
     }
 
-    public boolean isEnabled() {
+    private boolean isEnabled() {
         return enabled && licenseState.isApiKeyServiceAllowed();
     }
 

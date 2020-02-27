@@ -172,7 +172,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
      */
-    public Map<Index, IndexMetaData> findNewDanglingIndices(final Map<Index, IndexMetaData> existingDanglingIndices, final MetaData metaData) {
+    public Map<Index, IndexMetaData> findNewDanglingIndices(Map<Index, IndexMetaData> existingDanglingIndices, final MetaData metaData) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());

@@ -33,6 +33,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -59,12 +60,15 @@ public class IngestRestartIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Map.of("my_script", ctx -> {
+            Map<String, Function<Map<String, Object>, Object>> pluginScripts = new HashMap<>();
+            pluginScripts.put("my_script", ctx -> {
                 ctx.put("z", 0);
                 return null;
-            }, "throwing_script", ctx -> {
+            });
+            pluginScripts.put("throwing_script", ctx -> {
                 throw new RuntimeException("this script always fails");
             });
+            return pluginScripts;
         }
     }
 
@@ -87,7 +91,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         Exception e = expectThrows(
             Exception.class,
             () ->
-                client().prepareIndex("index").setId("1")
+                client().prepareIndex("index", "doc").setId("1")
                     .setSource("x", 0)
                     .setPipeline(pipelineId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

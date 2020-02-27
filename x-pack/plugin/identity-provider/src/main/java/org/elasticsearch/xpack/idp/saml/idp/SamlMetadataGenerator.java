@@ -71,11 +71,14 @@ public class SamlMetadataGenerator {
                 idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI))
             .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI,
                 idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI))
-            .withSigningCertificate(idp.getSigningCredential().getEntityCertificate())
             .withNameIdFormat(PERSISTENT)
             .withNameIdFormat(TRANSIENT)
             .organization(idp.getOrganization())
             .withContact(idp.getTechnicalContact());
+        final X509Credential signingCredential = idp.getSigningCredential();
+        if (null != signingCredential) {
+            builder.withSigningCertificate(signingCredential.getEntityCertificate());
+        }
         return builder.build();
     }
 

@@ -117,7 +117,10 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder withSigningCertificate(X509Certificate signingCertificate) {
-        return withSigningCertificates(Collections.singletonList(signingCertificate));
+        if ( null != signingCertificate ) {
+            return withSigningCertificates(Collections.singletonList(signingCertificate));
+        }
+        return this;
     }
 
     public SamlIdPMetadataBuilder organization(OrganizationInfo organization) {

@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.expression.SqlFoldables;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In {
@@ -35,8 +37,12 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
     }
 
     @Override
-    protected List<Object> foldListOfValues(List<Expression> list, DataType dataType) {
-        return SqlFoldables.valuesOf(list, dataType);
+    protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
+        List<Object> values = new ArrayList<>(list.size());
+        for (Expression e : list) {
+            values.add(SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType));
+        }
+        return values;
     }
 
     @Override

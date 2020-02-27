@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -83,7 +84,7 @@ public class In extends ScalarFunction {
         if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;
         }
-        return InProcessor.apply(value.fold(), foldListOfValues(list, value.dataType()));
+        return InProcessor.apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
     }
 
     @Override
@@ -91,7 +92,7 @@ public class In extends ScalarFunction {
         ScriptTemplate leftScript = asScript(value);
 
         // fold & remove duplicates
-        List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldListOfValues(list, value.dataType())));
+        List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldAndConvertListOfValues(list, value.dataType())));
 
         return new ScriptTemplate(
             formatTemplate(format("{sql}.","in({}, {})", leftScript.template())),
@@ -102,8 +103,16 @@ public class In extends ScalarFunction {
             dataType());
     }
 
-    protected List<Object> foldListOfValues(List<Expression> list, DataType dataType) {
-        return Foldables.valuesOf(list, dataType);
+    protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
+        List<Object> values = new ArrayList<>(list.size());
+        for (Expression e : list) {
+            if (e.foldable()) {
+                values.add(DataTypeConverter.convert(e.fold(), dataType));
+            } else {
+                throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+            }
+        }
+        return values;
     }
 
     protected boolean areCompatible(DataType left, DataType right) {

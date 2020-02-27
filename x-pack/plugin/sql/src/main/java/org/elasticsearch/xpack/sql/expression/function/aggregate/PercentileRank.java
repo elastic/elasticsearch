@@ -7,13 +7,14 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.expression.SqlFoldables;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.List;
 
@@ -69,6 +70,7 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public String innerName() {
-        return Double.toString(SqlFoldables.doubleValueOf(value));
+        Double doubleValue = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(value), DataTypes.DOUBLE);
+        return Double.toString(doubleValue);
     }
 }

@@ -93,7 +93,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             .build());
         table.addCell("data.processed_fields",
             TableColumnAttributeBuilder.builder("number of processed fields", false)
-                .setAliases("dpr", "dataProcessedFields")
+                .setAliases("dpf", "dataProcessedFields")
                 .build());
         table.addCell("data.input_bytes",
             TableColumnAttributeBuilder.builder("total input bytes", false)

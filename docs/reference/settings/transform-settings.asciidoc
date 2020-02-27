@@ -21,7 +21,7 @@ file.
 ==== General {transforms} settings
 
 `node.transform`::
-Set to `true` (default) to identify the node as a _transform node_. +
+Set to `true` to identify the node as a _transform node_. The default is `false` if either `node.data` or `xpack.transform.enabled` is `false` for the node, and `true` otherwise. +
 +
 If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If set to
 `true` but `xpack.transform.enabled` is set to `false`, the `node.transform` setting is

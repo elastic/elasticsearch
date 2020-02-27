@@ -15,16 +15,16 @@ import java.util.Objects;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.FuzzyTermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -34,7 +34,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantKeywordIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -153,56 +153,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new ConstantKeywordIndexFieldData.Builder(mapperService -> value);
+            return new ConstantIndexFieldData.Builder(mapperService -> value);
         }
 
-        private static String valueToString(Object v) {
-            if (v instanceof BytesRef) {
-                return ((BytesRef) v).utf8ToString();
-            } else {
-                return v.toString();
-            }
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            if (Objects.equals(valueToString(value), this.value)) {
-                return new MatchAllDocsQuery();
-            } else {
-                return new MatchNoDocsQuery();
-            }
-        }
-
-        @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
-            for (Object v : values) {
-                if (Objects.equals(valueToString(v), value)) {
-                    return new MatchAllDocsQuery();
-                }
-            }
-            return new MatchNoDocsQuery();
-        }
-
-        @Override
-        public Query prefixQuery(String value,
-                @Nullable MultiTermQuery.RewriteMethod method,
-                QueryShardContext context) {
-            if (this.value.startsWith(value)) {
-                return new MatchAllDocsQuery();
-            } else {
-                return new MatchNoDocsQuery();
-            }
-        }
-
-        public Query wildcardQuery(String value,
-                @Nullable MultiTermQuery.RewriteMethod method,
-                QueryShardContext context) {
-            if (Regex.simpleMatch(value, this.value)) {
-                return new MatchAllDocsQuery();
-            } else {
-                return new MatchNoDocsQuery();
-            }
-        }
+		@Override
+		protected boolean matches(String pattern, QueryShardContext context) {
+			return Regex.simpleMatch(pattern, value);
+		}
 
         @Override
         public Query rangeQuery(
@@ -221,11 +178,23 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object term, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions) {
-            final String termAsString = BytesRefs.toString(term);
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
+        		boolean transpositions, QueryShardContext context) {
+            final String termAsString = BytesRefs.toString(value);
             final int maxEdits = fuzziness.asDistance(termAsString);
-            final Automaton automaton = FuzzyTermsEnum.buildAutomaton(termAsString, prefixLength, transpositions, maxEdits);
+            
+            final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
+            for (int cp, i = 0, j = 0; i < termAsString.length(); i += Character.charCount(cp)) {
+              termText[j++] = cp = termAsString.codePointAt(i);
+            }
+            final int termLength = termText.length;
+
+            prefixLength = Math.min(prefixLength, termLength);
+            final String suffix = UnicodeUtil.newString(termText, prefixLength, termText.length - prefixLength);
+            final LevenshteinAutomata builder = new LevenshteinAutomata(suffix, transpositions);
+            final String prefix = UnicodeUtil.newString(termText, 0, prefixLength);
+            final Automaton automaton = builder.toAutomaton(maxEdits, prefix);
+
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return new MatchAllDocsQuery();
@@ -245,6 +214,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
         }
+
     }
 
     protected ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,

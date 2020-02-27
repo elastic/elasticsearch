@@ -15,7 +15,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
-import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,7 +34,6 @@ public class ConstantKeywordMapperPlugin extends Plugin implements MapperPlugin,
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(XPackUsageFeatureAction.CONSTANT_KEYWORD, ConstantKeywordUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.CONSTANT_KEYWORD, ConstantKeywordInfoTransportAction.class));
     }
 }

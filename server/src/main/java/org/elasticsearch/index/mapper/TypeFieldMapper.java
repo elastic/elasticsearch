@@ -40,7 +40,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantKeywordIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -112,7 +112,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
-            return new ConstantKeywordIndexFieldData.Builder(typeFunction);
+            return new ConstantIndexFieldData.Builder(typeFunction);
         }
 
         @Override

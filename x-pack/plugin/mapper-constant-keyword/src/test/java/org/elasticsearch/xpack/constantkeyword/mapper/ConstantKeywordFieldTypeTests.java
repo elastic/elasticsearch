@@ -82,8 +82,8 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         ft.setValue("foobar");
-        assertEquals(new MatchAllDocsQuery(), ft.fuzzyQuery("foobaz", Fuzziness.AUTO, 3, 50, randomBoolean()));
-        assertEquals(new MatchNoDocsQuery(), ft.fuzzyQuery("fooquux", Fuzziness.AUTO, 3, 50, randomBoolean()));
+        assertEquals(new MatchAllDocsQuery(), ft.fuzzyQuery("foobaz", Fuzziness.AUTO, 3, 50, randomBoolean(), null));
+        assertEquals(new MatchNoDocsQuery(), ft.fuzzyQuery("fooquux", Fuzziness.AUTO, 3, 50, randomBoolean(), null));
     }
 
     public void testRegexpQuery() {

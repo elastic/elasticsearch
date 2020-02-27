@@ -447,7 +447,7 @@
                   field: v
                 sort:
                   s: desc
-  - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
+  - match: { error.root_cause.0.reason: "[top_metrics.size] must not be more than [10] but was [100]. This limit can be set by changing the [index.top_metrics_max_size] index level setting." }
 
   - do:
       indices.put_settings:

@@ -32,6 +32,12 @@ import java.util.List;
  * Used when querying every node in the cluster for a specific dangling index.
  */
 public class NodeFindDanglingIndexResponse extends BaseNodeResponse {
+    /**
+     * A node could report several dangling indices. This class will contain them all.
+     * A single node could even multiple different index versions for the same index
+     * UUID if the situation is really crazy, though perhaps this is more likely
+     * when collating responses from different nodes.
+     */
     private final List<IndexMetaData> danglingIndexMetaData;
 
     public List<IndexMetaData> getDanglingIndexMetaData() {

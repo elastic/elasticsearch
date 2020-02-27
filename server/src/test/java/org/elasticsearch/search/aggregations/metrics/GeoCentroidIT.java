@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -35,6 +37,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -44,6 +47,31 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESIntegTestCase.SuiteScopeTestCase
 public class GeoCentroidIT extends AbstractGeoTestCase {
     private static final String aggName = "geoCentroid";
+
+    public void test7xIndexOnly() {
+        SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(IDX_NAME_7x) .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME))
+            .get());
+        assertNotNull(exception.getRootCause());
+        assertThat(exception.getRootCause().getMessage(),
+            equalTo("Can't load fielddata on [geoshape_value] because fielddata is unsupported on fields of type [geo_shape]." +
+                " Use doc values instead."));
+    }
+
+    public void test7xIndexWith8Index() {
+        SearchResponse response = client().prepareSearch(IDX_NAME_7x, IDX_NAME)
+            .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME))
+            .get();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getSuccessfulShards(), lessThan(response.getTotalShards()));
+        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
+        assertThat(geoCentroid, notNullValue());
+        assertThat(geoCentroid.getName(), equalTo(aggName));
+        GeoPoint centroid = geoCentroid.centroid();
+        assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertEquals(numDocs, geoCentroid.count());
+    }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)

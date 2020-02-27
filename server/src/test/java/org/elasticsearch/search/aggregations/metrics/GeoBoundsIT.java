@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -51,6 +53,31 @@ import static org.hamcrest.Matchers.sameInstance;
 public class GeoBoundsIT extends AbstractGeoTestCase {
     private static final String geoPointAggName = "geoPointBounds";
     private static final String geoShapeAggName = "geoShapeBounds";
+
+    public void test7xIndexOnly() {
+        SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(IDX_NAME_7x) .addAggregation(geoBounds(geoShapeAggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME))
+            .get());
+        assertNotNull(exception.getRootCause());
+        assertThat(exception.getRootCause().getMessage(),
+            equalTo("Can't load fielddata on [geoshape_value] because fielddata is unsupported on fields of type [geo_shape]." +
+                " Use doc values instead."));
+    }
+
+    public void test7xIndexWith8Index() {
+        SearchResponse response = client().prepareSearch(IDX_NAME_7x, IDX_NAME)
+            .addAggregation(geoBounds(geoShapeAggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME))
+            .get();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getSuccessfulShards(), lessThan(response.getTotalShards()));
+        GeoBounds geoBounds = response.getAggregations().get(geoShapeAggName);
+        GeoPoint topLeft = geoBounds.topLeft();
+        GeoPoint bottomRight = geoBounds.bottomRight();
+        assertThat(topLeft.lat(), closeTo(singleShapeTopLeft.lat(), GEOHASH_TOLERANCE));
+        assertThat(topLeft.lon(), closeTo(singleShapeTopLeft.lon(), GEOHASH_TOLERANCE));
+        assertThat(bottomRight.lat(), closeTo(singleShapeBottomRight.lat(), GEOHASH_TOLERANCE));
+        assertThat(bottomRight.lon(), closeTo(singleShapeBottomRight.lon(), GEOHASH_TOLERANCE));
+    }
 
     public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME)

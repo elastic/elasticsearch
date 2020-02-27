@@ -38,6 +38,7 @@ public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
     final List<String[]> requiredFieldSets = new ArrayList<>();
+    final List<String[]> exclusiveFieldSets = new ArrayList<>();
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
@@ -292,6 +293,23 @@ public abstract class AbstractObjectParser<Value, Context>
             return;
         }
         this.requiredFieldSets.add(requiredSet);
+    }
+
+    /**
+     * Declares a set of fields of which at most one must appear for parsing to succeed
+     *
+     * E.g. <code>declareExclusiveFieldSet("foo", "bar");</code> means that only one of 'foo'
+     * or 'bar' must be present, and if both appear then an exception will be thrown.
+     *
+     * Multiple exclusive sets may be declared
+     *
+     * @param exclusiveSet a set of field names, at most one of which must appear
+     */
+    public void declareExclusiveFieldSet(String... exclusiveSet) {
+        if (exclusiveSet.length == 0) {
+            return;
+        }
+        this.exclusiveFieldSets.add(exclusiveSet);
     }
 
     private interface IOSupplier<T> {

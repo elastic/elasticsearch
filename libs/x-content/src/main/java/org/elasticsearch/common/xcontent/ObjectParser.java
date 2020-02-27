@@ -274,6 +274,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         String currentFieldName = null;
         XContentLocation currentPosition = null;
         List<String[]> requiredFields = new ArrayList<>(this.requiredFieldSets);
+        List<List<String>> exclusiveFields = new ArrayList<>();
+        for (int i = 0; i < this.exclusiveFieldSets.size(); i++) {
+            exclusiveFields.add(new ArrayList<>());
+        }
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -302,18 +306,40 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                         }
                     }
 
+                    // Check if this field is in an exclusive set, if it is then mark
+                    // it as seen.  If the set is already marked, then we have a duplicate
+                    // so throw an exception
+                    for (int i = 0; i < this.exclusiveFieldSets.size(); i++) {
+                        for (String field : this.exclusiveFieldSets.get(i)) {
+                            if (field.equals(currentFieldName)) {
+                                exclusiveFields.get(i).add(currentFieldName);
+                            }
+                        }
+                    }
+
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
             }
         }
+
+        StringBuilder message = new StringBuilder();
+        for (List<String> fieldset : exclusiveFields) {
+            if (fieldset.size() > 1) {
+                message.append("The following fields are not allowed together: ").append(fieldset.toString()).append(" ");
+            }
+        }
+        if (message.length() > 0) {
+            throw new IllegalArgumentException(message.toString());
+        }
+
         if (requiredFields.isEmpty() == false) {
-            StringBuilder message = new StringBuilder();
             for (String[] fields : requiredFields) {
                 message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
             }
             throw new IllegalArgumentException(message.toString());
         }
+
         return value;
     }
 

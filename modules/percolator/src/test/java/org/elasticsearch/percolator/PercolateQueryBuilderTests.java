@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -244,9 +245,10 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         rewriteAndFetch(queryBuilder, queryShardContext).toQuery(queryShardContext);
     }
 
-    public void testBothDocumentAndDocumentsSpecified() throws IOException {
-        expectThrows(IllegalArgumentException.class,
+    public void testBothDocumentAndDocumentsSpecified() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parseQuery("{\"percolate\" : { \"document\": {}, \"documents\": [{}, {}], \"field\":\"" + queryField + "\"}}"));
+        assertThat(e.getMessage(), containsString("The following fields are not allowed together: [document, documents]"));
     }
 
     private static BytesReference randomSource(Set<String> usedFields) {

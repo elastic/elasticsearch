@@ -1,9 +1,5 @@
 ---
 "sort by long field":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       bulk:
         index: test
@@ -60,10 +56,6 @@
 
 ---
 "sort by double field":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -114,10 +106,6 @@
 
 ---
 "sort by scaled float field":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -168,10 +156,6 @@
 
 ---
 "sort by keyword field fails":
-  - skip:
-      version: " - 8.0.0"
-      reason: backport to 7.7.0 pending
-
   - do:
       indices.create:
         index: test
@@ -203,10 +187,6 @@
 
 ---
 "sort by score":
-  - skip:
-      version: " - 8.0.0"
-      reason: backport to 7.7.0 pending
-
   - do:
       indices.create:
         index: test
@@ -244,10 +224,6 @@
 
 ---
 "sort by numeric script":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.7.0 pending"
-
   - do:
       bulk:
         index: test
@@ -275,10 +251,6 @@
 
 ---
 "sort by string script fails":
-  - skip:
-      version: " - 8.0.0"
-      reason: backport to 7.7.0 pending
-
   - do:
       indices.create:
         index: test
@@ -314,10 +286,6 @@
 
 ---
 "sort by geo_distance":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.7.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -375,10 +343,6 @@
 
 ---
 "inside terms":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.7.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -451,10 +415,6 @@
 
 ---
 "size is index setting":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       indices.create:
         index: test

@@ -42,6 +42,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -690,10 +693,13 @@ public class RelocationIT extends ESIntegTestCase {
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
-                    assert chunkRequest.content().toBytesRef().bytes ==
-                            chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
-                    byte[] array = chunkRequest.content().toBytesRef().bytes;
+                    final BytesStreamOutput tmp = new BytesStreamOutput();
+                    chunkRequest.content().writeTo(tmp);
+                    final byte[] array = BytesReference.toBytes(tmp.bytes());
                     array[0] = (byte) ~array[0]; // flip one byte in the content
+                    request = new RecoveryFileChunkRequest(chunkRequest.recoveryId(), chunkRequest.shardId(), chunkRequest.metadata(),
+                        chunkRequest.position(), new BytesArray(array), chunkRequest.lastChunk(), chunkRequest.totalTranslogOps(),
+                        chunkRequest.sourceThrottleTimeInNanos());
                     corruptionCount.countDown();
                 }
                 connection.sendRequest(requestId, action, request, options);

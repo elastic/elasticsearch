@@ -29,6 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -42,12 +43,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -73,6 +74,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -846,33 +848,28 @@ public class RecoverySourceHandler {
         final MultiFileTransfer<FileChunk> multiFileSender =
             new MultiFileTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
-                final byte[] buffer = new byte[chunkSizeInBytes];
-                InputStreamIndexInput currentInput = null;
+                IndexInput currentInput = null;
                 long offset = 0;
 
                 @Override
                 protected void onNewFile(StoreFileMetaData md) throws IOException {
                     offset = 0;
                     IOUtils.close(currentInput, () -> currentInput = null);
-                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
-                    currentInput = new InputStreamIndexInput(indexInput, md.length()) {
-                        @Override
-                        public void close() throws IOException {
-                            IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
-                        }
-                    };
+                    currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                    if (currentInput.length() < md.length()) {
+                        throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
+                    }
                 }
 
                 @Override
-                protected FileChunk nextChunkRequest(StoreFileMetaData md) throws IOException {
+                protected FileChunk nextChunkRequest(StoreFileMetaData md) {
                     assert Transports.assertNotTransportThread("read file chunk");
                     cancellableThreads.checkForCancel();
-                    final int bytesRead = currentInput.read(buffer);
-                    if (bytesRead == -1) {
-                        throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
-                    }
-                    final boolean lastChunk = offset + bytesRead == md.length();
-                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
+                    final long length = md.length();
+                    final int bytesRead = Math.min(Math.toIntExact(length - offset), chunkSizeInBytes);
+                    final boolean lastChunk = offset + bytesRead == length;
+                    final FileChunk chunk =
+                        new FileChunk(md, new IndexInputBytesReference(currentInput, offset, bytesRead), offset, lastChunk);
                     offset += bytesRead;
                     return chunk;
                 }
@@ -950,5 +947,59 @@ public class RecoverySourceHandler {
 
     protected void failEngine(IOException cause) {
         shard.failShard("recovery", cause);
+    }
+
+    private static final class IndexInputBytesReference extends AbstractBytesReference {
+
+        private final long offset;
+        private final int length;
+        private final IndexInput indexInput;
+
+        IndexInputBytesReference(IndexInput indexInput, long offset, int length) {
+            this.indexInput = indexInput;
+            this.offset = offset;
+            this.length = length;
+        }
+
+        @Override
+        public byte get(int index) {
+            throw new UnsupportedOperationException("Not supported");
+        }
+
+        @Override
+        public int length() {
+            return length;
+        }
+
+        @Override
+        public BytesReference slice(int from, int length) {
+            throw new UnsupportedOperationException("Not supported");
+        }
+
+        @Override
+        public BytesRef toBytesRef() {
+            throw new UnsupportedOperationException("Not supported");
+        }
+
+        @Override
+        public void writeTo(OutputStream os) throws IOException {
+            int bytesLeft = length;
+            final byte[] buffer = StreamOutput.buffer();
+            if (indexInput.getFilePointer() != offset) {
+                indexInput.seek(offset);
+            }
+            while (bytesLeft > 0) {
+                int chunkSize = Math.min(bytesLeft, buffer.length);
+                indexInput.readBytes(buffer, 0, chunkSize);
+                os.write(buffer, 0, chunkSize);
+                bytesLeft -= chunkSize;
+            }
+            os.flush();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
     }
 }

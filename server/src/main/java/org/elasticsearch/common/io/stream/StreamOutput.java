@@ -209,6 +209,16 @@ public abstract class StreamOutput extends OutputStream {
 
     private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
 
+    /**
+     * Returns a thread-local byte array to be used as an IO buffer. The returned buffer may no be escaped to another
+     * thread.
+     *
+     * @return thread-local IO Buffer
+     */
+    public static byte[] buffer() {
+        return scratch.get();
+    }
+
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
         buffer[0] = (byte) (v >> 8);

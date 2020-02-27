@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -361,9 +362,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 (connection, requestId, action, request, options) -> {
                 if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                     RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                    byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
-                    int i = randomIntBetween(0, req.content().length() - 1);
-                    array[i] = (byte) ~array[i]; // flip one byte in the content
+                    final BytesStreamOutput tmp = new BytesStreamOutput();
+                    req.content().writeTo(tmp);
+                    final byte[] array = BytesReference.toBytes(tmp.bytes());
+                    array[0] = (byte) ~array[0]; // flip one byte in the content
+                    request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(),
+                        req.position(), new BytesArray(array), req.lastChunk(), req.totalTranslogOps(),
+                        req.sourceThrottleTimeInNanos());
                     hasCorrupted.countDown();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -440,7 +445,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(),
                             array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
                     } else {
-                        assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
                         final byte[] array = req.content().toBytesRef().bytes;
                         int i = randomIntBetween(0, req.content().length() - 1);
                         array[i] = (byte) ~array[i]; // flip one byte in the content

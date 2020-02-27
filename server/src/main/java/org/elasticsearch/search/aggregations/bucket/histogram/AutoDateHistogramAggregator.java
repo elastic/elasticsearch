@@ -179,7 +179,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         // the contract of the histogram aggregation is that shards must return
         // buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
+        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
         // value source will be null for unmapped fields
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,

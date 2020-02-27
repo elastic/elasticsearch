@@ -413,9 +413,13 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(SignificantTextAggregationBuilder.NAME, SignificantTextAggregationBuilder::new,
                 SignificantTextAggregationBuilder::parse));
         registerAggregation(new AggregationSpec(RangeAggregationBuilder.NAME, RangeAggregationBuilder::new,
-                RangeAggregationBuilder::parse).addResultReader(InternalRange::new));
+                RangeAggregationBuilder::parse)
+                    .addResultReader(InternalRange::new)
+                    .setAggregatorRegistrar(RangeAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new,
-                DateRangeAggregationBuilder::parse).addResultReader(InternalDateRange::new));
+                DateRangeAggregationBuilder::parse)
+                    .addResultReader(InternalDateRange::new)
+                    .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
                 IpRangeAggregationBuilder::parse).addResultReader(InternalBinaryRange::new));
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,

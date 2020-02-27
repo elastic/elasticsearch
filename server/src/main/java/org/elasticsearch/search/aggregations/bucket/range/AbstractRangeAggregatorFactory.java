@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -27,10 +28,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,20 +46,44 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final InternalRange.Factory<?, ?> rangeFactory;
     private final R[] ranges;
     private final boolean keyed;
+    private final String aggregationTypeName;
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry, String aggregationName) {
+        valuesSourceRegistry.register(aggregationName,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new RangeAggregationSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        AggregatorFactories factories,
+                                        Numeric valuesSource,
+                                        DocValueFormat format,
+                                        InternalRange.Factory rangeFactory,
+                                        Range[] ranges,
+                                        boolean keyed,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+                    return new RangeAggregator(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent,
+                        pipelineAggregators, metaData);
+                }
+            });
+    }
     public AbstractRangeAggregatorFactory(String name,
-                                            ValuesSourceConfig config,
-                                            R[] ranges,
-                                            boolean keyed,
-                                            InternalRange.Factory<?, ?> rangeFactory,
-                                            QueryShardContext queryShardContext,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metaData) throws IOException {
+                                          String aggregationTypeName,
+                                          ValuesSourceConfig config,
+                                          R[] ranges,
+                                          boolean keyed,
+                                          InternalRange.Factory<?, ?> rangeFactory,
+                                          QueryShardContext queryShardContext,
+                                          AggregatorFactory parent,
+                                          AggregatorFactories.Builder subFactoriesBuilder,
+                                          Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
+        this.aggregationTypeName = aggregationTypeName;
     }
 
     @Override
@@ -73,12 +101,15 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (valuesSource instanceof Numeric == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-            this.name());
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            aggregationTypeName);
+        if (aggregatorSupplier instanceof RangeAggregationSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        return new RangeAggregator(name, factories, (Numeric) valuesSource, config.format(), rangeFactory, ranges, keyed, searchContext,
-            parent, pipelineAggregators, metaData);
+        return ((RangeAggregationSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
+            ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
     }
 
 

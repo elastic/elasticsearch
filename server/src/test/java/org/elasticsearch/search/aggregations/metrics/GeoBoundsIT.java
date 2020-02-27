@@ -66,17 +66,16 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
 
     public void test7xIndexWith8Index() {
         SearchResponse response = client().prepareSearch(IDX_NAME_7x, IDX_NAME)
-            .addAggregation(geoBounds(geoShapeAggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME))
-            .get();
+            .addAggregation(geoBounds(geoShapeAggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME).wrapLongitude(false)).get();
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getSuccessfulShards(), lessThan(response.getTotalShards()));
         GeoBounds geoBounds = response.getAggregations().get(geoShapeAggName);
         GeoPoint topLeft = geoBounds.topLeft();
         GeoPoint bottomRight = geoBounds.bottomRight();
-        assertThat(topLeft.lat(), closeTo(singleShapeTopLeft.lat(), GEOHASH_TOLERANCE));
-        assertThat(topLeft.lon(), closeTo(singleShapeTopLeft.lon(), GEOHASH_TOLERANCE));
-        assertThat(bottomRight.lat(), closeTo(singleShapeBottomRight.lat(), GEOHASH_TOLERANCE));
-        assertThat(bottomRight.lon(), closeTo(singleShapeBottomRight.lon(), GEOHASH_TOLERANCE));
+        assertThat(topLeft.lat(), closeTo(singleTopLeft.lat(), GEOHASH_TOLERANCE));
+        assertThat(topLeft.lon(), closeTo(singleTopLeft.lon(), GEOHASH_TOLERANCE));
+        assertThat(bottomRight.lat(), closeTo(singleBottomRight.lat(), GEOHASH_TOLERANCE));
+        assertThat(bottomRight.lon(), closeTo(singleBottomRight.lon(), GEOHASH_TOLERANCE));
     }
 
     public void testSingleValuedField() throws Exception {

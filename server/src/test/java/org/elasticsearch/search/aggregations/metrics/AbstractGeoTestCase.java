@@ -30,20 +30,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeoTestUtils;
-import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -78,7 +72,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static int numUniqueGeoPoints;
     protected static GeoPoint[] singleValues, multiValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight,
-        singleCentroid, singleShapeCentroid, multiCentroid, unmappedCentroid, singleShapeTopLeft, singleShapeBottomRight;
+        singleCentroid, singleShapeCentroid, multiCentroid, unmappedCentroid;
     protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
@@ -101,8 +95,6 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         singleBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
-        singleShapeTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
-        singleShapeBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         multiTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         multiBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         singleCentroid = new GeoPoint(0, 0);
@@ -121,16 +113,6 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             updateBoundsTopLeft(singleValues[i], singleTopLeft);
             updateBoundsBottomRight(singleValues[i], singleBottomRight);
         }
-
-        // update geo_shape geo_bounds value
-        List<Point> points = new ArrayList<>();
-        for (int i = 0; i < singleValues.length; i++) {
-            points.add(new Point(singleValues[i].lon(), singleValues[i].lat()));
-        }
-        TriangleTreeReader reader = GeoTestUtils.triangleTreeReader(new MultiPoint(points), GeoShapeCoordinateEncoder.INSTANCE);
-        MultiGeoValues.BoundingBox box = new MultiGeoValues.GeoShapeValue(reader).boundingBox();
-        singleShapeTopLeft = new GeoPoint(box.maxY(), box.minX());
-        singleShapeBottomRight = new GeoPoint(box.minY(), box.maxX());
 
         multiValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0 ; i < multiValues.length; i++)

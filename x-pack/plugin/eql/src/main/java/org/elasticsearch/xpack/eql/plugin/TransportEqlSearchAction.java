@@ -75,7 +75,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.searchHits(), results.sequences(), results.counts(), results
                 .totalHits());
 
-        return new EqlSearchResponse(hits, results.execTime().getMillis(), results.timedOut());
+        return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut());
     }
 
     static String username(SecurityContext securityContext) {

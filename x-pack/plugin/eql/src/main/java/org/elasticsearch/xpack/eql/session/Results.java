@@ -30,12 +30,12 @@ public class Results {
     private final TotalHits totalHits;
     private final List<?> results;
     private final boolean timedOut;
-    private final TimeValue time;
+    private final TimeValue tookTime;
     private final Type type;
 
-    public Results(TotalHits totalHits, TimeValue time, boolean timedOut, List<?> results) {
+    public Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results) {
         this.totalHits = totalHits;
-        this.time = time;
+        this.tookTime = tookTime;
         this.timedOut = timedOut;
         this.results = results;
 
@@ -73,8 +73,8 @@ public class Results {
         return type == Type.COUNT ? (List<Count>) results : null;
     }
 
-    public TimeValue execTime() {
-        return time;
+    public TimeValue tookTime() {
+        return tookTime;
     }
 
     public boolean timedOut() {

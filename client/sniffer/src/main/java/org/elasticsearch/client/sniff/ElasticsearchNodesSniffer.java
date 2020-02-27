@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
@@ -129,6 +130,8 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                     }
                 }
             }
+
+            Collections.shuffle(nodes);
             return nodes;
         }
     }

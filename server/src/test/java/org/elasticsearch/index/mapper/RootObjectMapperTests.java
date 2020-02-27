@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Arrays;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 
 public class RootObjectMapperTests extends ESSingleNodeTestCase {
@@ -351,7 +350,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 mapping.endObject();
             }
             mapping.endObject();
-            DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
+            DocumentMapper mapper =
+                mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
             assertThat(mapper.mappingSource().toString(), containsString("\"foo\":\"bar\""));
             if (useMatchMappingType) {
                 assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"*\",\"mapping\":{" +

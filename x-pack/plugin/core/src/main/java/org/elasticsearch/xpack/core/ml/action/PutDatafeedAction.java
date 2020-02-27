@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -32,8 +33,11 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        public static Request parseRequest(String datafeedId, XContentParser parser) {
+        public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
+            if (datafeed.getIndicesOptions() == null) {
+                datafeed.setIndicesOptions(indicesOptions);
+            }
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }

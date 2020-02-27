@@ -420,7 +420,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         buildIndex.accept(indexWriter);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         try {
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);

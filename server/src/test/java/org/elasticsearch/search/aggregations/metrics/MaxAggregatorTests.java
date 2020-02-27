@@ -290,7 +290,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         buildIndex.accept(indexWriter);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         MaxAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), fieldType);
         aggregator.preCollection();
@@ -457,7 +457,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
@@ -724,7 +724,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
@@ -767,7 +767,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
@@ -815,7 +815,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max") .field("values");
         ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count", null)
@@ -863,7 +863,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         for (Aggregator.SubAggCollectionMode collectionMode : Aggregator.SubAggCollectionMode.values()) {
             MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max")

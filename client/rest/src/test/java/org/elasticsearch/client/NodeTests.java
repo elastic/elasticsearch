@@ -45,7 +45,7 @@ public class NodeTests extends RestClientTestCase {
         assertEquals("[host=http://1]", new Node(new HttpHost("1")).toString());
         assertEquals("[host=http://1, attributes={foo=[bar], baz=[bort, zoom]}]",
                 new Node(new HttpHost("1"), null, null, null, null, attributes).toString());
-        assertEquals("[host=http://1, roles=mdi]", new Node(new HttpHost("1"),
+        assertEquals("[host=http://1, roles=data,ingest,master]", new Node(new HttpHost("1"),
                 null, null, null, new Roles(new TreeSet<>(Arrays.asList("master", "data", "ingest"))), null).toString());
         assertEquals("[host=http://1, version=ver]", new Node(new HttpHost("1"),
                 null, null, "ver", null, null).toString());
@@ -54,7 +54,7 @@ public class NodeTests extends RestClientTestCase {
         assertEquals("[host=http://1, bound=[http://1, http://2]]", new Node(new HttpHost("1"),
                 new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))), null, null, null, null).toString());
         assertEquals(
-                "[host=http://1, bound=[http://1, http://2], name=nam, version=ver, roles=m, attributes={foo=[bar], baz=[bort, zoom]}]",
+                "[host=http://1, bound=[http://1, http://2], name=nam, version=ver, roles=master, attributes={foo=[bar], baz=[bort, zoom]}]",
                 new Node(new HttpHost("1"), new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))),
                     "nam", "ver", new Roles(Collections.singleton("master")), attributes).toString());
 

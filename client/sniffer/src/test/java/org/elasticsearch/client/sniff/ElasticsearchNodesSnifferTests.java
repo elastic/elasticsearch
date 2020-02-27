@@ -212,18 +212,14 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 attributes.put("attr" + j, values);
             }
 
-            final boolean master = randomBoolean();
-            final boolean data = randomBoolean();
-            final boolean ingest = randomBoolean();
-
             final Set<String> nodeRoles = new TreeSet<>();
-            if (master) {
+            if (randomBoolean()) {
                 nodeRoles.add("master");
             }
-            if (data) {
+            if (randomBoolean()) {
                 nodeRoles.add("data");
             }
-            if (ingest) {
+            if (randomBoolean()) {
                 nodeRoles.add("ingest");
             }
 

@@ -29,12 +29,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public interface MetricAggregatorSupplier extends AggregatorSupplier {
+public interface MedianAbsoluteDeviationAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      ValuesSource valuesSource,
                      DocValueFormat format,
                      SearchContext context,
                      Aggregator parent,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metaData,
+                     double compression) throws IOException;
 }

@@ -3,7 +3,8 @@
 
 You should rarely need to change Java Virtual Machine (JVM) options. If you do,
 the most likely change is setting the <<heap-size,heap size>>. The remainder of
-this document explains in detail how to set JVM options.
+this document explains in detail how to set JVM options. You can set options
+either with `jvm.options` files or with the `ES_JAVA_OPTS` environment variable.
 
 The preferred method of setting JVM options (including system properties and JVM
 flags) is via the `jvm.options` configuration file. The default location of this

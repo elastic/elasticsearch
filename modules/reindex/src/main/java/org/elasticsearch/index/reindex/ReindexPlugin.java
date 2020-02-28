@@ -132,7 +132,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         ScriptService scriptService = this.scriptService.get();
         assert scriptService != null;
         ReindexSslConfig reindexSslConfig = this.reindexSslConfig.get();

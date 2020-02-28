@@ -24,8 +24,10 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
@@ -46,6 +48,8 @@ public class SearchCancellationTests extends ESTestCase {
     static Directory dir;
     static IndexReader reader;
 
+    private static String FIELD_NAME = "foo";
+
     @BeforeClass
     public static void setup() throws IOException {
         dir = newDirectory();
@@ -63,7 +67,7 @@ public class SearchCancellationTests extends ESTestCase {
     private static void indexRandomDocuments(RandomIndexWriter w, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
-            doc.add(new StringField("foo", "bar", Field.Store.NO));
+            doc.add(new StringField(FIELD_NAME, "a".repeat(i), Field.Store.NO));
             w.addDocument(doc);
         }
     }
@@ -80,9 +84,25 @@ public class SearchCancellationTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean();
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCheckCancelled(() -> {
-            if (cancelled.get()) {
-                throw new TaskCancelledException("cancelled");
+        searcher.setCancellable(new ContextIndexSearcher.Cancellable() {
+            @Override
+            public boolean isEnabled() {
+                return true;
+            }
+
+            @Override
+            public void checkCancelled() {
+                if (cancelled.get()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+            }
+
+            @Override
+            public void checkDirReaderCancelled() {
+            }
+
+            @Override
+            public void unsetCheckTimeout() {
             }
         });
         searcher.search(new MatchAllDocsQuery(), collector);
@@ -92,4 +112,30 @@ public class SearchCancellationTests extends ESTestCase {
             () -> searcher.search(new MatchAllDocsQuery(), collector));
     }
 
+    public void testCancellableDirReader() throws IOException {
+        TotalHitCountCollector collector = new TotalHitCountCollector();
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
+                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        searcher.setCancellable(new ContextIndexSearcher.Cancellable() {
+            @Override
+            public boolean isEnabled() {
+                return true;
+            }
+
+            @Override
+            public void checkCancelled() {
+            }
+
+            @Override
+            public void checkDirReaderCancelled() {
+                throw new TaskCancelledException("cancelled");
+            }
+
+            @Override
+            public void unsetCheckTimeout() {
+            }
+        });
+        expectThrows(TaskCancelledException.class, () ->
+                searcher.search(new PrefixQuery(new Term(FIELD_NAME, "a")), collector));
+    }
 }

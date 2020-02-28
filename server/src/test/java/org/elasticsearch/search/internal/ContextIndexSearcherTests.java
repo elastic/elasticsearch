@@ -235,7 +235,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCheckCancelled(() -> {});
+        searcher.setCancellable(new ContextIndexSearcher.CancellableImpl(null, null));
 
         // Searching a non-existing term will trigger a null scorer
         assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));

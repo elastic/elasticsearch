@@ -263,7 +263,6 @@ public class QueryPhase implements SearchPhase {
             } else {
                 timeoutRunnable = null;
             }
-            searcher.setCheckTimeout(timeoutRunnable);
 
             final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
@@ -272,7 +271,8 @@ public class QueryPhase implements SearchPhase {
             } else {
                 cancellationRunnable = null;
             }
-            searcher.setCheckCancelled(cancellationRunnable);
+
+            searcher.setCancellable(new ContextIndexSearcher.CancellableImpl(timeoutRunnable, cancellationRunnable));
 
             boolean shouldRescore;
             // if we are optimizing sort and there are no other collectors
@@ -298,6 +298,7 @@ public class QueryPhase implements SearchPhase {
                 queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
             // Search phase has finished, no longer need to check for timeout
+            // otherwise aggregation phase might get cancelled.
             searcher.unsetCheckTimeout();
             return shouldRescore;
         } catch (Exception e) {

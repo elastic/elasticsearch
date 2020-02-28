@@ -86,13 +86,11 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private Runnable checkCancelled;
-    private Runnable checkTimeout;
-    private DirReaderCancellable dirReaderCancellable;
+    private Holder<Cancellable> cancellable;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new DirReaderCancellable());
+        this(reader, similarity, queryCache, queryCachingPolicy, new Holder<>(null));
     }
 
     // TODO: Make the 2nd constructor private so that the dirCancellable is never null and the IndexReader is always wrapped.
@@ -100,9 +98,9 @@ public class ContextIndexSearcher extends IndexSearcher {
     // the use of searchAndReduce and the ShardSearcher sub-searchers.
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                DirReaderCancellable dirReaderCancellable) throws IOException {
-        super(dirReaderCancellable != null? new CancellableDirectoryReader((DirectoryReader) reader, dirReaderCancellable) : reader);
-        this.dirReaderCancellable = dirReaderCancellable;
+                                Holder<Cancellable> cancellable) throws IOException {
+        super(cancellable!= null? new CancellableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
+        this.cancellable = cancellable;
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -114,24 +112,14 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     /**
      * Set a {@link Runnable} that will be run on a regular basis while
-     * collecting documents and check for query cancellation.
+     * collecting documents and check for query cancellation or timeout
      */
-    public void setCheckCancelled(Runnable checkCancelled) {
-        this.checkCancelled = checkCancelled;
-        this.dirReaderCancellable.setCheckCancelled(checkCancelled);
-    }
-
-    /**
-     * Set a {@link Runnable} that will be run on a regular basis while
-     * collecting documents and check for query timeout.
-     */
-    public void setCheckTimeout(Runnable checkTimeout) {
-        this.checkTimeout = checkTimeout;
-        this.dirReaderCancellable.setCheckTimeout(checkTimeout);
+    public void setCancellable(Cancellable cancellable) {
+        this.cancellable.set(cancellable);
     }
 
     public void unsetCheckTimeout() {
-        this.dirReaderCancellable.unsetCheckTimeout();
+        this.cancellable.get().unsetCheckTimeout();
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -175,15 +163,6 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
-    private void checkCancelled() {
-        if (checkTimeout != null) {
-            checkTimeout.run();
-        }
-        if (checkCancelled != null) {
-            checkCancelled.run();
-        }
-    }
-
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
             QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
@@ -219,7 +198,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        checkCancelled();
+        cancellable.get().checkCancelled();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
@@ -246,7 +225,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             Scorer scorer = weight.scorer(ctx);
             if (scorer != null) {
                 try {
-                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector, this::checkCancelled);
+                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector, () -> cancellable.get().checkCancelled());
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -256,7 +235,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private Weight wrapWeight(Weight weight) {
-        if (checkCancelled != null || checkTimeout != null) {
+        if (cancellable.get().isEnabled()) {
             return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -282,7 +261,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, () -> checkCancelled());
+                        return new CancellableBulkScorer(in, () -> cancellable.get().checkCancelled());
                     } else {
                         return null;
                     }
@@ -364,7 +343,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class CancellableDirectoryReader extends FilterDirectoryReader {
 
-        private CancellableDirectoryReader(DirectoryReader in, DirReaderCancellable cancellable) throws IOException {
+        private CancellableDirectoryReader(DirectoryReader in, Holder<Cancellable> cancellable) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -389,9 +368,9 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class CancellableLeafReader extends FilterLeafReader {
 
-        private final DirReaderCancellable cancellable;
+        private final Holder<Cancellable> cancellable;
 
-        private CancellableLeafReader(LeafReader leafReader, DirReaderCancellable cancellable)  {
+        private CancellableLeafReader(LeafReader leafReader, Holder<Cancellable> cancellable)  {
             super(leafReader);
             this.cancellable = cancellable;
         }
@@ -402,7 +381,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (pointValues == null) {
                 return null;
             }
-            return (cancellable.isEnabled()) ? new ExitablePointValues(pointValues, cancellable) : pointValues;
+            return (cancellable.get().isEnabled()) ? new ExitablePointValues(pointValues, cancellable.get()) : pointValues;
         }
 
         @Override
@@ -411,7 +390,8 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (terms == null) {
                 return null;
             }
-            return (cancellable.isEnabled() && terms instanceof CompletionTerms == false) ? new ExitableTerms(terms, cancellable) : terms;
+            return (cancellable.get().isEnabled() && terms instanceof CompletionTerms == false) ?
+                    new ExitableTerms(terms, cancellable.get()) : terms;
         }
 
         @Override
@@ -425,34 +405,60 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
-    private static class DirReaderCancellable {
+    private static class Holder<T> {
+        private T in;
 
-        private Runnable checkCancelled = null;
-        private Runnable checkTimeout = null;
-
-        private void setCheckCancelled(Runnable checkCancelled) {
-            this.checkCancelled = checkCancelled;
+        public Holder(T in) {
+            this.in = in;
         }
 
-        private void setCheckTimeout(Runnable checkTimeout) {
+        private void set(T in) {
+            this.in = in;
+        }
+
+        private T get() {
+            return in;
+        }
+    }
+
+    public interface Cancellable {
+
+        boolean isEnabled();
+        void checkCancelled();
+        default void checkDirReaderCancelled() {
+            checkCancelled();
+        }
+        void unsetCheckTimeout();
+    }
+
+    public static class CancellableImpl implements Cancellable {
+
+        private Runnable checkCancelled;
+        private Runnable checkTimeout;
+
+        public CancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
+            this.checkCancelled = checkCancelled;
             this.checkTimeout = checkTimeout;
         }
 
-        private void unsetCheckTimeout() {
-            this.checkTimeout = null;
+        @Override
+        public boolean isEnabled() {
+            return checkCancelled != null || checkTimeout != null;
         }
 
-        void checkCancelled() {
+        @Override
+        public void checkCancelled() {
             if (checkTimeout != null) {
                 checkTimeout.run();
             }
             if (checkCancelled != null) {
-                checkCancelled.run();
+                checkCancelled.run();;
             }
         }
 
-        private boolean isEnabled() {
-            return checkCancelled != null || checkTimeout != null;
+        @Override
+        public void unsetCheckTimeout() {
+            this.checkTimeout = null;
         }
     }
 
@@ -461,10 +467,10 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     public static class ExitableTerms extends FilterLeafReader.FilterTerms {
 
-        private final DirReaderCancellable cancellable;
+        private final Cancellable cancellable;
 
         /** Constructor **/
-        public ExitableTerms(Terms terms, DirReaderCancellable cancellable) {
+        public ExitableTerms(Terms terms, Cancellable cancellable) {
             super(terms);
             this.cancellable = cancellable;
         }
@@ -486,19 +492,19 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class ExitableTermsEnum extends FilterLeafReader.FilterTermsEnum {
 
-        private final DirReaderCancellable cancellable;
+        private final Cancellable cancellable;
 
         /** Constructor **/
-        private ExitableTermsEnum(TermsEnum termsEnum, DirReaderCancellable cancellable) {
+        private ExitableTermsEnum(TermsEnum termsEnum, Cancellable cancellable) {
             super(termsEnum);
             this.cancellable = cancellable;
-            this.cancellable.checkCancelled();
+            this.cancellable.checkDirReaderCancelled();
         }
 
         @Override
         public BytesRef next() throws IOException {
             // Before every iteration, check if the iteration should exit
-            this.cancellable.checkCancelled();
+            this.cancellable.checkDirReaderCancelled();
             return in.next();
         }
     }
@@ -509,65 +515,65 @@ public class ContextIndexSearcher extends IndexSearcher {
     private static class ExitablePointValues extends PointValues {
 
         private final PointValues in;
-        private final DirReaderCancellable cancellable;
+        private final Cancellable cancellable;
 
-        private ExitablePointValues(PointValues in, DirReaderCancellable cancellable) {
+        private ExitablePointValues(PointValues in, Cancellable cancellable) {
             this.in = in;
             this.cancellable = cancellable;
-            this.cancellable.checkCancelled();
+            this.cancellable.checkDirReaderCancelled();
         }
 
         @Override
         public void intersect(IntersectVisitor visitor) throws IOException {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             in.intersect(new ExitableIntersectVisitor(visitor, cancellable));
         }
 
         @Override
         public long estimatePointCount(IntersectVisitor visitor) {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.estimatePointCount(visitor);
         }
 
         @Override
         public byte[] getMinPackedValue() throws IOException {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.getMinPackedValue();
         }
 
         @Override
         public byte[] getMaxPackedValue() throws IOException {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.getMaxPackedValue();
         }
 
         @Override
         public int getNumDimensions() throws IOException {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.getNumDimensions();
         }
 
         @Override
         public int getNumIndexDimensions() throws IOException {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.getNumIndexDimensions();
         }
 
         @Override
         public int getBytesPerDimension() throws IOException {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.getBytesPerDimension();
         }
 
         @Override
         public long size() {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.size();
         }
 
         @Override
         public int getDocCount() {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.getDocCount();
         }
     }
@@ -577,17 +583,17 @@ public class ContextIndexSearcher extends IndexSearcher {
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
 
         private final PointValues.IntersectVisitor in;
-        private final DirReaderCancellable cancellable;
+        private final Cancellable cancellable;
         private int calls;
 
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, DirReaderCancellable cancellable) {
+        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, Cancellable cancellable) {
             this.in = in;
             this.cancellable = cancellable;
         }
 
         private void checkAndThrowWithSampling() {
             if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
-                cancellable.checkCancelled();
+                cancellable.checkDirReaderCancelled();
             }
         }
 
@@ -605,13 +611,13 @@ public class ContextIndexSearcher extends IndexSearcher {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             return in.compare(minPackedValue, maxPackedValue);
         }
 
         @Override
         public void grow(int count) {
-            cancellable.checkCancelled();
+            cancellable.checkDirReaderCancelled();
             in.grow(count);
         }
     }

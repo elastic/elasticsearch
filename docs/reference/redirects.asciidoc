@@ -360,3 +360,8 @@ See <<slm-api-start>>.
 === Stop {slm} API
 
 See <<slm-api-stop>>.
+
+[role="exclude",id="ccs-works"]
+=== How {ccs} works
+
+See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.

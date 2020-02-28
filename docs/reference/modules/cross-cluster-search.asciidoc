@@ -254,21 +254,15 @@ If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
 
 [discrete]
-[[ccs-works]]
-== How {ccs} works
-
-include::./remote-clusters.asciidoc[tag=how-remote-clusters-work]
-
-[discrete]
 [[ccs-gateway-seed-nodes]]
-=== Selecting gateway and seed nodes
+== Selecting gateway and seed nodes
 
-Gateway and seed nodes need to be accessible from the local cluster via your
-network.
+For remote clusters using the sniff connection mode, gateway and seed nodes need
+to be accessible from the local cluster via your network.
 
-By default, any master-ineligible node can act as a gateway node. If wanted,
-you can define the gateway nodes for a cluster by setting
-`cluster.remote.node.attr.gateway` to `true`.
+By default, any non-<<master-node,master-eligible>> node can act as a
+gateway node. If wanted, you can define the gateway nodes for a cluster by
+setting `cluster.remote.node.attr.gateway` to `true`.
 
 For {ccs}, we recommend you use gateway nodes that are capable of serving as
 <<coordinating-node,coordinating nodes>> for search requests. If
@@ -276,7 +270,7 @@ wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
 
 [discrete]
 [[ccs-network-delays]]
-=== How {ccs} handles network delays
+== How {ccs} handles network delays
 
 Because {ccs} involves sending requests to remote clusters, any network delays
 can impact search speed. To avoid slow searches, {ccs} offers two options for
@@ -300,9 +294,9 @@ low latency.
 +
 See <<ccs-unmin-roundtrips>> to learn how this option works.
 
-[float]
+[discrete]
 [[ccs-min-roundtrips]]
-==== Minimize network roundtrips
+=== Minimize network roundtrips
 
 Here's how {ccs} works when you minimize network roundtrips.
 
@@ -326,9 +320,9 @@ final results in the {ccs} response.
 +
 image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 
-[float]
+[discrete]
 [[ccs-unmin-roundtrips]]
-==== Don't minimize network roundtrips
+=== Don't minimize network roundtrips
 
 Here's how {ccs} works when you don't minimize network roundtrips.
 

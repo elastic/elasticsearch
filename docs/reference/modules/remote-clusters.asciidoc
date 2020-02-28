@@ -13,7 +13,6 @@ connections to a remote cluster. This functionality is used in
 <<modules-cross-cluster-search,{ccs}>>.
 endif::[]
 
-// tag::how-remote-clusters-work[]
 Remote cluster connections work by configuring a remote cluster and connecting
 only to a limited number of nodes in that remote cluster. There are two
 potential modes for remote cluster connections: sniff mode and proxy mode.
@@ -22,13 +21,11 @@ All the communication required between different clusters
 goes through the <<modules-transport,transport layer>>. Remote cluster
 connections consist of uni-directional connections from the coordinating
 node to the remote remote connections.
-// end::how-remote-clusters-work[]
 
 [float]
 [[sniff-mode]]
 === Sniff mode
 
-// tag::how-sniff-mode-works[]
 A cluster in sniff mode is created by a name and a list of seed nodes. When a
 remote cluster is registered, its cluster state is retrieved from one of the
 seed nodes and up to three _gateway nodes_ are selected to be connected to as
@@ -36,7 +33,6 @@ part of remote cluster requests. This mode requires that the _gateway node_
 publish addresses are exposed to the local cluster.
 
 The sniff mode is the default connection mode.
-// end::how-sniff-mode-works[]
 
 [float]
 [[gateway-nodes-selection]]
@@ -77,7 +73,6 @@ to satisfy the two above requirements.
 [[proxy-mode]]
 === Proxy mode
 
-// tag::how-proxy-mode-works[]
 A cluster in proxy mode is created by a name and a single proxy address. When
 a remote cluster is registered, a configurable number of socket connections are
 opened to the proxy address. The proxy is required to route those connections to
@@ -88,7 +83,6 @@ The proxy mode is not the default connection mode and must be configured. Simila
 to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades>>.
-// end::how-proxy-mode-works[]
 
 [float]
 [[configuring-remote-clusters]]

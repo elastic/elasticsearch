@@ -1,0 +1,23 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "processes" : {
+            "type" : "nested",
+            "properties" : {
+                "pid" : {
+                    "type" : "long"
+                },
+                "path" : {
+                    "type" : "text",
+                    "fields" : {
+                        "keyword" : {
+                            "type" : "keyword"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,11 +1,13 @@
-import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.distribution-download'
 
 testFixtures.useFixture()
 
@@ -13,13 +15,11 @@ configurations {
   dockerPlugins
   dockerSource
   ossDockerSource
-  restSpec
 }
 
 dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
-  restSpec project(':rest-api-spec')
 }
 
 ext.expansions = { oss, local ->
@@ -105,10 +105,19 @@ task copyKeystore(type: Sync) {
   }
 }
 
-preProcessFixture {
-  if (TestFixturesPlugin.dockerComposeSupported()) {
-    dependsOn assemble
+elasticsearch_distributions {
+  Flavor.values().each { distroFlavor ->
+    "docker_$distroFlavor" {
+      flavor = distroFlavor
+      type = 'docker'
+      version = VersionProperties.getElasticsearch()
+      failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
+    }
   }
+}
+
+preProcessFixture {
+  dependsOn elasticsearch_distributions.docker_default, elasticsearch_distributions.docker_oss
   dependsOn copyKeystore
   doLast {
     // tests expect to have an empty repo
@@ -128,30 +137,24 @@ preProcessFixture {
 }
 
 processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  dependsOn configurations.restSpec
 }
 
 task integTest(type: Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
-  // don't add the tasks to build the docker images if we have no way of testing them
-  if (TestFixturesPlugin.dockerComposeSupported()) {
-    dependsOn assemble
-  }
 }
 
 check.dependsOn integTest
 
 void addBuildDockerImage(final boolean oss) {
-  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
-    inputs.files(tasks.named(taskName("copy", oss, "DockerContext")))
-    List<String> tags
+  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: DockerBuildTask) {
+    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", oss, "DockerContext"))
+    dependsOn(copyContextTask)
+    dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
+
     if (oss) {
       tags = [
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
@@ -165,21 +168,8 @@ void addBuildDockerImage(final boolean oss) {
         "elasticsearch:test",
       ]
     }
-    executable 'docker'
-    final List<String> dockerArgs = ['build', buildPath(oss), '--pull', '--no-cache']
-    for (final String tag : tags) {
-      dockerArgs.add('--tag')
-      dockerArgs.add(tag)
-    }
-    args dockerArgs.toArray()
-    File markerFile = file("build/markers/${it.name}.marker")
-    outputs.file(markerFile)
-    doLast {
-      markerFile.setText('', 'UTF-8')
-    }
   }
   assemble.dependsOn(buildDockerImageTask)
-  BuildPlugin.requireDocker(buildDockerImageTask)
 }
 
 for (final boolean oss : [false, true]) {

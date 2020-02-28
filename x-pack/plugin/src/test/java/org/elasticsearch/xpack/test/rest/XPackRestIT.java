@@ -6,11 +6,8 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -21,14 +18,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -50,7 +45,6 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends ESClientYamlSuiteTestCase {
@@ -77,7 +71,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     @Before
     public void setupForTests() throws Exception {
         waitForTemplates();
-        waitForWatcher();
         enableMonitoring();
     }
 
@@ -103,60 +96,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         }
     }
 
-    private void waitForWatcher() throws Exception {
-        // ensure watcher is started, so that a test can stop watcher and everything still works fine
-        if (isWatcherTest()) {
-            assertBusy(() -> {
-                ClientYamlTestResponse response =
-                    getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
-                String state = (String) response.evaluate("stats.0.watcher_state");
 
-                switch (state) {
-                    case "stopped":
-                        ClientYamlTestResponse startResponse =
-                            getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
-                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
-                        assertThat(isAcknowledged, is(true));
-                        throw new AssertionError("waiting until stopped state reached started state");
-                    case "stopping":
-                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                    case "starting":
-                        throw new AssertionError("waiting until starting state reached started state");
-                    case "started":
-                        // all good here, we are done
-                        break;
-                    default:
-                        throw new AssertionError("unknown state[" + state + "]");
-                }
-            });
-
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
-                awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),
-                    response -> true,
-                    () -> "Exception when waiting for [" + template + "] template to be created");
-            }
-
-            boolean existsWatcherIndex = adminClient()
-                    .performRequest(new Request("HEAD", ".watches"))
-                    .getStatusLine().getStatusCode() == 200;
-            if (existsWatcherIndex == false) {
-                return;
-            }
-            Request searchWatchesRequest = new Request("GET", ".watches/_search");
-            searchWatchesRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-            searchWatchesRequest.addParameter("size", "1000");
-            Response response = adminClient().performRequest(searchWatchesRequest);
-            ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
-            int totalHits = objectPathResponse.evaluate("hits.total");
-            if (totalHits > 0) {
-                List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
-                for (Map<String, Object> hit : hits) {
-                    String id = (String) hit.get("_id");
-                    adminClient().performRequest(new Request("DELETE", "_watcher/watch/" + id));
-                }
-            }
-        }
-    }
 
     /**
      * Enable monitoring and waits for monitoring documents to be collected and indexed in
@@ -312,11 +252,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     protected boolean isMonitoringTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("=monitoring/") || testName.contains("=monitoring\\"));
-    }
-
-    protected boolean isWatcherTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("=watcher/") || testName.contains("=watcher\\"));
     }
 
     protected boolean isMachineLearningTest() {

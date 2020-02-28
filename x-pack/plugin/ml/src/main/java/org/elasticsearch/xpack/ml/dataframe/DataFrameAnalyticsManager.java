@@ -98,7 +98,7 @@ public class DataFrameAnalyticsManager {
                 }
 
             },
-            error -> task.setFailed(error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         // Retrieve configuration
@@ -148,10 +148,11 @@ public class DataFrameAnalyticsManager {
             ActionListener.wrap(
                 r-> reindexDataframeAndStartAnalysis(task, config),
                 e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
                         reindexDataframeAndStartAnalysis(task, config);
                     } else {
-                        task.setFailed(e.getMessage());
+                        task.setFailed(cause.getMessage());
                     }
                 }
             ));
@@ -178,7 +179,7 @@ public class DataFrameAnalyticsManager {
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
                 startAnalytics(task, config);
             },
-            error -> task.setFailed(error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         // Reindex
@@ -241,15 +242,16 @@ public class DataFrameAnalyticsManager {
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
                     updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
                     error -> {
-                        if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(error);
+                        if (cause instanceof ResourceNotFoundException) {
                             // Task has stopped
                         } else {
-                            task.setFailed(error.getMessage());
+                            task.setFailed(cause.getMessage());
                         }
                     }
                 ));
             },
-            error -> task.setFailed(error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(

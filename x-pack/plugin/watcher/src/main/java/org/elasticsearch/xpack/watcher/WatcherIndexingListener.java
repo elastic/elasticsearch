@@ -101,7 +101,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index operation, Engine.IndexResult result) {
-
         if (isWatchDocument(shardId.getIndexName())) {
             if (result.getResultType() == Engine.Result.Type.FAILURE) {
                 postIndex(shardId, operation, result.getFailure());
@@ -138,13 +137,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     }
 
     /**
-     * In case of an engine related error, we have to ensure that the triggerservice does not leave anything behind
-     *
-     * TODO: If the configuration changes between preindex and postindex methods and we add a
-     *       watch, that could not be indexed
-     * TODO: this watch might not be deleted from the triggerservice. Are we willing to accept this?
-     * TODO: This could be circumvented by using a threadlocal  in preIndex(), that contains the
-     *       watch and is cleared afterwards
+     * In case of an engine related error, we just log that we failed the add the watch to the trigger service.
+     * No need to interact with the trigger service.
      *
      * @param shardId   The shard id object of the document being processed
      * @param index     The index operation

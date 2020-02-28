@@ -228,7 +228,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    final Transport.Connection connection = nodeIdToConnection.apply(shardIt.getClusterAlias(), shard.currentNodeId());
+                    final Transport.Connection connection = getConnection(shardIt.getClusterAlias(), shard.currentNodeId());
                     final ShardSearchRequest request = buildShardSearchRequest(
                         shardIt.getClusterAlias(), shard.shardId(), shardIt.getOriginalIndices());
                     executePhaseOnShard(connection, request,

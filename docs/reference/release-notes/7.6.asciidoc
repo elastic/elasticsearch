@@ -50,7 +50,6 @@ Reindex::
 SQL::
 * Supplement input checks on received request parameters {pull}52229[#52229]
 * Fix issue with timezone when paginating {pull}52101[#52101] (issue: {issue}51258[#51258])
-* Fix issue with timezone for JDBC pagination {pull}52080[#52080] (issue: {issue}51258[#51258])
 * Add string to interval converters {pull}51945[#51945] (issue: {issue}45915[#45915])
 * Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
 * Fix milliseconds handling in intervals {pull}51675[#51675] (issue: {issue}41635[#41635])

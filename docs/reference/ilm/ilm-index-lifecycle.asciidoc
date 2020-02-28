@@ -1,0 +1,75 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-index-lifecycle]]
+=== Index lifecycle
+++++
+<titleabbrev>Index lifecycle</titleabbrev>
+++++
+
+[[ilm-policy-definition]]{ilm-init} splits the index lifecycle into four _phases_: 
+
+* Hot--the index is actively being updated and queried.
+* Warm--the index is no longer being updated, but is still being queried.
+* Cold--the index is no longer being updated and is seldom queried. The
+information still needs to be searchable, but it's okay if those queries are
+slower.
+* Delete--the index is no longer needed and can safely be removed.
+
+An index's _lifecycle policy_ specifies which phases 
+are applicable, what actions are performed in each phase,
+and when it transitions between phases. 
+
+To automatically apply a lifecycle policy to new time-series indices when they roll over, 
+you associate the policy with the index template. 
+To manage indices that don't roll over, you can manually apply a lifecycle policy when creating the index.
+
+[float]
+[[ilm-phase-transitions]]
+=== Phase transitions
+
+{ilm-init} moves indices through the lifecycle according to their age. 
+To control the timing of these transitions, you set a _minimum age_ for each phase. 
+For an index to move to the next phase, all actions in the current phase must be complete and 
+the index must be older than the minimum age. 
+
+The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
+as soon as all actions in the current phase complete. 
+
+[float]
+[[ilm-phase-execution]]
+=== Phase execution
+
+{ilm-init} controls the order in which the actions in a phase are executed and
+what _steps_ are executed to perform the necessary index operations for each action.
+
+When an index enters a phase, {ilm-init} caches the phase definition in the index metadata.
+This ensures that policy updates don't put the index into a state where  it can never exit the phase.
+If changes can be safely applied, {ilm-init} updates the cached phase definition.
+If they cannot, phase execution continues using the cached definition. 
+
+[float]
+[[ilm-phase-actions]]
+=== Phase actions
+
+{ilm-init} supports the following actions in each phase.
+
+* Hot
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-rollover-action,Rollover>>
+* Warm
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-readonly-action,Read-Only>>
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-shrink-action,Shrink>>
+  - <<ilm-forcemerge-action,Force Merge>>
+* Cold
+  - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-freeze-action,Freeze>>
+  - <<ilm-searchable-snapshot-action, Searchable Snapshot>>
+* Delete
+  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
+  - <<ilm-delete-action,Delete>>

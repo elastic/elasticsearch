@@ -3,6 +3,9 @@
         "event_type" : {
             "type" : "keyword"
         },
+        "timestamp" : {
+            "type" : "keyword"
+        },
         "blob" : {
             "type" : "binary"
         }

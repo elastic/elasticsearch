@@ -7,20 +7,25 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 
-import java.util.List;
-
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
+import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
 public abstract class SourceGenerator {
 
     private SourceGenerator() {}
-
-    private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
         QueryBuilder finalQuery = null;
@@ -38,8 +43,9 @@ public abstract class SourceGenerator {
         }
 
         final SearchSourceBuilder source = new SearchSourceBuilder();
-        source.query(finalQuery);
 
+        source.query(finalQuery);
+        sorting(container, source);
         source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 
         // set fetch size
@@ -52,6 +58,60 @@ public abstract class SourceGenerator {
         }
 
         return source;
+    }
+
+    private static void sorting(QueryContainer container, SearchSourceBuilder source) {
+        for (Sort sortable : container.sort().values()) {
+            SortBuilder<?> sortBuilder = null;
+
+            if (sortable instanceof AttributeSort) {
+                AttributeSort as = (AttributeSort) sortable;
+                Attribute attr = as.attribute();
+
+                // sorting only works on not-analyzed fields - look for a multi-field replacement
+                if (attr instanceof FieldAttribute) {
+                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
+
+                    sortBuilder = fieldSort(fa.name())
+                            .missing(as.missing().position())
+                            .unmappedType(fa.dataType().esType());
+                    
+                    if (fa.isNested()) {
+                        FieldSortBuilder fieldSort = fieldSort(fa.name())
+                                .missing(as.missing().position())
+                                .unmappedType(fa.dataType().esType());
+
+                        NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
+                        NestedSortBuilder nestedSort = fieldSort.getNestedSort();
+
+                        if (nestedSort == null) {
+                            fieldSort.setNestedSort(newSort);
+                        } else {
+                            while (nestedSort.getNestedSort() != null) {
+                                nestedSort = nestedSort.getNestedSort();
+                            }
+                            nestedSort.setNestedSort(newSort);
+                        }
+
+                        nestedSort = newSort;
+
+                        if (container.query() != null) {
+                            container.query().enrichNestedSort(nestedSort);
+                        }
+                        sortBuilder = fieldSort;
+                    }
+                }
+            } else if (sortable instanceof ScriptSort) {
+                ScriptSort ss = (ScriptSort) sortable;
+                sortBuilder = scriptSort(ss.script().toPainless(),
+                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+            }
+
+            if (sortBuilder != null) {
+                sortBuilder.order(sortable.direction().asOrder());
+                source.sort(sortBuilder);
+            }
+        }
     }
 
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {

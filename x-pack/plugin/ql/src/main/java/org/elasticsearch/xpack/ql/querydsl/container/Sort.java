@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.querydsl.container;
+package org.elasticsearch.xpack.ql.querydsl.container;
 
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;

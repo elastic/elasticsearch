@@ -10,9 +10,9 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
 import java.util.ArrayList;
 import java.util.Collection;

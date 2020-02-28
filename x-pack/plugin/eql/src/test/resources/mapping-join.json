@@ -3,6 +3,9 @@
         "event_type" : {
             "type" : "keyword"
         },
+        "timestamp" : {
+            "type" : "date"
+        },
         "serial_event_id" : {
             "type" : "long"
         },

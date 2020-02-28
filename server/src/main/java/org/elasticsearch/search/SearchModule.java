@@ -370,8 +370,9 @@ public class SearchModule {
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
                         .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
         registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
-                MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
-                        .addResultReader(InternalMedianAbsoluteDeviation::new));
+            MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
+                .addResultReader(InternalMedianAbsoluteDeviation::new)
+                .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
                 CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new)
             .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators));

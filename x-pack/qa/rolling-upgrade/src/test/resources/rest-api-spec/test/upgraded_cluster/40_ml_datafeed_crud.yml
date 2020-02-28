@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: "all"
-      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
-
   - do:
      cluster.health:
         wait_for_status: green
@@ -109,8 +105,6 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds with aggs":
-  - skip:
-      features: "warnings"
   - do:
       indices.create:
         index: airline-data
@@ -121,8 +115,6 @@ setup:
                 type: date
 
   - do:
-      warnings:
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.get_datafeeds:
         datafeed_id: old-cluster-datafeed-with-aggs
   - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-with-aggs"}
@@ -130,6 +122,7 @@ setup:
   - gte: { datafeeds.0.scroll_size: 2000 }
   - is_false: datafeeds.0.script_fields
   - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.fixed_interval: "30s" }
   - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
@@ -139,8 +132,6 @@ setup:
   - is_false: datafeeds.0.node
 
   - do:
-      warnings:
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.get_datafeeds:
         datafeed_id: mixed-cluster-datafeed-with-aggs
   - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-with-aggs"}
@@ -148,6 +139,7 @@ setup:
   - gte: { datafeeds.0.scroll_size: 2000 }
   - is_false: datafeeds.0.script_fields
   - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.fixed_interval: "30s" }
   - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
@@ -161,8 +153,6 @@ setup:
         job_id: old-cluster-datafeed-job-with-aggs
 
   - do:
-      warnings:
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.start_datafeed:
         datafeed_id: old-cluster-datafeed-with-aggs
         start: 0
@@ -189,8 +179,6 @@ setup:
         job_id: mixed-cluster-datafeed-job-with-aggs
 
   - do:
-      warnings:
-        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.start_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
         start: 0

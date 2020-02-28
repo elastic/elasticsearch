@@ -53,6 +53,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -268,12 +270,18 @@ public class HistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format) {
+                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
                             throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
                 }
             };
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: Histogram ValuesSourceType should move into this plugin.
+            return CoreValuesSourceType.HISTOGRAM;
         }
 
         @Override

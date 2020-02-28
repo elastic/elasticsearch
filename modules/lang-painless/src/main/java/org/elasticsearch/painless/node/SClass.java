@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.util.Printer;
@@ -67,11 +65,13 @@ public final class SClass extends ANode {
         fields.add(field);
     }
 
-    public ScriptRoot analyze(PainlessLookup painlessLookup, CompilerSettings settings) {
-        scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
+    public ScriptRoot analyze(ScriptRoot scriptRoot) {
+        this.scriptRoot = scriptRoot;
+        scriptRoot.addStaticConstant("$NAME", name);
+        scriptRoot.addStaticConstant("$SOURCE", sourceText);
 
         for (SFunction function : functions) {
-            function.generateSignature(painlessLookup);
+            function.generateSignature(scriptRoot.getPainlessLookup());
 
             String key = FunctionTable.buildLocalFunctionKey(function.name, function.typeParameters.size());
 

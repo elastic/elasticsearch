@@ -19,9 +19,6 @@ Audit::
 CCR::
 * Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
 
-Engine::
-* Refresh should not fail already closed engine {pull}51281[#51281] (issue: {issue}48414[#48414])
-
 Features/CAT APIs::
 * fix npe in RestPluginsAction {pull}52620[#52620] (issue: {issue}45321[#45321])
 

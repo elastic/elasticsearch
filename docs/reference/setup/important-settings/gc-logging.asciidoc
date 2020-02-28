@@ -8,17 +8,16 @@ can consume up to 2 GB of disk space.
 
 You can reconfigure JVM logging using the command line options described in
 https://openjdk.java.net/jeps/158[JEP 158: Unified JVM Logging]. Unless you
-change the default `jvm.options` file directly, you may find that the {es}
-default configuration is applied in addition to your own settings. In this
-case, you must first disable logging by supplying the `-Xlog:disable`
-option, then supply your own command line options. Note that this disables
-__all__ JVM logging, so be sure to review the available options and enable
-everything that you require.
+change the default `jvm.options` file directly, the {es} default
+configuration is applied in addition to your own settings. To disable the
+default configuration, first disable logging by supplying the
+`-Xlog:disable` option, then supply your own command line options. This
+disables __all__ JVM logging, so be sure to review the available options
+and enable everything that you require.
 
-See also
+To see further options not contained in the original JEP, see
 https://docs.oracle.com/en/java/javase/13/docs/specs/man/java.html#enable-logging-with-the-jvm-unified-logging-framework[Enable
-Logging with the JVM Unified Logging Framework], which includes more
-options not contained in the original JEP.
+Logging with the JVM Unified Logging Framework].
 
 ==== Examples
 

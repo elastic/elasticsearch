@@ -28,7 +28,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
     public void testDeriveStatsStopped() {
         String transformId = "transform-with-stats";
-        String reason = "";
+        String reason = null;
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
         TransformState stoppedState = new TransformState(
             TransformTaskState.STOPPED,
@@ -73,7 +73,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
     public void testDeriveStatsFailed() {
         String transformId = "transform-with-stats";
-        String reason = "";
+        String reason = null;
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
         TransformState failedState = new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, failedState, stats);
@@ -109,7 +109,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
     public void testDeriveStats() {
         String transformId = "transform-with-stats";
-        String reason = "";
+        String reason = null;
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
         TransformState runningState = new TransformState(
             TransformTaskState.STARTED,

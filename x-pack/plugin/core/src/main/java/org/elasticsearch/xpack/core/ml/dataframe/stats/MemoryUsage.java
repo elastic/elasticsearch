@@ -54,6 +54,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
 
     public MemoryUsage(String jobId, Instant timestamp, long peakUsageBytes) {
         this.jobId = Objects.requireNonNull(jobId);
+        // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
+        // internal representation matches toXContent
         this.timestamp = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
     }

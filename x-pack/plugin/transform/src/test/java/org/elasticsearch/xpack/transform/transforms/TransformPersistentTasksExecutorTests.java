@@ -85,7 +85,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
-            equalTo("Not starting transform [new-task-id], reasons [current-data-node-with-transform-disabled:transform not enabled]")
+            equalTo("Not starting transform [new-task-id], reasons [current-data-node-with-transform-disabled:not a transform node]")
         );
 
         // dedicated transform node
@@ -108,7 +108,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             assignment.getExplanation(),
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
-                    + "current-data-node-with-transform-disabled:transform not enabled"
+                    + "current-data-node-with-transform-disabled:not a transform node"
                     + "|"
                     + "past-data-node-1:node has version: 7.5.0 but transform requires at least 7.7.0"
                     + "]"
@@ -154,7 +154,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
                     + "transform requires a remote connection but remote is disabled"
                     + "|"
-                    + "current-data-node-with-transform-disabled:transform not enabled"
+                    + "current-data-node-with-transform-disabled:not a transform node"
                     + "]"
             )
         );

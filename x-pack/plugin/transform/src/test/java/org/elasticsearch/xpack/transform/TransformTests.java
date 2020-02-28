@@ -42,7 +42,10 @@ public class TransformTests extends ESTestCase {
         Transform transform = createTransform(builder.build());
         assertNotNull(transform.additionalSettings());
         assertEquals(transformEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node")));
-        assertEquals(remoteEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect")));
+        assertEquals(
+            transformEnabled && remoteEnabled,
+            Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect"))
+        );
     }
 
     public void testNodeAttributesDirectlyGiven() {

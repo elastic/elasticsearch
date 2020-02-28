@@ -58,9 +58,9 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         super.writeTo(out);
         out.writeEnum(requestInfo.mode());
         out.writeOptionalString(requestInfo.clientId());
-        out.writeOptionalString(requestInfo.clientVersion() == null ? null : requestInfo.clientVersion().toString());
+        out.writeOptionalString(requestInfo.version() == null ? null : requestInfo.version().toString());
     }
-    
+
     public RequestInfo requestInfo() {
         return requestInfo;
     }
@@ -89,12 +89,12 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         this.requestInfo.clientId(clientId);
     }
 
-    public void clientVersion(String clientVersion) {
-        requestInfo.clientVersion(clientVersion);
+    public void version(String clientVersion) {
+        requestInfo.version(clientVersion);
     }
 
-    public Version clientVersion() {
-        return requestInfo.clientVersion();
+    public Version version() {
+        return requestInfo.version();
     }
 
     @Override

@@ -35,7 +35,7 @@ public class RequestInfo {
     
     private Mode mode;
     private String clientId;
-    private Version clientVersion;
+    private Version version;
 
     public RequestInfo(Mode mode) {
         this(mode, null, null);
@@ -45,15 +45,15 @@ public class RequestInfo {
         this(mode, clientId, null);
     }
 
-    public RequestInfo(Mode mode, String clientId, String clientVersion) {
+    public RequestInfo(Mode mode, String clientId, String version) {
         mode(mode);
         clientId(clientId);
-        clientVersion(clientVersion);
+        version(version);
     }
 
-    public RequestInfo(Mode mode, Version clientVersion) {
+    public RequestInfo(Mode mode, Version version) {
         this(mode);
-        this.clientVersion = clientVersion;
+        this.version = version;
     }
     
     public Mode mode() {
@@ -78,12 +78,12 @@ public class RequestInfo {
         this.clientId = clientId;
     }
 
-    public void clientVersion(String clientVersion) {
-        this.clientVersion = Version.fromString(clientVersion);
+    public void version(String clientVersion) {
+        this.version = Version.fromString(clientVersion);
     }
 
-    public Version clientVersion() {
-        return clientVersion;
+    public Version version() {
+        return version;
     }
 
     @Override

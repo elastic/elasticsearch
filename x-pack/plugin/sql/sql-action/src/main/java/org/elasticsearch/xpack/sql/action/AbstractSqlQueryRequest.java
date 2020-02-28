@@ -87,7 +87,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareString(AbstractSqlQueryRequest::query, QUERY);
         parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
         parser.declareString(AbstractSqlRequest::clientId, CLIENT_ID);
-        parser.declareString(AbstractSqlRequest::clientVersion, CLIENT_VERSION);
+        parser.declareString(AbstractSqlRequest::version, CLIENT_VERSION);
         parser.declareField(AbstractSqlQueryRequest::params, AbstractSqlQueryRequest::parseParams, PARAMS, ValueType.VALUE_ARRAY);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
@@ -218,12 +218,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         // the version field is mandatory for drivers and CLI
         Mode mode = requestInfo().mode();
         if (mode != null && (Mode.isDriver(mode) || Mode.isCli(mode))) {
-            if (requestInfo().clientVersion() == null) {
+            if (requestInfo().version() == null) {
                 // TODO: should the "strict" clients (drivers, CLI) always be expected to provide their version?
                 //validationException = addValidationError("[client_version] is required for the [" + mode.toString() + "] client",
                 //    validationException);
-            } else if (requestInfo().clientVersion().equals(Version.CURRENT.toString()) == false) {
-                validationException = addValidationError("The [" + requestInfo().clientVersion() + "] version of the [" +
+            } else if (requestInfo().version().equals(Version.CURRENT.toString()) == false) {
+                validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
                         mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",
                     validationException);
             }

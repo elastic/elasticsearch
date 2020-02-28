@@ -35,20 +35,20 @@ import java.io.IOException;
 public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObject {
     private String indexName;
     private String indexUUID;
-    private long creationDate;
+    private long creationDateMillis;
 
-    public DanglingIndexInfo(DiscoveryNode node, String indexName, String indexUUID, long creationDate) {
+    public DanglingIndexInfo(DiscoveryNode node, String indexName, String indexUUID, long creationDateMillis) {
         super(node);
         this.indexName = indexName;
         this.indexUUID = indexUUID;
-        this.creationDate = creationDate;
+        this.creationDateMillis = creationDateMillis;
     }
 
     public DanglingIndexInfo(StreamInput in) throws IOException {
         super(in);
         this.indexName = in.readString();
         this.indexUUID = in.readString();
-        this.creationDate = in.readLong();
+        this.creationDateMillis = in.readLong();
     }
 
     public String getIndexName() {
@@ -63,8 +63,8 @@ public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObj
         return this.getNode().getId();
     }
 
-    public long getCreationDate() {
-        return creationDate;
+    public long getCreationDateMillis() {
+        return creationDateMillis;
     }
 
     @Override
@@ -74,7 +74,7 @@ public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObj
         builder.field("node_name", this.getNode().getName());
         builder.field("index_name", this.indexName);
         builder.field("index_uuid", this.indexUUID);
-        builder.timeField("index_creation_date_millis", "index_creation_date", this.creationDate);
+        builder.timeField("index_creation_date_millis", "index_creation_date", this.creationDateMillis);
         builder.endObject();
         return builder;
     }
@@ -84,6 +84,6 @@ public class DanglingIndexInfo extends BaseNodeResponse implements ToXContentObj
         super.writeTo(out);
         out.writeString(this.indexName);
         out.writeString(this.indexUUID);
-        out.writeLong(this.creationDate);
+        out.writeLong(this.creationDateMillis);
     }
 }

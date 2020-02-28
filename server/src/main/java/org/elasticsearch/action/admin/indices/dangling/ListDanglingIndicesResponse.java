@@ -72,13 +72,13 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
                     AggregatedDanglingIndexInfo aggregatedInfo = new AggregatedDanglingIndexInfo(
                         indexUUID,
                         info.getIndexName(),
-                        info.getCreationDate()
+                        info.getCreationDateMillis()
                     );
 
                     byIndexUUID.put(indexUUID, aggregatedInfo);
                 }
 
-                byIndexUUID.get(indexUUID).getNodeIds().add(nodeResponse.getNode().getId());
+                byIndexUUID.get(indexUUID).nodeIds.add(nodeResponse.getNode().getId());
             }
         }
 
@@ -94,7 +94,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
             builder.field("index_name", info.indexName);
             builder.field("index_uuid", info.indexUUID);
-            builder.timeField("creation_date_millis", "creation_date", info.creationDate);
+            builder.timeField("creation_date_millis", "creation_date", info.creationDateMillis);
 
             builder.array("node_ids", info.nodeIds.toArray(new String[0]));
 
@@ -117,30 +117,14 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
     private static class AggregatedDanglingIndexInfo {
         private final String indexUUID;
         private final String indexName;
-        private final long creationDate;
+        private final long creationDateMillis;
         private final List<String> nodeIds;
 
-        private AggregatedDanglingIndexInfo(String indexUUID, String indexName, long creationDate) {
+        private AggregatedDanglingIndexInfo(String indexUUID, String indexName, long creationDateMillis) {
             this.indexUUID = indexUUID;
             this.indexName = indexName;
-            this.creationDate = creationDate;
+            this.creationDateMillis = creationDateMillis;
             this.nodeIds = new ArrayList<>();
-        }
-
-        public String getIndexUUID() {
-            return indexUUID;
-        }
-
-        public String getIndexName() {
-            return indexName;
-        }
-
-        public long getCreationDate() {
-            return creationDate;
-        }
-
-        public List<String> getNodeIds() {
-            return nodeIds;
         }
     }
 }

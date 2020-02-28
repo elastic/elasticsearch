@@ -22,10 +22,10 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
@@ -57,10 +57,10 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
             sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
-    protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
-                                       final SearchActionListener<SearchPhaseResult> listener) {
-        getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
-            buildShardSearchRequest(shardIt), getTask(), listener);
+    @Override
+    protected void executePhaseOnShard(Transport.Connection connection, ShardSearchRequest request,
+                                       SearchActionListener<SearchPhaseResult> listener) {
+        getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 
     @Override

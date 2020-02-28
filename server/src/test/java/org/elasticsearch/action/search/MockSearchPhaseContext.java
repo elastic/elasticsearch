@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -110,9 +111,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
-        Assert.fail("should not be called");
-        return null;
+    public ShardSearchRequest buildShardSearchRequest(String clusterAlias, ShardId shardId, OriginalIndices originalIndices) {
+        throw new AssertionError("should not be called");
     }
 
     @Override

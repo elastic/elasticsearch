@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
@@ -260,10 +259,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
 
                 @Override
-                protected void executePhaseOnShard(
-                    final SearchShardIterator shardIt,
-                    final ShardRouting shard,
-                    final SearchActionListener<SearchPhaseResult> listener) {
+                void executePhaseOnShard(Transport.Connection connection, ShardSearchRequest request,
+                                         SearchActionListener<SearchPhaseResult> listener) {
                     if (randomBoolean()) {
                         listener.onResponse(new SearchPhaseResult() {});
                     } else {

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -99,8 +98,9 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
-                                               final SearchActionListener<SearchPhaseResult> listener) {
+            void executePhaseOnShard(Transport.Connection connection, ShardSearchRequest request,
+                                     SearchActionListener<SearchPhaseResult> listener) {
+
             }
 
             @Override
@@ -144,9 +144,9 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
             new ArraySearchPhaseResults<>(10), null, false, expected);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
-        SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
-            Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
-        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+        final OriginalIndices originalIndices = new OriginalIndices(new String[]{"name", "name1"}, IndicesOptions.strictExpand());
+        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(
+            clusterAlias, new ShardId(new Index("name", "foo"), 1), originalIndices);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());

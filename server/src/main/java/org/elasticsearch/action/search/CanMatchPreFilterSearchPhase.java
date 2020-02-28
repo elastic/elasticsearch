@@ -22,10 +22,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
@@ -78,10 +78,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
-    protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
-                                       SearchActionListener<CanMatchResponse> listener) {
-        getSearchTransport().sendCanMatch(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
-            buildShardSearchRequest(shardIt), getTask(), listener);
+    void executePhaseOnShard(Transport.Connection connection, ShardSearchRequest request, SearchActionListener<CanMatchResponse> listener) {
+        getSearchTransport().sendCanMatch(connection, request, getTask(), listener);
     }
 
     @Override

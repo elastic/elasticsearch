@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
@@ -227,7 +228,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard,
+                    final Transport.Connection connection = nodeIdToConnection.apply(shardIt.getClusterAlias(), shard.currentNodeId());
+                    final ShardSearchRequest request = buildShardSearchRequest(
+                        shardIt.getClusterAlias(), shard.shardId(), shardIt.getOriginalIndices());
+                    executePhaseOnShard(connection, request,
                         new SearchActionListener<Result>(shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {
                             @Override
                             public void innerOnResponse(Result result) {
@@ -269,11 +273,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     /**
      * Sends the request to the actual shard.
-     * @param shardIt the shards iterator
-     * @param shard the shard routing to send the request for
-     * @param listener the listener to notify on response
+     *
+     * @param connection the connection to the target node
+     * @param request    the shard search request to be executed
+     * @param listener   the listener to notify on response
      */
-    protected abstract void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard, SearchActionListener<Result> listener);
+    abstract void executePhaseOnShard(Transport.Connection connection, ShardSearchRequest request, SearchActionListener<Result> listener);
 
     private void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
@@ -598,15 +603,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
-        AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
+    public final ShardSearchRequest buildShardSearchRequest(String clusterAlias, ShardId shardId, OriginalIndices originalIndices) {
+        AliasFilter filter = aliasFilter.get(shardId.getIndex().getUUID());
         assert filter != null;
-        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        String indexName = shardIt.shardId().getIndex().getName();
-        final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
+        float indexBoost = concreteIndexBoosts.getOrDefault(shardId.getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+        final String[] routings = indexRoutings.getOrDefault(shardId.getIndexName(), Collections.emptySet())
             .toArray(new String[0]);
-        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
-            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings);
+        ShardSearchRequest shardRequest = new ShardSearchRequest(originalIndices, request, shardId, getNumShards(),
+            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), clusterAlias, routings);
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.

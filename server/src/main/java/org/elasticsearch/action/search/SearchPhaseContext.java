@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -109,7 +110,7 @@ interface SearchPhaseContext extends Executor {
     /**
      * Builds an request for the initial search phase.
      */
-    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
+    ShardSearchRequest buildShardSearchRequest(String clusterAlias, ShardId shardId, OriginalIndices originalIndices);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

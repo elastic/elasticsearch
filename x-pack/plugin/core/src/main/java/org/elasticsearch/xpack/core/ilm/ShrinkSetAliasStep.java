@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.SwapAliasesAndDeleteSourceIndexStep.deleteSourceIndexAndTransferAliases;
+
 /**
  * Following shrinking an index and deleting the original index, this step creates an alias with the same name as the original index which
  * points to the new shrunken index to allow clients to continue to use the original index name without being aware that it has shrunk.
@@ -37,23 +39,7 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
         String index = indexMetaData.getIndex().getName();
         // get target shrink index
         String targetIndexName = shrunkIndexPrefix + index;
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
-            .masterNodeTimeout(getMasterTimeout(currentState))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(index))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndexName).alias(index));
-        // copy over other aliases from original index
-        indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
-            AliasMetaData aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
-            // inherit all alias properties except `is_write_index`
-            aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(targetIndexName).alias(aliasMetaDataToAdd.alias())
-                .indexRouting(aliasMetaDataToAdd.indexRouting())
-                .searchRouting(aliasMetaDataToAdd.searchRouting())
-                .filter(aliasMetaDataToAdd.filter() == null ? null : aliasMetaDataToAdd.filter().string())
-                .writeIndex(null));
-        });
-        getClient().admin().indices().aliases(aliasesRequest, ActionListener.wrap(response ->
-            listener.onResponse(true), listener::onFailure));
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetaData, getMasterTimeout(currentState), targetIndexName, listener);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -52,7 +53,7 @@ import java.util.stream.Collectors;
  * this class first checks that such a dangling index exists. It then submits a cluster state update
  * to add the index to the index graveyard.
  */
-public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, DeleteDanglingIndexResponse> {
+public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
@@ -87,8 +88,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected DeleteDanglingIndexResponse read(StreamInput in) throws IOException {
-        return new DeleteDanglingIndexResponse(in);
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -96,7 +97,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         Task task,
         DeleteDanglingIndexRequest deleteRequest,
         ClusterState state,
-        ActionListener<DeleteDanglingIndexResponse> deleteListener
+        ActionListener<AcknowledgedResponse> deleteListener
     ) throws Exception {
         findDanglingIndex(deleteRequest.getIndexUUID(), new ActionListener<>() {
 
@@ -111,9 +112,9 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                 String indexName = indexToDelete.getName();
 
-                final ActionListener<DeleteDanglingIndexResponse> clusterStateUpdatedListener = new ActionListener<>() {
+                final ActionListener<AcknowledgedResponse> clusterStateUpdatedListener = new ActionListener<>() {
                     @Override
-                    public void onResponse(DeleteDanglingIndexResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         deleteListener.onResponse(response);
                     }
 
@@ -129,8 +130,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                     new AckedClusterStateUpdateTask<>(deleteRequest, clusterStateUpdatedListener) {
 
                         @Override
-                        protected DeleteDanglingIndexResponse newResponse(boolean acknowledged) {
-                            return new DeleteDanglingIndexResponse(acknowledged);
+                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                            return new AcknowledgedResponse(acknowledged);
                         }
 
                         @Override

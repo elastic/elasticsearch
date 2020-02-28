@@ -22,10 +22,10 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.NodeListDanglingIndicesResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -201,9 +201,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, true);
 
-        final ImportDanglingIndexResponse importResponse = client().admin().cluster().importDanglingIndex(request).actionGet();
+        final AcknowledgedResponse importResponse = client().admin().cluster().importDanglingIndex(request).actionGet();
 
-        assertThat(importResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertThat(importResponse.isAcknowledged(), equalTo(true));
 
         assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
     }

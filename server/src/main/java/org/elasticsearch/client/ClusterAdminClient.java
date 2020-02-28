@@ -102,11 +102,9 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -750,20 +748,20 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Restore specified dangling indices.
      */
-    void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<ImportDanglingIndexResponse> listener);
+    void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Restore specified dangling indices.
      */
-    ActionFuture<ImportDanglingIndexResponse> importDanglingIndex(ImportDanglingIndexRequest request);
+    ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request);
 
     /**
      * Delete specified dangling indices.
      */
-    void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<DeleteDanglingIndexResponse> listener);
+    void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Delete specified dangling indices.
      */
-    ActionFuture<DeleteDanglingIndexResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
+    ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
 }

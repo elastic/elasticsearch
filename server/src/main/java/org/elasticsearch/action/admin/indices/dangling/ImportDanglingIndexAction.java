@@ -20,16 +20,17 @@
 package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Represents a request to restore a particular dangling index.
  */
-public class ImportDanglingIndexAction extends ActionType<ImportDanglingIndexResponse> {
+public class ImportDanglingIndexAction extends ActionType<AcknowledgedResponse> {
 
     public static final ImportDanglingIndexAction INSTANCE = new ImportDanglingIndexAction();
     public static final String NAME = "cluster:admin/indices/dangling/restore";
 
     private ImportDanglingIndexAction() {
-        super(NAME, ImportDanglingIndexResponse::new);
+        super(NAME, AcknowledgedResponse::new);
     }
 }

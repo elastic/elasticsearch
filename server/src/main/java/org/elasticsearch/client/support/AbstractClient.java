@@ -158,13 +158,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
@@ -1173,22 +1171,22 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ImportDanglingIndexResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
+        public ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
             return execute(ImportDanglingIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<ImportDanglingIndexResponse> listener) {
+        public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(ImportDanglingIndexAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<DeleteDanglingIndexResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
+        public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
             return execute(DeleteDanglingIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<DeleteDanglingIndexResponse> listener) {
+        public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
         }
 

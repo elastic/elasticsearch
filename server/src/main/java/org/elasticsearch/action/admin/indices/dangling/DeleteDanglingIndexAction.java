@@ -20,16 +20,17 @@
 package org.elasticsearch.action.admin.indices.dangling;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
  * This action causes a dangling index to be considered as deleted by the cluster.
  */
-public class DeleteDanglingIndexAction extends ActionType<DeleteDanglingIndexResponse> {
+public class DeleteDanglingIndexAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDanglingIndexAction INSTANCE = new DeleteDanglingIndexAction();
     public static final String NAME = "cluster:admin/indices/dangling/delete";
 
     private DeleteDanglingIndexAction() {
-        super(NAME, DeleteDanglingIndexResponse::new);
+        super(NAME, AcknowledgedResponse::new);
     }
 }

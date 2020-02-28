@@ -20,15 +20,18 @@
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
 import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestStatus.ACCEPTED;
 
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
@@ -49,6 +52,11 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
-        return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestToXContentListener<>(channel) {
+            @Override
+            protected RestStatus getStatus(AcknowledgedResponse acknowledgedResponse) {
+                return ACCEPTED;
+            }
+        });
     }
 }

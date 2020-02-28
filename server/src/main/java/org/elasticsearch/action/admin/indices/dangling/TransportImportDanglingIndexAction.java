@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
@@ -43,7 +44,7 @@ import java.util.List;
  * this class first checks that such a dangling index exists. It then calls {@link LocalAllocateDangledIndices}
  * to perform the actual allocation.
  */
-public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, ImportDanglingIndexResponse> {
+public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);
 
     private final LocalAllocateDangledIndices danglingIndexAllocator;
@@ -65,7 +66,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
     protected void doExecute(
         Task task,
         ImportDanglingIndexRequest importRequest,
-        ActionListener<ImportDanglingIndexResponse> importListener
+        ActionListener<AcknowledgedResponse> importListener
     ) {
         findDanglingIndex(importRequest, new ActionListener<>() {
             @Override
@@ -80,7 +81,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToImport), new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
-                        importListener.onResponse(new ImportDanglingIndexResponse());
+                        importListener.onResponse(new AcknowledgedResponse(true));
                     }
 
                     @Override

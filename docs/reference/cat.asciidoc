@@ -259,6 +259,8 @@ include::cat/tasks.asciidoc[]
 
 include::cat/thread_pool.asciidoc[]
 
+include::cat/trainedmodel.asciidoc[]
+
 include::cat/shards.asciidoc[]
 
 include::cat/segments.asciidoc[]

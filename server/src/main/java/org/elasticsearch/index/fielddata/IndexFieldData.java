@@ -80,7 +80,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      * Build a sort implementation specialized for aggregations.
      */
     BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested, SortOrder sortOrder, DocValueFormat format);
+            Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
 
     /**
      * Clears any resources associated with this field data.
@@ -241,7 +241,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         /**
          * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
          */
-        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format);
+        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                int bucketSize, BucketedSort.ExtraData extra);
     }
 
     interface Builder {

@@ -22,10 +22,12 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -182,11 +184,6 @@ public class AggregationPath {
         return stringPathElements;
     }
 
-    private AggregationPath subPath(int offset, int length) {
-        List<PathElement> subTokens = new ArrayList<>(pathElements.subList(offset, offset + length));
-        return new AggregationPath(subTokens);
-    }
-
     /**
      * Looks up the value of this path against a set of aggregation results.
      */
@@ -223,23 +220,27 @@ public class AggregationPath {
         return aggregator;
     }
 
-    /**
-     * Validates this path over the given aggregator as a point of reference.
-     *
-     * @param root The point of reference of this path
-     * @throws AggregationExecutionException on validation error
-     */
-    public void validate(Aggregator root) throws AggregationExecutionException {
-        try {
-            resolveAggregator(root).validateSortPathKey(lastPathElement().key);
-        } catch (IllegalArgumentException e) {
-            throw new AggregationExecutionException("Invalid aggregation order path [" + this + "]. " + e.getMessage(), e);
-        }
+    public BucketComparator bucketComparator(Aggregator root, SortOrder order) {
+        return resolveAggregator(root).bucketComparator(lastPathElement().key, order);
     }
 
     private static String[] split(String toSplit, int index, String[] result) {
         result[0] = toSplit.substring(0, index);
         result[1] = toSplit.substring(index + 1);
         return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AggregationPath other = (AggregationPath) obj;
+        return pathElements.equals(other.pathElements);
+    }
+
+    @Override
+    public int hashCode() {
+        return pathElements.hashCode();
     }
 }

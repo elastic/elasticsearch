@@ -28,10 +28,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
@@ -163,4 +166,21 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
     }
 
+    @Override
+    public Aggregator resolveSortPath(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
+        if (this instanceof SingleBucketAggregator) {
+            return resolveSortPathOnValidAgg(next, path);
+        }
+        return super.resolveSortPath(next, path);
+    }
+
+    @Override
+    public BucketComparator bucketComparator(String key, SortOrder order) {
+        if (key == null || false == "doc_count".equals(key)) {
+            return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
+        }
+        throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +
+                "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
+                ".doc_count\") or \"key\".");
+    }
 }

@@ -104,8 +104,12 @@ public class ContextIndexSearcher extends IndexSearcher {
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                                 Holder<Cancellable> cancellable) throws IOException {
-        super(cancellable!= null? new CancellableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
-        this.cancellable = cancellable;
+        super(cancellable != null ? new CancellableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
+        if (cancellable == null) {
+            this.cancellable = new Holder<>(new CancellableImpl());
+        } else {
+            this.cancellable = cancellable;
+        }
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);

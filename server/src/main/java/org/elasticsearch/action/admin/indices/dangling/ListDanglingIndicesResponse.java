@@ -68,17 +68,11 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
             for (DanglingIndexInfo info : nodeResponse.getDanglingIndices()) {
                 final String indexUUID = info.getIndexUUID();
 
-                if (byIndexUUID.containsKey(indexUUID) == false) {
-                    AggregatedDanglingIndexInfo aggregatedInfo = new AggregatedDanglingIndexInfo(
-                        indexUUID,
-                        info.getIndexName(),
-                        info.getCreationDateMillis()
-                    );
+                final AggregatedDanglingIndexInfo aggregatedInfo = byIndexUUID.computeIfAbsent(indexUUID,
+                    (_uuid) -> new AggregatedDanglingIndexInfo(indexUUID, info
+                    .getIndexName(), info.getCreationDateMillis()));
 
-                    byIndexUUID.put(indexUUID, aggregatedInfo);
-                }
-
-                byIndexUUID.get(indexUUID).nodeIds.add(nodeResponse.getNode().getId());
+                aggregatedInfo.nodeIds.add(nodeResponse.getNode().getId());
             }
         }
 

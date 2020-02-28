@@ -97,7 +97,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
 
         for (IndexMetaData each : danglingIndicesState.getDanglingIndices().values()) {
             DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
-                localNode,
+                localNode.getId(),
                 each.getIndex().getName(),
                 each.getIndexUUID(),
                 each.getCreationDate()

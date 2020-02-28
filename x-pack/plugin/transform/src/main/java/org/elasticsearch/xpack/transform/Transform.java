@@ -344,14 +344,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
         String transformRemoteEnabledNodeAttribute = "node.attr." + TRANSFORM_REMOTE_ENABLED_NODE_ATTR;
 
-        if (enabled == false) {
-            return Settings.EMPTY;
-        }
-
         if (settings.get(transformEnabledNodeAttribute) != null || settings.get(transformRemoteEnabledNodeAttribute) != null) {
             throw new IllegalArgumentException(
                 "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
             );
+        }
+
+        if (enabled == false) {
+            return Settings.EMPTY;
         }
 
         Settings.Builder additionalSettings = Settings.builder();

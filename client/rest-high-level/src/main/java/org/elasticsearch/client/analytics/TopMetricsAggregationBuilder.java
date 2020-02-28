@@ -32,6 +32,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,20 +51,20 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     private final SortBuilder<?> sort;
     private final int size;
-    private final String metric;
+    private final List<String> metrics;
 
     /**
      * Build the request.
      * @param name the name of the metric
      * @param sort the sort key used to select the top metrics
      * @param size number of results to return per bucket
-     * @param metric the name of the field to select
+     * @param metrics the names of the fields to select
      */
-    public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, int size, String metric) {
+    public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, int size, String... metrics) {
         super(name);
         this.sort = sort;
         this.size = size;
-        this.metric = metric;
+        this.metrics = Arrays.asList(metrics);
     }
 
     @Override
@@ -78,7 +80,11 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             sort.toXContent(builder, params);
             builder.endArray();
             builder.field("size", size);
-            builder.startObject("metric").field("field", metric).endObject();
+            builder.startArray("metrics");
+            for (String metric: metrics) {
+                builder.startObject().field("field", metric).endObject();
+            }
+            builder.endArray();
         }
         return builder.endObject();
     }

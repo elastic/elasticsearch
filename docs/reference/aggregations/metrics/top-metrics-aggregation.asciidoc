@@ -22,7 +22,7 @@ POST /test/_search?filter_path=aggregations
   "aggs": {
     "tm": {
       "top_metrics": {
-        "metric": {"field": "v"},
+        "metrics": {"field": "v"},
         "sort": {"s": "desc"}
       }
     }
@@ -68,11 +68,40 @@ request. So,
 NOTE: This aggregation doesn't support any sort of "tie breaking". If two documents have
 the same sort values then this aggregation could return either document's fields.
 
-==== `metric`
+==== `metrics`
 
-At this point `metric` supports only `{"field": "field_name"}` and all metrics
-are returned as double precision floating point numbers. Expect more to
-come here.
+`metrics` selects the fields to of the "top" document to return. Like most other
+aggregations, `top_metrics` casts these values cast to `double` precision
+floating point numbers. So they have to be numeric. Dates *work*, but they
+come back as a `double` precision floating point containing milliseconds since
+epoch. `keyword` fields aren't allowed.
+
+You can return multiple metrics by providing a list:
+
+[source,console,id=search-aggregations-metrics-top-metrics-list-of-metrics]
+----
+POST /test/_bulk?refresh
+{"index": {}}
+{"s": 1, "v": 3.1415, "m": 1.9}
+{"index": {}}
+{"s": 2, "v": 1.0, "m": 6.7}
+{"index": {}}
+{"s": 3, "v": 2.71828, "m": -12.2}
+POST /test/_search?filter_path=aggregations
+{
+  "aggs": {
+    "tm": {
+      "top_metrics": {
+        "metrics": [
+          {"field": "v"},
+          {"field": "m"}
+        ],
+        "sort": {"s": "desc"}
+      }
+    }
+  }
+}
+----
 
 ==== `size`
 
@@ -92,7 +121,7 @@ POST /test/_search?filter_path=aggregations
   "aggs": {
     "tm": {
       "top_metrics": {
-        "metric": {"field": "v"},
+        "metrics": {"field": "v"},
         "sort": {"s": "desc"},
         "size": 2
       }
@@ -174,7 +203,7 @@ POST /node/_search?filter_path=aggregations
       "aggs": {
         "tm": {
           "top_metrics": {
-            "metric": {"field": "v"},
+            "metrics": {"field": "v"},
             "sort": {"date": "desc"}
           }
         }
@@ -230,7 +259,7 @@ POST /node/_search?filter_path=aggregations
       "aggs": {
         "tm": {
           "top_metrics": {
-            "metric": {"field": "v"},
+            "metrics": {"field": "v"},
             "sort": {"date": "desc"}
           }
         }
@@ -292,7 +321,7 @@ POST /test*/_search?filter_path=aggregations
   "aggs": {
     "tm": {
       "top_metrics": {
-        "metric": {"field": "v"},
+        "metrics": {"field": "v"},
         "sort": {"s": "asc"}
       }
     }
@@ -325,7 +354,7 @@ POST /test*/_search?filter_path=aggregations
   "aggs": {
     "tm": {
       "top_metrics": {
-        "metric": {"field": "v"},
+        "metrics": {"field": "v"},
         "sort": {"s": {"order": "asc", "numeric_type": "double"}}
       }
     }

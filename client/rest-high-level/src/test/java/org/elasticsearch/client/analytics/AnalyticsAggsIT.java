@@ -74,6 +74,20 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
     }
 
+    public void testTopMetricsManyMetrics() throws IOException {
+        indexTopMetricsData();
+        SearchRequest search = new SearchRequest("test");
+        search.source().aggregation(new TopMetricsAggregationBuilder(
+                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v", "m"));
+        SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
+        ParsedTopMetrics top = response.getAggregations().get("test");
+        assertThat(top.getTopMetrics(), hasSize(1));
+        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(metric.getSort(), equalTo(singletonList(2)));
+        assertThat(metric.getMetrics(), hasEntry("v", 3.0));
+        assertThat(metric.getMetrics(), hasEntry("m", 13.0));
+    }
+
     public void testTopMetricsSizeTwo() throws IOException {
         indexTopMetricsData();
         SearchRequest search = new SearchRequest("test");
@@ -92,8 +106,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
 
     private void indexTopMetricsData() throws IOException {
         BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2));
-        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3));
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 1, "v", 2.0, "m", 12.0));
+        bulk.add(new IndexRequest().source(XContentType.JSON, "s", 2, "v", 3.0, "m", 13.0));
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
     }
 }

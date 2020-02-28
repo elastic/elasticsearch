@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.idp.saml.idp;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.opensaml.security.x509.X509Credential;
 
+import java.net.URL;
+
 /**
  * SAML 2.0 configuration information about this IdP
  */
@@ -17,11 +19,17 @@ public interface SamlIdentityProvider {
 
     String getEntityId();
 
-    String getSingleSignOnEndpoint(String binding);
+    URL getSingleSignOnEndpoint(String binding);
 
-    String getSingleLogoutEndpoint(String binding);
+    URL getSingleLogoutEndpoint(String binding);
+
+    SamlServiceProvider getRegisteredServiceProvider(String spEntityId);
 
     X509Credential getSigningCredential();
 
-    SamlServiceProvider getRegisteredServiceProvider(String spEntityId);
+    X509Credential getMetadataSigningCredential();
+
+    SamlIdPMetadataBuilder.OrganizationInfo getOrganization();
+
+    SamlIdPMetadataBuilder.ContactInfo getTechnicalContact();
 }

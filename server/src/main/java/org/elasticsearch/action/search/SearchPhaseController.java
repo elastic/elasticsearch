@@ -683,23 +683,17 @@ public final class SearchPhaseController {
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
         }
 
-        public TopDocs getBufferTopDocs() {
-            if (hasTopDocs) {
-                synchronized (this) {
-                    if (numReducePhases > 0) {
-                        return topDocsBuffer[0];
-                    }
-                }
-            }
-            return null;
-        }
-
         private synchronized List<InternalAggregations> getRemainingAggs() {
             return hasAggs ? Arrays.asList(aggsBuffer).subList(0, index) : null;
         }
 
-        private synchronized List<TopDocs> getRemainingTopDocs() {
-            return hasTopDocs ? Arrays.asList(topDocsBuffer).subList(0, index) : null;
+        public List<TopDocs> getRemainingTopDocs() {
+            if (hasTopDocs) {
+                synchronized (this) {
+                    return index == 0 ? Collections.emptyList() : Arrays.asList(topDocsBuffer).subList(0, index);
+                }
+            }
+            return null;
         }
 
         @Override

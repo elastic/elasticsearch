@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,13 +70,16 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int numConcurrent = randomIntBetween(1, 4);
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
+        AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
                                          SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
+                if (request.canReturnNullResponseIfMatchNoDocs()) {
+                    canReturnNullResponse.set(true);
+                }
                 if (request.getRawBottomSortValues() != null) {
-                    assertTrue(request.canReturnNullResponseIfMatchNoDocs());
                     assertNotEquals(shardId, (int) request.getRawBottomSortValues()[0]);
                     numWithTopDocs.incrementAndGet();
                 }
@@ -128,6 +132,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         action.start();
         latch.await();
         assertThat(successfulOps.get(), equalTo(numShards));
+        assertTrue(canReturnNullResponse.get());
         assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));

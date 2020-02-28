@@ -94,6 +94,12 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
             section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT);
         }
+        // Even if you get multiple of the same expected
+        {
+            final DoSection section = new DoSection(new XContentLocation(1, 1));
+            section.setExpectedWarningHeaders(singletonList("test"));
+            section.checkWarningHeaders(Arrays.asList(testHeader, testHeader, testHeader), Version.CURRENT);
+        }
 
         // But if you don't get some that you did expect, that is an error
         {

@@ -137,7 +137,10 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
-        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
+        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms',
+        //Cannot determine if we will throw a warning on get as we might hit an old node
+        //Cannot determine if we will have a warning on get _stats as we might hit an old node
+        'mixed_cluster/40_ml_datafeed_crud/Test old cluster datafeed with aggs'
       ])
     }
     systemProperty 'tests.rest.blacklist', toBlackList.join(',')
@@ -160,8 +163,16 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
-        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
+        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms',
+        //Cannot determine if we will throw a warning on get as we might hit an old node
+        //Cannot determine if we will have a warning on get _stats as we might hit an old node
+        'mixed_cluster/40_ml_datafeed_crud/Test old cluster datafeed with aggs'
       ])
+    }
+    // Skip putting aggs if we have a mixed cluster were certain nodes will return a deprecation warning
+    // and others will not.
+    if (bwcVersion.before('7.2.0')) {
+      toBlackList << 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster'
     }
     if (!toBlackList.empty) {
       systemProperty 'tests.rest.blacklist', toBlackList.join(',')
@@ -193,6 +204,12 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     if (bwcVersion.before('7.4.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop mixed cluster batch transform'
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, mixed continuous transforms'
+    }
+    // If the old version is before 7.2.0 we cannot accurately test with aggs
+    // This is because only certain nodes would return deprecation warnings and we cannot dictate
+    // which nodes get the REST request
+    if (bwcVersion.before('7.2.0')) {
+      toBlackList << 'upgraded_cluster/40_ml_datafeed_crud/Test mixed cluster datafeeds with aggs'
     }
 
     if (!toBlackList.empty) {

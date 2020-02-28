@@ -29,6 +29,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -42,6 +43,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -287,6 +289,7 @@ public class DoSection implements ExecutableSection {
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
         final Set<String> expected =
                 new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escapeAndEncode).collect(Collectors.toList()));
+        final Set<String> seen = new HashSet<>();
         for (final String header : warningHeaders) {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
@@ -307,16 +310,20 @@ public class DoSection implements ExecutableSection {
                      * We skip warnings related to types deprecation and transform rename so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
                      */
-                } else if (expected.remove(message) == false) {
+                } else if (expected.contains(message) == false) {
                     unexpected.add(header);
+                } else {
+                    seen.add(message);
                 }
             } else {
                 unmatched.add(header);
             }
         }
-        if (expected.isEmpty() == false) {
+        if (seen.size() != expected.size()) {
             for (final String header : expected) {
-                missing.add(header);
+                if (seen.contains(header) == false) {
+                    missing.add(header);
+                }
             }
         }
 

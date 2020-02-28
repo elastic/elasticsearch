@@ -338,7 +338,7 @@ public class Joda {
         }
     };
 
-    public static boolean isJodaStyleIndex(Version version, String pattern) {
+    public static boolean isJodaPattern(Version version, String pattern) {
         return version.before(Version.V_7_0_0)
             && version.after(Version.V_6_0_0)
             && pattern.startsWith("8") == false;

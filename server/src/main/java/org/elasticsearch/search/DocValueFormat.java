@@ -201,7 +201,7 @@ public interface DocValueFormat extends NamedWriteable {
         public DateTime(StreamInput in) throws IOException {
             String input = in.readString();
             //todo pg need to test this..
-            if (Joda.isJodaStyleIndex(in.getVersion(), input)) {
+            if (Joda.isJodaPattern(in.getVersion(), input)) {
                 this.formatter = Joda.forPattern(input);
             }else{
                 this.formatter = DateFormatter.forPattern(input);

@@ -219,7 +219,7 @@ public final class DateFieldMapper extends FieldMapper {
             boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
             if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
                 DateFormatter formatter;
-                if (Joda.isJodaStyleIndex(context.indexCreatedVersion(), pattern)) {
+                if (Joda.isJodaPattern(context.indexCreatedVersion(), pattern)) {
                     formatter = Joda.forPattern(pattern).withLocale(locale);
                 } else {
                     formatter = DateFormatter.forPattern(pattern).withLocale(locale);
@@ -554,8 +554,6 @@ public final class DateFieldMapper extends FieldMapper {
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
     }
-
-
 
     @Override
     protected String contentType() {

@@ -74,13 +74,11 @@ class BulkPrimaryExecutionContext {
     private ItemProcessingState currentItemState;
     private DocWriteRequest requestToExecute;
     private BulkItemResponse executionResult;
-    private IndexShard.IndexContext[] indexContexts;
     private int retryCounter;
 
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
-        this.indexContexts = new IndexShard.IndexContext[request.items().length];
         this.primary = primary;
         advance();
     }

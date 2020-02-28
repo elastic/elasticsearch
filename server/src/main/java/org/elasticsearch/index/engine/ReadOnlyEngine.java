@@ -279,6 +279,12 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public InternalEngine.StepWiseDelete initiateDelete(Delete delete) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("deletes are not supported on a read-only engine");
+    }
+
+    @Override
     public DeleteResult delete(Delete delete) {
         assert false : "this should not be called";
         throw new UnsupportedOperationException("deletes are not supported on a read-only engine");

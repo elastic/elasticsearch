@@ -833,7 +833,6 @@ public class InternalEngine extends Engine {
         }
 
         public void performIndex() throws IOException {
-            assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
             final boolean doThrottle = index.origin().isRecovery() == false;
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             try (Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
@@ -953,6 +952,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public StepWiseIndex initiateIndex(Index index) {
+        assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         Releasable readLock = null;
         Releasable versionLock = null;
         boolean isSuccess = false;
@@ -1276,69 +1276,140 @@ public class InternalEngine extends Engine {
         numDocUpdates.inc(docs.size());
     }
 
-    @Override
-    public DeleteResult delete(Delete delete) throws IOException {
-        versionMap.enforceSafeAccess();
+    public StepWiseDelete initiateDelete(Delete delete) {
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
-        final DeleteResult deleteResult;
-        // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
+        versionMap.enforceSafeAccess();
+
+        Releasable readLock = null;
+        Releasable versionLock = null;
+        boolean isSuccess = false;
+        try {
+            readLock = this.readLock.acquire();
             ensureOpen();
+            versionLock = versionMap.acquireLock(delete.uid().bytes());
+            isSuccess = true;
+            Releasable finalReadLock = readLock;
+            Releasable finalVersionLock = versionLock;
+            return new StepWiseDelete(() -> Releasables.close(finalVersionLock, finalReadLock), delete);
+        } catch (RuntimeException e) {
+            handleDeleteException(e);
+            throw e;
+        } finally {
+            if (isSuccess == false && readLock != null) {
+                readLock.close();
+                if (versionLock != null) {
+                    versionLock.close();
+                }
+            }
+        }
+    }
+
+    public class StepWiseDelete implements Releasable {
+
+        private final Releasable lock;
+        private Delete delete;
+        private IndexingStrategy plan;
+        private DeleteResult deleteResult;
+
+        private StepWiseDelete(Releasable lock, Delete delete) {
+            this.lock = lock;
+            this.delete = delete;
+        }
+
+        public void performIndex() throws IOException {
+            // TODO: Consider implications of maybe needing to do this write when persisting also
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
+            final DeleteResult deleteResult;
 
-            if (plan.earlyResultOnPreflightError.isPresent()) {
-                deleteResult = plan.earlyResultOnPreflightError.get();
-            } else {
-                // generate or register sequence number
-                if (delete.origin() == Operation.Origin.PRIMARY) {
-                    delete = new Delete(delete.id(), delete.uid(), generateSeqNoForOperationOnPrimary(delete),
-                        delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
-                        delete.getIfSeqNo(), delete.getIfPrimaryTerm());
-
-                    advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
-                } else {
-                    markSeqNoAsSeen(delete.seqNo());
-                }
-
-                assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
-
-                if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
-                    deleteResult = deleteInLucene(delete, plan);
-                } else {
-                    deleteResult = new DeleteResult(
-                        plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
-                }
-                if (plan.deleteFromLucene) {
-                    numDocDeletes.inc();
-                    versionMap.putDeleteUnderLock(delete.uid().bytes(),
-                        new DeleteVersionValue(plan.versionOfDeletion, delete.seqNo(), delete.primaryTerm(),
-                            engineConfig.getThreadPool().relativeTimeInMillis()));
-                }
-            }
-            if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
-                final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
-                deleteResult.setTranslogLocation(location);
-            }
-            localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
-            if (deleteResult.getTranslogLocation() == null) {
-                // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
-                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
-                localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
-            }
-            deleteResult.setTook(System.nanoTime() - delete.startTime());
-            deleteResult.freeze();
-        } catch (RuntimeException | IOException e) {
             try {
-                maybeFailEngine("delete", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
+                if (plan.earlyResultOnPreflightError.isPresent()) {
+                    deleteResult = plan.earlyResultOnPreflightError.get();
+                } else {
+                    // generate or register sequence number
+                    if (delete.origin() == Operation.Origin.PRIMARY) {
+                        delete = new Delete(delete.id(), delete.uid(), generateSeqNoForOperationOnPrimary(delete),
+                            delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
+                            delete.getIfSeqNo(), delete.getIfPrimaryTerm());
+
+                        advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
+                    } else {
+                        markSeqNoAsSeen(delete.seqNo());
+                    }
+
+                    assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
+
+                    if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
+                        deleteResult = deleteInLucene(delete, plan);
+                    } else {
+                        deleteResult = new DeleteResult(
+                            plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+                    }
+                    if (plan.deleteFromLucene) {
+                        numDocDeletes.inc();
+                        versionMap.putDeleteUnderLock(delete.uid().bytes(),
+                            new DeleteVersionValue(plan.versionOfDeletion, delete.seqNo(), delete.primaryTerm(),
+                                engineConfig.getThreadPool().relativeTimeInMillis()));
+                    }
+                }
+
+                this.deleteResult = deleteResult;
+            } catch (IOException | RuntimeException e) {
+                handleDeleteException(e);
+                throw e;
             }
-            throw e;
         }
-        maybePruneDeletes();
-        return deleteResult;
+
+        public DeleteResult writeToTranslog() throws IOException {
+            assert plan != null;
+
+            try {
+                if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
+                    final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
+                    deleteResult.setTranslogLocation(location);
+                }
+                localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
+                if (deleteResult.getTranslogLocation() == null) {
+                    // the op is coming from the translog (and is hence persisted already) or does not have a sequence number
+                    // (version conflict)
+                    assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
+                }
+                deleteResult.setTook(System.nanoTime() - delete.startTime());
+                deleteResult.freeze();
+            } catch (IOException | RuntimeException e) {
+                handleDeleteException(e);
+                throw e;
+            }
+
+            maybePruneDeletes();
+            return deleteResult;
+        }
+
+        @Override
+        public void close() {
+            lock.close();
+        }
+    }
+
+    private void handleDeleteException(Exception e) {
+        try {
+            maybeFailEngine("delete", e);
+        } catch (Exception inner) {
+            e.addSuppressed(inner);
+        }
+    }
+
+    @Override
+    public DeleteResult delete(Delete delete) throws IOException {
+        assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
+        assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
+
+        try (StepWiseDelete deleteContext = initiateDelete(delete)) {
+            deleteContext.performIndex();
+            return deleteContext.writeToTranslog();
+        }
     }
 
     protected DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {

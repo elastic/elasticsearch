@@ -27,7 +27,7 @@ public class RestSamlMetadataAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "saml_metadata";
+        return "saml_metadata_action";
     }
 
     @Override

@@ -115,6 +115,8 @@ Run with a given seed (seed is a hex-encoded long).
 
 === Repeats _all_ tests of ClassName N times.
 
+==== only iters
+
 Every test repetition will have a different method seed
 (derived from a single random master seed).
 
@@ -122,7 +124,7 @@ Every test repetition will have a different method seed
 ./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName
 --------------------------------------------------
 
-=== Repeats _all_ tests of ClassName N times.
+==== iters + seed
 
 Every test repetition will have exactly the same master (0xdead) and
 method-level (0xbeef) seed.

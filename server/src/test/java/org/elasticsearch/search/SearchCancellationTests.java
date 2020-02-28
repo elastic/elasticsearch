@@ -30,7 +30,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -41,14 +40,15 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.apache.lucene.util.TestUtil.nextInt;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchCancellationTests extends ESTestCase {
 
-    static Directory dir;
-    static IndexReader reader;
+    private static final String FIELD_NAME = "foo";
 
-    private static String FIELD_NAME = "foo";
+    private static Directory dir;
+    private static IndexReader reader;
 
     @BeforeClass
     public static void setup() throws IOException {
@@ -57,17 +57,18 @@ public class SearchCancellationTests extends ESTestCase {
         // we need at least 2 segments - so no merges should be allowed
         w.w.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
         w.setDoRandomForceMerge(false);
-        indexRandomDocuments(w, TestUtil.nextInt(random(), 2, 20));
+        int numDocs = nextInt(random(), 2, 20);
+        indexRandomDocuments(w, numDocs, 0);
         w.flush();
-        indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20));
+        indexRandomDocuments(w, nextInt(random(), 1, 20), numDocs);
         reader = w.getReader();
         w.close();
     }
 
-    private static void indexRandomDocuments(RandomIndexWriter w, int numDocs) throws IOException {
-        for (int i = 0; i < numDocs; ++i) {
+    private static void indexRandomDocuments(RandomIndexWriter w, int numDocs, int repeatChar) throws IOException {
+        for (int i = 1; i <= numDocs; ++i) {
             Document doc = new Document();
-            doc.add(new StringField(FIELD_NAME, "a".repeat(i), Field.Store.NO));
+            doc.add(new StringField(FIELD_NAME, "a".repeat(i + repeatChar), Field.Store.NO));
             w.addDocument(doc);
         }
     }
@@ -114,6 +115,7 @@ public class SearchCancellationTests extends ESTestCase {
 
     public void testCancellableDirReader() throws IOException {
         TotalHitCountCollector collector = new TotalHitCountCollector();
+        AtomicBoolean cancelled = new AtomicBoolean();
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
         searcher.setCancellable(new ContextIndexSearcher.Cancellable() {
@@ -128,13 +130,18 @@ public class SearchCancellationTests extends ESTestCase {
 
             @Override
             public void checkDirReaderCancelled() {
-                throw new TaskCancelledException("cancelled");
+                if (cancelled.get()) {
+                    throw new TaskCancelledException("cancelled");
+                }
             }
 
             @Override
             public void unsetCheckTimeout() {
             }
         });
+        searcher.search(new PrefixQuery(new Term(FIELD_NAME, "a")), collector);
+        assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
+        cancelled.set(true);
         expectThrows(TaskCancelledException.class, () ->
                 searcher.search(new PrefixQuery(new Term(FIELD_NAME, "a")), collector));
     }

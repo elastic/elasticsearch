@@ -483,7 +483,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    @AwaitsFix(bugUrl = "Replace with integration test")
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

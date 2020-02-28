@@ -90,12 +90,13 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new Holder<>(null));
+        this(reader, similarity, queryCache, queryCachingPolicy, new Holder<>(new CancellableImpl()));
     }
 
     // TODO: Make the 2nd constructor private so that the dirCancellable is never null and the IndexReader is always wrapped.
-    // Some issues must be fixed regarding tests deriving from AggregatorTestCase and more specifically
-    // the use of searchAndReduce and the ShardSearcher sub-searchers.
+    // Some issues must be fixed:
+    //   - regarding tests deriving from AggregatorTestCase and more specifically the use of searchAndReduce and the ShardSearcher sub-searchers.
+    //   - tests that use a MultiReader
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                                 Holder<Cancellable> cancellable) throws IOException {
@@ -435,6 +436,9 @@ public class ContextIndexSearcher extends IndexSearcher {
 
         private Runnable checkCancelled;
         private Runnable checkTimeout;
+
+        private CancellableImpl() {
+        }
 
         public CancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
             this.checkCancelled = checkCancelled;

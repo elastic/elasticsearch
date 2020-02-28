@@ -393,7 +393,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    @AwaitsFix(bugUrl = "Replace with integration test")
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
@@ -425,7 +424,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Replace with integration test")
     public void testSingleValuedFieldPartiallyUnmappedWithMissing() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);

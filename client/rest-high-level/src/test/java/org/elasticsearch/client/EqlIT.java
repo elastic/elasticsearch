@@ -68,7 +68,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
 
     public void testLargeMapping() throws Exception {
         Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
-
+        // use more exact fields (dates) than the default to verify that retrieval works and requesting doc values
+        // would fail
         int PASS_DEFAULT_DOC_VALUES = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(Settings.EMPTY) + 50;
         String now = DateUtils.nowWithMillisResolution().format(DateTimeFormatter.ISO_DATE_TIME);
         StringBuilder sb = new StringBuilder();

@@ -104,7 +104,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         }
         SearchSourceBuilder source = request.source();
         int trackTotalHits = source.trackTotalHitsUpTo() == null ? DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
-        long totalHits = -1;
+        long totalHits = 0;
         FieldDoc bestBottom = null;
         SortField primarySort = topDocsList.get(0).fields[0];
         FieldComparator fieldComparator = primarySort.getComparator(1, 0);

@@ -109,7 +109,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     @Override
     @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (!validContentTypes().contains(fieldType.typeName())) {
+        if (validContentTypes().contains(fieldType.typeName()) == false) {
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is not of type [" + String.join(" or ", validContentTypes())
                     + "] but of type [" + fieldType.typeName() + "]");

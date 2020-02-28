@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -235,7 +236,9 @@ public class TransportGetDataFrameAnalyticsStatsAction
             .filter(QueryBuilders.termQuery(MemoryUsage.JOB_ID.getPreferredName(), configId))
             .filter(QueryBuilders.termQuery(MemoryUsage.TYPE.getPreferredName(), MemoryUsage.TYPE_VALUE));
         searchRequest.source().query(query);
-        searchRequest.source().sort(MemoryUsage.TIMESTAMP.getPreferredName(), SortOrder.DESC);
+        searchRequest.source().sort(SortBuilders.fieldSort(MemoryUsage.TIMESTAMP.getPreferredName()).order(SortOrder.DESC)
+            // We need this for the search not to fail when there are no mappings yet in the index
+            .unmappedType("long"));
         return searchRequest;
     }
 

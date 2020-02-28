@@ -23,11 +23,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestSamlMetadataRequestAction extends BaseRestHandler {
+public class RestSamlMetadataAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "saml_idp_generate_metadata";
+        return "saml_metadata";
     }
 
     @Override

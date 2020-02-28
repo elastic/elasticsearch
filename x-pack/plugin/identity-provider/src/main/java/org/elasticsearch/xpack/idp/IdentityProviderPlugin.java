@@ -33,10 +33,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlMetadataAction;
-import org.elasticsearch.xpack.idp.action.SamlMetadataRequest;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
-import org.elasticsearch.xpack.idp.rest.RestSamlMetadataRequestAction;
+import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
@@ -135,7 +134,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         return List.of(
             new RestSamlInitiateSingleSignOnAction(),
             new RestSamlValidateAuthenticationRequestAction(),
-            new RestSamlMetadataRequestAction());
+            new RestSamlMetadataAction());
     }
 
     @Override

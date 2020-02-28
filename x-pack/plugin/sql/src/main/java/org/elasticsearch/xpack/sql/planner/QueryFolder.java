@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -34,13 +35,14 @@ import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -77,9 +79,11 @@ import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,6 +94,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.YEAR_INTERVAL;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
@@ -332,14 +337,24 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                                     // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in 
                                     // the ES date_histogram will be a calendar_interval with value "1y" or "1M" respectively.
-                                    // All other intervals will be fixed_intervals expressed in ms.
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
                                     } else if (field instanceof Function) {
                                         key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
                                     }
                                 }
-                                // typical interval
+                                // interval of exactly 1 day
+                                else if (value instanceof IntervalDayTime 
+                                        && ((IntervalDayTime) value).interval().equals(Duration.ofDays(1))) {
+                                    // When the histogram is `INTERVAL '1' DAY` the interval used in 
+                                    // the ES date_histogram will be a calendar_interval with value "1d"
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), DAY_INTERVAL, h.zoneId());
+                                    }
+                                }
+                                // All other intervals will be fixed_intervals expressed in ms.
                                 else {
                                     long intervalAsMillis = Intervals.inMillis(h.interval());
 
@@ -359,12 +374,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                             // numeric histogram
                             else {
-                                if (field instanceof FieldAttribute) {
-                                    key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field),
-                                            Foldables.doubleValueOf(h.interval()));
-                                } else if (field instanceof Function) {
-                                    key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(),
-                                            Foldables.doubleValueOf(h.interval()));
+                                if (field instanceof FieldAttribute || field instanceof Function) {
+                                    Double interval = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(h.interval()),
+                                            DataTypes.DOUBLE);
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field), interval);
+                                    } else {
+                                        key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(), interval);
+                                    }
                                 }
                             }
                             if (key == null) {
@@ -741,7 +758,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(LimitExec plan) {
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
-                int limit = Foldables.intValueOf(plan.limit());
+                int limit = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(plan.limit()), DataTypes.INTEGER);
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));

@@ -29,7 +29,7 @@ import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.MemberCallNode;
-import org.elasticsearch.painless.ir.MemberFieldNode;
+import org.elasticsearch.painless.ir.MemberFieldLoadNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.ir.StaticNode;
@@ -131,13 +131,13 @@ public class ScriptInjectionPhase {
 
         blockNode.addStatementNode(returnNode);
 
-        MemberFieldNode memberFieldNode = new MemberFieldNode();
-        memberFieldNode.setLocation(internalLocation);
-        memberFieldNode.setExpressionType(String.class);
-        memberFieldNode.setName("$NAME");
-        memberFieldNode.setStatic(true);
+        MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
+        memberFieldLoadNode.setLocation(internalLocation);
+        memberFieldLoadNode.setExpressionType(String.class);
+        memberFieldLoadNode.setName("$NAME");
+        memberFieldLoadNode.setStatic(true);
 
-        returnNode.setExpressionNode(memberFieldNode);
+        returnNode.setExpressionNode(memberFieldLoadNode);
 
         functionNode = new FunctionNode();
         functionNode.setLocation(internalLocation);
@@ -162,13 +162,13 @@ public class ScriptInjectionPhase {
 
         blockNode.addStatementNode(returnNode);
 
-        memberFieldNode = new MemberFieldNode();
-        memberFieldNode.setLocation(internalLocation);
-        memberFieldNode.setExpressionType(String.class);
-        memberFieldNode.setName("$SOURCE");
-        memberFieldNode.setStatic(true);
+        memberFieldLoadNode = new MemberFieldLoadNode();
+        memberFieldLoadNode.setLocation(internalLocation);
+        memberFieldLoadNode.setExpressionType(String.class);
+        memberFieldLoadNode.setName("$SOURCE");
+        memberFieldLoadNode.setStatic(true);
 
-        returnNode.setExpressionNode(memberFieldNode);
+        returnNode.setExpressionNode(memberFieldLoadNode);
 
         functionNode = new FunctionNode();
         functionNode.setLocation(internalLocation);
@@ -193,13 +193,13 @@ public class ScriptInjectionPhase {
 
         blockNode.addStatementNode(returnNode);
 
-        memberFieldNode = new MemberFieldNode();
-        memberFieldNode.setLocation(internalLocation);
-        memberFieldNode.setExpressionType(BitSet.class);
-        memberFieldNode.setName("$STATEMENTS");
-        memberFieldNode.setStatic(true);
+        memberFieldLoadNode = new MemberFieldLoadNode();
+        memberFieldLoadNode.setLocation(internalLocation);
+        memberFieldLoadNode.setExpressionType(BitSet.class);
+        memberFieldLoadNode.setName("$STATEMENTS");
+        memberFieldLoadNode.setStatic(true);
 
-        returnNode.setExpressionNode(memberFieldNode);
+        returnNode.setExpressionNode(memberFieldLoadNode);
     }
 
     // convert gets methods to a new set of inserted ir nodes as necessary -
@@ -338,11 +338,11 @@ public class ScriptInjectionPhase {
             memberCallNode.setLocation(internalLocation);
             memberCallNode.setExpressionType(ScriptException.class);
             memberCallNode.setLocalFunction(new LocalFunction(
-                            "convertToScriptException",
-                            ScriptException.class,
-                            Arrays.asList(Throwable.class, Map.class),
-                            true,
-                            false
+                    "convertToScriptException",
+                    ScriptException.class,
+                    Arrays.asList(Throwable.class, Map.class),
+                    true,
+                    false
                     )
             );
 
@@ -382,17 +382,18 @@ public class ScriptInjectionPhase {
                     null,
                     null,
                     null
-            ));
+                    )
+            );
 
             callNode.setRightNode(callSubNode);
 
-            MemberFieldNode memberFieldNode = new MemberFieldNode();
-            memberFieldNode.setLocation(internalLocation);
-            memberFieldNode.setExpressionType(PainlessLookup.class);
-            memberFieldNode.setName("$DEFINITION");
-            memberFieldNode.setStatic(true);
+            MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
+            memberFieldLoadNode.setLocation(internalLocation);
+            memberFieldLoadNode.setExpressionType(PainlessLookup.class);
+            memberFieldLoadNode.setName("$DEFINITION");
+            memberFieldLoadNode.setStatic(true);
 
-            callSubNode.addArgumentNode(memberFieldNode);
+            callSubNode.addArgumentNode(memberFieldLoadNode);
 
             for (Class<?> throwable : new Class<?>[] {
                     PainlessError.class, BootstrapMethodError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
@@ -429,11 +430,11 @@ public class ScriptInjectionPhase {
                 memberCallNode.setLocation(internalLocation);
                 memberCallNode.setExpressionType(ScriptException.class);
                 memberCallNode.setLocalFunction(new LocalFunction(
-                                "convertToScriptException",
-                                ScriptException.class,
-                                Arrays.asList(Throwable.class, Map.class),
-                                true,
-                                false
+                        "convertToScriptException",
+                        ScriptException.class,
+                        Arrays.asList(Throwable.class, Map.class),
+                        true,
+                        false
                         )
                 );
 
@@ -470,7 +471,8 @@ public class ScriptInjectionPhase {
                         null,
                         null,
                         null
-                ));
+                        )
+                );
 
                 callNode.setRightNode(callSubNode);
             }

@@ -372,7 +372,7 @@ is not null safe alternative, so an explicit null check is needed.
 
 [[ingest-conditional-complex]]
 === Complex Conditionals
-The `if` condition can be more then a simple equality check.
+The `if` condition can be more complex than a simple equality check.
 The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
 running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
 

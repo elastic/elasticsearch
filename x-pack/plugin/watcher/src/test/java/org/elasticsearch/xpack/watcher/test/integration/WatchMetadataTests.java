@@ -62,8 +62,8 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
-            .setQuery(termQuery("metadata.foo", "bar"))
-            .get();
+                .setQuery(termQuery("metadata.foo", "bar"))
+                .get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
     }
 

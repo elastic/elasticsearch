@@ -188,8 +188,8 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
-            .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
-            .execute().actionGet();
+                .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
+                .execute().actionGet();
         assertHitCount(searchResponse, 1);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {

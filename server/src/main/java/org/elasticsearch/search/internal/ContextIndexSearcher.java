@@ -74,6 +74,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+import static org.apache.lucene.index.FilterLeafReader.FilterTerms;
+import static org.apache.lucene.index.FilterLeafReader.FilterTermsEnum;
+
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
@@ -95,7 +98,8 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     // TODO: Make the 2nd constructor private so that the dirCancellable is never null and the IndexReader is always wrapped.
     // Some issues must be fixed:
-    //   - regarding tests deriving from AggregatorTestCase and more specifically the use of searchAndReduce and the ShardSearcher sub-searchers.
+    //   - regarding tests deriving from AggregatorTestCase and more specifically the use of searchAndReduce and
+    //     the ShardSearcher sub-searchers.
     //   - tests that use a MultiReader
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
@@ -340,7 +344,54 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Wraps an {@link IndexReader} with a cancellation Runnable task.
+     * iFace which implements the query timeout / cancellation logic
+     */
+    public interface Cancellable {
+
+        boolean isEnabled();
+        void checkCancelled();
+        default void checkDirReaderCancelled() {
+            checkCancelled();
+        }
+        void unsetCheckTimeout();
+    }
+
+    public static class CancellableImpl implements Cancellable {
+
+        private Runnable checkCancelled;
+        private Runnable checkTimeout;
+
+        private CancellableImpl() {
+        }
+
+        public CancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
+            this.checkCancelled = checkCancelled;
+            this.checkTimeout = checkTimeout;
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return checkCancelled != null || checkTimeout != null;
+        }
+
+        @Override
+        public void checkCancelled() {
+            if (checkTimeout != null) {
+                checkTimeout.run();
+            }
+            if (checkCancelled != null) {
+                checkCancelled.run();
+            }
+        }
+
+        @Override
+        public void unsetCheckTimeout() {
+            this.checkTimeout = null;
+        }
+    }
+
+    /**
+     * Wraps an {@link IndexReader} with a {@link Cancellable}.
      */
     private static class CancellableDirectoryReader extends FilterDirectoryReader {
 
@@ -365,7 +416,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Wraps a leaf reader with a cancellable task
+     * Wraps a {@link FilterLeafReader} with a {@link Cancellable}.
      */
     private static class CancellableLeafReader extends FilterLeafReader {
 
@@ -406,10 +457,16 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
+    /**
+     * Helper class to be used as an immutable reference so that the underlying
+     * {@link Cancellable} passed trough the hierarchy to the {@link Terms} and {@link PointValues}
+     * during construction can be set later with {@link ContextIndexSearcher#setCancellable}
+     */
     private static class Holder<T> {
+
         private T in;
 
-        public Holder(T in) {
+        private Holder(T in) {
             this.in = in;
         }
 
@@ -422,59 +479,14 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
-    public interface Cancellable {
-
-        boolean isEnabled();
-        void checkCancelled();
-        default void checkDirReaderCancelled() {
-            checkCancelled();
-        }
-        void unsetCheckTimeout();
-    }
-
-    public static class CancellableImpl implements Cancellable {
-
-        private Runnable checkCancelled;
-        private Runnable checkTimeout;
-
-        private CancellableImpl() {
-        }
-
-        public CancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
-            this.checkCancelled = checkCancelled;
-            this.checkTimeout = checkTimeout;
-        }
-
-        @Override
-        public boolean isEnabled() {
-            return checkCancelled != null || checkTimeout != null;
-        }
-
-        @Override
-        public void checkCancelled() {
-            if (checkTimeout != null) {
-                checkTimeout.run();
-            }
-            if (checkCancelled != null) {
-                checkCancelled.run();;
-            }
-        }
-
-        @Override
-        public void unsetCheckTimeout() {
-            this.checkTimeout = null;
-        }
-    }
-
     /**
-     * Wrapper class for terms that check for query cancellation or timeout.
+     * Wrapper class for {@link FilterTerms} that check for query cancellation or timeout.
      */
-    public static class ExitableTerms extends FilterLeafReader.FilterTerms {
+    private static class ExitableTerms extends FilterTerms {
 
         private final Cancellable cancellable;
 
-        /** Constructor **/
-        public ExitableTerms(Terms terms, Cancellable cancellable) {
+        private ExitableTerms(Terms terms, Cancellable cancellable) {
             super(terms);
             this.cancellable = cancellable;
         }
@@ -491,14 +503,13 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Wrapper class for TermsEnum that is used by ExitableTerms for implementing an
-     * exitable enumeration of terms.
+     * Wrapper class for {@link FilterTermsEnum} that is used by {@link ExitableTerms} for
+     * implementing an exitable enumeration of terms.
      */
-    private static class ExitableTermsEnum extends FilterLeafReader.FilterTermsEnum {
+    private static class ExitableTermsEnum extends FilterTermsEnum {
 
         private final Cancellable cancellable;
 
-        /** Constructor **/
         private ExitableTermsEnum(TermsEnum termsEnum, Cancellable cancellable) {
             super(termsEnum);
             this.cancellable = cancellable;
@@ -514,7 +525,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Wrapper class for PointValues that checks for cancellation and timeout.
+     * Wrapper class for {@link PointValues} that checks for query cancellation or timeout.
      */
     private static class ExitablePointValues extends PointValues {
 

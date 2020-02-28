@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -46,7 +47,8 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             descriptions[i] = randomAlphaOfLength(10);
         }
         TimeValue timeout = TimeValue.timeValueMillis(between(0, 30000));
-        final AddVotingConfigExclusionsRequest originalRequest = new AddVotingConfigExclusionsRequest(descriptions, timeout);
+        final AddVotingConfigExclusionsRequest originalRequest = new AddVotingConfigExclusionsRequest(descriptions, Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY, timeout);
         final AddVotingConfigExclusionsRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
             AddVotingConfigExclusionsRequest::new);
         assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));

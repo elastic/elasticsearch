@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -179,7 +180,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         // no observer to reconfigure
         transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[]{"other1"}, TimeValue.ZERO),
+            new AddVotingConfigExclusionsRequest(new String[]{"other1"}, null, null, TimeValue.ZERO),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -191,18 +192,18 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
                 contains(otherNode1Exclusion));
     }
 
-    public void testMatchesAbsentNodes() throws InterruptedException {
+    public void testMatchesAbsentNodesByNodeNames() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
         transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[]{"absent_node"}),
+            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, new String[]{"absent_node"}, TimeValue.ZERO),
             expectSuccess(e -> {
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertEquals(Set.of(new VotingConfigExclusion("absent_node", "absent_node")),
+        assertEquals(Set.of(new VotingConfigExclusion("", "absent_node")),
                     clusterService.getClusterApplierService().state().getVotingConfigExclusions());
     }
 
@@ -278,7 +279,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
         transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[]{"other1"}, TimeValue.timeValueMillis(100)),
+            new AddVotingConfigExclusionsRequest(new String[]{"other1"}, null, null, TimeValue.timeValueMillis(100)),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();

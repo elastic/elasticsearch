@@ -336,32 +336,41 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
-    public NodeResolutionResults resolveNodesExact(String... nodes) {
+    public NodeResolutionResults resolveNodesExact(boolean isNodeIds, String... nodes) {
         if (nodes == null || nodes.length == 0) {
             return new NodeResolutionResults(StreamSupport.stream(this.spliterator(), false)
                                             .map(DiscoveryNode::getId).toArray(String[]::new), new String[0]);
         } else {
-            ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
-            ObjectHashSet<String> unresolvedNodesIds = new ObjectHashSet<>();
+            ObjectHashSet<String> resolvedNodes = new ObjectHashSet<>(nodes.length);
+            ObjectHashSet<String> unresolvedNodes = new ObjectHashSet<>();
 
-            Map<String, String> existingNodesNameId = new HashMap<>();
-            for (DiscoveryNode node : this) {
-                existingNodesNameId.put(node.getName(), node.getId());
-            }
-
-            for (String nodeToBeProcessed : nodes) {
-                if (nodeExists(nodeToBeProcessed)) {
-                    resolvedNodesIds.add(nodeToBeProcessed);
-                }
-                else if (existingNodesNameId.containsKey(nodeToBeProcessed)){
-                    resolvedNodesIds.add(existingNodesNameId.get(nodeToBeProcessed));
-                }
-                else {
-                    unresolvedNodesIds.add(nodeToBeProcessed);
+            if (isNodeIds) {
+                for (String nodeId : nodes) {
+                    if (nodeExists(nodeId)) {
+                        resolvedNodes.add(nodeId);
+                    }
+                    else {
+                        unresolvedNodes.add(nodeId);
+                    }
                 }
             }
+            else {
+                Map<String, String> existingNodesNameId = new HashMap<>();
+                for (DiscoveryNode node : this) {
+                    existingNodesNameId.put(node.getName(), node.getId());
+                }
 
-            return new NodeResolutionResults(resolvedNodesIds.toArray(String.class), unresolvedNodesIds.toArray(String.class));
+                for (String nodeName : nodes) {
+                    if (existingNodesNameId.containsKey(nodeName)){
+                        resolvedNodes.add(existingNodesNameId.get(nodeName));
+                    }
+                    else {
+                        unresolvedNodes.add(nodeName);
+                    }
+                }
+            }
+
+            return new NodeResolutionResults(resolvedNodes.toArray(String.class), unresolvedNodes.toArray(String.class));
         }
     }
 

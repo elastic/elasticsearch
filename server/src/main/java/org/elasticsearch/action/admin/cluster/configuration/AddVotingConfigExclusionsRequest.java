@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,6 +43,8 @@ import java.util.stream.Collectors;
  */
 public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
     private final String[] nodeDescriptions;
+    private String[] nodeIds = null;
+    private String[] nodeNames = null;
     private final TimeValue timeout;
 
     /**
@@ -49,7 +53,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
      * @param nodeDescriptions Descriptions of the nodes to add - see {@link DiscoveryNodes#resolveNodes(String...)}
      */
     public AddVotingConfigExclusionsRequest(String[] nodeDescriptions) {
-        this(nodeDescriptions, TimeValue.timeValueSeconds(30));
+        this(nodeDescriptions, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30));
     }
 
     /**
@@ -58,34 +62,68 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
      * @param nodeDescriptions Descriptions of the nodes whose exclusions to add - see {@link DiscoveryNodes#resolveNodes(String...)}.
      * @param timeout How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
-    public AddVotingConfigExclusionsRequest(String[] nodeDescriptions, TimeValue timeout) {
+    public AddVotingConfigExclusionsRequest(String[] nodeDescriptions, String[] nodeIds, String[] nodeNames, TimeValue timeout) {
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }
         this.nodeDescriptions = nodeDescriptions;
+        this.nodeIds = nodeIds;
+        this.nodeNames = nodeNames;
         this.timeout = timeout;
     }
 
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
+        // TODO should this be removed in the latest version where nodeIds and nodeNames are used?
         nodeDescriptions = in.readStringArray();
+        // TODO which version to use here?
+        if (in.getVersion() == Version.V_EMPTY) {
+            nodeIds = in.readStringArray();
+            nodeNames = in.readStringArray();
+        }
         timeout = in.readTimeValue();
     }
 
     Set<VotingConfigExclusion> resolveVotingConfigExclusions(ClusterState currentState) {
         final DiscoveryNodes allNodes = currentState.nodes();
-        final DiscoveryNodes.NodeResolutionResults nodeResolutionResults = allNodes.resolveNodesExact(nodeDescriptions);
+        Set<VotingConfigExclusion> allProcessedNodes = null;
 
-        final Set<VotingConfigExclusion> resolvedNodes = Arrays.stream(nodeResolutionResults.getResolvedNodes())
+        if (nodeDescriptions.length >= 1) {
+            allProcessedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions)).map(allNodes::get)
+                                    .filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
+
+            if (allProcessedNodes.isEmpty()) {
+                throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
+                    + " matched no master-eligible nodes");
+            }
+        }
+        else {
+            DiscoveryNodes.NodeResolutionResults nodeResolutionResults;
+            Set<VotingConfigExclusion> resolvedNodes;
+            Set<VotingConfigExclusion> unresolvedNodes;
+
+            if (nodeIds.length >= 1) {
+                nodeResolutionResults = allNodes.resolveNodesExact(true, nodeIds);
+
+                unresolvedNodes = Arrays.stream(nodeResolutionResults.getUnresolvedNodes())
+                    .map(nodeId -> new VotingConfigExclusion(nodeId, "")).collect(Collectors.toSet());
+            }
+            else {
+                nodeResolutionResults = allNodes.resolveNodesExact(false, nodeNames);
+
+                unresolvedNodes = Arrays.stream(nodeResolutionResults.getUnresolvedNodes())
+                    .map(nodeName -> new VotingConfigExclusion("", nodeName)).collect(Collectors.toSet());
+            }
+
+            resolvedNodes = Arrays.stream(nodeResolutionResults.getResolvedNodes())
                 .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
-        final Set<VotingConfigExclusion> unresolvedNodes = Arrays.stream(nodeResolutionResults.getUnresolvedNodes())
-                .map(nodeIdOrName -> new VotingConfigExclusion(nodeIdOrName, nodeIdOrName)).collect(Collectors.toSet());
 
-        Set<VotingConfigExclusion> allProcessedNodes = Sets.newHashSet(Iterables.concat(resolvedNodes, unresolvedNodes));
+            allProcessedNodes = Sets.newHashSet(Iterables.concat(resolvedNodes, unresolvedNodes));
 
-        if (allProcessedNodes.isEmpty()) {
-            throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
-                + " matched no master-eligible nodes or absent nodes");
+            if (allProcessedNodes.isEmpty()) {
+                throw new IllegalArgumentException("add voting config exclusions request for nodeIds " + Arrays.asList(nodeIds) +
+                    " or nodeNames " + Arrays.asList(nodeNames) + " matched no master-eligible nodes or absent nodes");
+            }
         }
 
         allProcessedNodes.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
@@ -115,6 +153,20 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     }
 
     /**
+     * @return ids of the nodes for whom to add voting config exclusions.
+     */
+    public String[] getNodeIds() {
+        return nodeIds;
+    }
+
+    /**
+     * @return names of the nodes for whom to add voting config exclusions.
+     */
+    public String[] getNodeNames() {
+        return nodeNames;
+    }
+
+    /**
      * @return how long to wait after adding the exclusions for the nodes to be removed from the voting configuration.
      */
     public TimeValue getTimeout() {
@@ -129,15 +181,24 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        // TODO should this be removed in the latest version where nodeIds and nodeNames are used?
         out.writeStringArray(nodeDescriptions);
+        // TODO which version to use here?
+        if (out.getVersion() == Version.V_EMPTY) {
+            out.writeStringArray(nodeIds);
+            out.writeStringArray(nodeNames);
+
+        }
         out.writeTimeValue(timeout);
     }
 
     @Override
     public String toString() {
         return "AddVotingConfigExclusionsRequest{" +
-            "nodeDescriptions=" + Arrays.asList(nodeDescriptions) +
-            ", timeout=" + timeout +
+            "nodeDescriptions=" + Arrays.asList(nodeDescriptions) + ", " +
+            "nodeIds=" + Arrays.asList(nodeIds) + ", " +
+            "nodeNames=" + Arrays.asList(nodeNames) + ", " +
+            "timeout=" + timeout +
             '}';
     }
 }

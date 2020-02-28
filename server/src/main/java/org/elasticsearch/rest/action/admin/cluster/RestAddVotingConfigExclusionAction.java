@@ -23,24 +23,28 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
+    private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public RestAddVotingConfigExclusionAction(RestController controller) {
         // TODO This API is being deprecated.
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this);
 
-        controller.registerHandler(RestRequest.Method.POST,
-            "/_cluster/voting_config_exclusions/node_ids_or_names/{node_id_or_names}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions", this);
     }
 
     @Override
@@ -59,21 +63,53 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
-        String nodeDescriptions;
+        String deprecatedNodeDescription = null;
+        String nodeIds = null;
+        String nodeNames = null;
 
-        // TODO This request param is being deprecated
         if (request.hasParam("node_name")) {
-            nodeDescriptions = request.param("node_name");
-        }
-        else {
-            nodeDescriptions = request.param("node_ids_or_names");
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("add_voting_config_exclusion",
+                "Using [node_name] for adding voting config exclustion will be removed in a future version. " +
+                    "Please use [node_ids] or [node_names] instead");
+            deprecatedNodeDescription = request.param("node_name");
         }
 
-        assert !Strings.isNullOrEmpty(nodeDescriptions);
+        if (request.hasParam("node_ids")){
+            nodeIds = request.param("node_ids");
+        }
+
+        if (request.hasParam("node_names")){
+            nodeNames = request.param("node_names");
+        }
+
+        if(!oneAndonlyOneIsSet(deprecatedNodeDescription, nodeIds, nodeNames)) {
+            throw new IllegalArgumentException("Please set node identifiers correctly. " +
+                "One and only one of [node_name], [node_names] and [node_ids] has to be set");
+        }
 
         return new AddVotingConfigExclusionsRequest(
-            Strings.splitStringByCommaToArray(nodeDescriptions),
+            Strings.splitStringByCommaToArray(deprecatedNodeDescription),
+            Strings.splitStringByCommaToArray(nodeIds),
+            Strings.splitStringByCommaToArray(nodeNames),
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }
+
+    private boolean oneAndonlyOneIsSet(String deprecatedNodeDescription, String nodeIds, String nodeNames) {
+        if(Strings.hasText(deprecatedNodeDescription)) {
+            return Strings.isNullOrEmpty(nodeIds) && Strings.isNullOrEmpty(nodeNames);
+        }
+        else if (Strings.hasText(nodeIds)) {
+            return Strings.isNullOrEmpty(nodeNames);
+        }
+        else if (Strings.hasText(nodeNames)) {
+            return true;
+        }
+        else {
+            // none of the node identifiers are set
+            return false;
+        }
+
+    }
+
 }

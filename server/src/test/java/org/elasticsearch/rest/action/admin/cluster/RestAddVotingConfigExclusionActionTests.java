@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -49,20 +50,42 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(deprecatedRequest);
         String[] expected = {"node-1","node-2", "node-3"};
         assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
+        assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeIds());
+        assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeNames());
+        assertWarnings("Using [node_name] for adding voting config exclustion will be removed in a future version. " +
+            "Please use [node_ids] or [node_names] instead");
     }
 
-    public void testResolveVotingConfigExclusionsRequestNodeIdsOrNames() {
+    public void testResolveVotingConfigExclusionsRequestNodeIds() {
         Map<String, String> params = new HashMap<>();
-        params.put("node_ids_or_names", "node-1,node-2,node-3");
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+        params.put("node_ids", "node-1,node-2,node-3");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
-            .withPath("/_cluster/voting_config_exclusions/node_ids_or_names")
+            .withPath("/_cluster/voting_config_exclusions")
             .withParams(params)
             .build();
 
-        AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(deprecatedRequest);
+        AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(request);
         String[] expected = {"node-1","node-2", "node-3"};
-        assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
+        assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeDescriptions());
+        assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeIds());
+        assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeNames());
+    }
+
+    public void testResolveVotingConfigExclusionsRequestNodeNames() {
+        Map<String, String> params = new HashMap<>();
+        params.put("node_names", "node-1,node-2,node-3");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/_cluster/voting_config_exclusions")
+            .withParams(params)
+            .build();
+
+        AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(request);
+        String[] expected = {"node-1","node-2", "node-3"};
+        assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeDescriptions());
+        assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeIds());
+        assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeNames());
     }
 
 }

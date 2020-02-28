@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  * This class tests how dangling indices are handled, in terms of how they
@@ -167,31 +168,25 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
-        assertBusy(() -> {
-            final ListDanglingIndicesResponse response = client().admin()
-                .cluster()
-                .listDanglingIndices(new ListDanglingIndicesRequest())
-                .actionGet();
-            assertThat(response.status(), equalTo(RestStatus.OK));
+        final ListDanglingIndicesResponse response = client().admin()
+            .cluster()
+            .listDanglingIndices(new ListDanglingIndicesRequest())
+            .actionGet();
+        assertThat(response.status(), equalTo(RestStatus.OK));
 
-            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
-            assertThat("Didn't get responses from all nodes", nodeResponses, hasSize(3));
+        final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
+        assertThat("Didn't get responses from all nodes", nodeResponses, hasSize(3));
 
-            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
-                    assertThat("Expected node that was stopped to have one dangling index", nodeResponse.getDanglingIndices(), hasSize(1));
+        for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
+            if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
+                assertThat("Expected node that was stopped to have one dangling index", nodeResponse.getDanglingIndices(), hasSize(1));
 
-                    final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
-                    assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
-                } else {
-                    assertThat(
-                        "Expected node that was never stopped to have no dangling indices",
-                        nodeResponse.getDanglingIndices(),
-                        empty()
-                    );
-                }
+                final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
+                assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
+            } else {
+                assertThat("Expected node that was never stopped to have no dangling indices", nodeResponse.getDanglingIndices(), empty());
             }
-        });
+        }
     }
 
     /**
@@ -202,30 +197,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
-        final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
+        final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        // Wait for the dangling index to be noticed
-        assertBusy(() -> {
-            final ListDanglingIndicesResponse response = client().admin()
-                .cluster()
-                .listDanglingIndices(new ListDanglingIndicesRequest())
-                .actionGet();
-            assertThat(response.status(), equalTo(RestStatus.OK));
-
-            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
-
-            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
-                    final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
-                    assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
-
-                    danglingIndexUUID.set(danglingIndexInfo.getIndexUUID());
-                    break;
-                }
-            }
-        });
-
-        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), true);
+        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, true);
 
         final ImportDanglingIndexResponse importResponse = client().admin().cluster().importDanglingIndex(request).actionGet();
 
@@ -262,31 +236,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
+        final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
-
-        // Wait for the dangling index to be noticed
-        assertBusy(() -> {
-            final ListDanglingIndicesResponse response = client().admin()
-                .cluster()
-                .listDanglingIndices(new ListDanglingIndicesRequest())
-                .actionGet();
-            assertThat(response.status(), equalTo(RestStatus.OK));
-
-            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
-
-            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
-                    final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
-                    assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
-
-                    danglingIndexUUID.set(danglingIndexInfo.getIndexUUID());
-                    break;
-                }
-            }
-        });
-
-        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID.get(), false);
+        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, false);
 
         Exception caughtException = null;
 
@@ -316,52 +268,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(3, settings);
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
+        final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        final AtomicReference<DanglingIndexInfo> danglingIndex = new AtomicReference<>();
+        client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true)).actionGet();
 
-        // Wait for the dangling index to be noticed
-        assertBusy(() -> {
-            final ListDanglingIndicesResponse response = client().admin()
-                .cluster()
-                .listDanglingIndices(new ListDanglingIndicesRequest())
-                .actionGet();
-            assertThat(response.status(), equalTo(RestStatus.OK));
-
-            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
-
-            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
-                    final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
-                    assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
-
-                    danglingIndex.set(danglingIndexInfo);
-                    break;
-                }
-            }
-        });
-
-        final DanglingIndexInfo indexMetaData = danglingIndex.get();
-
-        client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(indexMetaData.getIndexUUID(), true)).actionGet();
-
-        // Check that the dangling index goes away
-        assertBusy(() -> {
-            final ListDanglingIndicesResponse response = client().admin()
-                .cluster()
-                .listDanglingIndices(new ListDanglingIndicesRequest())
-                .actionGet();
-            assertThat(response.status(), equalTo(RestStatus.OK));
-
-            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
-
-            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                assertThat(
-                    map(nodeResponse.getDanglingIndices(), DanglingIndexInfo::getIndexName).toString(),
-                    nodeResponse.getDanglingIndices(),
-                    empty()
-                );
-            }
-        });
+        final List<DanglingIndexInfo> danglingIndices = listDanglingIndices();
+        assertThat(map(danglingIndices, DanglingIndexInfo::getIndexName).toString(), danglingIndices, is(empty()));
     }
 
     /**
@@ -395,14 +307,11 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final AtomicReference<List<DanglingIndexInfo>> danglingIndices = new AtomicReference<>();
 
-        // Wait for the dangling indices to be noticed
-        assertBusy(() -> {
-            final List<DanglingIndexInfo> results = listDanglingIndices();
+        final List<DanglingIndexInfo> results = listDanglingIndices();
 
-            // Both the stopped nodes should have found a dangling index.
-            assertThat(results, hasSize(2));
-            danglingIndices.set(results);
-        });
+        // Both the stopped nodes should have found a dangling index.
+        assertThat(results, hasSize(2));
+        danglingIndices.set(results);
 
         // Try to delete the index - this request should succeed
         client().admin()
@@ -421,36 +330,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(3, settings);
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
-
-        final AtomicReference<DanglingIndexInfo> danglingIndex = new AtomicReference<>();
-
-        // Wait for the dangling index to be noticed
-        assertBusy(() -> {
-            final ListDanglingIndicesResponse response = client().admin()
-                .cluster()
-                .listDanglingIndices(new ListDanglingIndicesRequest())
-                .actionGet();
-            assertThat(response.status(), equalTo(RestStatus.OK));
-
-            final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
-
-            for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
-                    final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
-                    assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
-
-                    danglingIndex.set(danglingIndexInfo);
-                    break;
-                }
-            }
-        });
-
-        final DanglingIndexInfo indexMetaData = danglingIndex.get();
+        final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
         Exception caughtException = null;
 
         try {
-            client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(indexMetaData.getIndexUUID(), false)).actionGet();
+            client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false)).actionGet();
         } catch (Exception e) {
             caughtException = e;
         }
@@ -520,5 +405,31 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         });
 
         return stoppedNodeName.get();
+    }
+
+    private String findDanglingIndexForNode(String stoppedNodeName, String indexName) {
+        String danglingIndexUUID = null;
+
+        final ListDanglingIndicesResponse response = client().admin()
+            .cluster()
+            .listDanglingIndices(new ListDanglingIndicesRequest())
+            .actionGet();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+
+        final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
+
+        for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
+            if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
+                final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
+                assertThat(danglingIndexInfo.getIndexName(), equalTo(indexName));
+
+                danglingIndexUUID = danglingIndexInfo.getIndexUUID();
+                break;
+            }
+        }
+
+        assertNotNull("Failed to find a dangling index UUID for node [" + stoppedNodeName + "]", danglingIndexUUID);
+
+        return danglingIndexUUID;
     }
 }

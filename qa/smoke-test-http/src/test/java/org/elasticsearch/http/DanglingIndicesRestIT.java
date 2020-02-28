@@ -82,24 +82,22 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
 
         final RestClient restClient = getRestClient();
 
-        assertBusy(() -> {
-            final Response listResponse = restClient.performRequest(new Request("GET", "/_dangling"));
-            assertOK(listResponse);
+        final Response listResponse = restClient.performRequest(new Request("GET", "/_dangling"));
+        assertOK(listResponse);
 
-            final XContentTestUtils.JsonMapView mapView = createJsonMapView(listResponse.getEntity().getContent());
+        final XContentTestUtils.JsonMapView mapView = createJsonMapView(listResponse.getEntity().getContent());
 
-            assertThat(mapView.get("_nodes.total"), equalTo(3));
-            assertThat(mapView.get("_nodes.successful"), equalTo(3));
-            assertThat(mapView.get("_nodes.failed"), equalTo(0));
+        assertThat(mapView.get("_nodes.total"), equalTo(3));
+        assertThat(mapView.get("_nodes.successful"), equalTo(3));
+        assertThat(mapView.get("_nodes.failed"), equalTo(0));
 
-            List<Object> indices = mapView.get("dangling_indices");
-            assertThat(indices, hasSize(1));
+        List<Object> indices = mapView.get("dangling_indices");
+        assertThat(indices, hasSize(1));
 
-            assertThat(mapView.get("dangling_indices.0.index_name"), equalTo(INDEX_NAME));
-            assertThat(mapView.get("dangling_indices.0.index_uuid"), not(emptyString()));
-            assertThat(mapView.get("dangling_indices.0.creation_date_millis"), instanceOf(Long.class));
-            assertThat(mapView.get("dangling_indices.0.node_ids.0"), equalTo(stoppedNodeId));
-        });
+        assertThat(mapView.get("dangling_indices.0.index_name"), equalTo(INDEX_NAME));
+        assertThat(mapView.get("dangling_indices.0.index_uuid"), not(emptyString()));
+        assertThat(mapView.get("dangling_indices.0.creation_date_millis"), instanceOf(Long.class));
+        assertThat(mapView.get("dangling_indices.0.node_ids.0"), equalTo(stoppedNodeId));
     }
 
     /**
@@ -112,16 +110,11 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         createDanglingIndices(INDEX_NAME);
 
         final RestClient restClient = getRestClient();
-        final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
 
-        // Wait for the dangling index to be noticed
-        assertBusy(() -> {
-            final List<String> danglingIndexIds = listDanglingIndexIds();
-            assertThat(danglingIndexIds, hasSize(1));
-            danglingIndexUUID.set(danglingIndexIds.get(0));
-        });
+        final List<String> danglingIndexIds = listDanglingIndexIds();
+        assertThat(danglingIndexIds, hasSize(1));
 
-        final Request importRequest = new Request("POST", "/_dangling/" + danglingIndexUUID.get());
+        final Request importRequest = new Request("POST", "/_dangling/" + danglingIndexIds.get(0));
         importRequest.addParameter("accept_data_loss", "true");
         final Response importResponse = restClient.performRequest(importRequest);
         assertThat(importResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
@@ -147,16 +140,11 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         final RestClient restClient = getRestClient();
-        final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
 
-        // Wait for the dangling index to be noticed
-        assertBusy(() -> {
             final List<String> danglingIndexIds = listDanglingIndexIds();
             assertThat(danglingIndexIds, hasSize(1));
-            danglingIndexUUID.set(danglingIndexIds.get(0));
-        });
 
-        final Request deleteRequest = new Request("DELETE", "/_dangling/" + danglingIndexUUID.get());
+        final Request deleteRequest = new Request("DELETE", "/_dangling/" + danglingIndexIds.get(0));
         deleteRequest.addParameter("accept_data_loss", "true");
         final Response deleteResponse = restClient.performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));

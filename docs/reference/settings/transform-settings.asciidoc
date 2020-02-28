@@ -31,7 +31,7 @@ least one transform node in your cluster. +
 +
 IMPORTANT: It is advised to use the `node.transform` setting to constrain the execution
 of transforms to certain nodes instead of using `xpack.transform.enabled`. On dedicated
-coordinating nodes or dedicated master nodes, disable the node.ml role.
+coordinating nodes or dedicated master nodes, disable the node.transform role.
 
 `xpack.transform.enabled`::
 Set to `true` (default) to enable {transforms} on the node. +

@@ -205,7 +205,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         assertThat(importResponse.status(), equalTo(RestStatus.ACCEPTED));
 
-        assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
+        assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
     }
 
     /**

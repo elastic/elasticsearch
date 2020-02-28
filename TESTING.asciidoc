@@ -87,16 +87,26 @@ In order to set an Elasticsearch setting, provide a setting with the following p
 You can run a single test, provided that you specify the Gradle project.  See the documentation on
 https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
 
-Run a single test case in the `server` project:
+Run a single test case in the sub project:
+
+Usage:
 
 ----------------------------------------------------------
-./gradlew :server:test --tests org.elasticsearch.package.ClassName
+./gradlew :project:test --tests org.elasticsearch.package.ClassName
 ----------------------------------------------------------
 
-Run all tests in a package and its sub-packages:
+Example:
+
+Run a single test case in the `server` project and `ingest` package, `CompoundProcessorTests` ClassName
+
+----------------------------------------------------------
+./gradlew :server:test --tests org.elasticsearch.ingest.CompoundProcessorTests
+----------------------------------------------------------
+
+Run all tests in `ingest` and its sub-packages:
 
 ----------------------------------------------------
-./gradlew :server:test --tests 'org.elasticsearch.package.*'
+./gradlew :server:test --tests 'org.elasticsearch.ingest.*'
 ----------------------------------------------------
 
 Run all tests that are waiting for a bugfix (disabled by default)
@@ -121,7 +131,7 @@ Every test repetition will have a different method seed
 (derived from a single random master seed).
 
 --------------------------------------------------
-./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName
+./gradlew :project:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName
 --------------------------------------------------
 
 ==== iters + seed
@@ -130,7 +140,7 @@ Every test repetition will have exactly the same master (0xdead) and
 method-level (0xbeef) seed.
 
 ------------------------------------------------------------------------
-./gradlew :server:test -Dtests.iters=N -Dtests.seed=DEAD:BEEF --tests org.elasticsearch.package.ClassName
+./gradlew :project:test -Dtests.iters=N -Dtests.seed=DEAD:BEEF --tests org.elasticsearch.package.ClassName
 ------------------------------------------------------------------------
 
 === Repeats a given test N times
@@ -140,7 +150,7 @@ ie: testFoo[0], testFoo[1], etc... so using testmethod or tests.method
 ending in a glob is necessary to ensure iterations are run).
 
 -------------------------------------------------------------------------
-./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName.methodName
+./gradlew :project:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName.methodName
 -------------------------------------------------------------------------
 
 Repeats N times but skips any tests after the first failure or M initial failures.

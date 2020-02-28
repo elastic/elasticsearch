@@ -170,7 +170,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         // transform enabled?
         if (Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_ENABLED_NODE_ATTR)) == false) {
             if (explain != null) {
-                explain.put(node.getId(), "transform not enabled");
+                explain.put(node.getId(), "not a transform node");
             }
             return false;
         }

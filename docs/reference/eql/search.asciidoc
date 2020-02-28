@@ -132,12 +132,13 @@ GET sec_logs/_eql/search
 === Filter using query DSL
 
 You can use the `query` parameter to specify an additional query using
-<<query-dsl,query DSL>>. This query filters the results matched by the EQL
-query.
+<<query-dsl,query DSL>>. This query filters the documents on which the EQL query
+runs.
 
-For example, the following request uses a `range` query to filter the EQL query
-results to only those events with a `file.size` greater than `1` but less than
-`1000000` bytes.
+For example, the following request uses a `range` query to filter the `sec_logs`
+index down to only documents with a `file.size` value greater than `1` but less
+than `1000000` bytes. The EQL query in `rule` parameter then runs on these
+filtered documents.
 
 [source,console]
 ----

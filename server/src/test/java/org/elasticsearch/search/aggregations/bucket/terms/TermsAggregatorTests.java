@@ -132,7 +132,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES);
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.IP,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
     }
 
     public void testGlobalOrdinalsExecutionHint() throws Exception {
@@ -700,6 +703,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     }
 
                     if (multiValued == false) {
+                        MappedFieldType filterFieldType = new KeywordFieldMapper.KeywordFieldType();
+                        filterFieldType.setName("include");
                         aggregationBuilder = new FilterAggregationBuilder("_name1", QueryBuilders.termQuery("include", "yes"));
                         aggregationBuilder.subAggregation(new TermsAggregationBuilder("_name2")
                             .userValueTypeHint(valueType)
@@ -707,7 +712,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             .size(numTerms)
                             .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .field("field"));
-                        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, filterFieldType);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();

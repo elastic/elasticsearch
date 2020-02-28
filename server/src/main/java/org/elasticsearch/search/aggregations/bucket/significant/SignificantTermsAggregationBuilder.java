@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -93,6 +95,10 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName), null);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        SignificantTermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
+
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private QueryBuilder filterBuilder = null;
@@ -131,8 +137,20 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    }
+
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        if (filterBuilder != null) {
+            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryShardContext);
+            if (rewrittenFilter != filterBuilder) {
+                SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metaData);
+                rewritten.backgroundFilter(rewrittenFilter);
+                return rewritten;
+            }
+        }
+        return super.doRewrite(queryShardContext);
     }
 
     @Override

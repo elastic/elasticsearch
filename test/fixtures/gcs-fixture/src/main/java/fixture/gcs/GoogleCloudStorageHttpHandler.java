@@ -142,9 +142,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     if (matcher.find() == false) {
                         throw new AssertionError("Range bytes header does not match expected format: " + range);
                     }
-
-                    BytesReference response = Integer.parseInt(matcher.group(1)) == 0 ? blob : BytesArray.EMPTY;
+                    final int offset = Integer.parseInt(matcher.group(1));
+                    final int end = Integer.parseInt(matcher.group(2));
+                    BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    final int bufferedLength = response.length();
+                    if (offset > 0 || bufferedLength > end) {
+                        response = response.slice(offset, Math.min(end + 1 - offset, bufferedLength - offset));
+                    }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());
                 } else {

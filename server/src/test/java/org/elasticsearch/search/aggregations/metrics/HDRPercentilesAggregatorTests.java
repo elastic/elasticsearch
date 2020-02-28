@@ -66,7 +66,10 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.HISTOGRAM);
     }
 
     public void testNoDocs() throws IOException {

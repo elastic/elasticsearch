@@ -31,7 +31,10 @@ import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
@@ -40,11 +43,9 @@ import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_IN
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
-import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 /**
  * This class tests the dangling indices REST API.  These tests are here
@@ -77,8 +78,8 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         internalCluster().setBootstrapMasterNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(0));
 
-        final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
-        final String stoppedNodeId = mapNodeNameToId(stoppedNodeName);
+        final DanglingIndexDetails danglingIndexDetails = createDanglingIndices(INDEX_NAME);
+        final String stoppedNodeId = mapNodeNameToId(danglingIndexDetails.stoppedNodeName);
 
         final RestClient restClient = getRestClient();
 
@@ -95,7 +96,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assertThat(indices, hasSize(1));
 
         assertThat(mapView.get("dangling_indices.0.index_name"), equalTo(INDEX_NAME));
-        assertThat(mapView.get("dangling_indices.0.index_uuid"), not(emptyString()));
+        assertThat(mapView.get("dangling_indices.0.index_uuid"), equalTo(danglingIndexDetails.indexToUUID.get(INDEX_NAME)));
         assertThat(mapView.get("dangling_indices.0.creation_date_millis"), instanceOf(Long.class));
         assertThat(mapView.get("dangling_indices.0.node_ids.0"), equalTo(stoppedNodeId));
     }
@@ -141,8 +142,8 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
 
         final RestClient restClient = getRestClient();
 
-            final List<String> danglingIndexIds = listDanglingIndexIds();
-            assertThat(danglingIndexIds, hasSize(1));
+        final List<String> danglingIndexIds = listDanglingIndexIds();
+        assertThat(danglingIndexIds, hasSize(1));
 
         final Request deleteRequest = new Request("DELETE", "/_dangling/" + danglingIndexIds.get(0));
         deleteRequest.addParameter("accept_data_loss", "true");
@@ -181,22 +182,17 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * Given a node name, finds the corresponding node ID.
      */
     private String mapNodeNameToId(String nodeName) throws IOException {
-        String stoppedNodeId = null;
-
         final Response catResponse = getRestClient().performRequest(new Request("GET", "/_cat/nodes?full_id&h=id,name"));
         assertOK(catResponse);
 
         for (String nodeLine : Streams.readAllLines(catResponse.getEntity().getContent())) {
             String[] elements = nodeLine.split(" ");
             if (elements[1].equals(nodeName)) {
-                stoppedNodeId = elements[0];
-                break;
+                return elements[0];
             }
         }
 
-        assertNotNull("Failed to map node name [" + nodeName + "] to node ID", stoppedNodeId);
-
-        return stoppedNodeId;
+        throw new AssertionError("Failed to map node name [" + nodeName + "] to node ID");
     }
 
     /**
@@ -205,8 +201,10 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * because the tests in this class stop and restart nodes, assuming
      * that each index has a primary or replica shard on every node, and if
      * a node is stopped prematurely, this assumption is broken.
+     *
+     * @return a mapping from each createad index name to its UUID
      */
-    private void createIndices(String... indices) throws IOException {
+    private Map<String, String> createIndices(String... indices) throws IOException {
         assert indices.length > 0;
         for (String index : indices) {
             String indexSettings = "{"
@@ -223,6 +221,24 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
             assertOK(response);
         }
         ensureGreen(indices);
+
+        final Response catResponse = getRestClient().performRequest(new Request("GET", "/_cat/indices?h=index,uuid"));
+        assertOK(catResponse);
+
+        final Map<String, String> createdIndexIDs = new HashMap<>();
+
+        final List<String> indicesAsList = Arrays.asList(indices);
+
+        for (String indexLine : Streams.readAllLines(catResponse.getEntity().getContent())) {
+            String[] elements = indexLine.split(" +");
+            if (indicesAsList.contains(elements[0])) {
+                createdIndexIDs.put(elements[0], elements[1]);
+            }
+        }
+
+        assertThat("Expected to find as many index UUIDs as created indices", createdIndexIDs.size(), equalTo(indices.length));
+
+        return createdIndexIDs;
     }
 
     private void deleteIndex(String indexName) throws IOException {
@@ -230,9 +246,9 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assertOK(deleteResponse);
     }
 
-    private String createDanglingIndices(String... indices) throws Exception {
+    private DanglingIndexDetails createDanglingIndices(String... indices) throws Exception {
         ensureStableCluster(3);
-        createIndices(indices);
+        final Map<String, String> indexToUUID = createIndices(indices);
 
         final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
@@ -252,6 +268,16 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
 
         ensureStableCluster(3);
 
-        return stoppedNodeName.get();
+        return new DanglingIndexDetails(stoppedNodeName.get(), indexToUUID);
+    }
+
+    private static class DanglingIndexDetails {
+        private final String stoppedNodeName;
+        private final Map<String, String> indexToUUID;
+
+        public DanglingIndexDetails(String stoppedNodeName, Map<String, String> indexToUUID) {
+            this.stoppedNodeName = stoppedNodeName;
+            this.indexToUUID = indexToUUID;
+        }
     }
 }

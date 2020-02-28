@@ -152,13 +152,11 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
             .startObject()
-            .field("name", "Document 1")
             .field(defaultGeoFieldName, "POINT(-30 -30)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
             .startObject()
-            .field("name", "Document 2")
             .field(defaultGeoFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
@@ -170,16 +168,16 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .coordinate(new Coordinate(-35, -35));
         PolygonBuilder shape = new PolygonBuilder(cb);
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
-        Geometry geometry = builder.buildGeometry().get(0);
+        Geometry geometry = builder.buildGeometry();
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
             .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
                 .relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        SearchHits searchHits = searchResponse.getHits();
+        assertThat(searchHits.getTotalHits().value, equalTo(1L));
+        assertThat(searchHits.getAt(0).getId(), equalTo("1"));
     }
 
     public void testIndexPointsMultiPolygon() throws Exception {
@@ -225,7 +223,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         mp.polygon(encloseDocument1Shape).polygon(encloseDocument2Shape);
 
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(mp);
-        Geometry geometry = builder.buildGeometry().get(0);
+        Geometry geometry = builder.buildGeometry();
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
             .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
                 .relation(ShapeRelation.INTERSECTS))
@@ -256,6 +254,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         Rectangle rectangle = new Rectangle(-50, -40, -45, -55);
+
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
             .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle)
                 .relation(ShapeRelation.INTERSECTS))
@@ -331,7 +330,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
                     .coordinate(-177, 5)
                     .coordinate(-177, 10));
 
-        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon);
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon.buildGeometry());
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
@@ -376,7 +375,9 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
                 .coordinate(-177, 5)
                 .coordinate(-177, 10)));
 
-        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon);
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(
+            "geo",
+            multiPolygon.buildGeometry());
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();

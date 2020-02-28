@@ -1319,7 +1319,7 @@ public class InternalEngine extends Engine {
 
         private final Releasable lock;
         private Delete delete;
-        private IndexingStrategy plan;
+        private DeletionStrategy plan;
         private DeleteResult deleteResult;
 
         private StepWiseDelete(Releasable lock, Delete delete) {
@@ -1331,8 +1331,9 @@ public class InternalEngine extends Engine {
             // TODO: Consider implications of maybe needing to do this write when persisting also
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
-            final DeleteResult deleteResult;
+            this.plan = plan;
 
+            final DeleteResult deleteResult;
             try {
                 if (plan.earlyResultOnPreflightError.isPresent()) {
                     deleteResult = plan.earlyResultOnPreflightError.get();

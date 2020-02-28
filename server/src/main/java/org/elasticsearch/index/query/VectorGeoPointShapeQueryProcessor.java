@@ -77,7 +77,21 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
          array and therefore the boolean query is not necessary.
          */
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
-        return queryShape.visit(shapeVisitor);
+        if (queryShape.type().equals(ShapeType.POLYGON)) {
+            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            if (collector.size() < 1) {
+                return new MatchNoDocsQuery();
+            } else {
+                BooleanQuery.Builder bqb = new BooleanQuery.Builder();
+                BooleanClause.Occur occur = BooleanClause.Occur.FILTER;
+                for (Polygon component : collector) {
+                    bqb.add(component.visit(shapeVisitor), occur);
+                }
+                return bqb.build();
+            }
+        } else {
+            return queryShape.visit(shapeVisitor);
+        }
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {

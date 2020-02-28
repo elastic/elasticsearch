@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
@@ -34,7 +35,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.locationtech.jts.geom.Coordinate;
 
@@ -263,4 +267,121 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
     }
 
+    public void testRectangleSpanningDateline() throws Exception {
+        XContentBuilder mapping = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-169 0)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-179 0)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(171 0)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        Rectangle rectangle = new Rectangle(
+            169, -178, 1, -1);
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", rectangle);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        SearchHits searchHits = response.getHits();
+        assertEquals(2, searchHits.getTotalHits().value);
+        assertNotEquals("1", searchHits.getAt(0).getId());
+        assertNotEquals("1", searchHits.getAt(1).getId());
+    }
+
+    public void testPolygonSpanningDateline() throws Exception {
+        XContentBuilder mapping = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-169 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-179 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(179 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("4").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(171 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
+                    .coordinate(-177, 10)
+                    .coordinate(177, 10)
+                    .coordinate(177, 5)
+                    .coordinate(-177, 5)
+                    .coordinate(-177, 10));
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        SearchHits searchHits = response.getHits();
+        assertEquals(2, searchHits.getTotalHits().value);
+        assertNotEquals("1", searchHits.getAt(0).getId());
+        assertNotEquals("4", searchHits.getAt(0).getId());
+        assertNotEquals("1", searchHits.getAt(1).getId());
+        assertNotEquals("4", searchHits.getAt(1).getId());
+    }
+
+    public void testMultiPolygonSpanningDateline() throws Exception {
+        XContentBuilder mapping = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-169 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-179 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(171 7)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        MultiPolygonBuilder multiPolygon = new MultiPolygonBuilder()
+            .polygon(new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-167, 10)
+                .coordinate(-171, 10)
+                .coordinate(171, 5)
+                .coordinate(-167, 5)
+                .coordinate(-167, 10)))
+            .polygon(new PolygonBuilder(new CoordinatesBuilder()
+                .coordinate(-177, 10)
+                .coordinate(177, 10)
+                .coordinate(177, 5)
+                .coordinate(-177, 5)
+                .coordinate(-177, 10)));
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        SearchHits searchHits = response.getHits();
+        assertEquals(2, searchHits.getTotalHits().value);
+        assertNotEquals("3", searchHits.getAt(0).getId());
+        assertNotEquals("3", searchHits.getAt(1).getId());
+    }
 }

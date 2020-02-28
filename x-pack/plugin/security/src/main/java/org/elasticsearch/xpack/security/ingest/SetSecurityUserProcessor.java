@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -38,16 +40,20 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final Logger logger = LogManager.getLogger();
 
     private final SecurityContext securityContext;
+    private final XPackLicenseState licenseState;
     private final String field;
     private final Set<Property> properties;
 
-    public
-    SetSecurityUserProcessor(String tag, SecurityContext securityContext, String field, Set<Property> properties) {
+    public SetSecurityUserProcessor(String tag, SecurityContext securityContext, XPackLicenseState licenseState, String field,
+                                    Set<Property> properties) {
         super(tag);
         this.securityContext = securityContext;
-        if (this.securityContext == null) {
-            logger.warn("Creating processor [{}] (tag [{}]) on field [{}] but no security context is available" +
-                " - this processor will fail at runtime if it is used", TYPE, tag, field);
+        this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
+        if (licenseState.isAuthAllowed() == false) {
+            logger.warn("Creating processor [{}] (tag [{}]) on field [{}] but authentication is not currently enabled on this cluster " +
+                " - this processor is likely to fail at runtime if it is used", TYPE, tag, field);
+        } else if (this.securityContext == null) {
+            throw new IllegalArgumentException("Authentication is allowed on this cluster state, but there is no security context");
         }
         this.field = field;
         this.properties = properties;
@@ -55,16 +61,27 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        if (this.securityContext == null) {
-            throw new IllegalStateException("No security context available (is security enabled on this cluster?)");
+        Authentication authentication = null;
+        User user = null;
+        if (this.securityContext != null) {
+            authentication = securityContext.getAuthentication();
+            if (authentication != null) {
+                user = authentication.getUser();
+            }
         }
-        Authentication authentication = securityContext.getAuthentication();
-        if (authentication == null) {
-            throw new IllegalStateException("No user authenticated, only use this processor via authenticated user");
-        }
-        User user = authentication.getUser();
+
         if (user == null) {
-            throw new IllegalStateException("No user for authentication");
+            logger.debug(
+                "Failed to find active user. SecurityContext=[{}] Authentication=[{}] User=[{}]", securityContext, authentication, user);
+            if (licenseState.isAuthAllowed()) {
+                // This shouldn't happen. If authentication is allowed (and active), then there _should_ always be an authenticated user.
+                // If we ever see this error message, then one of our assumptions are wrong.
+                throw new IllegalStateException("There is no authenticated user - the [" + TYPE
+                    + "] processor requires an authenticated user");
+            } else {
+                throw new IllegalStateException("Security (authentication) is not enabled on this cluster, so there is no active user - " +
+                    "the [" + TYPE + "] processor cannot be used without security");
+            }
         }
 
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class, true);
@@ -165,9 +182,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         private final Supplier<SecurityContext> securityContext;
+        private final Supplier<XPackLicenseState> licenseState;
 
-        public Factory(Supplier<SecurityContext> securityContext) {
+        public Factory(Supplier<SecurityContext> securityContext, Supplier<XPackLicenseState> licenseState) {
             this.securityContext = securityContext;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -184,7 +203,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, securityContext.get(), field, properties);
+            return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties);
         }
     }
 

@@ -10,7 +10,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.hamcrest.Matchers;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests that it is possible to <em>define</em> a pipeline with the
@@ -39,7 +40,8 @@ public class SetSecurityUserProcessorWithSecurityNotEnabledIT extends ESRestTest
             ingest.setJsonEntity("{\"field\":\"value\"}");
             final ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(ingest));
             final Response response = ex.getResponse();
-            assertThat(EntityUtils.toString(response.getEntity()), Matchers.containsString("No user authenticated"));
+            assertThat(EntityUtils.toString(response.getEntity()),
+                containsString("Security (authentication) is not enabled on this cluster"));
         }
     }
 

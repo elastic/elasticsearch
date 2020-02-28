@@ -816,7 +816,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(securityContext::get));
+        return Collections.singletonMap(SetSecurityUserProcessor.TYPE,
+            new SetSecurityUserProcessor.Factory(securityContext::get, this::getLicenseState));
     }
 
     /**

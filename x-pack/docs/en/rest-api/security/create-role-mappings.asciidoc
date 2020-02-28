@@ -23,7 +23,7 @@ Creates and updates role mappings.
 [[security-api-put-role-mapping-desc]]
 ==== {api-description-title}
 
-Role mappings define which roles are assigned to each user. Each mapping has 
+Role mappings define which roles are assigned to each user. Each mapping has
 _rules_ that identify users and a list of _roles_ that are granted to those users.
 
 The role mapping APIs are generally the preferred way to manage role mappings
@@ -77,9 +77,13 @@ _Exactly one of `roles` or `role_templates` must be specified_.
 `rules`::
 (Required, object) The rules that determine which users should be matched by the
 mapping. A rule is a logical condition that is expressed by using a JSON DSL.
-See  <<role-mapping-resources>>. 
+See  <<role-mapping-resources>>.
 
 ==== Role Templates
+
+NOTE: Role templates require corresponding scripting feature to be enabled.
+Otherwise, role mapping with role templates will fail to create. See
+<<allowed-script-types-setting>>.
 
 The most common use for role mappings is to create a mapping from a known value
 on the user to a fixed role name.

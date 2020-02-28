@@ -188,7 +188,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
         final BytesReference inlineScript = new BytesArray("{ \"source\":\"\" }");
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TemplateRoleName(inlineScript, Format.STRING).validate(scriptService));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new TemplateRoleName(inlineScript, Format.STRING).validate(scriptService));
         assertThat(e.getMessage(), containsString("[inline]"));
     }
 

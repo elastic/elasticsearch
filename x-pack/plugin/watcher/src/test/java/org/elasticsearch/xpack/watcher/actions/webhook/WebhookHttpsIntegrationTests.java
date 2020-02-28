@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import com.sun.net.httpserver.HttpsServer;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -99,10 +101,16 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
         assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
 
-        SearchResponse response =
+        final SetOnce<SearchResponse> responseSetOnce = new SetOnce<>();
+        assertBusy(() -> {
+            SearchResponse response =
                 searchWatchRecords(b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed")));
+            assertNoFailures(response);
+            assertHitCount(response, 1L);
+            responseSetOnce.set(response);
+        });
+        final SearchResponse response = responseSetOnce.get();
 
-        assertNoFailures(response);
         XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
         String body = source.getValue("result.actions.0.webhook.response.body");
         assertThat(body, notNullValue());

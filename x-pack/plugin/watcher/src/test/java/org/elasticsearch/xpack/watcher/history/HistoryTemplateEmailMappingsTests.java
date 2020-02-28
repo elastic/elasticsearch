@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
@@ -88,14 +90,21 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
-                .aggregation(terms("from").field("result.actions.email.message.from"))
-                .aggregation(terms("to").field("result.actions.email.message.to"))
-                .aggregation(terms("cc").field("result.actions.email.message.cc"))
-                .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
-                .aggregation(terms("reply_to").field("result.actions.email.message.reply_to")))
-                .get();
+        final AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
+                    .aggregation(terms("from").field("result.actions.email.message.from"))
+                    .aggregation(terms("to").field("result.actions.email.message.to"))
+                    .aggregation(terms("cc").field("result.actions.email.message.cc"))
+                    .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
+                    .aggregation(terms("reply_to").field("result.actions.email.message.reply_to")))
+                    .get();
+            assertThat(response, notNullValue());
+            assertThat(response.getHits().getTotalHits().value, is(1L));
+            responseRef.set(response);
+        });
 
+        final SearchResponse response = responseRef.get();
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(1L));
         Aggregations aggs = response.getAggregations();

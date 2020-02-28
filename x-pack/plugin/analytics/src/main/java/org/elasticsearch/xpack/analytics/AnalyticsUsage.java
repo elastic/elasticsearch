@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Tracks usage of the Analytics aggregations.
+ * Tracks usage of the Analytics features.
  */
 public class AnalyticsUsage {
     /**
@@ -25,7 +25,8 @@ public class AnalyticsUsage {
         BOXPLOT,
         CUMULATIVE_CARDINALITY,
         STRING_STATS,
-        TOP_METRICS;
+        TOP_METRICS,
+        RANDOM_SAMPLE;
     }
 
     private final Map<Item, AtomicLong> trackers = new EnumMap<>(Item.class);
@@ -54,6 +55,7 @@ public class AnalyticsUsage {
                 trackers.get(Item.BOXPLOT).get(),
                 trackers.get(Item.CUMULATIVE_CARDINALITY).get(),
                 trackers.get(Item.STRING_STATS).get(),
-                trackers.get(Item.TOP_METRICS).get());
+                trackers.get(Item.TOP_METRICS).get(),
+                trackers.get(Item.RANDOM_SAMPLE).get());
     }
 }

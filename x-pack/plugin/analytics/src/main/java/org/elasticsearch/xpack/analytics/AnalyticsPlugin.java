@@ -17,6 +17,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.randomsampling.RandomSamplingQueryBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -58,7 +61,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     public AnalyticsPlugin() { }
 
-    public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
@@ -112,6 +115,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
+    public List<QuerySpec<?>> getQueries() {
+        QueryParser<RandomSamplingQueryBuilder> randomSampleParser = parser -> usage.track(AnalyticsUsage.Item.RANDOM_SAMPLE,
+            checkPlatinumLicense(RandomSamplingQueryBuilder.PARSER, RandomSamplingQueryBuilder.NAME)).parse(parser, null);
+
+        return List.of(new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, randomSampleParser));
+    }
+
+    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
@@ -119,12 +130,21 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         return singletonList(new AnalyticsUsage());
     }
 
-    private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
             if (getLicenseState().isDataScienceAllowed() == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);
+        };
+    }
+
+    private <C, T> ContextParser<C, T> checkPlatinumLicense(ContextParser<C, T> realParser, String featureName) {
+        return (parser, context) -> {
+            if (getLicenseState().isAllowedByLicense(License.OperationMode.PLATINUM) == false) {
+                throw LicenseUtils.newComplianceException(XPackField.ANALYTICS + " feature: [" + featureName + "]");
+            }
+            return realParser.parse(parser, context);
         };
     }
 }

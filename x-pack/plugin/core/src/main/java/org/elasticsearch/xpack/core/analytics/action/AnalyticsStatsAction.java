@@ -114,19 +114,22 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
         static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
         static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
+        static final ParseField RANDOM_SAMPLE_QUERY_USAGE = new ParseField("random_sample_query_usage");
 
         private final long boxplotUsage;
         private final long cumulativeCardinalityUsage;
         private final long stringStatsUsage;
         private final long topMetricsUsage;
+        private final long randomSampleQueryUsage;
 
         public NodeResponse(DiscoveryNode node, long boxplotUsage, long cumulativeCardinalityUsage, long stringStatsUsage,
-                long topMetricsUsage) {
+                long topMetricsUsage, long randomSampleQueryUsage) {
             super(node);
             this.boxplotUsage = boxplotUsage;
             this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
             this.stringStatsUsage = stringStatsUsage;
             this.topMetricsUsage = topMetricsUsage;
+            this.randomSampleQueryUsage = randomSampleQueryUsage;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -144,6 +147,11 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 stringStatsUsage = 0;
                 topMetricsUsage = 0;
             }
+            if (in.getVersion().onOrAfter((Version.V_7_7_0))) {
+                randomSampleQueryUsage = in.readVLong();
+            } else {
+                randomSampleQueryUsage = 0;
+            }
         }
 
         @Override
@@ -157,6 +165,9 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
             }
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeVLong(randomSampleQueryUsage);
+            }
         }
 
         @Override
@@ -166,6 +177,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
             builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
             builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
+            builder.field(RANDOM_SAMPLE_QUERY_USAGE.getPreferredName(), randomSampleQueryUsage);
             builder.endObject();
             return builder;
         }
@@ -184,6 +196,10 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public long getTopMetricsUsage() {
             return topMetricsUsage;
+        }
+
+        public long getRandomSampleQueryUsage() {
+            return randomSampleQueryUsage;
         }
     }
 }

@@ -133,22 +133,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndices(INDEX_NAME);
-        assertBusy(
-            () -> internalCluster().getInstances(IndicesService.class)
-                .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
-        );
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        createDanglingIndices(INDEX_NAME);
 
         // Since index recovery is async, we can't prove index recovery will never occur, just that it doesn't occur within some reasonable
         // amount of time
@@ -164,20 +149,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesAreNotRecoveredWhenNotWritten() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, false, true));
 
-        createIndices(INDEX_NAME);
-        internalCluster().getInstances(IndicesService.class)
-            .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()));
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        createDanglingIndices(INDEX_NAME);
 
         // Since index recovery is async, we can't prove index recovery will never occur, just that it doesn't occur within some reasonable
         // amount of time
@@ -193,21 +165,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesCanBeListed() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndices(INDEX_NAME);
-
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
         assertBusy(() -> {
             final ListDanglingIndicesResponse response = client().admin()
@@ -220,7 +178,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             assertThat("Didn't get responses from all nodes", nodeResponses, hasSize(3));
 
             for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
                     assertThat("Expected node that was stopped to have one dangling index", nodeResponse.getDanglingIndices(), hasSize(1));
 
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
@@ -242,21 +200,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesCanBeImported() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndices(INDEX_NAME);
-
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
         final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
 
@@ -271,7 +215,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
             for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
 
@@ -317,21 +261,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testMustAcceptDataLossToImportDanglingIndex() throws Exception {
         internalCluster().startNodes(3, buildSettings(0, true, false));
 
-        createIndices(INDEX_NAME);
-
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
         final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
 
@@ -346,7 +276,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
             for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
 
@@ -385,22 +315,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(3, settings);
 
-        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
-
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         final AtomicReference<DanglingIndexInfo> danglingIndex = new AtomicReference<>();
 
@@ -415,7 +330,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
             for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
 
@@ -505,22 +420,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final Settings settings = buildSettings(1, true, false);
         internalCluster().startNodes(3, settings);
 
-        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
-
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         final AtomicReference<DanglingIndexInfo> danglingIndex = new AtomicReference<>();
 
@@ -535,7 +435,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
 
             for (NodeListDanglingIndicesResponse nodeResponse : nodeResponses) {
-                if (nodeResponse.getNode().getName().equals(stoppedNodeName.get())) {
+                if (nodeResponse.getNode().getName().equals(stoppedNodeName)) {
                     final DanglingIndexInfo danglingIndexInfo = nodeResponse.getDanglingIndices().get(0);
                     assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
 
@@ -593,5 +493,32 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             createIndex(index, Settings.builder().put("number_of_replicas", 2).build());
         }
         ensureGreen(indices);
+    }
+
+    private String createDanglingIndices(String... indices) throws Exception {
+        createIndices(indices);
+
+        assertBusy(
+            () -> internalCluster().getInstances(IndicesService.class)
+                .forEach(indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten()))
+        );
+
+        AtomicReference<String> stoppedNodeName = new AtomicReference<>();
+
+        // Restart node, deleting the indices in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureClusterSizeConsistency();
+                stoppedNodeName.set(nodeName);
+                for (String index : indices) {
+                    assertAcked(client().admin().indices().prepareDelete(index));
+                }
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        return stoppedNodeName.get();
     }
 }

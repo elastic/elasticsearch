@@ -77,27 +77,10 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         internalCluster().setBootstrapMasterNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(0));
 
-        ensureStableCluster(3);
-        createIndices(INDEX_NAME);
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
+        final String stoppedNodeId = mapNodeNameToId(stoppedNodeName);
 
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
         final RestClient restClient = getRestClient();
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                deleteIndex(INDEX_NAME);
-                return super.onNodeStopped(nodeName);
-            }
-        });
-
-        ensureStableCluster(3);
-
-        final String stoppedNodeId = mapNodeNameToId(stoppedNodeName.get());
 
         assertBusy(() -> {
             final Response listResponse = restClient.performRequest(new Request("GET", "/_dangling"));
@@ -126,24 +109,9 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         internalCluster().setBootstrapMasterNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(0));
 
-        ensureStableCluster(3);
-        createIndices(INDEX_NAME);
+        createDanglingIndices(INDEX_NAME);
 
         final RestClient restClient = getRestClient();
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart a node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                deleteIndex(INDEX_NAME);
-                return super.onNodeStopped(nodeName);
-            }
-        });
-
         final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
 
         // Wait for the dangling index to be noticed
@@ -176,25 +144,9 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         internalCluster().setBootstrapMasterNodeIndex(1);
         internalCluster().startNodes(3, buildSettings(1));
 
-        ensureStableCluster(3);
-        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
+        createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
 
         final RestClient restClient = getRestClient();
-        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart a node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
-                stoppedNodeName.set(nodeName);
-                deleteIndex(INDEX_NAME);
-                deleteIndex(OTHER_INDEX_NAME);
-                return super.onNodeStopped(nodeName);
-            }
-        });
-
         final AtomicReference<String> danglingIndexUUID = new AtomicReference<>();
 
         // Wait for the dangling index to be noticed
@@ -288,5 +240,30 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
     private void deleteIndex(String indexName) throws IOException {
         Response deleteResponse = getRestClient().performRequest(new Request("DELETE", "/" + indexName));
         assertOK(deleteResponse);
+    }
+
+    private String createDanglingIndices(String... indices) throws Exception {
+        ensureStableCluster(3);
+        createIndices(indices);
+
+        final AtomicReference<String> stoppedNodeName = new AtomicReference<>();
+
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureClusterSizeConsistency();
+                stoppedNodeName.set(nodeName);
+                for (String index : indices) {
+                    deleteIndex(index);
+                }
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        ensureStableCluster(3);
+
+        return stoppedNodeName.get();
     }
 }

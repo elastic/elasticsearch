@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,8 +20,11 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -31,8 +37,11 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TemplateRoleNameTests extends ESTestCase {
 
@@ -120,9 +129,6 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidate() {
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
-        final ExpressionModel model = new ExpressionModel();
-        model.defineField("username", "hulk");
-        model.defineField("groups", Arrays.asList("avengers", "defenders", "panthenon"));
 
         final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
         plainString.validate(scriptService);
@@ -139,5 +145,73 @@ public class TemplateRoleNameTests extends ESTestCase {
 
         final TemplateRoleName invalidField = new TemplateRoleName(new BytesArray("{ \"foo\":\"heroes\" }"), Format.STRING);
         expectThrows(IllegalArgumentException.class, () -> invalidField.validate(scriptService));
+    }
+
+    public void testValidateWillPassWithEmptyContext() {
+        final ScriptService scriptService = new ScriptService(Settings.EMPTY,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+
+        final BytesReference template = new BytesArray("{ \"source\":\"" +
+            "{{username}}/{{dn}}/{{realm}}/{{metadata}}" +
+            "{{#realm}}" +
+            "  {{name}}/{{type}}" +
+            "{{/realm}}" +
+            "{{#toJson}}groups{{/toJson}}" +
+            "{{^groups}}{{.}}{{/groups}}" +
+            "{{#metadata}}" +
+            "  {{#first}}" +
+            "    <li><strong>{{name}}</strong></li>" +
+            "  {{/first}}" +
+            "  {{#link}}" +
+            "    <li><a href=\\\"{{url}}\\\">{{name}}</a></li>" +
+            "  {{/link}}" +
+            "  {{#toJson}}subgroups{{/toJson}}" +
+            "  {{something-else}}" +
+            "{{/metadata}}\" }");
+        final TemplateRoleName templateRoleName = new TemplateRoleName(template, Format.STRING);
+        templateRoleName.validate(scriptService);
+    }
+
+    public void testValidateWillFailForSyntaxError() {
+        final ScriptService scriptService = new ScriptService(Settings.EMPTY,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+
+        final BytesReference template = new BytesArray("{ \"source\":\" {{#not-closed}} {{other-variable}} \" }");
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new TemplateRoleName(template, Format.STRING).validate(scriptService));
+        assertTrue(e.getCause() instanceof ScriptException);
+    }
+
+    public void testValidationWillFailWhenInlineScriptIsNotEnabled() {
+        final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
+        final ScriptService scriptService = new ScriptService(settings,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+        final BytesReference inlineScript = new BytesArray("{ \"source\":\"\" }");
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TemplateRoleName(inlineScript, Format.STRING).validate(scriptService));
+        assertThat(e.getMessage(), containsString("[inline]"));
+    }
+
+    public void testValidateWillFailawhenStoredScriptIsNotEnabled() {
+        final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
+        final ScriptService scriptService = new ScriptService(settings,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+        final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final MetaData metaData = mock(MetaData.class);
+        final StoredScriptSource storedScriptSource = mock(StoredScriptSource.class);
+        final ScriptMetaData scriptMetaData = new ScriptMetaData.Builder(null).storeScript("foo", storedScriptSource).build();
+        when(clusterChangedEvent.state()).thenReturn(clusterState);
+        when(clusterState.metaData()).thenReturn(metaData);
+        when(metaData.custom(ScriptMetaData.TYPE)).thenReturn(scriptMetaData);
+        when(storedScriptSource.getLang()).thenReturn("mustache");
+        when(storedScriptSource.getSource()).thenReturn("");
+        when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
+        scriptService.applyClusterState(clusterChangedEvent);
+
+        final BytesReference storedScript = new BytesArray("{ \"id\":\"foo\" }");
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new TemplateRoleName(storedScript, Format.STRING).validate(scriptService));
+        assertThat(e.getMessage(), containsString("[stored]"));
     }
 }

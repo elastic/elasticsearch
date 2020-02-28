@@ -19,8 +19,8 @@ Audit::
 CCR::
 * Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
 
-Features/CAT APIs::
-* fix npe in RestPluginsAction {pull}52620[#52620] (issue: {issue}45321[#45321])
+Features/cat APIs::
+* Fix NPE in RestPluginsAction {pull}52620[#52620] (issue: {issue}45321[#45321])
 
 Features/ILM+SLM::
 * ILM fix the init step to actually be retryable {pull}52076[#52076]
@@ -45,16 +45,16 @@ Network::
 * Remove seeds dependency for remote cluster settings {pull}52796[#52796]
 
 Reindex::
-* Reindex: allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
+* Allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
 
 SQL::
-* SQL: supplement input checks on received request parameters {pull}52229[#52229]
-* SQL: Fix issue with timezone when paginating {pull}52101[#52101] (issue: {issue}51258[#51258])
-* SQL: Fix issue with timezone for JDBC pagination {pull}52080[#52080] (issue: {issue}51258[#51258])
-* SQL: Add string to interval converters {pull}51945[#51945] (issue: {issue}45915[#45915])
-* SQL: Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
-* SQL: Fix milliseconds handling in intervals {pull}51675[#51675] (issue: {issue}41635[#41635])
-* SQL: selecting a literal from grouped by query generates error {pull}41964[#41964] (issues: {issue}41413[#41413], {issue}41951[#41951])
+* Supplement input checks on received request parameters {pull}52229[#52229]
+* Fix issue with timezone when paginating {pull}52101[#52101] (issue: {issue}51258[#51258])
+* Fix issue with timezone for JDBC pagination {pull}52080[#52080] (issue: {issue}51258[#51258])
+* Add string to interval converters {pull}51945[#51945] (issue: {issue}45915[#45915])
+* Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
+* Fix milliseconds handling in intervals {pull}51675[#51675] (issue: {issue}41635[#41635])
+* Selecting a literal from grouped by query generates error {pull}41964[#41964] (issues: {issue}41413[#41413], {issue}41951[#41951])
 
 Snapshot/Restore::
 * Fix Non-Verbose Snapshot List Missing Empty Snapshots {pull}52433[#52433]

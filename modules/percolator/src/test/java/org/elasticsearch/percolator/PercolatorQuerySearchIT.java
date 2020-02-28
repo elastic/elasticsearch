@@ -956,6 +956,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
             XContentType.JSON)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
+        
+        response = client().prepareSearch("test").setQuery(new PercolateQueryBuilder("q",
+            BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
+            XContentType.JSON)).addSort("_doc", SortOrder.ASC).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
 
         response = client().prepareSearch("test").setQuery(constantScoreQuery(new PercolateQueryBuilder("q",
             BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),

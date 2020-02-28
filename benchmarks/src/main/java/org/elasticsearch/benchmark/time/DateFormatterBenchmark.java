@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-@SuppressWarnings("unused") //invoked by benchmarking framework
+@SuppressWarnings("unused") // invoked by benchmarking framework
 public class DateFormatterBenchmark {
 
     private final DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date||epoch_millis");

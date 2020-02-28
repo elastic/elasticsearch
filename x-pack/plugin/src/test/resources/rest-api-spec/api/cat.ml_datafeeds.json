@@ -1,7 +1,7 @@
 {
   "cat.ml_datafeeds":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/cat-datafeeds.html"
     },
     "stability":"stable",
     "url":{

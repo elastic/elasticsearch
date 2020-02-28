@@ -187,12 +187,10 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger("_test_id");
         refresh();
 
-        assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
-                .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
-                .execute().actionGet();
-            assertHitCount(searchResponse, 1);
-        });
+        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+            .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
+            .execute().actionGet();
+        assertHitCount(searchResponse, 1);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waited too long for email to be received");

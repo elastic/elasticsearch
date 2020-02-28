@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -48,17 +47,12 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         flush();
         refresh();
 
-        final SetOnce<SearchResponse> responseReference = new SetOnce<>();
-        assertBusy(() -> {
-            SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
-                    .aggregation(terms("index_action_indices").field("result.actions.index.response.index")))
-                    .get();
-            assertThat(response, notNullValue());
-            assertThat(response.getHits().getTotalHits().value, is(1L));
-            responseReference.set(response);
-        });
+        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
+                .aggregation(terms("index_action_indices").field("result.actions.index.response.index")))
+                .get();
 
-        final SearchResponse response = responseReference.get();
+        assertThat(response, notNullValue());
+        assertThat(response.getHits().getTotalHits().value, is(1L));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 

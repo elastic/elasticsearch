@@ -61,12 +61,10 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger("_name");
 
         refresh();
-        assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
-                .setQuery(termQuery("metadata.foo", "bar"))
-                .get();
-            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
-        });
+        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+            .setQuery(termQuery("metadata.foo", "bar"))
+            .get();
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
     }
 
     public void testWatchMetadataAvailableAtExecution() throws Exception {

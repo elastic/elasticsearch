@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -105,15 +104,11 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
-        final SetOnce<SearchResponse> responseSetOnce = new SetOnce<>();
-        assertBusy(() -> {
-            final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-            assertThat(response.getHits().getTotalHits().value, is(1L));
-            responseSetOnce.set(response);
-        });
-
         // only one action should have failed via condition
-        final SearchHit hit = responseSetOnce.get().getHits().getAt(0);
+        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
+        assertThat(response.getHits().getTotalHits().value, is(1L));
+
+        final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
@@ -204,15 +199,11 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
-        final SetOnce<SearchResponse> responseSetOnce = new SetOnce<>();
-        assertBusy(() -> {
-            final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-            assertThat(response.getHits().getTotalHits().value, is(1L));
-            responseSetOnce.set(response);
-        });
-
         // all actions should be successful
-        final SearchHit hit = responseSetOnce.get().getHits().getAt(0);
+        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
+        assertThat(response.getHits().getTotalHits().value, is(1L));
+
+        final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditions.size(); ++i) {

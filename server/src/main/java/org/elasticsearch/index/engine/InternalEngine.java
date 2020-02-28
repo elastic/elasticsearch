@@ -97,6 +97,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -173,6 +174,8 @@ public class InternalEngine extends Engine {
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
+
+    private final CompletionStatsCache completionStatsCache;
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
@@ -258,6 +261,8 @@ public class InternalEngine extends Engine {
                         "failed to restore version map and local checkpoint tracker", e);
                 }
             }
+            completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+            this.externalReaderManager.addListener(completionStatsCache);
             success = true;
         } finally {
             if (success == false) {
@@ -296,6 +301,11 @@ public class InternalEngine extends Engine {
                 lastMinRetainedSeqNo,
                 engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
                 engineConfig.retentionLeasesSupplier());
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fieldNamePatterns) {
+        return completionStatsCache.get(fieldNamePatterns);
     }
 
     /**

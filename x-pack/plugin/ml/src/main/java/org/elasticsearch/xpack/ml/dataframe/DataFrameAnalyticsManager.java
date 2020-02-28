@@ -30,11 +30,13 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -93,22 +95,42 @@ public class DataFrameAnalyticsManager {
                         executeJobInMiddleOfReindexing(task, config);
                         break;
                     default:
-                        task.updateState(DataFrameAnalyticsState.FAILED, "Cannot execute analytics task [" + config.getId() +
+                        task.setFailed("Cannot execute analytics task [" + config.getId() +
                             "] as it is in unknown state [" + currentState + "]. Must be one of [STARTED, REINDEXING, ANALYZING]");
                 }
 
             },
-            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         // Retrieve configuration
-        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
+        ActionListener<Boolean> statsIndexListener = ActionListener.wrap(
             aBoolean -> configProvider.get(task.getParams().getId(), configListener),
+            configListener::onFailure
+        );
+
+        // Make sure the stats index and alias exist
+        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
+            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(clusterState, statsIndexListener),
             configListener::onFailure
         );
 
         // Make sure the state index and alias exist
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasListener);
+    }
+
+    private void createStatsIndexAndUpdateMappingsIfNecessary(ClusterState clusterState, ActionListener<Boolean> listener) {
+        ActionListener<Boolean> createIndexListener = ActionListener.wrap(
+            aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
+                    MlStatsIndex.writeAlias(),
+                    MlStatsIndex::mapping,
+                    client,
+                    clusterState,
+                    listener)
+            , listener::onFailure
+        );
+
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, createIndexListener);
     }
 
     private void executeStartingJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
@@ -122,13 +144,13 @@ public class DataFrameAnalyticsManager {
             case FIRST_TIME:
                 task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                     updatedTask -> reindexDataframeAndStartAnalysis(task, config),
-                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                    error -> task.setFailed(error.getMessage())
                 ));
                 break;
             case RESUMING_REINDEXING:
                 task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                     updatedTask -> executeJobInMiddleOfReindexing(task, config),
-                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                    error -> task.setFailed(error.getMessage())
                 ));
                 break;
             case RESUMING_ANALYZING:
@@ -136,7 +158,7 @@ public class DataFrameAnalyticsManager {
                 break;
             case FINISHED:
             default:
-                task.updateState(DataFrameAnalyticsState.FAILED, "Unexpected starting state [" + startingState + "]");
+                task.setFailed("Unexpected starting state [" + startingState + "]");
         }
     }
 
@@ -148,10 +170,11 @@ public class DataFrameAnalyticsManager {
             ActionListener.wrap(
                 r-> reindexDataframeAndStartAnalysis(task, config),
                 e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
                         reindexDataframeAndStartAnalysis(task, config);
                     } else {
-                        task.updateState(DataFrameAnalyticsState.FAILED, e.getMessage());
+                        task.setFailed(cause.getMessage());
                     }
                 }
             ));
@@ -178,7 +201,7 @@ public class DataFrameAnalyticsManager {
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
                 startAnalytics(task, config);
             },
-            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         // Reindex
@@ -241,15 +264,16 @@ public class DataFrameAnalyticsManager {
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
                     updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
                     error -> {
-                        if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(error);
+                        if (cause instanceof ResourceNotFoundException) {
                             // Task has stopped
                         } else {
-                            task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
+                            task.setFailed(cause.getMessage());
                         }
                     }
                 ));
             },
-            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(

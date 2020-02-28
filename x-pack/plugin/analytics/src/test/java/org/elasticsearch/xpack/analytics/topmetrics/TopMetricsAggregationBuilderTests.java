@@ -70,7 +70,7 @@ public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCa
                 new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values())));
         MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
         metricField.setFieldName(randomAlphaOfLength(5)).setMissing(1.0);
-        return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, metricField.build());
+        return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, between(1, 100), metricField.build());
     }
 
     public void testClientBuilder() throws IOException {
@@ -97,6 +97,7 @@ public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCa
         return new org.elasticsearch.client.analytics.TopMetricsAggregationBuilder(
                         serverBuilder.getName(),
                         serverBuilder.getSortBuilders().get(0),
+                        serverBuilder.getSize(),
                         serverBuilder.getMetricField().getFieldName());
     }
 }

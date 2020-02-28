@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -150,6 +152,9 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(DatafeedParams::setJobId, Job.ID);
             PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
+            PARSER.declareObject(DatafeedParams::setIndicesOptions,
+                (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
+                DatafeedConfig.INDICES_OPTIONS);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -191,6 +196,11 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
             datafeedIndices = in.readStringList();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                indicesOptions = IndicesOptions.readIndicesOptions(in);
+            } else {
+                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
         }
 
         DatafeedParams() {
@@ -202,6 +212,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
         private List<String> datafeedIndices = Collections.emptyList();
         private String jobId;
+        private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
 
         public String getDatafeedId() {
@@ -248,6 +259,15 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             this.datafeedIndices = datafeedIndices;
         }
 
+        public IndicesOptions getIndicesOptions() {
+            return indicesOptions;
+        }
+
+        public DatafeedParams setIndicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, DatafeedConfig.INDICES_OPTIONS);
+            return this;
+        }
+
         @Override
         public String getWriteableName() {
             return MlTasks.DATAFEED_TASK_NAME;
@@ -266,6 +286,9 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             out.writeOptionalString(jobId);
             out.writeStringCollection(datafeedIndices);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                indicesOptions.writeIndicesOptions(out);
+            }
         }
 
         @Override
@@ -283,13 +306,18 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
             if (datafeedIndices.isEmpty() == false) {
                 builder.field(INDICES.getPreferredName(), datafeedIndices);
             }
+
+            builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
+            indicesOptions.toXContent(builder, params);
+            builder.endObject();
+
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices);
+            return Objects.hash(datafeedId, startTime, endTime, timeout, jobId, datafeedIndices, indicesOptions);
         }
 
         @Override
@@ -306,6 +334,7 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                     Objects.equals(endTime, other.endTime) &&
                     Objects.equals(timeout, other.timeout) &&
                     Objects.equals(jobId, other.jobId) &&
+                    Objects.equals(indicesOptions, other.indicesOptions) &&
                     Objects.equals(datafeedIndices, other.datafeedIndices);
         }
     }

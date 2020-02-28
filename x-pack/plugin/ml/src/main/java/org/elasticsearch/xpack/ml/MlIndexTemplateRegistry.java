@@ -14,6 +14,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -56,6 +57,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         ROOT_RESOURCE_PATH + "inference_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 
+    private static final IndexTemplateConfig STATS_TEMPLATE = statsTemplate();
+
     private static IndexTemplateConfig configTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
@@ -80,6 +83,17 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
             variables);
     }
 
+    private static IndexTemplateConfig statsTemplate() {
+        Map<String, String> variables = new HashMap<>();
+        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
+
+        return new IndexTemplateConfig(MlStatsIndex.TEMPLATE_NAME,
+            ROOT_RESOURCE_PATH + "stats_index_template.json",
+            Version.CURRENT.id, VERSION_PATTERN,
+            variables);
+    }
+
     public MlIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                    NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
@@ -98,7 +112,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
             CONFIG_TEMPLATE,
             INFERENCE_TEMPLATE,
             META_TEMPLATE,
-            NOTIFICATIONS_TEMPLATE
+            NOTIFICATIONS_TEMPLATE,
+            STATS_TEMPLATE
         );
     }
 

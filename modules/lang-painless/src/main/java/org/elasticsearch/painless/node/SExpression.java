@@ -22,7 +22,9 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
+import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -48,7 +50,7 @@ public final class SExpression extends AStatement {
         expression.read = lastSource && !isVoid;
         expression.analyze(scriptRoot, scope);
 
-        if (!lastSource && !expression.statement) {
+        if ((lastSource == false || isVoid) && expression.statement == false) {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
@@ -65,15 +67,24 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    StatementExpressionNode write(ClassNode classNode) {
-        StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
+    StatementNode write(ClassNode classNode) {
+        if (methodEscape) {
+            ReturnNode returnNode = new ReturnNode();
 
-        statementExpressionNode.setExpressionNode(expression.write(classNode));
+            returnNode.setExpressionNode(expression.write(classNode));
 
-        statementExpressionNode.setLocation(location);
-        statementExpressionNode.setMethodEscape(methodEscape);
+            returnNode.setLocation(location);
 
-        return statementExpressionNode;
+            return returnNode;
+        } else {
+            StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
+
+            statementExpressionNode.setExpressionNode(expression.write(classNode));
+
+            statementExpressionNode.setLocation(location);
+
+            return statementExpressionNode;
+        }
     }
 
     @Override

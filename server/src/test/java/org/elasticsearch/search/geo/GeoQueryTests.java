@@ -45,10 +45,7 @@ import org.locationtech.jts.geom.Coordinate;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
@@ -290,7 +287,6 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             169, -178, 1, -1);
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", rectangle);
-        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
         assertEquals(2, searchHits.getTotalHits().value);

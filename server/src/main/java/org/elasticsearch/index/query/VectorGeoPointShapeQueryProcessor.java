@@ -71,27 +71,8 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
     protected Query getVectorQueryFromShape(
         Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        /*
-        move this logic inside the visitor and decompose the polygons in the methods
-        visit(MultiPolygon multiPolygon) and visit(Polygon polygon). Note that the query accepts an
-         array and therefore the boolean query is not necessary.
-         */
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
-        if (queryShape.type().equals(ShapeType.POLYGON)) {
-            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
-            if (collector.size() < 1) {
-                return new MatchNoDocsQuery();
-            } else {
-                BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-                BooleanClause.Occur occur = BooleanClause.Occur.FILTER;
-                for (Polygon component : collector) {
-                    bqb.add(component.visit(shapeVisitor), occur);
-                }
-                return bqb.build();
-            }
-        } else {
-            return queryShape.visit(shapeVisitor);
-        }
+        return queryShape.visit(shapeVisitor);
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
@@ -153,11 +134,16 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(MultiPolygon multiPolygon) {
-            org.apache.lucene.geo.Polygon[] polygons =
-                new org.apache.lucene.geo.Polygon[multiPolygon.size()];
+            ArrayList<org.apache.lucene.geo.Polygon> polygonArrayList = new ArrayList<>();
             for (int i = 0; i < multiPolygon.size(); i++) {
-                polygons[i] = toLucenePolygon(multiPolygon.get(i));
+                ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+                GeoPolygonDecomposer.decomposePolygon(multiPolygon.get(i), true, collector);
+                for (int j = 0; j < collector.size(); j++) {
+                    polygonArrayList.add(toLucenePolygon(collector.get(j)));
+                }
             }
+            org.apache.lucene.geo.Polygon[] polygons = polygonArrayList.toArray(
+                new org.apache.lucene.geo.Polygon[polygonArrayList.size()]);
             return LatLonPoint.newPolygonQuery(fieldName, polygons);
         }
 
@@ -170,7 +156,14 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(org.elasticsearch.geometry.Polygon polygon) {
-            return LatLonPoint.newPolygonQuery(fieldName, toLucenePolygon(polygon));
+            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
+            org.apache.lucene.geo.Polygon[] polygons =
+                new org.apache.lucene.geo.Polygon[collector.size()];
+            for (int i = 0; i < collector.size(); i++) {
+                polygons[i] = toLucenePolygon(collector.get(i));
+            }
+            return LatLonPoint.newPolygonQuery(fieldName, polygons);
         }
 
         @Override

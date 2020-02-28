@@ -118,7 +118,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             if (topDocs.scoreDocs.length == topDocsSize) {
                 FieldDoc cand = (FieldDoc) topDocs.scoreDocs[topDocsSize-1];
                 if (bestBottom == null ||
-                        fieldComparator.compareValues(cand.fields[0], cand.fields[0]) * reverseMul > 0) {
+                        fieldComparator.compareValues(cand.fields[0], bestBottom.fields[0]) * reverseMul < 0) {
                     bestBottom = cand;
                 }
             }

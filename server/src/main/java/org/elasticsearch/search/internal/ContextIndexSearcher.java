@@ -176,11 +176,11 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private void checkCancelled() {
-        if (checkCancelled != null) {
-            checkCancelled.run();
-        }
         if (checkTimeout != null) {
             checkTimeout.run();
+        }
+        if (checkCancelled != null) {
+            checkCancelled.run();
         }
     }
 
@@ -246,8 +246,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             Scorer scorer = weight.scorer(ctx);
             if (scorer != null) {
                 try {
-                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                        checkCancelled == null ? () -> { } : checkCancelled);
+                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector, this::checkCancelled);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -257,7 +256,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private Weight wrapWeight(Weight weight) {
-        if (checkCancelled != null) {
+        if (checkCancelled != null || checkTimeout != null) {
             return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -283,7 +282,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, checkCancelled);
+                        return new CancellableBulkScorer(in, () -> checkCancelled());
                     } else {
                         return null;
                     }
@@ -444,11 +443,11 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
 
         void checkCancelled() {
-            if (checkCancelled != null) {
-                checkCancelled.run();
-            }
             if (checkTimeout != null) {
                 checkTimeout.run();
+            }
+            if (checkCancelled != null) {
+                checkCancelled.run();
             }
         }
 

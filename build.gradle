@@ -108,10 +108,12 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventually removed completely.
     def projectPathsToFormat = [
+      ':benchmarks',
       ':build-tools',
       ':distribution:tools:java-version-checker',
       ':distribution:tools:launchers',
       ':distribution:tools:plugin-cli',
+      ':qa:os',
       ':x-pack:plugin:enrich'
     ]
 

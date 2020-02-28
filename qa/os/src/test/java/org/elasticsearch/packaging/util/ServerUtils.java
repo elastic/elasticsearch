@@ -58,12 +58,12 @@ import static org.hamcrest.Matchers.containsString;
 
 public class ServerUtils {
 
-    private static final Logger logger =  LogManager.getLogger(ServerUtils.class);
+    private static final Logger logger = LogManager.getLogger(ServerUtils.class);
 
     private static String SECURITY_ENABLED = "xpack.security.enabled: true";
     private static String SSL_ENABLED = "xpack.security.http.ssl.enabled: true";
 
-    // generous timeout  as nested virtualization can be quite slow ...
+    // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
@@ -124,9 +124,7 @@ public class ServerUtils {
                 connectionManager.setDefaultMaxPerRoute(100);
                 connectionManager.setMaxTotal(200);
                 connectionManager.setValidateAfterInactivity(1000);
-                executor = Executor.newInstance(HttpClientBuilder.create()
-                    .setConnectionManager(connectionManager)
-                    .build());
+                executor = Executor.newInstance(HttpClientBuilder.create().setConnectionManager(connectionManager).build());
             }
         } else {
             executor = Executor.newInstance();
@@ -159,13 +157,8 @@ public class ServerUtils {
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }
 
-    public static void waitForElasticsearch(
-        String status,
-        String index,
-        Installation installation,
-        String username,
-        String password
-    ) throws Exception {
+    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
+        throws Exception {
 
         Objects.requireNonNull(status);
 
@@ -186,8 +179,7 @@ public class ServerUtils {
                 try {
 
                     final HttpResponse response = execute(
-                        Request
-                            .Get("http://localhost:9200/_cluster/health")
+                        Request.Get("http://localhost:9200/_cluster/health")
                             .connectTimeout((int) timeoutLength)
                             .socketTimeout((int) timeoutLength),
                         username,
@@ -239,11 +231,13 @@ public class ServerUtils {
     public static void runElasticsearchTests() throws Exception {
         makeRequest(
             Request.Post("http://localhost:9200/library/book/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON));
+                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON)
+        );
 
         makeRequest(
             Request.Post("http://localhost:9200/library/book/2?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON));
+                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON)
+        );
 
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));
         assertThat(count, containsString("\"count\" : 2"));

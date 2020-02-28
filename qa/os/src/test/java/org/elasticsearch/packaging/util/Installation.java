@@ -28,9 +28,7 @@ import java.nio.file.Paths;
 public class Installation {
 
     // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS
-        ? System.getenv("username")
-        : "elasticsearch";
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
 
     private final Shell sh;
     public final Distribution distribution;
@@ -46,8 +44,18 @@ public class Installation {
     public final Path pidDir;
     public final Path envFile;
 
-    private Installation(Shell sh, Distribution distribution, Path home, Path config, Path data, Path logs,
-                         Path plugins, Path modules, Path pidDir, Path envFile) {
+    private Installation(
+        Shell sh,
+        Distribution distribution,
+        Path home,
+        Path config,
+        Path data,
+        Path logs,
+        Path plugins,
+        Path modules,
+        Path pidDir,
+        Path envFile
+    ) {
         this.sh = sh;
         this.distribution = distribution;
         this.home = home;
@@ -143,9 +151,7 @@ public class Installation {
         public final Path path;
 
         private Executable(String name) {
-            final String platformExecutableName = Platforms.WINDOWS
-                ? name + ".bat"
-                : name;
+            final String platformExecutableName = Platforms.WINDOWS ? name + ".bat" : name;
             this.path = bin(platformExecutableName);
         }
 

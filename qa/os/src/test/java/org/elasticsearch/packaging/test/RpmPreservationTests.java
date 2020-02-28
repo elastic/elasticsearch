@@ -76,20 +76,11 @@ public class RpmPreservationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
 
         sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
-        Stream.of(
-            "elasticsearch.yml",
-            "jvm.options",
-            "log4j2.properties"
-        )
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         if (distribution().isDefault()) {
-            Stream.of(
-                "role_mapping.yml",
-                "roles.yml",
-                "users",
-                "users_roles"
-            )
+            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
                 .map(each -> installation.config(each))
                 .forEach(path -> append(path, "# foo"));
         }
@@ -116,19 +107,10 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertTrue(Files.exists(installation.config));
         assertTrue(Files.exists(installation.config("elasticsearch.keystore")));
 
-        Stream.of(
-            "elasticsearch.yml",
-            "jvm.options",
-            "log4j2.properties"
-        ).forEach(this::assertConfFilePreserved);
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
 
         if (distribution().isDefault()) {
-            Stream.of(
-                "role_mapping.yml",
-                "roles.yml",
-                "users",
-                "users_roles"
-            ).forEach(this::assertConfFilePreserved);
+            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
         }
     }
 

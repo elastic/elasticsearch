@@ -7,11 +7,23 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
-It is best to upgrade the master-eligible nodes in your cluster after all of
-the other nodes. Once you have started to upgrade the master-eligible nodes
-they may form a cluster that nodes of older versions cannot join. If you
-upgrade the master-eligible nodes last then all the other nodes will not be
-running an older version and so they will be able to join the cluster.
+It is strongly recommended to upgrade the nodes in your cluster in the
+following order:
+
+. Nodes that are not master-eligible. You can retrieve a list of these nodes
+with `GET /_nodes/master:false`, or by finding all the nodes which are
+configured with `node.master: false`. You may upgrade this subset of your nodes
+in any order.
+
+. Nodes that are master-eligible, which is all the remaining nodes. You can
+retrieve a list of these nodes with `GET /_nodes/master:true`. You may upgrade
+this subset of your nodes in any order.
+
+The reason for this recommendation is that newer nodes can always join a
+cluster with an older master, but older nodes cannot always join a cluster with
+a newer master. By upgrading the master-eligible nodes last you ensure that all
+the other nodes are running the newer version first and so they will be able to
+join the cluster whether the master-eligible nodes have been upgraded or not.
 
 Rolling upgrades are supported:
 

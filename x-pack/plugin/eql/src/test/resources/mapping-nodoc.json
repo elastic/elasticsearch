@@ -1,0 +1,11 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "description_nodoc" : {
+            "type" : "integer",
+            "doc_values" : false
+        }
+    }
+}

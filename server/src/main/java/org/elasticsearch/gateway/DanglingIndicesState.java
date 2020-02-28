@@ -234,10 +234,6 @@ public class DanglingIndicesState implements ClusterStateListener {
      * {@link #AUTO_IMPORT_DANGLING_INDICES_SETTING} setting.
      */
     void allocateDanglingIndices() {
-        if (this.isAutoImportDanglingIndicesEnabled == false) {
-            return;
-        }
-
         if (danglingIndices.isEmpty()) {
             return;
         }

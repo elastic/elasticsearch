@@ -147,8 +147,7 @@ public class LocalAllocateDangledIndices {
                             logger.warn(() -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be " +
                                 "upgraded to the latest version, adding as closed", indexMetaData.getIndex(), request.fromNode), ex);
                             upgradedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE)
-                                .version(indexMetaData.getVersion() + 1)
-                                .build();
+                                .version(indexMetaData.getVersion() + 1).build();
                         }
                         metaData.put(upgradedIndexMetaData, false);
                         blocks.addBlocks(upgradedIndexMetaData);

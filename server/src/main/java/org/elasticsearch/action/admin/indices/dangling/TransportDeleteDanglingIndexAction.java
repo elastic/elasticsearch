@@ -111,6 +111,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                 }
 
                 String indexName = indexToDelete.getName();
+                String indexUUID = indexToDelete.getUUID();
 
                 final ActionListener<AcknowledgedResponse> clusterStateUpdatedListener = new ActionListener<>() {
                     @Override
@@ -120,13 +121,15 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug("Failed to delete dangling index [{}]" + indexName, e);
+                        logger.debug("Failed to delete dangling index [" + indexName + "] [" + indexUUID + "]", e);
                         deleteListener.onFailure(e);
                     }
                 };
 
+                final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
+
                 clusterService.submitStateUpdateTask(
-                    "delete-dangling-index " + indexName,
+                    taskSource,
                     new AckedClusterStateUpdateTask<>(deleteRequest, clusterStateUpdatedListener) {
 
                         @Override
@@ -144,20 +147,18 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("Failed to list dangling indices", e);
+                logger.debug("Failed to find dangling index", e);
                 deleteListener.onFailure(e);
             }
         });
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
-        final MetaData meta = currentState.metaData();
+        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
 
-        MetaData.Builder metaDataBuilder = MetaData.builder(meta);
-
-        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
-
-        final IndexGraveyard newGraveyard = graveyardBuilder.addTombstone(indexToDelete).build(settings);
+        final IndexGraveyard newGraveyard = IndexGraveyard.builder(metaDataBuilder.indexGraveyard())
+            .addTombstone(indexToDelete)
+            .build(settings);
         metaDataBuilder.indexGraveyard(newGraveyard);
 
         return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();

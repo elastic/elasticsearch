@@ -61,7 +61,11 @@ public class EElvis extends AExpression {
         if (lhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (lhs.constant != null) {
+        if (lhs instanceof EBoolean
+                || lhs instanceof ENumeric
+                || lhs instanceof EDecimal
+                || lhs instanceof EString
+                || lhs instanceof EConstant) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (lhs.actual.isPrimitive()) {
@@ -72,7 +76,7 @@ public class EElvis extends AExpression {
         }
 
         if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
+            Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual);
 
             lhs.expected = promote;
             rhs.expected = promote;

@@ -1219,14 +1219,18 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .build();
             String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}, \"field2\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
+            final Map<String, String> doc1 = new HashMap<>();
+            doc1.put("field", "value1");
+            doc1.put("field2", "hello world");
+            final Map<String, String> doc2 = new HashMap<>();
+            doc2.put("field", "value2");
+            doc2.put("field2", "foo var");
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
                     new BulkRequest()
-                        .add(new IndexRequest(sourceIndex).id("1")
-                            .source(Map.of("field", "value1", "field2", "hello world"), XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("2")
-                            .source(Map.of("field", "value2", "field2", "foo var"), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("1").source(doc1, XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("2").source(doc2, XContentType.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -1288,7 +1292,13 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
             MultiTermVectorsResponse mtvResponse =
                 execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
-            List<List<String>> expectedRespFields = List.of(List.of("field"), List.of("field2"), List.of("field", "field2"));
+            final List<String> expectedFields = new ArrayList<>();
+            expectedFields.add("field");
+            expectedFields.add("field2");
+            List<List<String>> expectedRespFields = new ArrayList<>();
+            expectedRespFields.add(Collections.singletonList("field"));
+            expectedRespFields.add(Collections.singletonList("field2"));
+            expectedRespFields.add(expectedFields);
             List<TermVectorsResponse> responses = mtvResponse.getTermVectorsResponses();
             assertEquals(expectedRespFields.size(), responses.size());
             for (int i = 0; i < responses.size(); i++) {

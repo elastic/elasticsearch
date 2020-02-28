@@ -35,14 +35,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
 
 public class IndexTemplateMetaDataTests extends ESTestCase {
 
     public void testIndexTemplateMetaDataXContentRoundTrip() throws Exception {
-        ToXContent.Params params = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
 
         String template = "{\"index_patterns\" : [ \".test-*\" ],\"order\" : 1000," +
             "\"settings\" : {\"number_of_shards\" : 1,\"number_of_replicas\" : 0}," +
@@ -62,7 +60,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         final BytesReference templateBytesRoundTrip;
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.startObject();
-            IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, params);
+            IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             templateBytesRoundTrip = BytesReference.bytes(builder);
         }

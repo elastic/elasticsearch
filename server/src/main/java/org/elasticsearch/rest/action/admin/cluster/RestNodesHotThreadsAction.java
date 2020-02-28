@@ -36,27 +36,42 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestNodesHotThreadsAction.class));
-    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated endpoints used. " + 
-            "Those are the synonyms of other endpoints";
+    static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS = "[/_cluster/nodes/hotthreads] is a deprecated endpoint. " 
+        + "Please use [/_cluster/nodes/hot_threads] instead.";
+    static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS = "[/_cluster/nodes/{nodeId}/hotthreads] is a deprecated endpoint. "
+        + "Please use [/_cluster/nodes/{nodeId}/hot_threads] instead.";
+    static final String DEPRECATED_MESSAGE_NODES_HOTTHREADS = "[/_nodes/hotthreads] is a deprecated endpoint. "
+        + "Please use [/_nodes/hot_threads] instead.";
+    static final String DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS = "[/_nodes/{nodeId}/hotthreads] is a deprecated endpoint. "
+        + "Please use [/_nodes/{nodeId}/hot_threads] instead.";
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return List.of(
+            new DeprecatedRoute(GET, "/_cluster/nodes/hotthreads",
+                    DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS),
+            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hotthreads",
+                    DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS),
+            new DeprecatedRoute(GET, "/_nodes/hotthreads",
+                    DEPRECATED_MESSAGE_NODES_HOTTHREADS),
+            new DeprecatedRoute(GET, "/_nodes/{nodeId}/hotthreads",
+                    DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS));
+    }        
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_cluster/nodes/hotthreads"),
             new Route(GET, "/_cluster/nodes/hot_threads"),
-            new Route(GET, "/_cluster/nodes/{nodeId}/hotthreads"),
             new Route(GET, "/_cluster/nodes/{nodeId}/hot_threads"),
-            new Route(GET, "/_nodes/hotthreads"),
             new Route(GET, "/_nodes/hot_threads"),
-            new Route(GET, "/_nodes/{nodeId}/hotthreads"),
             new Route(GET, "/_nodes/{nodeId}/hot_threads"));
     }
 
@@ -67,11 +82,10 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.rawPath().equals("/_cluster/nodes/hotthreads") 
-        || request.rawPath().equals("/_cluster/nodes/{nodeId}/hotthreads")
-        || request.rawPath().equals("/_nodes/hotthreads") 
-        || request.rawPath().equals("/_nodes/{nodeId}/hotthreads")) {
-            deprecationLogger.deprecated(LOCAL_DEPRECATED_MESSAGE);
+        List<String> deprecatedRoutesPath = deprecatedRoutes().stream().map(DeprecatedRoute::getPath).collect(Collectors.toList());
+        int getDeprecatedRoutesPathIndex = deprecatedRoutesPath.indexOf(request.rawPath());
+        if (getDeprecatedRoutesPathIndex != -1) {
+            deprecationLogger.deprecated(deprecatedRoutes().get(getDeprecatedRoutesPathIndex).getDeprecationMessage());
         }
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);

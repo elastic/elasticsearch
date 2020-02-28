@@ -56,7 +56,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
         } catch (Exception e) {
             
         }
-        assertWarnings(RestNodesHotThreadsAction.LOCAL_DEPRECATED_MESSAGE);
+        assertWarnings(RestNodesHotThreadsAction.DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS);
     }
 
     public void testRouteClusterNodesNodeIdHotthreads() {
@@ -69,7 +69,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
         } catch (Exception e) {
             
         }
-        assertWarnings(RestNodesHotThreadsAction.LOCAL_DEPRECATED_MESSAGE);
+        assertWarnings(RestNodesHotThreadsAction.DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS);
     }
 
     public void testRouteNodesHotthreads() {
@@ -82,7 +82,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
         } catch (Exception e) {
             
         }
-        assertWarnings(RestNodesHotThreadsAction.LOCAL_DEPRECATED_MESSAGE);
+        assertWarnings(RestNodesHotThreadsAction.DEPRECATED_MESSAGE_NODES_HOTTHREADS);
     }
 
     public void testRouteNodesNodeIdHotthreads() {
@@ -95,7 +95,7 @@ public class RestNodesHotThreadsActionTests extends ESTestCase {
         } catch (Exception e) {
             
         }
-        assertWarnings(RestNodesHotThreadsAction.LOCAL_DEPRECATED_MESSAGE);
+        assertWarnings(RestNodesHotThreadsAction.DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS);
     }
 
 }

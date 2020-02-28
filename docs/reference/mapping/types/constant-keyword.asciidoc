@@ -59,6 +59,14 @@ POST logs-debug/_doc
 However providing a value that is different from the one configured in the
 mapping is disallowed.
 
+In case no `value` is provided in the mappings, the field will automatically
+configure itself based on the value contained in the first indexed document.
+While this behavior can be convenient, note that it means that a single
+poisonous document can cause all other documents to be rejected if it had a
+wrong value.
+
+The `value` of the field cannot be changed after it has been set.
+
 [[constant-keyword-params]]
 ==== Parameters for constant keyword fields
 

@@ -151,7 +151,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return 31 * super.hashCode() + Objects.hashCode(value);
         }
 
-        /** Return the value that this field wraps. */
+        /** Return the value that this field wraps. This may be {@code null} if the field is not configured yet. */
         public String value() {
             return value;
         }

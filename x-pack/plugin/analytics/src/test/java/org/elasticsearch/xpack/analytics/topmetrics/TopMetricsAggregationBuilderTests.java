@@ -104,6 +104,6 @@ public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCa
                         serverBuilder.getName(),
                         serverBuilder.getSortBuilders().get(0),
                         serverBuilder.getSize(),
-                        serverBuilder.getMetricFields().stream().map(MultiValuesSourceFieldConfig::getFieldName).collect(toList()));
+                        serverBuilder.getMetricFields().stream().map(MultiValuesSourceFieldConfig::getFieldName).toArray(String[]::new));
     }
 }

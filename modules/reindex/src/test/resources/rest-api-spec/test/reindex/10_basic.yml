@@ -92,7 +92,7 @@
   - is_false: timed_out
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
-  - set: {persistent_task_id: persistent_task_id}
+  - set: {id: id}
   - is_false: updated
   - is_false: version_conflicts
   - is_false: batches
@@ -122,8 +122,8 @@
   - is_false: response.deleted
 
   - do:
-      reindex_task:
-        task_id: $persistent_task_id
+      reindex.get:
+        id: $id
 
   - match: {state: "done"}
   - match: {start_time: /.+/}

@@ -787,7 +787,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "render_search_template",
-            "reindex_task", // TODO: Add
+            "reindex.get", // TODO: Add
             "scripts_painless_execute"
         };
         //These API are not required for high-level client feature completeness

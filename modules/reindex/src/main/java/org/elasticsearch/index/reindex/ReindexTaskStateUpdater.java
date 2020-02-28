@@ -221,7 +221,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
                                     TimeValue delay) {
-        long endTimeMillis = Instant.now().toEpochMilli();
+        // Prevent backwards clock adjustments
+        long endTimeMillis = Long.max(Instant.now().toEpochMilli(), lastState.getStateDoc().getStartTimeMillis());;
         ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(endTimeMillis, reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();

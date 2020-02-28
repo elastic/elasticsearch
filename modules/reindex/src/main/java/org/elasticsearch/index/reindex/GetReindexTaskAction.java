@@ -135,6 +135,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
         public Response(String id, String state, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
                         @Nullable ElasticsearchException exception) {
+            assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
             this.id = id;
             this.state = state;
             this.startMillis = startMillis;
@@ -180,7 +181,6 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
                 reindexResponse.toXContent(builder, params);
                 builder.endObject();
             } else if (exception != null) {
-                builder.field(STATE, FAILED_STATE);
                 builder.field(REINDEX_FAILURE);
                 builder.startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, exception);

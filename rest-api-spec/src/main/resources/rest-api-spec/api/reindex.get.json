@@ -1,5 +1,5 @@
 {
-  "reindex_task":{
+  "reindex.get":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
       "description":"Returns information about reindex tasks."
@@ -8,12 +8,12 @@
     "url":{
       "paths":[
         {
-          "path":"/_reindex/{task_id}",
+          "path":"/_reindex/{id}",
           "methods":[
             "GET"
           ],
           "parts":{
-            "task_id":{
+            "id":{
               "type":"string",
               "description":"Reindex Task ID"
             }

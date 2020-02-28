@@ -107,6 +107,8 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         this.allocationId = allocationId;
         this.ephemeralTaskId = ephemeralTaskId;
         this.endTimeMillis = endTimeMillis;
+
+        assert endTimeMillis == null ? reindexResponse == null && exception == null : reindexResponse != null || exception != null;
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
         this.reindexResponse = reindexResponse;
         this.exception = exception;

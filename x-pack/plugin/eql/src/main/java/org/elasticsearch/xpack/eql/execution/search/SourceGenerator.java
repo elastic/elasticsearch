@@ -10,7 +10,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 
 import java.util.List;
 
@@ -40,10 +39,6 @@ public abstract class SourceGenerator {
 
         final SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(finalQuery);
-
-        QlSourceBuilder sortBuilder = new QlSourceBuilder();
-        // Iterate through all the columns requested, collecting the fields that
-        // need to be retrieved from the result documents
 
         source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 

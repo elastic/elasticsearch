@@ -23,7 +23,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.junit.Before;
 
 import java.time.format.DateTimeFormatter;
@@ -67,10 +69,11 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
     public void testLargeMapping() throws Exception {
         Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
 
+        int PASS_DEFAULT_DOC_VALUES = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(Settings.EMPTY) + 50;
         String now = DateUtils.nowWithMillisResolution().format(DateTimeFormatter.ISO_DATE_TIME);
         StringBuilder sb = new StringBuilder();
         sb.append("{");
-        for (int i = 0; i < 250; i++) {
+        for (int i = 0; i < PASS_DEFAULT_DOC_VALUES; i++) {
             sb.append("\"datetime" + i + "\":\"" + now + "\"");
             sb.append(",");
         }

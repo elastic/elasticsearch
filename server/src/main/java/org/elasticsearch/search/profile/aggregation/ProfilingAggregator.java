@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -78,8 +79,8 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public void validateSortPathKey(String key) {
-        delegate.validateSortPathKey(key);
+    public BucketComparator bucketComparator(String key, SortOrder order) {
+        return delegate.bucketComparator(key, order);
     }
 
     @Override

@@ -114,17 +114,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     final Map<String, Object> realmField =
                         existingRealmField instanceof Map ? (Map<String, Object>) existingRealmField : new HashMap<>();
 
-                    final Object realmName, realmType;
-                    if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-                        realmName = authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
-                        realmType = authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE);
-                    } else {
-                        realmName = authentication.getSourceRealm().getName();
-                        realmType = authentication.getSourceRealm().getType();
-                    }
+                    final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
                     if (realmName != null) {
                         realmField.put("name", realmName);
                     }
+                    final Object realmType = ApiKeyService.getCreatorRealmType(authentication);
                     if (realmType != null) {
                         realmField.put("type", realmType);
                     }

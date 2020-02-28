@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
+import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregatorFactory;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -56,7 +58,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
                 CumulativeCardinalityPipelineAggregator::new,
-                (name, p) -> CumulativeCardinalityPipelineAggregationBuilder.PARSER.parse(p, name))
+                CumulativeCardinalityPipelineAggregationBuilder.PARSER)
         );
     }
 
@@ -88,6 +90,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
             new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return singletonList(TopMetricsAggregatorFactory.MAX_BUCKET_SIZE);
     }
 
     @Override

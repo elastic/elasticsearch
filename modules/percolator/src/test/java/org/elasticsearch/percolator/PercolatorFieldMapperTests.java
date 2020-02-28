@@ -490,6 +490,17 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields(fieldType.queryBuilderField.name()).length, equalTo(1));
         qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         assertQueryBuilder(qbSource, queryBuilder);
+
+        queryBuilder = rangeQuery("date_field").from("now");
+        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory
+            .jsonBuilder()
+            .startObject()
+            .field(fieldName, queryBuilder)
+            .endObject()),
+            XContentType.JSON));
+        assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).length, equalTo(1));
+        assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name())[0].stringValue(),
+            equalTo(EXTRACTION_FAILED));
     }
 
     public void testStoringQueries() throws Exception {

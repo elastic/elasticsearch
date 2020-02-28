@@ -45,7 +45,7 @@ The specification contains:
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
 * Link to the documentation at the <http://elastic.co> website
 * `stability` indicating the state of the API, has to be declared explicitly or YAML tests will fail
-    * `experimental` highly likely to break in the near future (minor/path), no bwc guarantees.
+    * `experimental` highly likely to break in the near future (minor/patch), no bwc guarantees.
     Possibly removed in the future.
     * `beta` less likely to break or be removed but still reserve the right to do so
     * `stable` No backwards breaking changes in a minor

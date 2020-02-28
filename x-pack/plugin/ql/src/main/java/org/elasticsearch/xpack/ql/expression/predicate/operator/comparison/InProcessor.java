@@ -3,12 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
+package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Comparisons;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -97,7 +97,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             .build());
         table.addCell("data.processed_fields",
             TableColumnAttributeBuilder.builder("number of processed fields", false)
-                .setAliases("dpr", "dataProcessedFields")
+                .setAliases("dpf", "dataProcessedFields")
                 .build());
         table.addCell("data.input_bytes",
             TableColumnAttributeBuilder.builder("total input bytes", false)
@@ -223,55 +223,55 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build());
 
         // Forecast Stats
-        table.addCell("forecast." + ForecastStats.Fields.TOTAL,
-            TableColumnAttributeBuilder.builder("total number of forecasts").setAliases("ft", "forecastTotal").build());
-        table.addCell("forecast.memory.min",
+        table.addCell("forecasts." + ForecastStats.Fields.TOTAL,
+            TableColumnAttributeBuilder.builder("total number of forecasts").setAliases("ft", "forecastsTotal").build());
+        table.addCell("forecasts.memory.min",
             TableColumnAttributeBuilder.builder("minimum memory used by forecasts", false)
-                .setAliases("fmmin", "forecastMemoryMin")
+                .setAliases("fmmin", "forecastsMemoryMin")
                 .build());
-        table.addCell("forecast.memory.max",
+        table.addCell("forecasts.memory.max",
             TableColumnAttributeBuilder.builder("maximum memory used by forecasts", false)
                 .setAliases("fmmax", "forecastsMemoryMax")
                 .build());
-        table.addCell("forecast.memory.avg",
+        table.addCell("forecasts.memory.avg",
             TableColumnAttributeBuilder.builder("average memory used by forecasts", false)
-                .setAliases("fmavg", "forecastMemoryAvg")
+                .setAliases("fmavg", "forecastsMemoryAvg")
                 .build());
-        table.addCell("forecast.memory.total",
+        table.addCell("forecasts.memory.total",
             TableColumnAttributeBuilder.builder("total memory used by all forecasts", false)
-                .setAliases("fmt", "forecastMemoryTotal")
+                .setAliases("fmt", "forecastsMemoryTotal")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".min",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".min",
             TableColumnAttributeBuilder.builder("minimum record count for forecasts", false)
-                .setAliases("frmin", "forecastRecordsMin")
+                .setAliases("frmin", "forecastsRecordsMin")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".max",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".max",
             TableColumnAttributeBuilder.builder("maximum record count for forecasts", false)
-                .setAliases("frmax", "forecastRecordsMax")
+                .setAliases("frmax", "forecastsRecordsMax")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".avg",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".avg",
             TableColumnAttributeBuilder.builder("average record count for forecasts", false)
-                .setAliases("fravg", "forecastRecordsAvg")
+                .setAliases("fravg", "forecastsRecordsAvg")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".total",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".total",
             TableColumnAttributeBuilder.builder("total record count for all forecasts", false)
-                .setAliases("frt", "forecastRecordsTotal")
+                .setAliases("frt", "forecastsRecordsTotal")
                 .build());
-        table.addCell("forecast.time.min",
+        table.addCell("forecasts.time.min",
             TableColumnAttributeBuilder.builder("minimum runtime for forecasts", false)
-                .setAliases("ftmin", "forecastTimeMin")
+                .setAliases("ftmin", "forecastsTimeMin")
                 .build());
-        table.addCell("forecast.time.max",
+        table.addCell("forecasts.time.max",
             TableColumnAttributeBuilder.builder("maximum run time for forecasts", false)
-                .setAliases("ftmax", "forecastTimeMax")
+                .setAliases("ftmax", "forecastsTimeMax")
                 .build());
-        table.addCell("forecast.time.avg",
+        table.addCell("forecasts.time.avg",
             TableColumnAttributeBuilder.builder("average runtime for all forecasts (milliseconds)", false)
-                .setAliases("ftavg", "forecastTimeAvg")
+                .setAliases("ftavg", "forecastsTimeAvg")
                 .build());
-        table.addCell("forecast.time.total",
+        table.addCell("forecasts.time.total",
             TableColumnAttributeBuilder.builder("total runtime for all forecasts", false)
-                .setAliases("ftt", "forecastTimeTotal").build());
+                .setAliases("ftt", "forecastsTimeTotal").build());
 
         //Node info
         table.addCell("node.id",
@@ -292,29 +292,29 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build());
 
         //Timing Stats
-        table.addCell("bucket.count",
+        table.addCell("buckets.count",
             TableColumnAttributeBuilder.builder("bucket count")
-                .setAliases("bc", "bucketCount")
+                .setAliases("bc", "bucketsCount")
                 .build());
-        table.addCell("bucket.time.total",
+        table.addCell("buckets.time.total",
             TableColumnAttributeBuilder.builder("total bucket processing time", false)
-                .setAliases("btt", "bucketTimeTotal")
+                .setAliases("btt", "bucketsTimeTotal")
                 .build());
-        table.addCell("bucket.time.min",
+        table.addCell("buckets.time.min",
             TableColumnAttributeBuilder.builder("minimum bucket processing time", false)
-                .setAliases("btmin", "bucketTimeMin")
+                .setAliases("btmin", "bucketsTimeMin")
                 .build());
-        table.addCell("bucket.time.max",
+        table.addCell("buckets.time.max",
             TableColumnAttributeBuilder.builder("maximum bucket processing time", false)
-                .setAliases("btmax", "bucketTimeMax")
+                .setAliases("btmax", "bucketsTimeMax")
                 .build());
-        table.addCell("bucket.time.exp_avg",
+        table.addCell("buckets.time.exp_avg",
             TableColumnAttributeBuilder.builder("exponential average bucket processing time (milliseconds)", false)
-                .setAliases("btea", "bucketTimeExpAvg")
+                .setAliases("btea", "bucketsTimeExpAvg")
                 .build());
-        table.addCell("bucket.time.exp_avg_hour",
+        table.addCell("buckets.time.exp_avg_hour",
             TableColumnAttributeBuilder.builder("exponential average bucket processing time by hour (milliseconds)", false)
-                .setAliases("bteah", "bucketTimeExpAvgHour")
+                .setAliases("bteah", "bucketsTimeExpAvgHour")
                 .build());
 
         table.endHeaders();

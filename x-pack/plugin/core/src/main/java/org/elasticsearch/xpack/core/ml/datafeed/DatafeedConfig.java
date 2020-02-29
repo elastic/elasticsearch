@@ -236,7 +236,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             maxEmptySearches = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
             indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
@@ -448,7 +448,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalVInt(maxEmptySearches);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
     }

@@ -33,6 +33,7 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -274,7 +276,7 @@ public class MatchQuery {
                     && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
-                return builder.newTermQuery(term);
+                return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
             }
         }
 
@@ -562,7 +564,7 @@ public class MatchQuery {
         }
 
         @Override
-        protected Query newTermQuery(Term term) {
+        protected Query newTermQuery(Term term, float boost) {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
                 querySupplier = () -> {
@@ -613,7 +615,8 @@ public class MatchQuery {
             final Term term = new Term(field, termAtt.getBytesRef());
             int lastOffset = offsetAtt.endOffset();
             stream.end();
-            return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(term) : newTermQuery(term);
+            return isPrefix && lastOffset == offsetAtt.endOffset() ?
+                newPrefixQuery(term) : newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
         }
 
         private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
@@ -624,11 +627,14 @@ public class MatchQuery {
                 if (isPrefix) {
                     q.add(newPrefixQuery(current.get(0)), operator);
                 } else {
-                    q.add(newTermQuery(current.get(0)), operator);
+                    q.add(newTermQuery(current.get(0), BoostAttribute.DEFAULT_BOOST), operator);
                 }
             } else {
                 // We don't apply prefix on synonyms
-                q.add(newSynonymQuery(current.toArray(new Term[current.size()])), operator);
+                final TermAndBoost[] termAndBoosts = current.stream()
+                    .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                    .toArray(TermAndBoost[]::new);
+                q.add(newSynonymQuery(termAndBoosts), operator);
             }
         }
 
@@ -739,10 +745,13 @@ public class MatchQuery {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length == 1) {
-                        queryPos = usePrefix ? newPrefixQuery(terms[0]) : newTermQuery(terms[0]);
+                        queryPos = usePrefix ? newPrefixQuery(terms[0]) : newTermQuery(terms[0], BoostAttribute.DEFAULT_BOOST);
                     } else {
                         // We don't apply prefix on synonyms
-                        queryPos = newSynonymQuery(terms);
+                        final TermAndBoost[] termAndBoosts = Arrays.stream(terms)
+                            .map(t -> new TermAndBoost(t, BoostAttribute.DEFAULT_BOOST))
+                            .toArray(TermAndBoost[]::new);
+                        queryPos = newSynonymQuery(termAndBoosts);
                     }
                 }
                 if (queryPos != null) {

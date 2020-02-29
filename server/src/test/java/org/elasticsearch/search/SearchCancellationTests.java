@@ -87,11 +87,6 @@ public class SearchCancellationTests extends ESTestCase {
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
         searcher.setCancellable(new ContextIndexSearcher.QueryCancellable() {
             @Override
-            public boolean isEnabled() {
-                return true;
-            }
-
-            @Override
             public void checkCancelled() {
                 if (cancelled.get()) {
                     throw new TaskCancelledException("cancelled");
@@ -102,9 +97,6 @@ public class SearchCancellationTests extends ESTestCase {
             public void checkDirReaderCancelled() {
             }
 
-            @Override
-            public void unsetCheckTimeout() {
-            }
         });
         searcher.search(new MatchAllDocsQuery(), collector);
         assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
@@ -120,11 +112,6 @@ public class SearchCancellationTests extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
         searcher.setCancellable(new ContextIndexSearcher.QueryCancellable() {
             @Override
-            public boolean isEnabled() {
-                return true;
-            }
-
-            @Override
             public void checkCancelled() {
             }
 
@@ -133,10 +120,6 @@ public class SearchCancellationTests extends ESTestCase {
                 if (cancelled.get()) {
                     throw new TaskCancelledException("cancelled");
                 }
-            }
-
-            @Override
-            public void unsetCheckTimeout() {
             }
         });
         searcher.search(new PrefixQuery(new Term(FIELD_NAME, "a")), collector);

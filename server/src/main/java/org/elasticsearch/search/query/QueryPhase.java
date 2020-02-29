@@ -81,6 +81,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.search.internal.ContextIndexSearcher.QueryCancellable;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
@@ -272,7 +273,8 @@ public class QueryPhase implements SearchPhase {
                 cancellationRunnable = null;
             }
 
-            searcher.setCancellable(new ContextIndexSearcher.CancellableImpl(timeoutRunnable, cancellationRunnable));
+            QueryCancellableImpl cancellable = new QueryCancellableImpl(timeoutRunnable, cancellationRunnable);
+            searcher.setCancellable(cancellable);
 
             boolean shouldRescore;
             // if we are optimizing sort and there are no other collectors
@@ -299,7 +301,7 @@ public class QueryPhase implements SearchPhase {
             }
             // Search phase has finished, no longer need to check for timeout
             // otherwise aggregation phase might get cancelled.
-            searcher.unsetCheckTimeout();
+            cancellable.unsetCheckTimeout();
             return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
@@ -628,4 +630,29 @@ public class QueryPhase implements SearchPhase {
     }
 
     private static class TimeExceededException extends RuntimeException {}
+
+    private static class QueryCancellableImpl implements QueryCancellable {
+
+        private Runnable checkCancelled;
+        private Runnable checkTimeout;
+
+        private QueryCancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
+            this.checkCancelled = checkCancelled;
+            this.checkTimeout = checkTimeout;
+        }
+
+        @Override
+        public void checkCancelled() {
+            if (checkTimeout != null) {
+                checkTimeout.run();
+            }
+            if (checkCancelled != null) {
+                checkCancelled.run();
+            }
+        }
+
+        private void unsetCheckTimeout() {
+            this.checkTimeout = null;
+        }
+    }
 }

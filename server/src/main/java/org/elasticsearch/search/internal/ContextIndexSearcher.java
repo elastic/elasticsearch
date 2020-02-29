@@ -90,27 +90,22 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private Holder<QueryCancellable> cancellable;
+    private QueryCancellable cancellable;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new Holder<>(new CancellableImpl()));
+        this(reader, similarity, queryCache, queryCachingPolicy, true);
     }
 
-    // TODO: Make the 2nd constructor private so that the dirCancellable is never null and the IndexReader is always wrapped.
+    // TODO: Remove the 2nd constructor so that the IndexReader is always wrapped.
     // Some issues must be fixed:
     //   - regarding tests deriving from AggregatorTestCase and more specifically the use of searchAndReduce and
     //     the ShardSearcher sub-searchers.
     //   - tests that use a MultiReader
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                Holder<QueryCancellable> cancellable) throws IOException {
-        super(cancellable != null ? new CancellableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
-        if (cancellable == null) {
-            this.cancellable = new Holder<>(new CancellableImpl());
-        } else {
-            this.cancellable = cancellable;
-        }
+                                boolean shouldWrap) throws IOException {
+        super(shouldWrap ? new CancellableDirectoryReader((DirectoryReader) reader, new Holder<>(null)) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -125,11 +120,14 @@ public class ContextIndexSearcher extends IndexSearcher {
      * collecting documents and check for query cancellation or timeout
      */
     public void setCancellable(QueryCancellable cancellable) {
-        this.cancellable.set(Objects.requireNonNull(cancellable, "queryCancellable should not be null"));
+        this.cancellable = Objects.requireNonNull(cancellable, "queryCancellable should not be null");
+        ((CancellableDirectoryReader) getIndexReader()).setCancellable(cancellable);
     }
 
-    public void unsetCheckTimeout() {
-        this.cancellable.get().unsetCheckTimeout();
+    private void checkCancelled() {
+        if (cancellable != null) {
+            cancellable.checkCancelled();
+        }
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -208,7 +206,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        cancellable.get().checkCancelled();
+        checkCancelled();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
@@ -235,7 +233,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             Scorer scorer = weight.scorer(ctx);
             if (scorer != null) {
                 try {
-                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector, () -> cancellable.get().checkCancelled());
+                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector, () -> checkCancelled());
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -245,7 +243,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private Weight wrapWeight(Weight weight) {
-        if (cancellable.get().isEnabled()) {
+        if (cancellable != null) {
             return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -270,9 +268,8 @@ public class ContextIndexSearcher extends IndexSearcher {
                 @Override
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
-                    QueryCancellable checkCancelled = cancellable.get();
                     if (in != null) {
-                        return new CancellableBulkScorer(in, () -> checkCancelled.checkCancelled());
+                        return new CancellableBulkScorer(in, () -> checkCancelled());
                     } else {
                         return null;
                     }
@@ -354,60 +351,33 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     public interface QueryCancellable {
 
-        boolean isEnabled();
         void checkCancelled();
         default void checkDirReaderCancelled() {
             checkCancelled();
         }
-        void unsetCheckTimeout();
     }
 
-    public static class CancellableImpl implements QueryCancellable {
 
-        private Runnable checkCancelled;
-        private Runnable checkTimeout;
-
-        private CancellableImpl() {
-        }
-
-        public CancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
-            this.checkCancelled = checkCancelled;
-            this.checkTimeout = checkTimeout;
-        }
-
-        @Override
-        public boolean isEnabled() {
-            return checkCancelled != null || checkTimeout != null;
-        }
-
-        @Override
-        public void checkCancelled() {
-            if (checkTimeout != null) {
-                checkTimeout.run();
-            }
-            if (checkCancelled != null) {
-                checkCancelled.run();
-            }
-        }
-
-        @Override
-        public void unsetCheckTimeout() {
-            this.checkTimeout = null;
-        }
-    }
 
     /**
      * Wraps an {@link IndexReader} with a {@link QueryCancellable}.
      */
     private static class CancellableDirectoryReader extends FilterDirectoryReader {
 
-        private CancellableDirectoryReader(DirectoryReader in, Holder<QueryCancellable> cancellable) throws IOException {
+        private final Holder<QueryCancellable> cancellableHolder;
+
+        private CancellableDirectoryReader(DirectoryReader in, Holder<QueryCancellable> cancellableHolder) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new CancellableLeafReader(reader, cancellable);
+                    return new CancellableLeafReader(reader, cancellableHolder);
                 }
             });
+            this.cancellableHolder = cancellableHolder;
+        }
+
+        private void setCancellable(QueryCancellable cancellable) {
+            this.cancellableHolder.set(cancellable);
         }
 
         @Override
@@ -439,7 +409,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (pointValues == null) {
                 return null;
             }
-            return (cancellable.get().isEnabled()) ? new ExitablePointValues(pointValues, cancellable.get()) : pointValues;
+            return (cancellable.get() != null) ? new ExitablePointValues(pointValues, cancellable.get()) : pointValues;
         }
 
         @Override
@@ -448,7 +418,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (terms == null) {
                 return null;
             }
-            return (cancellable.get().isEnabled() && terms instanceof CompletionTerms == false) ?
+            return (cancellable.get() != null && terms instanceof CompletionTerms == false) ?
                     new ExitableTerms(terms, cancellable.get()) : terms;
         }
 

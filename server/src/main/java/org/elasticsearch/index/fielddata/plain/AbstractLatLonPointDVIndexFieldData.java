@@ -55,7 +55,7 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format) {
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 

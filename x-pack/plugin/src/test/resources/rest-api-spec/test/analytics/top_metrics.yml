@@ -1,8 +1,5 @@
 ---
 "sort by long field":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       bulk:
         index: test
@@ -11,7 +8,7 @@
           - '{"index": {}}'
           - '{"s": 1, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2, "v": 1}'
+          - '{"s": 2, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3, "v": 2.71828}'
 
@@ -59,9 +56,6 @@
 
 ---
 "sort by double field":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       indices.create:
         index: test
@@ -79,7 +73,7 @@
           - '{"index": {}}'
           - '{"s": 1.0, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2.0, "v": 1}'
+          - '{"s": 2.0, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3.0, "v": 2.71828}'
 
@@ -112,9 +106,6 @@
 
 ---
 "sort by scaled float field":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52418"
   - do:
       indices.create:
         index: test
@@ -132,7 +123,7 @@
           - '{"index": {}}'
           - '{"s": 1, "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": 2, "v": 1}'
+          - '{"s": 2, "v": 1.0}'
           - '{"index": {}}'
           - '{"s": 3, "v": 2.71828}'
 
@@ -165,9 +156,13 @@
 
 ---
 "sort by keyword field fails":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -179,6 +174,7 @@
   - do:
       catch: bad_request
       search:
+        index: test
         size: 0
         body:
           aggs:
@@ -191,9 +187,13 @@
 
 ---
 "sort by score":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The score isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -202,7 +202,7 @@
           - '{"index": {}}'
           - '{"s": "big cat", "v": 3.1415}'
           - '{"index": {}}'
-          - '{"s": "cat", "v": 1}'
+          - '{"s": "cat", "v": 1.0}'
           - '{"index": {}}'
           - '{"s": "the small dog", "v": 2.71828}'
 
@@ -251,9 +251,13 @@
 
 ---
 "sort by string script fails":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/52409"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
   - do:
       bulk:
         index: test
@@ -266,6 +270,7 @@
       catch: bad_request
       search:
         size: 0
+        index: test
         body:
           aggs:
             tm:
@@ -315,6 +320,26 @@
                     location: "35.7796, -78.6382"
   - match: { aggregations.pop.top.0.metrics.population: 8623000 }
   - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            pop:
+              top_metrics:
+                size: 3
+                metric:
+                  field: population
+                sort:
+                  _geo_distance:
+                    location: "35.7796, -78.6382"
+  - match: { aggregations.pop.top.0.metrics.population: 8623000 }
+  - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
+  - match: { aggregations.pop.top.1.metrics.population: 2716000 }
+  - match: { aggregations.pop.top.1.sort: [1031665.3103809588] }
+  - match: { aggregations.pop.top.2.metrics.population: 4000000 }
+  - match: { aggregations.pop.top.2.sort: [3591714.92471555] }
 
 ---
 "inside terms":
@@ -387,3 +412,64 @@
   - match: { aggregations.ip.buckets.1.key: 192.168.0.1 }
   - match: { aggregations.ip.buckets.1.tm.top.0.metrics.v: 2 }
   - match: { aggregations.ip.buckets.1.tm.top.0.sort: ['2020-01-01T02:01:01.000Z'] }
+
+---
+"size is index setting":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1  # The failure message isn't predictable with more than one shard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "v": 3.1415}'
+          - '{"index": {}}'
+          - '{"s": 2, "v": 1.0}'
+          - '{"index": {}}'
+          - '{"s": 3, "v": 2.71828}'
+
+  - do:
+      catch: bad_request
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                size: 100
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { error.root_cause.0.reason: "[top_metrics.size] must not be more than [10] but was [100]. This limit can be set by changing the [index.top_metrics_max_size] index level setting." }
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          top_metrics_max_size: 100
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                size: 100
+                metric:
+                  field: v
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3] }
+  - match: { aggregations.tm.top.1.metrics.v: 1.0 }
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.v: 3.1414999961853027 }
+  - match: { aggregations.tm.top.2.sort: [1] }

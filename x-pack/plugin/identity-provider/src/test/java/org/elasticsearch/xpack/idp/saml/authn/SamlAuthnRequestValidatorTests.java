@@ -66,7 +66,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         when(sp2.getEntityId()).thenReturn("https://sp2.kibana.org");
         when(sp2.getAssertionConsumerService()).thenReturn(new URL("https://sp2.kibana.org/saml/acs"));
         when(sp2.getAllowedNameIdFormats()).thenReturn(Set.of(PERSISTENT));
-        when(sp2.getSigningCredential()).thenReturn(readCredentials("RSA", 4096));
+        when(sp2.getSigningCredentials()).thenReturn(Set.of(readCredentials("RSA", 4096)));
         when(sp2.shouldSignAuthnRequests()).thenReturn(true);
         when(idp.getRegisteredServiceProvider("https://sp1.kibana.org")).thenReturn(sp1);
         when(idp.getRegisteredServiceProvider("https://sp2.kibana.org")).thenReturn(sp2);

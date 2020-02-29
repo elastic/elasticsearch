@@ -34,11 +34,15 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Base64;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
@@ -107,18 +111,18 @@ public class SamlAuthnRequestValidator {
                             queryString), listener);
                         return;
                     }
-                    final X509Credential spSigningCredential = sp.getSigningCredential();
-                    if (spSigningCredential == null) {
+                    final Set<X509Credential> spSigningCredentials = sp.getSigningCredentials();
+                    if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
                         logAndRespond(
                             "Unable to validate signature of authentication request, " +
                                 "Service Provider hasn't registered signing credentials",
                             listener);
                         return;
                     }
-                    if (validateSignature(samlRequest, sigAlg, signature, sp.getSigningCredential(), relayState) == false) {
+                    if (validateSignature(samlRequest, sigAlg, signature, spSigningCredentials, relayState) == false) {
                         logAndRespond(
                             new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
-                            queryString, samlFactory.describeCredentials(Collections.singletonList(sp.getSigningCredential()))), listener);
+                            queryString, samlFactory.describeCredentials(spSigningCredentials)), listener);
                         return;
                     }
                 } else if (Strings.hasText(sigAlg)) {
@@ -170,20 +174,36 @@ public class SamlAuthnRequestValidator {
         checkAcs(authnRequest, sp);
     }
 
-    private boolean validateSignature(String samlRequest, String sigAlg, String signature, X509Credential credential,
+    private boolean validateSignature(String samlRequest, String sigAlg, String signature, Collection<X509Credential> credentials,
                                       @Nullable String relayState) {
         try {
             final String queryParam = relayState == null ?
                 "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg) :
                 "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
-            Signature sig = Signature.getInstance(samlFactory.getJavaAlorithmNameFromUri(sigAlg));
-            sig.initVerify(credential.getEntityCertificate().getPublicKey());
-            sig.update(queryParam.getBytes(StandardCharsets.UTF_8));
-            return sig.verify(Base64.getDecoder().decode(signature));
-        } catch (Exception e) {
-            throw new ElasticsearchSecurityException("Unable to validate signature of authentication request using credentials [{}]",
-                samlFactory.describeCredentials(Collections.singletonList(credential)), e);
+            return validateSignature(queryParam.getBytes(StandardCharsets.UTF_8), sigAlg, signature, credentials);
+        } catch (UnsupportedEncodingException e) {
+            throw new ElasticsearchSecurityException("Cannot reconstruct query for signature verification", e);
         }
+    }
+
+    private boolean validateSignature(byte[] content, String algorithm, String base64Signature, Collection<X509Credential> credentials) {
+        final String javaSigAlgorithm = samlFactory.getJavaAlorithmNameFromUri(algorithm);
+        final byte[] signatureBytes = Base64.getDecoder().decode(base64Signature);
+        return credentials.stream().anyMatch(credential -> {
+            try {
+                Signature sig = Signature.getInstance(javaSigAlgorithm);
+                sig.initVerify(credential.getEntityCertificate().getPublicKey());
+                sig.update(content);
+                return sig.verify(signatureBytes);
+            } catch (NoSuchAlgorithmException e) {
+                throw new ElasticsearchSecurityException("Java signature algorithm [{}] is not available for SAML/XML-Sig algorithm [{}]",
+                    e, javaSigAlgorithm, algorithm);
+            } catch (InvalidKeyException | SignatureException e) {
+                logger.warn(new ParameterizedMessage("Signature verification failed for credential [{}]",
+                    samlFactory.describeCredentials(Set.of(credential))), e);
+                return false;
+            }
+        });
     }
 
     private SamlServiceProvider getSpFromIssuer(Issuer issuer) {

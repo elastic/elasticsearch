@@ -45,7 +45,7 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.List;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -195,7 +195,7 @@ public class SamlFactory {
         }
     }
 
-    public String describeCredentials(List<Credential> credentials) {
+    public String describeCredentials(Collection<? extends Credential> credentials) {
         return credentials.stream()
             .map(c -> {
                 if (c == null) {

@@ -72,6 +72,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.lucene.index.FilterLeafReader.FilterTerms;
@@ -89,7 +90,7 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private Holder<Cancellable> cancellable;
+    private Holder<QueryCancellable> cancellable;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
@@ -103,7 +104,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     //   - tests that use a MultiReader
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                Holder<Cancellable> cancellable) throws IOException {
+                                Holder<QueryCancellable> cancellable) throws IOException {
         super(cancellable != null ? new CancellableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         if (cancellable == null) {
             this.cancellable = new Holder<>(new CancellableImpl());
@@ -123,8 +124,8 @@ public class ContextIndexSearcher extends IndexSearcher {
      * Set a {@link Runnable} that will be run on a regular basis while
      * collecting documents and check for query cancellation or timeout
      */
-    public void setCancellable(Cancellable cancellable) {
-        this.cancellable.set(cancellable);
+    public void setCancellable(QueryCancellable cancellable) {
+        this.cancellable.set(Objects.requireNonNull(cancellable, "queryCancellable should not be null"));
     }
 
     public void unsetCheckTimeout() {
@@ -269,8 +270,9 @@ public class ContextIndexSearcher extends IndexSearcher {
                 @Override
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
+                    QueryCancellable checkCancelled = cancellable.get();
                     if (in != null) {
-                        return new CancellableBulkScorer(in, () -> cancellable.get().checkCancelled());
+                        return new CancellableBulkScorer(in, () -> checkCancelled.checkCancelled());
                     } else {
                         return null;
                     }
@@ -350,7 +352,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     /**
      * iFace which implements the query timeout / cancellation logic
      */
-    public interface Cancellable {
+    public interface QueryCancellable {
 
         boolean isEnabled();
         void checkCancelled();
@@ -360,7 +362,7 @@ public class ContextIndexSearcher extends IndexSearcher {
         void unsetCheckTimeout();
     }
 
-    public static class CancellableImpl implements Cancellable {
+    public static class CancellableImpl implements QueryCancellable {
 
         private Runnable checkCancelled;
         private Runnable checkTimeout;
@@ -395,11 +397,11 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Wraps an {@link IndexReader} with a {@link Cancellable}.
+     * Wraps an {@link IndexReader} with a {@link QueryCancellable}.
      */
     private static class CancellableDirectoryReader extends FilterDirectoryReader {
 
-        private CancellableDirectoryReader(DirectoryReader in, Holder<Cancellable> cancellable) throws IOException {
+        private CancellableDirectoryReader(DirectoryReader in, Holder<QueryCancellable> cancellable) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -410,7 +412,7 @@ public class ContextIndexSearcher extends IndexSearcher {
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
-            return in;
+            throw new UnsupportedOperationException("doWrapDirectoryReader() should never be invoked");
         }
 
         @Override
@@ -420,13 +422,13 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Wraps a {@link FilterLeafReader} with a {@link Cancellable}.
+     * Wraps a {@link FilterLeafReader} with a {@link QueryCancellable}.
      */
     private static class CancellableLeafReader extends FilterLeafReader {
 
-        private final Holder<Cancellable> cancellable;
+        private final Holder<QueryCancellable> cancellable;
 
-        private CancellableLeafReader(LeafReader leafReader, Holder<Cancellable> cancellable)  {
+        private CancellableLeafReader(LeafReader leafReader, Holder<QueryCancellable> cancellable)  {
             super(leafReader);
             this.cancellable = cancellable;
         }
@@ -463,7 +465,7 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     /**
      * Helper class to be used as an immutable reference so that the underlying
-     * {@link Cancellable} passed trough the hierarchy to the {@link Terms} and {@link PointValues}
+     * {@link QueryCancellable} passed trough the hierarchy to the {@link Terms} and {@link PointValues}
      * during construction can be set later with {@link ContextIndexSearcher#setCancellable}
      */
     private static class Holder<T> {
@@ -488,9 +490,9 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class ExitableTerms extends FilterTerms {
 
-        private final Cancellable cancellable;
+        private final QueryCancellable cancellable;
 
-        private ExitableTerms(Terms terms, Cancellable cancellable) {
+        private ExitableTerms(Terms terms, QueryCancellable cancellable) {
             super(terms);
             this.cancellable = cancellable;
         }
@@ -512,9 +514,9 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class ExitableTermsEnum extends FilterTermsEnum {
 
-        private final Cancellable cancellable;
+        private final QueryCancellable cancellable;
 
-        private ExitableTermsEnum(TermsEnum termsEnum, Cancellable cancellable) {
+        private ExitableTermsEnum(TermsEnum termsEnum, QueryCancellable cancellable) {
             super(termsEnum);
             this.cancellable = cancellable;
             this.cancellable.checkDirReaderCancelled();
@@ -534,9 +536,9 @@ public class ContextIndexSearcher extends IndexSearcher {
     private static class ExitablePointValues extends PointValues {
 
         private final PointValues in;
-        private final Cancellable cancellable;
+        private final QueryCancellable cancellable;
 
-        private ExitablePointValues(PointValues in, Cancellable cancellable) {
+        private ExitablePointValues(PointValues in, QueryCancellable cancellable) {
             this.in = in;
             this.cancellable = cancellable;
             this.cancellable.checkDirReaderCancelled();
@@ -599,19 +601,19 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
 
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
 
         private final PointValues.IntersectVisitor in;
-        private final Cancellable cancellable;
+        private final QueryCancellable cancellable;
         private int calls;
 
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, Cancellable cancellable) {
+        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryCancellable cancellable) {
             this.in = in;
             this.cancellable = cancellable;
         }
 
         private void checkAndThrowWithSampling() {
-            if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                 cancellable.checkDirReaderCancelled();
             }
         }

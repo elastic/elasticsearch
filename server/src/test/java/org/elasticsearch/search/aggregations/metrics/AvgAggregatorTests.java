@@ -611,8 +611,14 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
+        Directory unmappedDirectory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("value");
@@ -633,8 +639,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         // Test that an aggregation not using a script does get cached
         assertTrue(aggregator.context().getQueryShardContext().isCacheable());
 
-        indexReader.close();
+        multiReader.close();
         directory.close();
+        unmappedDirectory.close();
     }
 
     /**
@@ -650,8 +657,14 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
+        Directory unmappedDirectory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         fieldType.setName("value");
@@ -692,7 +705,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         // Test that an aggregation using a nondeterministic script does not get cached
         assertFalse(aggregator.context().getQueryShardContext().isCacheable());
 
-        indexReader.close();
+        multiReader.close();
         directory.close();
+        unmappedDirectory.close();
     }
 }

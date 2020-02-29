@@ -85,7 +85,7 @@ public class SearchCancellationTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean();
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCancellable(new ContextIndexSearcher.Cancellable() {
+        searcher.setCancellable(new ContextIndexSearcher.QueryCancellable() {
             @Override
             public boolean isEnabled() {
                 return true;
@@ -118,7 +118,7 @@ public class SearchCancellationTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean();
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCancellable(new ContextIndexSearcher.Cancellable() {
+        searcher.setCancellable(new ContextIndexSearcher.QueryCancellable() {
             @Override
             public boolean isEnabled() {
                 return true;

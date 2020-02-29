@@ -449,13 +449,25 @@ sorted by the `id` value in ascending order.
 `progress`:::
 (array) The progress report of the {dfanalytics-job} by phase.
   
-`phase`:::
+`phase`::::
 (string) Defines the phase of the {dfanalytics-job}. Possible phases: 
 `reindexing`, `loading_data`, `analyzing`, and `writing_results`.
     
-`progress_percent`:::
+`progress_percent`::::
 (integer) The progress that the {dfanalytics-job} has made expressed in 
 percentage.
+
+`memory_usage`:::
+(Optional, Object) An object describing memory usage of the analytics.
+It will be present only after the job has started and memory usage has
+been reported.
+
+`timestamp`::::
+(date) The timestamp when memory usage was calculated.
+
+`peak_usage_bytes`::::
+(long) The number of bytes used at the highest peak of memory usage.
+
 end::data-frame-analytics-stats[]
 
 tag::datafeed-id[]

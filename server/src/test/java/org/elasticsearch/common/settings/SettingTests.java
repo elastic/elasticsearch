@@ -830,6 +830,59 @@ public class SettingTests extends ESTestCase {
         assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
     }
 
+    public void testAffixSettingsValidatorDependencies() {
+        Setting<Integer> affix = Setting.affixKeySetting("abc.", "def", k -> Setting.intSetting(k, 10));
+        Setting<Integer> fix0 = Setting.intSetting("abc.tuv", 20, 0);
+        Setting<Integer> fix1 = Setting.intSetting("abc.qrx", 20, 0, new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer value) {}
+
+            String toString(Map<Setting<?>, Object> s) {
+                return s.entrySet().stream().map(e -> e.getKey().getKey() + ":" + e.getValue().toString()).sorted()
+                    .collect(Collectors.joining(","));
+            }
+
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (settings.get(fix0).equals(fix0.getDefault(Settings.EMPTY))) {
+                    settings.remove(fix0);
+                }
+                if (settings.size() == 1) {
+                    throw new IllegalArgumentException(toString(settings));
+                } else if (settings.size() == 2) {
+                    throw new IllegalArgumentException(toString(settings));
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> a = Arrays.asList(affix, fix0);
+                return a.iterator();
+            }
+        });
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 11).build()));
+        assertThat(e.getMessage(), is("abc.1.def:11,abc.2.def:12"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.3.def", 13).put("abc.qrx", 20).build()));
+        assertThat(e.getMessage(), is("abc.3.def:13"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.4.def", 14).put("abc.qrx", 20).put("abc.tuv", 50).build()));
+        assertThat(e.getMessage(), is("abc.4.def:14,abc.tuv:50"));
+
+        assertEquals(
+            fix1.get(Settings.builder()
+                .put("abc.3.def", 13).put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 20)
+                .build()),
+            Integer.valueOf(20)
+        );
+
+        assertEquals(fix1.get(Settings.builder().put("abc.qrx", 30).build()), Integer.valueOf(30));
+    }
+
     public void testMinMaxInt() {
         Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);
         try {

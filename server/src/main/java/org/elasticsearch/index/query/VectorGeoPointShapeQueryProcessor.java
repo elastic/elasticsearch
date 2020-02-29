@@ -133,12 +133,12 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         @Override
         public Query visit(MultiPolygon multiPolygon) {
             ArrayList<org.apache.lucene.geo.Polygon> polygonArrayList = new ArrayList<>();
+            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
             for (int i = 0; i < multiPolygon.size(); i++) {
-                ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
                 GeoPolygonDecomposer.decomposePolygon(multiPolygon.get(i), true, collector);
-                for (int j = 0; j < collector.size(); j++) {
-                    polygonArrayList.add(toLucenePolygon(collector.get(j)));
-                }
+            }
+            for (int j = 0; j < collector.size(); j++) {
+                polygonArrayList.add(toLucenePolygon(collector.get(j)));
             }
             org.apache.lucene.geo.Polygon[] polygons = polygonArrayList.toArray(
                 new org.apache.lucene.geo.Polygon[polygonArrayList.size()]);

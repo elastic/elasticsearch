@@ -75,7 +75,7 @@ public class Alias implements Writeable, ToXContentFragment {
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
             isHidden = in.readOptionalBoolean();
         }
     }
@@ -219,7 +219,7 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
             out.writeOptionalBoolean(isHidden);
         }
     }

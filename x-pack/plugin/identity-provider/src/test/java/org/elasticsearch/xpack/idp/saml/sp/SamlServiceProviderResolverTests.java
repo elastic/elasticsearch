@@ -79,7 +79,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getAssertionConsumerService(), equalTo(acs));
         assertThat(serviceProvider.getAllowedNameIdFormats(), contains(defaults.nameIdFormat));
         assertThat(serviceProvider.getAuthnExpiry(), equalTo(defaults.authenticationExpiry));
-        assertThat(serviceProvider.getSigningCredentials(), emptyIterable());
+        assertThat(serviceProvider.getSpSigningCredentials(), emptyIterable());
         assertThat(serviceProvider.shouldSignAuthnRequests(), equalTo(false));
         assertThat(serviceProvider.shouldSignLogoutRequests(), equalTo(false));
 

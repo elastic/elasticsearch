@@ -41,11 +41,11 @@ public interface SamlServiceProvider {
 
     AttributeNames getAttributeNames();
 
-    Set<X509Credential> getSigningCredentials();
+    ServiceProviderPrivileges getPrivileges();
+
+    Set<X509Credential> getSpSigningCredentials();
 
     boolean shouldSignAuthnRequests();
 
     boolean shouldSignLogoutRequests();
-
-    ServiceProviderPrivileges getPrivileges();
 }

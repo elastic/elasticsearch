@@ -111,7 +111,7 @@ public class SamlAuthnRequestValidator {
                             queryString), listener);
                         return;
                     }
-                    final Set<X509Credential> spSigningCredentials = sp.getSigningCredentials();
+                    final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                     if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
                         logAndRespond(
                             "Unable to validate signature of authentication request, " +

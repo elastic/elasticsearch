@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
+import java.net.URL;
+
 /**
  * SAML 2.0 configuration information about this IdP
  */
@@ -18,15 +20,21 @@ public interface SamlIdentityProvider {
 
     String getEntityId();
 
-    String getSingleSignOnEndpoint(String binding);
+    URL getSingleSignOnEndpoint(String binding);
 
-    String getSingleLogoutEndpoint(String binding);
+    URL getSingleLogoutEndpoint(String binding);
 
-    X509Credential getSigningCredential();
+    ServiceProviderDefaults getServiceProviderDefaults();
 
     SamlServiceProvider getRegisteredServiceProvider(String spEntityId);
 
-    ServiceProviderDefaults getServiceProviderDefaults();
+    X509Credential getSigningCredential();
+
+    X509Credential getMetadataSigningCredential();
+
+    SamlIdPMetadataBuilder.OrganizationInfo getOrganization();
+
+    SamlIdPMetadataBuilder.ContactInfo getTechnicalContact();
 
     final class ServiceProviderDefaults {
         public final String applicationName;

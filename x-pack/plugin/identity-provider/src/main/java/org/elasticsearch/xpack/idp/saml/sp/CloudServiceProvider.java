@@ -23,13 +23,13 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final ReadableDuration authnExpiry;
     private final ServiceProviderPrivileges privileges;
     private final AttributeNames attributeNames;
-    private final Set<X509Credential> signingCredentials;
+    private final Set<X509Credential> spSigningCredentials;
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
     public CloudServiceProvider(String entityId, URL assertionConsumerService, Set<String> allowedNameIdFormats,
                                 ReadableDuration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
-                                Set<X509Credential> signingCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
+                                Set<X509Credential> spSigningCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
@@ -39,7 +39,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
         this.authnExpiry = authnExpiry;
         this.privileges = privileges;
         this.attributeNames = attributeNames;
-        this.signingCredentials = signingCredentials == null ? Set.of() : Set.copyOf(signingCredentials);
+        this.spSigningCredentials = spSigningCredentials == null ? Set.of() : Set.copyOf(spSigningCredentials);
         this.signLogoutRequests = signLogoutRequests;
         this.signAuthnRequests = signAuthnRequests;
     }
@@ -70,8 +70,8 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public Set<X509Credential> getSigningCredentials() {
-        return signingCredentials;
+    public Set<X509Credential> getSpSigningCredentials() {
+        return spSigningCredentials;
     }
 
     @Override

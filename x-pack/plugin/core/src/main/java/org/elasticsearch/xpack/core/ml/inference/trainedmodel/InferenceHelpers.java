@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -24,30 +26,29 @@ public final class InferenceHelpers {
     /**
      * @return Tuple of the highest scored index and the top classes
      */
-    public static Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses(List<Double> probabilities,
+    public static Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses(double[] probabilities,
                                                                                                 List<String> classificationLabels,
                                                                                                 @Nullable double[] classificationWeights,
                                                                                                 int numToInclude) {
 
-        if (classificationLabels != null && probabilities.size() != classificationLabels.size()) {
+        if (classificationLabels != null && probabilities.length != classificationLabels.size()) {
             throw ExceptionsHelper
                 .serverError(
                     "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
                     null,
-                    probabilities.size(),
+                    probabilities.length,
                     classificationLabels.size());
         }
 
-        List<Double> scores = classificationWeights == null ?
+        double[] scores = classificationWeights == null ?
             probabilities :
-            IntStream.range(0, probabilities.size())
-                .mapToDouble(i -> probabilities.get(i) * classificationWeights[i])
-                .boxed()
-                .collect(Collectors.toList());
+            IntStream.range(0, probabilities.length)
+                .mapToDouble(i -> probabilities[i] * classificationWeights[i])
+                .toArray();
 
-        int[] sortedIndices = IntStream.range(0, probabilities.size())
+        int[] sortedIndices = IntStream.range(0, scores.length)
             .boxed()
-            .sorted(Comparator.comparing(scores::get).reversed())
+            .sorted(Comparator.comparing(i -> scores[(Integer)i]).reversed())
             .mapToInt(i -> i)
             .toArray();
 
@@ -57,14 +58,14 @@ public final class InferenceHelpers {
 
         List<String> labels = classificationLabels == null ?
             // If we don't have the labels we should return the top classification values anyways, they will just be numeric
-            IntStream.range(0, probabilities.size()).boxed().map(String::valueOf).collect(Collectors.toList()) :
+            IntStream.range(0, probabilities.length).boxed().map(String::valueOf).collect(Collectors.toList()) :
             classificationLabels;
 
-        int count = numToInclude < 0 ? probabilities.size() : Math.min(numToInclude, probabilities.size());
+        int count = numToInclude < 0 ? probabilities.length : Math.min(numToInclude, probabilities.length);
         List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(labels.get(idx), probabilities.get(idx), scores.get(idx)));
+            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(labels.get(idx), probabilities[idx], scores[idx]));
         }
 
         return Tuple.tuple(sortedIndices[0], topClassEntries);
@@ -97,5 +98,20 @@ public final class InferenceHelpers {
             }
         }
         return null;
+    }
+
+    public static Map<String, Double> decodeFeatureImportances(Map<String, String> processedFeatureToOriginalFeatureMap,
+                                                               Map<String, Double> featureImportances) {
+        if (processedFeatureToOriginalFeatureMap == null || processedFeatureToOriginalFeatureMap.isEmpty()) {
+            return featureImportances;
+        }
+
+        Map<String, Double> originalFeatureImportance = new HashMap<>();
+        featureImportances.forEach((feature, importance) -> {
+            String featureName = processedFeatureToOriginalFeatureMap.getOrDefault(feature, feature);
+            originalFeatureImportance.compute(featureName, (f, v1) -> v1 == null ? importance : v1 + importance);
+        });
+
+        return originalFeatureImportance;
     }
 }

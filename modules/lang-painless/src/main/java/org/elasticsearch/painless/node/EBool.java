@@ -55,16 +55,6 @@ public final class EBool extends AExpression {
         right.analyze(scriptRoot, scope);
         right = right.cast(scriptRoot, scope);
 
-        if (left.constant != null && right.constant != null) {
-            if (operation == Operation.AND) {
-                constant = (boolean)left.constant && (boolean)right.constant;
-            } else if (operation == Operation.OR) {
-                constant = (boolean)left.constant || (boolean)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         actual = boolean.class;
     }
 

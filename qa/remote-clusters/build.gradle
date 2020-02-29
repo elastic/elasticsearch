@@ -16,19 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.distribution-download'
 
 testFixtures.useFixture()
 
-configurations {
-  restSpec
-}
-
 dependencies {
-  restSpec project(':rest-api-spec')
   testCompile project(':client:rest-high-level')
 }
 
@@ -42,15 +39,17 @@ task copyKeystore(type: Sync) {
   }
 }
 
-preProcessFixture {
-  if (TestFixturesPlugin.dockerComposeSupported()) {
-    if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
-      dependsOn ":distribution:docker:buildDockerImage"
-    } else {
-      dependsOn ":distribution:docker:buildOssDockerImage"
-    }
+elasticsearch_distributions {
+  docker {
+    type = 'docker'
+    flavor = System.getProperty('tests.distribution', 'default')
+    version = VersionProperties.getElasticsearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
-  dependsOn copyKeystore
+}
+
+preProcessFixture {
+  dependsOn copyKeystore, elasticsearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -68,14 +67,12 @@ preProcessFixture {
   }
 }
 
-if (TestFixturesPlugin.dockerComposeSupported()) {
-  dockerCompose {
-    tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-    if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
-      useComposeFiles = ['docker-compose.yml']
-    } else {
-      useComposeFiles = ['docker-compose-oss.yml']
-    }
+dockerCompose {
+  tcpPortsToIgnoreWhenWaiting = [9600, 9601]
+  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+    useComposeFiles = ['docker-compose.yml']
+  } else {
+    useComposeFiles = ['docker-compose-oss.yml']
   }
 }
 
@@ -88,22 +85,14 @@ def createAndSetWritable(Object... locations) {
 }
 
 processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  dependsOn configurations.restSpec
 }
 
 task integTest(type: Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
-  // don't add the tasks to build the docker images if we have no way of testing them
-  if (TestFixturesPlugin.dockerComposeSupported()) {
-    dependsOn ":distribution:docker:buildDockerImage"
-  }
 }
 
 check.dependsOn integTest

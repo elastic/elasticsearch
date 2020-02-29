@@ -180,16 +180,16 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        protected Query newSynonymQuery(Term[] terms) {
+        protected Query newSynonymQuery(TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].bytes();
+                values[i] = terms[i].term.bytes();
             }
             return blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
 
         @Override
-        protected Query newTermQuery(Term term) {
+        protected Query newTermQuery(Term term, float boost) {
             return blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
 

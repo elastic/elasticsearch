@@ -25,6 +25,8 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -36,7 +38,7 @@ import java.util.Arrays;
  * More specifically, it maintains an index to the current executing bulk item, which allows execution
  * to stop and wait for external events such as mapping updates.
  */
-class BulkExecutionContext {
+class BulkExecutionContext implements Releasable {
 
     enum ItemProcessingState {
         /** Item execution is ready to start, no operations have been performed yet */
@@ -79,6 +81,7 @@ class BulkExecutionContext {
         this.indexContexts = new IndexShard.OperationContext[request.items().length];
         this.primary = primary;
         advance();
+        advanceWritten();
     }
 
 
@@ -91,8 +94,7 @@ class BulkExecutionContext {
     }
 
     private int findNextNeedsWrite(int startIndex) {
-        final int length = request.items().length;
-        while (startIndex < length && indexContexts[startIndex] == null) {
+        while (startIndex < currentIndexIndex && indexContexts[startIndex] == null) {
             startIndex++;
         }
         return startIndex;
@@ -115,7 +117,7 @@ class BulkExecutionContext {
     }
 
     private void advanceWritten() {
-        currentIndexIndex = findNextNeedsWrite(currentIndexIndex + 1);
+        currentWriteIndex = findNextNeedsWrite(currentWriteIndex + 1);
     }
 
     /** gets the current, untranslated item request */
@@ -174,7 +176,6 @@ class BulkExecutionContext {
     public boolean hasMoreOperationsToIndex() {
         return currentIndexIndex < request.items().length;
     }
-
 
     /** returns the name of the index the current request used */
     public String getConcreteIndex() {
@@ -279,7 +280,6 @@ class BulkExecutionContext {
                 executionResult = new BulkItemResponse(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
-//                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 break;
             case FAILURE:
                 executionResult = new BulkItemResponse(current.id(), docWriteRequest.opType(),
@@ -293,6 +293,10 @@ class BulkExecutionContext {
                 throw new AssertionError("unknown result type for " + getCurrentIndexItem() + ": " + result.getResultType());
         }
         currentItemState = ItemProcessingState.INDEXED;
+    }
+
+    public boolean hasPendingWrites() {
+        return currentIndexIndex != currentWriteIndex;
     }
 
     public void markOperationAsWritten(Engine.Result result) {
@@ -309,6 +313,7 @@ class BulkExecutionContext {
         if (translatedResponse.isFailed() == false && requestToIndex != null && requestToIndex != getCurrent())  {
             request.items()[currentIndexIndex] = new BulkItemRequest(request.items()[currentIndexIndex].id(), requestToIndex);
         }
+        indexContexts[currentIndexIndex] = context;
         getCurrentIndexItem().setPrimaryResponse(translatedResponse);
         currentItemState = ItemProcessingState.COMPLETED;
         advance();
@@ -319,6 +324,11 @@ class BulkExecutionContext {
         assert hasMoreOperationsToIndex() == false;
         return new BulkShardResponse(request.shardId(),
             Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new));
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(indexContexts);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {

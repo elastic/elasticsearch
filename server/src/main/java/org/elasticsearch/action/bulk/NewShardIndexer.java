@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
@@ -8,6 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -19,15 +39,18 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -39,15 +62,16 @@ public class NewShardIndexer {
 
     /**
      * Executes bulk item requests and handles request execution exceptions.
+     *
      * @return {@code true} if all the requests completed on this thread and the listener was invoked, {@code false} if a requests triggered
-     *                      a mapping update that will finish and invoke the rescheduler on a different thread
+     * a mapping update that will finish and invoke the rescheduler on a different thread
      */
-    static boolean indexBulkItemRequests(BulkExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-                                         MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
-                                         Runnable rescheduler) throws Exception {
+    public static boolean indexBulkItemRequests(BulkExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
+                                                MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
+                                                Runnable rescheduler, Runnable writeScheduler, ThreadPool threadPool) throws Exception {
         while (context.hasMoreOperationsToIndex()) {
             if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
-                rescheduler) == false) {
+                rescheduler, writeScheduler, threadPool) == false) {
                 // We are waiting for a mapping update on another thread. Return false to indicate that not
                 // all requests were completed.
                 return false;
@@ -59,12 +83,13 @@ public class NewShardIndexer {
 
     /**
      * Executes bulk item request and handles request execution exceptions.
+     *
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
-     *                      a mapping update that will finish and invoke the rescheduler on a different thread
+     * a mapping update that will finish and invoke the rescheduler on a different thread
      */
     static boolean executeBulkItemRequest(BulkExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
                                           MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
-                                          Runnable rescheduler) throws Exception {
+                                          Runnable rescheduler, Runnable writeScheduler, ThreadPool threadPool) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         final UpdateHelper.Result updateResult;
@@ -112,31 +137,35 @@ public class NewShardIndexer {
         final IndexShard primary = context.getPrimary();
         final long version = context.getRequestToIndex().version();
         final boolean isDelete = context.getRequestToIndex().opType() == DocWriteRequest.OpType.DELETE;
-        final Engine.Result result;
-        final IndexShard.OperationContext indexContext;
+        final IndexShard.OperationContext operationContext;
         if (isDelete) {
-//            final DeleteRequest request = context.getRequestToExecute();
-//            result = primary.applyDeleteOperationOnPrimary(version, request.id(), request.versionType(),
-//                request.ifSeqNo(), request.ifPrimaryTerm());
-            result = null;
-            indexContext = null;
+            try {
+                final DeleteRequest request = context.getRequestToIndex();
+                operationContext = primary.startDeleteOperationOnPrimary(version, request.id(), request.versionType(),
+                    request.ifSeqNo(), request.ifPrimaryTerm());
+            } catch (InternalEngine.CouldNotAcquireVersionSemaphore e) {
+                handleVersionAcquireFailure(context, rescheduler, writeScheduler, threadPool);
+                return false;
+            }
         } else {
-            final IndexRequest request = context.getRequestToIndex();
-            result = primary.applyIndexOperationOnPrimary(version, request.versionType(), new SourceToParse(
-                    request.index(), request.id(), request.source(), request.getContentType(), request.routing()),
-                request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry());
-            indexContext = primary.startIndexOperationOnPrimary(version, request.versionType(), new SourceToParse(
-                    request.index(), request.id(), request.source(), request.getContentType(), request.routing()),
-                request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry());
+            try {
+                final IndexRequest request = context.getRequestToIndex();
+                operationContext = primary.startIndexOperationOnPrimary(version, request.versionType(), new SourceToParse(
+                        request.index(), request.id(), request.source(), request.getContentType(), request.routing()),
+                    request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry());
+            } catch (InternalEngine.CouldNotAcquireVersionSemaphore e) {
+                handleVersionAcquireFailure(context, rescheduler, writeScheduler, threadPool);
+                return false;
+            }
 
         }
-        if (indexContext.isDone()) {
-            try (IndexShard.OperationContext toClose = indexContext) {
-                Engine.Result result1 = indexContext.getResult();
-                if (result1.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+        if (operationContext.isDone()) {
+            Engine.Result result = operationContext.getResult();
+            try (IndexShard.OperationContext toClose = operationContext) {
+                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                     try {
                         primary.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                            new CompressedXContent(result1.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                            new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
                             MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
                     } catch (Exception e) {
                         logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
@@ -144,7 +173,7 @@ public class NewShardIndexer {
                         return true;
                     }
 
-                    mappingUpdater.updateMappings(result1.getRequiredMappingUpdate(), primary.shardId(),
+                    mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void v) {
@@ -180,8 +209,26 @@ public class NewShardIndexer {
                 }
             }
         } else {
-            onComplete(result, context, updateResult, indexContext);
+            try {
+                operationContext.perform();
+                onComplete(operationContext.getResult(), context, updateResult, operationContext);
+            } finally {
+                if (operationContext.isDone()) {
+                    operationContext.close();
+                }
+            }
             return true;
+        }
+    }
+
+    private static void handleVersionAcquireFailure(BulkExecutionContext context, Runnable rescheduler, Runnable writeScheduler,
+                                                    ThreadPool threadPool) {
+        context.markAsRequiringMappingUpdate();
+        context.resetForExecutionForRetry();
+        if (context.hasPendingWrites()) {
+            writeScheduler.run();
+        } else {
+            threadPool.schedule(rescheduler, TimeValue.timeValueMillis(20), ThreadPool.Names.GENERIC);
         }
     }
 

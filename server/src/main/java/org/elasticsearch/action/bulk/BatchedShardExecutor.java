@@ -31,12 +31,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,7 +63,7 @@ public class BatchedShardExecutor implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(BatchedShardExecutor.class);
 
-    private final CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler;
+    private final CheckedBiFunction<PrimaryOp, Tuple<Runnable, Runnable>, Boolean, Exception> primaryOpHandler;
     private final CheckedFunction<ReplicaOp, Boolean, Exception> replicaOpHandler;
     private final ThreadPool threadPool;
     private final int numberOfWriteThreads;
@@ -74,7 +77,7 @@ public class BatchedShardExecutor implements IndexEventListener {
         this(primaryOpHandler(clusterService, threadPool, updateHelper, mappingUpdatedAction), replicaOpHandler(), threadPool);
     }
 
-    public BatchedShardExecutor(CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler,
+    public BatchedShardExecutor(CheckedBiFunction<PrimaryOp, Tuple<Runnable, Runnable>, Boolean, Exception> primaryOpHandler,
                                 CheckedFunction<ReplicaOp, Boolean, Exception> replicaOpHandler, ThreadPool threadPool) {
         this.primaryOpHandler = primaryOpHandler;
         this.replicaOpHandler = replicaOpHandler;
@@ -97,9 +100,11 @@ public class BatchedShardExecutor implements IndexEventListener {
                 ArrayList<ActionListener<Void>> listenersToFail = new ArrayList<>();
                 while ((shardOp = state.pollPreIndexed()) != null) {
                     listenersToFail.add(shardOp.getWriteListener());
+                    shardOp.close();
                 }
                 while ((shardOp = state.pollPostIndexed()) != null) {
                     listenersToFail.add(shardOp.getFlushListener());
+                    shardOp.close();
                 }
                 onFailure(listenersToFail.stream(), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
             }
@@ -144,10 +149,11 @@ public class BatchedShardExecutor implements IndexEventListener {
         }
     }
 
-    private void enqueueFlush(ShardState shardState, ShardOp shardOp) {
+    private void enqueueWriteAndFlush(ShardState shardState, ShardOp shardOp) {
         shardState.postIndexedEnqueue(shardOp);
         if (shardState.isClosed() && shardState.removePostIndexed(shardOp)) {
             onFailure(Stream.of(shardOp.getFlushListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+            shardOp.close();
         }
     }
 
@@ -188,10 +194,6 @@ public class BatchedShardExecutor implements IndexEventListener {
     }
 
     private void performShardOperations(ShardState shardState) {
-        IndexShard indexShard = shardState.indexShard;
-
-        ArrayList<ShardOp> needRefresh = new ArrayList<>(0);
-        boolean immediateRefresh = false;
         try {
             ShardOp shardOp;
             int opsExecuted = 0;
@@ -205,7 +207,8 @@ public class BatchedShardExecutor implements IndexEventListener {
                     if (shardOp instanceof PrimaryOp) {
                         PrimaryOp primaryOp = (PrimaryOp) shardOp;
                         Runnable rescheduler = () -> enqueueAndScheduleWrite(primaryOp, false);
-                        opCompleted = primaryOpHandler.apply(primaryOp, rescheduler);
+                        Runnable writeScheduler = () -> enqueueAndScheduleWrite(primaryOp, false);
+                        opCompleted = primaryOpHandler.apply(primaryOp, new Tuple<>(rescheduler, writeScheduler));
                     } else {
                         opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
                     }
@@ -217,17 +220,7 @@ public class BatchedShardExecutor implements IndexEventListener {
                         // Complete the write listener
                         onResponse(Stream.of(shardOp.getWriteListener()), null);
 
-                        enqueueFlush(shardState, shardOp);
-
-                        WriteRequest.RefreshPolicy refreshPolicy = shardOp.getRequest().getRefreshPolicy();
-                        if (refreshPolicy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
-                            needRefresh.add(shardOp);
-                        } else if (refreshPolicy == WriteRequest.RefreshPolicy.IMMEDIATE) {
-                            needRefresh.add(shardOp);
-                            immediateRefresh = true;
-                            shardOp.getFlushListener().setForcedRefresh(true);
-                        }
-                        afterWrite(indexShard);
+                        enqueueWriteAndFlush(shardState, shardOp);
                     }
 
                     // Update nanosSpentExecuting every 8 operations
@@ -247,9 +240,6 @@ public class BatchedShardExecutor implements IndexEventListener {
                 }
             }
         } finally {
-            if (needRefresh.isEmpty() == false) {
-                performRefreshes(indexShard, needRefresh, immediateRefresh);
-            }
             maybeExecuteSync(shardState);
         }
     }
@@ -257,8 +247,46 @@ public class BatchedShardExecutor implements IndexEventListener {
     private boolean maybeExecuteSync(ShardState shardState) {
         if (shardState.shouldStartSyncing()) {
             IndexShard indexShard = shardState.indexShard;
+            boolean immediateRefresh = false;
+            ArrayList<ShardOp> needRefresh = new ArrayList<>(0);
             try {
                 while (true) {
+                    ArrayList<ShardOp> opsToSync = new ArrayList<>();
+
+                    ShardOp indexedOp;
+                    while ((indexedOp = shardState.pollPostIndexed()) != null) {
+                        if (indexedOp instanceof PrimaryOp) {
+                            PrimaryOp primaryOp = (PrimaryOp) indexedOp;
+                            BulkExecutionContext context = primaryOp.getContext();
+                            boolean writeSuccess = true;
+                            while (context.hasPendingWrites()) {
+                                IndexShard.OperationContext currentWrite = context.getCurrentWrite();
+                                if (currentWrite != null) {
+                                    try (IndexShard.OperationContext toClose = currentWrite) {
+                                        Engine.Result result = currentWrite.writeToTranslog();
+                                        context.markOperationAsWritten(result);
+                                    } catch (Exception e) {
+                                        writeSuccess = false;
+                                        onFailure(Stream.of(indexedOp.getFlushListener()), e);
+                                        indexedOp.close();
+                                    }
+                                }
+                            }
+                            if (writeSuccess) {
+                                if (context.hasMoreOperationsToIndex()) {
+                                    enqueueAndScheduleWrite(indexedOp, false);
+                                } else {
+                                    indexedOp.close();
+                                    opsToSync.add(indexedOp);
+                                }
+                            }
+                        } else {
+                            opsToSync.add(indexedOp);
+                        }
+                    }
+
+                    afterWrite(indexShard);
+
                     ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
                     ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
 
@@ -270,24 +298,32 @@ public class BatchedShardExecutor implements IndexEventListener {
                         // The Translog might have closed. Ignore.
                     }
 
-                    ShardOp indexedOp;
                     int opsToHandle = 0;
-                    while ((indexedOp = shardState.pollPostIndexed()) != null) {
+                    for (ShardOp writtenOp : opsToSync) {
                         ++opsToHandle;
-                        Translog.Location location = indexedOp.locationToSync();
+                        Translog.Location location = writtenOp.locationToSync();
                         if (location != null) {
                             if (syncedLocation == null || needsSync(location, syncedLocation)) {
-                                completedOpsNeedSync.add(indexedOp);
+                                completedOpsNeedSync.add(writtenOp);
                                 if (maxLocation == null) {
                                     maxLocation = location;
                                 } else if (location.compareTo(maxLocation) > 0) {
                                     maxLocation = location;
                                 }
                             } else {
-                                completedOpsAlreadySynced.add(indexedOp);
+                                completedOpsAlreadySynced.add(writtenOp);
                             }
                         } else {
-                            completedOpsAlreadySynced.add(indexedOp);
+                            completedOpsAlreadySynced.add(writtenOp);
+                        }
+
+                        WriteRequest.RefreshPolicy refreshPolicy = writtenOp.getRequest().getRefreshPolicy();
+                        if (refreshPolicy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
+                            needRefresh.add(writtenOp);
+                        } else if (refreshPolicy == WriteRequest.RefreshPolicy.IMMEDIATE) {
+                            needRefresh.add(writtenOp);
+                            immediateRefresh = true;
+                            writtenOp.getFlushListener().setForcedRefresh(true);
                         }
                     }
 
@@ -305,6 +341,9 @@ public class BatchedShardExecutor implements IndexEventListener {
                 }
             } finally {
                 shardState.markDoneSyncing();
+                if (needRefresh.isEmpty() == false) {
+                    performRefreshes(indexShard, needRefresh, immediateRefresh);
+                }
             }
             return true;
         } else {
@@ -422,7 +461,7 @@ public class BatchedShardExecutor implements IndexEventListener {
         }
     }
 
-    private static CheckedBiFunction<PrimaryOp, Runnable, Boolean, Exception> primaryOpHandler(
+    private static CheckedBiFunction<PrimaryOp, Tuple<Runnable, Runnable>, Boolean, Exception> primaryOpHandler(
         ClusterService clusterService,
         ThreadPool threadPool,
         UpdateHelper updateHelper,
@@ -430,12 +469,12 @@ public class BatchedShardExecutor implements IndexEventListener {
         return (primaryOp, rescheduler) -> {
             TimeValue timeout = primaryOp.getRequest().timeout();
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-            return TransportShardBulkAction.executeBulkItemRequests(primaryOp.context, updateHelper, threadPool::absoluteTimeInMillis,
+            return NewShardIndexer.indexBulkItemRequests(primaryOp.context, updateHelper, threadPool::absoluteTimeInMillis,
                 (update, shardId, mappingListener) -> {
                     assert update != null;
                     assert shardId != null;
                     mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
-                }, TransportShardBulkAction.waitForMappingUpdate(observer, clusterService), rescheduler);
+                }, TransportShardBulkAction.waitForMappingUpdate(observer, clusterService), rescheduler.v1(), rescheduler.v2(), threadPool);
         };
     }
 
@@ -581,7 +620,7 @@ public class BatchedShardExecutor implements IndexEventListener {
         }
     }
 
-    public abstract static class ShardOp {
+    public abstract static class ShardOp implements Releasable {
 
         private final BulkShardRequest request;
         private final IndexShard indexShard;
@@ -646,13 +685,13 @@ public class BatchedShardExecutor implements IndexEventListener {
 
     public static class PrimaryOp extends ShardOp {
 
-        private final BulkPrimaryExecutionContext context;
+        private final BulkExecutionContext context;
         private final ActionListener<Void> writeListener;
 
         public PrimaryOp(BulkShardRequest request, IndexShard indexShard, ActionListener<WriteResult> writeListener,
                          ActionListener<FlushResult> flushListener) {
             super(request, indexShard, flushListener);
-            this.context = new BulkPrimaryExecutionContext(request, indexShard);
+            this.context = new BulkExecutionContext(request, indexShard);
             this.writeListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
@@ -676,8 +715,13 @@ public class BatchedShardExecutor implements IndexEventListener {
             return context.getLocationToSync();
         }
 
-        BulkPrimaryExecutionContext getContext() {
+        BulkExecutionContext getContext() {
             return context;
+        }
+
+        @Override
+        public void close() {
+            context.close();
         }
     }
 
@@ -704,6 +748,11 @@ public class BatchedShardExecutor implements IndexEventListener {
 
         void setLocation(Translog.Location location) {
             this.location = location;
+        }
+
+        @Override
+        public void close() {
+
         }
     }
 }

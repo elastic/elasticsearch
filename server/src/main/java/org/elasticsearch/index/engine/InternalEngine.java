@@ -830,6 +830,8 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.generateSeqNo();
     }
 
+    public static class CouldNotAcquireVersionSemaphore extends RuntimeException {}
+
     public class StepWiseIndex implements Releasable {
 
         private final Releasable lock;
@@ -842,7 +844,7 @@ public class InternalEngine extends Engine {
             this.index = index;
         }
 
-        public void performIndex() throws IOException {
+        public IndexResult performIndex() throws IOException {
             final boolean doThrottle = index.origin().isRecovery() == false;
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             try (Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
@@ -907,6 +909,7 @@ public class InternalEngine extends Engine {
                     }
                 }
                 this.indexResult = indexResult;
+                return indexResult;
             } catch (IOException | RuntimeException e) {
                 handleException(index,e);
                 throw e;
@@ -934,7 +937,6 @@ public class InternalEngine extends Engine {
 
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
-                    // TODO: will throw an exception because on different thread
                     versionMap.maybePutIndexUnderLock(index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm()));
                 }
@@ -961,7 +963,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public StepWiseIndex initiateIndex(Index index) {
+    public StepWiseIndex initiateIndex(Index index, boolean blockOnVersion) {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         Releasable readLock = null;
         Releasable versionLock = null;
@@ -969,7 +971,14 @@ public class InternalEngine extends Engine {
         try {
             readLock = this.readLock.acquire();
             ensureOpen();
-            versionLock = versionMap.acquireLock(index.uid().bytes());
+            if (blockOnVersion) {
+                versionLock = versionMap.acquireLock(index.uid().bytes());
+            } else {
+                versionLock = versionMap.tryAcquireLock(index.uid().bytes());
+                if (versionLock == null) {
+                    throw new CouldNotAcquireVersionSemaphore();
+                }
+            }
             isSuccess = true;
             Releasable finalReadLock = readLock;
             Releasable finalVersionLock = versionLock;
@@ -1002,7 +1011,7 @@ public class InternalEngine extends Engine {
     @Override
     public IndexResult index(Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
-        try (StepWiseIndex indexContext = initiateIndex(index)) {
+        try (StepWiseIndex indexContext = initiateIndex(index, true)) {
             indexContext.performIndex();
             return indexContext.writeToTranslog();
         }
@@ -1286,7 +1295,7 @@ public class InternalEngine extends Engine {
         numDocUpdates.inc(docs.size());
     }
 
-    public StepWiseDelete initiateDelete(Delete delete) {
+    public StepWiseDelete initiateDelete(Delete delete, boolean blockOnVersion) {
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         versionMap.enforceSafeAccess();
@@ -1297,7 +1306,14 @@ public class InternalEngine extends Engine {
         try {
             readLock = this.readLock.acquire();
             ensureOpen();
-            versionLock = versionMap.acquireLock(delete.uid().bytes());
+            if (blockOnVersion) {
+                versionLock = versionMap.acquireLock(delete.uid().bytes());
+            } else {
+                versionLock = versionMap.tryAcquireLock(delete.uid().bytes());
+                if (versionLock == null) {
+                    throw new CouldNotAcquireVersionSemaphore();
+                }
+            }
             isSuccess = true;
             Releasable finalReadLock = readLock;
             Releasable finalVersionLock = versionLock;
@@ -1327,7 +1343,7 @@ public class InternalEngine extends Engine {
             this.delete = delete;
         }
 
-        public void performIndex() throws IOException {
+        public DeleteResult performIndex() throws IOException {
             // TODO: Consider implications of maybe needing to do this write when persisting also
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
@@ -1366,6 +1382,7 @@ public class InternalEngine extends Engine {
                 }
 
                 this.deleteResult = deleteResult;
+                return deleteResult;
             } catch (IOException | RuntimeException e) {
                 handleDeleteException(e);
                 throw e;
@@ -1417,7 +1434,7 @@ public class InternalEngine extends Engine {
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
 
-        try (StepWiseDelete deleteContext = initiateDelete(delete)) {
+        try (StepWiseDelete deleteContext = initiateDelete(delete, true)) {
             deleteContext.performIndex();
             return deleteContext.writeToTranslog();
         }

@@ -474,6 +474,10 @@ final class NewLiveVersionMap implements ReferenceManager.RefreshListener, Accou
         return keyedSemaphore.acquire(uid);
     }
 
+    Releasable tryAcquireLock(BytesRef uid) {
+        return keyedSemaphore.tryAcquire(uid);
+    }
+
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
         return true;
     }

@@ -54,10 +54,10 @@ public class SamlAuthnRequestValidator {
     private final SamlFactory samlFactory;
     private final SamlIdentityProvider idp;
     private final Logger logger = LogManager.getLogger(SamlAuthnRequestValidator.class);
-    private static final String[] XSD_FILES = new String[] { "/org/elasticsearch/xpack/idp/saml/support/saml-schema-protocol-2.0.xsd",
+    private static final String[] XSD_FILES = new String[]{"/org/elasticsearch/xpack/idp/saml/support/saml-schema-protocol-2.0.xsd",
         "/org/elasticsearch/xpack/idp/saml/support/saml-schema-assertion-2.0.xsd",
         "/org/elasticsearch/xpack/idp/saml/support/xenc-schema.xsd",
-        "/org/elasticsearch/xpack/idp/saml/support/xmldsig-core-schema.xsd" };
+        "/org/elasticsearch/xpack/idp/saml/support/xmldsig-core-schema.xsd"};
 
     private static final ThreadLocal<DocumentBuilder> THREAD_LOCAL_DOCUMENT_BUILDER = ThreadLocal.withInitial(() -> {
         try {

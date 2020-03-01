@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.idp.saml.idp;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.ContactPerson;
-import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.saml.saml2.metadata.EmailAddress;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.GivenName;
@@ -49,11 +47,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 public class SamlIdPMetadataBuilder {
@@ -65,8 +61,8 @@ public class SamlIdPMetadataBuilder {
     private Map<String, URL> singleSignOnServiceUrls = new HashMap<>();
     private Map<String, URL> singleLogoutServiceUrls = new HashMap<>();
     private List<X509Certificate> signingCertificates;
-    private OrganizationInfo organization;
-    private final List<ContactInfo> contacts;
+    private SamlIdentityProvider.OrganizationInfo organization;
+    private final List<SamlIdentityProvider.ContactInfo> contacts;
 
 
     public SamlIdPMetadataBuilder(String entityId) {
@@ -123,7 +119,7 @@ public class SamlIdPMetadataBuilder {
         return this;
     }
 
-    public SamlIdPMetadataBuilder organization(OrganizationInfo organization) {
+    public SamlIdPMetadataBuilder organization(SamlIdentityProvider.OrganizationInfo organization) {
         if (null != organization) {
             this.organization = organization;
         }
@@ -131,10 +127,10 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder organization(String orgName, String displayName, String url) {
-        return organization(new OrganizationInfo(orgName, displayName, url));
+        return organization(new SamlIdentityProvider.OrganizationInfo(orgName, displayName, url));
     }
 
-    public SamlIdPMetadataBuilder withContact(ContactInfo contact) {
+    public SamlIdPMetadataBuilder withContact(SamlIdentityProvider.ContactInfo contact) {
         if (null != contact) {
             this.contacts.add(contact);
         }
@@ -142,7 +138,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder withContact(String type, String givenName, String surName, String email) {
-        return withContact(new ContactInfo(ContactInfo.getType(type), givenName, surName, email));
+        return withContact(new SamlIdentityProvider.ContactInfo(SamlIdentityProvider.ContactInfo.getType(type), givenName, surName, email));
     }
 
     public EntityDescriptor build() throws CertificateEncodingException {
@@ -167,7 +163,7 @@ public class SamlIdPMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        for (ContactInfo contact : contacts) {
+        for (SamlIdentityProvider.ContactInfo contact : contacts) {
             descriptor.getContactPersons().add(buildContact(contact));
         }
 
@@ -250,7 +246,7 @@ public class SamlIdPMetadataBuilder {
         return org;
     }
 
-    private ContactPerson buildContact(ContactInfo contact) {
+    private ContactPerson buildContact(SamlIdentityProvider.ContactInfo contact) {
         final GivenName givenName = new GivenNameBuilder().buildObject();
         givenName.setName(contact.givenName);
         final SurName surName = new SurNameBuilder().buildObject();
@@ -264,65 +260,5 @@ public class SamlIdPMetadataBuilder {
         person.setSurName(surName);
         person.getEmailAddresses().add(email);
         return person;
-    }
-
-
-    public static class ContactInfo {
-        static final Map<String, ContactPersonTypeEnumeration> TYPES =
-            MapBuilder.<String, ContactPersonTypeEnumeration>newMapBuilder(new LinkedHashMap<>())
-                .put(ContactPersonTypeEnumeration.ADMINISTRATIVE.toString(), ContactPersonTypeEnumeration.ADMINISTRATIVE)
-                .put(ContactPersonTypeEnumeration.BILLING.toString(), ContactPersonTypeEnumeration.BILLING)
-                .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
-                .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
-                .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
-                .map();
-
-        public final ContactPersonTypeEnumeration type;
-        public final String givenName;
-        public final String surName;
-        public final String email;
-
-        public ContactInfo(ContactPersonTypeEnumeration type, String givenName, String surName, String email) {
-            this.type = Objects.requireNonNull(type, "Contact Person Type is required");
-            this.givenName = givenName;
-            this.surName = surName;
-            this.email = Objects.requireNonNull(email, "Contact Person email is required");
-        }
-
-        private static ContactPersonTypeEnumeration getType(String name) {
-            final ContactPersonTypeEnumeration type = TYPES.get(name.toLowerCase(Locale.ROOT));
-            if (type == null) {
-                throw new IllegalArgumentException("Invalid contact type " + name + " allowed values are "
-                    + Strings.collectionToCommaDelimitedString(TYPES.keySet()));
-            }
-            return type;
-        }
-    }
-
-    public static class OrganizationInfo {
-        public final String organizationName;
-        public final String displayName;
-        public final String url;
-
-        public OrganizationInfo(String organizationName, String displayName, String url) {
-            this.organizationName = organizationName;
-            this.displayName = displayName;
-            this.url = url;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            OrganizationInfo that = (OrganizationInfo) o;
-            return Objects.equals(organizationName, that.organizationName) &&
-                Objects.equals(displayName, that.displayName) &&
-                Objects.equals(url, that.url);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(organizationName, displayName, url);
-        }
     }
 }

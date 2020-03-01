@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthenticati
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.authn.SuccessfulAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
-import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
@@ -35,25 +33,25 @@ import java.util.Set;
 public class TransportSamlInitiateSingleSignOnAction
     extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
 
-    private final SecurityContext securityContext;
-    private final Environment env;
     private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
+    private final SecurityContext securityContext;
+    private final SamlIdentityProvider identityProvider;
+    private final SamlFactory samlFactory;
 
     @Inject
-    public TransportSamlInitiateSingleSignOnAction(TransportService transportService,
-                                                   SecurityContext securityContext, ActionFilters actionFilters, Environment environment) {
+    public TransportSamlInitiateSingleSignOnAction(TransportService transportService, ActionFilters actionFilters,
+                                                   SecurityContext securityContext, SamlIdentityProvider idp, SamlFactory factory) {
         super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
         this.securityContext = securityContext;
-        this.env = environment;
+        this.identityProvider = idp;
+        this.samlFactory = factory;
     }
 
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        final SamlFactory samlFactory = new SamlFactory();
-        final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         try {
-            final SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
+            final SamlServiceProvider sp = identityProvider.getRegisteredServiceProvider(request.getSpEntityId());
             if (null == sp) {
                 final String message =
                     "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";
@@ -68,7 +66,7 @@ public class TransportSamlInitiateSingleSignOnAction
             }
             final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
             final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
-                Clock.systemUTC(), idp);
+                Clock.systemUTC(), identityProvider);
             final Response response = builder.build(user, null);
             listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
                 samlFactory.getXmlContent(response),

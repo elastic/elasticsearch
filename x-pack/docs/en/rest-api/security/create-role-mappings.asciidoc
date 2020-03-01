@@ -81,9 +81,7 @@ See  <<role-mapping-resources>>.
 
 ==== Role Templates
 
-NOTE: Role templates require corresponding scripting feature to be enabled.
-Otherwise, role mapping with role templates will fail to create. See
-<<allowed-script-types-setting>>.
+NOTE: Role templates require the relevant scripting feature to be enabled, otherwise the creation of a role mapping with role templates will fail. See <<allowed-script-types-setting>>.
 
 The most common use for role mappings is to create a mapping from a known value
 on the user to a fixed role name.
@@ -343,4 +341,3 @@ POST /_security/role_mapping/mapping9
 <1> Because it is not possible to specify both `roles` and `role_templates` in
     the same role mapping, we can apply a "fixed name" role by using a template
     that has no substitutions.
-

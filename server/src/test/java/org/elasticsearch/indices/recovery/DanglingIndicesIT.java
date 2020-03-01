@@ -20,11 +20,11 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.NodeListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;

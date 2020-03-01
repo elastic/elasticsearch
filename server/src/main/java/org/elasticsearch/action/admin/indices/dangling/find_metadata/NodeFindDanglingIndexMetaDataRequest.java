@@ -17,22 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.find_metadata;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
- * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ * Used when querying every node in the cluster for a specific dangling index.
  */
-public class NodeListDanglingIndicesRequest extends TransportRequest {
-    public NodeListDanglingIndicesRequest() {
+public class NodeFindDanglingIndexMetaDataRequest extends TransportRequest {
+    private final String indexUUID;
 
+    public NodeFindDanglingIndexMetaDataRequest(String indexUUID) {
+        this.indexUUID = indexUUID;
     }
 
-    public NodeListDanglingIndicesRequest(StreamInput in) throws IOException {
+    public NodeFindDanglingIndexMetaDataRequest(StreamInput in) throws IOException {
         super(in);
+        this.indexUUID = in.readString();
+    }
+
+    public String getIndexUUID() {
+        return indexUUID;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(this.indexUUID);
     }
 }

@@ -17,20 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-/**
- * Represents a request to restore a particular dangling index.
- */
-public class ImportDanglingIndexAction extends ActionType<AcknowledgedResponse> {
+import java.io.IOException;
 
-    public static final ImportDanglingIndexAction INSTANCE = new ImportDanglingIndexAction();
-    public static final String NAME = "cluster:admin/indices/dangling/restore";
+public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingIndicesRequest> {
+    public ListDanglingIndicesRequest(StreamInput in) throws IOException {
+        super(in);
+    }
 
-    private ImportDanglingIndexAction() {
-        super(NAME, AcknowledgedResponse::new);
+    public ListDanglingIndicesRequest() {
+        super(Strings.EMPTY_ARRAY);
+    }
+
+    @Override
+    public String toString() {
+        return "ListDanglingIndicesRequest{}";
     }
 }

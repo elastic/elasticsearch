@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.list;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -42,7 +43,8 @@ import java.util.List;
  */
 public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesRequest,
-    ListDanglingIndicesResponse, NodeListDanglingIndicesRequest,
+    ListDanglingIndicesResponse,
+    NodeListDanglingIndicesRequest,
     NodeListDanglingIndicesResponse> {
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
@@ -100,8 +102,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
                 localNode.getId(),
                 each.getIndex().getName(),
                 each.getIndexUUID(),
-                each.getCreationDate()
-            );
+                each.getCreationDate());
             indexMetaData.add(danglingIndexInfo);
         }
 

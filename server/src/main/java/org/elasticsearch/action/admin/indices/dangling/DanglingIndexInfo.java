@@ -30,10 +30,10 @@ import java.io.IOException;
  * on-disk but is not present in the cluster state.
  */
 public class DanglingIndexInfo implements Writeable {
-    private String nodeId;
-    private String indexName;
-    private String indexUUID;
-    private long creationDateMillis;
+    private final String nodeId;
+    private final String indexName;
+    private final String indexUUID;
+    private final long creationDateMillis;
 
     public DanglingIndexInfo(String nodeId, String indexName, String indexUUID, long creationDateMillis) {
         this.nodeId = nodeId;

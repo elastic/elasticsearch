@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.find;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -95,13 +96,20 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
         final DiscoveryNode localNode = transportService.getLocalNode();
         final String indexUUID = request.getIndexUUID();
 
-        final List<IndexMetaData> indexMetaData = new ArrayList<>();
+        final List<DanglingIndexInfo> danglingIndexInfo = new ArrayList<>();
+
         for (IndexMetaData each : danglingIndicesState.getDanglingIndices().values()) {
             if (each.getIndexUUID().equals(indexUUID)) {
-                indexMetaData.add(each);
+                danglingIndexInfo.add(
+                    new DanglingIndexInfo(
+                        localNode.getId(),
+                        each.getIndex().getName(),
+                        each.getIndexUUID(),
+                        each.getCreationDate())
+                );
             }
         }
 
-        return new NodeFindDanglingIndexResponse(localNode, indexMetaData);
+        return new NodeFindDanglingIndexResponse(localNode, danglingIndexInfo);
     }
 }

@@ -17,19 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.delete;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
- * Represents a request to list all dangling indices known to the cluster.
+ * This action causes a dangling index to be considered as deleted by the cluster.
  */
-public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesResponse> {
+public class DeleteDanglingIndexAction extends ActionType<AcknowledgedResponse> {
 
-    public static final ListDanglingIndicesAction INSTANCE = new ListDanglingIndicesAction();
-    public static final String NAME = "cluster:admin/indices/dangling/list";
+    public static final DeleteDanglingIndexAction INSTANCE = new DeleteDanglingIndexAction();
+    public static final String NAME = "cluster:admin/indices/dangling/delete";
 
-    private ListDanglingIndicesAction() {
-        super(NAME, ListDanglingIndicesResponse::new);
+    private DeleteDanglingIndexAction() {
+        super(NAME, AcknowledgedResponse::new);
     }
 }

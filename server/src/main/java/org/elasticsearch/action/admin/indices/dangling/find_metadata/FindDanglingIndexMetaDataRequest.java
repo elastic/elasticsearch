@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.find_metadata;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
@@ -25,46 +25,32 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Locale;
 
-/**
- * Represents a request to import a particular dangling index, specified
- * by its UUID. The {@link #acceptDataLoss} flag must also be
- * explicitly set to true, or later validation will fail.
- */
-public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingIndexRequest> {
+public class FindDanglingIndexMetaDataRequest extends BaseNodesRequest<FindDanglingIndexMetaDataRequest> {
     private final String indexUUID;
-    private final boolean acceptDataLoss;
 
-    public ImportDanglingIndexRequest(StreamInput in) throws IOException {
+    public FindDanglingIndexMetaDataRequest(StreamInput in) throws IOException {
         super(in);
         this.indexUUID = in.readString();
-        this.acceptDataLoss = in.readBoolean();
     }
 
-    public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
-        super(new String[0]);
-        this.indexUUID = Strings.requireNonEmpty(indexUUID, "indexUUID cannot be null or empty");
-        this.acceptDataLoss = acceptDataLoss;
+    public FindDanglingIndexMetaDataRequest(String indexUUID) {
+        super(Strings.EMPTY_ARRAY);
+        this.indexUUID = indexUUID;
     }
 
     public String getIndexUUID() {
         return indexUUID;
     }
 
-    public boolean isAcceptDataLoss() {
-        return acceptDataLoss;
-    }
-
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "ImportDanglingIndexRequest{indexUUID='%s', acceptDataLoss=%s}", indexUUID, acceptDataLoss);
+        return "FindDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(this.indexUUID);
-        out.writeBoolean(this.acceptDataLoss);
     }
 }

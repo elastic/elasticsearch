@@ -101,12 +101,14 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataRequest;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataResponse;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -736,14 +738,24 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     ActionFuture<ListDanglingIndicesResponse> listDanglingIndices(ListDanglingIndicesRequest request);
 
     /**
-     * Find dangling indices on all nodes.
+     * Find a dangling index across all nodes.
      */
-    void findDanglingIndices(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener);
+    void findDanglingIndex(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener);
 
     /**
-     * Find dangling indices on all nodes.
+     * Find a dangling index across all nodes.
      */
-    ActionFuture<FindDanglingIndexResponse> findDanglingIndices(FindDanglingIndexRequest request);
+    ActionFuture<FindDanglingIndexResponse> findDanglingIndex(FindDanglingIndexRequest request);
+
+    /**
+     * Find metadata for a specific dangling index across all nodes.
+     */
+    void findDanglingIndexMetaData(FindDanglingIndexMetaDataRequest request, ActionListener<FindDanglingIndexMetaDataResponse> listener);
+
+    /**
+     * Find metadata for a specific dangling index across all nodes.
+     */
+    ActionFuture<FindDanglingIndexMetaDataResponse> findDanglingIndexMetaData(FindDanglingIndexMetaDataRequest request);
 
     /**
      * Restore specified dangling indices.

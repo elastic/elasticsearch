@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.find_metadata;
 
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,28 +29,34 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ * Used when querying every node in the cluster for a specific dangling index.
  */
-public class NodeListDanglingIndicesResponse extends BaseNodeResponse {
-    private final List<DanglingIndexInfo> indexMetaData;
+public class NodeFindDanglingIndexMetaDataResponse extends BaseNodeResponse {
+    /**
+     * A node could report several dangling indices. This class will contain them all.
+     * A single node could even multiple different index versions for the same index
+     * UUID if the situation is really crazy, though perhaps this is more likely
+     * when collating responses from different nodes.
+     */
+    private final List<IndexMetaData> danglingIndexInfo;
 
-    public List<DanglingIndexInfo> getDanglingIndices() {
-        return this.indexMetaData;
+    public List<IndexMetaData> getDanglingIndexMetaData() {
+        return this.danglingIndexInfo;
     }
 
-    public NodeListDanglingIndicesResponse(DiscoveryNode node, List<DanglingIndexInfo> indexMetaData) {
+    public NodeFindDanglingIndexMetaDataResponse(DiscoveryNode node, List<IndexMetaData> danglingIndexInfo) {
         super(node);
-        this.indexMetaData = indexMetaData;
+        this.danglingIndexInfo = danglingIndexInfo;
     }
 
-    protected NodeListDanglingIndicesResponse(StreamInput in) throws IOException {
+    protected NodeFindDanglingIndexMetaDataResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexMetaData = in.readList(DanglingIndexInfo::new);
+        this.danglingIndexInfo = in.readList(IndexMetaData::readFrom);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.indexMetaData);
+        out.writeList(this.danglingIndexInfo);
     }
 }

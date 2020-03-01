@@ -17,13 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.delete;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -32,7 +37,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -189,9 +193,9 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                 final List<NodeFindDanglingIndexResponse> nodes = response.getNodes();
 
                 for (NodeFindDanglingIndexResponse nodeResponse : nodes) {
-                    for (IndexMetaData danglingIndexMetaData : nodeResponse.getDanglingIndexMetaData()) {
-                        if (danglingIndexMetaData.getIndexUUID().equals(indexUUID)) {
-                            listener.onResponse(danglingIndexMetaData.getIndex());
+                    for (DanglingIndexInfo each : nodeResponse.getDanglingIndexInfo()) {
+                        if (each.getIndexUUID().equals(indexUUID)) {
+                            listener.onResponse(new Index(each.getIndexName(), each.getIndexUUID()));
                             return;
                         }
                     }

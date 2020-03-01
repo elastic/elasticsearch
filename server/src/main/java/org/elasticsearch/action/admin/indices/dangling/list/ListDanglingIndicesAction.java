@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.list;
 
 import org.elasticsearch.action.ActionType;
 
 /**
- * Represents a request to find a particular dangling index by UUID.
+ * Represents a request to list all dangling indices known to the cluster.
  */
-public class FindDanglingIndexAction extends ActionType<FindDanglingIndexResponse> {
+public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesResponse> {
 
-    public static final FindDanglingIndexAction INSTANCE = new FindDanglingIndexAction();
-    public static final String NAME = "cluster:admin/indices/dangling/find";
+    public static final ListDanglingIndicesAction INSTANCE = new ListDanglingIndicesAction();
+    public static final String NAME = "cluster:admin/indices/dangling/list";
 
-    private FindDanglingIndexAction() {
-        super(NAME, FindDanglingIndexResponse::new);
+    private ListDanglingIndicesAction() {
+        super(NAME, ListDanglingIndicesResponse::new);
     }
 }

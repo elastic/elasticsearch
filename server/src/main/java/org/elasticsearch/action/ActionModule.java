@@ -104,14 +104,16 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.TransportDeleteDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.TransportFindDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.TransportListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.TransportImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.TransportFindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataAction;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.TransportFindDanglingIndexMetaDataAction;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -563,6 +565,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
         actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
         actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
+        actions.register(FindDanglingIndexMetaDataAction.INSTANCE, TransportFindDanglingIndexMetaDataAction.class);
 
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);

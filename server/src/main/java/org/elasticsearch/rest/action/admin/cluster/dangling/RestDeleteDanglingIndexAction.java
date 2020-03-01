@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;

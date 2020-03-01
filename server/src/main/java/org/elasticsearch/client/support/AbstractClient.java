@@ -156,16 +156,19 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.FindDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataAction;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataRequest;
+import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataResponse;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -1161,13 +1164,23 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<FindDanglingIndexResponse> findDanglingIndices(FindDanglingIndexRequest request) {
+        public ActionFuture<FindDanglingIndexResponse> findDanglingIndex(FindDanglingIndexRequest request) {
             return execute(FindDanglingIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void findDanglingIndices(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener) {
+        public void findDanglingIndex(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener) {
             execute(FindDanglingIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<FindDanglingIndexMetaDataResponse> findDanglingIndexMetaData(FindDanglingIndexMetaDataRequest request) {
+            return execute(FindDanglingIndexMetaDataAction.INSTANCE, request);
+        }
+
+        @Override
+        public void findDanglingIndexMetaData(FindDanglingIndexMetaDataRequest request, ActionListener<FindDanglingIndexMetaDataResponse> listener) {
+            execute(FindDanglingIndexMetaDataAction.INSTANCE, request, listener);
         }
 
         @Override

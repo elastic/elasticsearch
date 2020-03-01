@@ -17,20 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.find_metadata;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
- * This action causes a dangling index to be considered as deleted by the cluster.
+ * Represents a request to find a particular dangling index metadata by UUID.
  */
-public class DeleteDanglingIndexAction extends ActionType<AcknowledgedResponse> {
+public class FindDanglingIndexMetaDataAction extends ActionType<FindDanglingIndexMetaDataResponse> {
 
-    public static final DeleteDanglingIndexAction INSTANCE = new DeleteDanglingIndexAction();
-    public static final String NAME = "cluster:admin/indices/dangling/delete";
+    public static final FindDanglingIndexMetaDataAction INSTANCE = new FindDanglingIndexMetaDataAction();
+    public static final String NAME = "cluster:admin/indices/dangling/find_meta_data";
 
-    private DeleteDanglingIndexAction() {
-        super(NAME, AcknowledgedResponse::new);
+    private FindDanglingIndexMetaDataAction() {
+        super(NAME, FindDanglingIndexMetaDataResponse::new);
     }
 }

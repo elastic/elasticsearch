@@ -17,25 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingIndicesRequest> {
-    public ListDanglingIndicesRequest(StreamInput in) throws IOException {
+/**
+ * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ */
+public class NodeListDanglingIndicesRequest extends TransportRequest {
+    public NodeListDanglingIndicesRequest() {
+
+    }
+
+    public NodeListDanglingIndicesRequest(StreamInput in) throws IOException {
         super(in);
-    }
-
-    public ListDanglingIndicesRequest() {
-        super(Strings.EMPTY_ARRAY);
-    }
-
-    @Override
-    public String toString() {
-        return "ListDanglingIndicesRequest{}";
     }
 }

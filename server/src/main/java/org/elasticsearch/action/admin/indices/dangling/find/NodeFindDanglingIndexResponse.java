@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.elasticsearch.action.admin.indices.dangling.find;
 
+import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,25 +38,25 @@ public class NodeFindDanglingIndexResponse extends BaseNodeResponse {
      * UUID if the situation is really crazy, though perhaps this is more likely
      * when collating responses from different nodes.
      */
-    private final List<IndexMetaData> danglingIndexMetaData;
+    private final List<DanglingIndexInfo> danglingIndexInfo;
 
-    public List<IndexMetaData> getDanglingIndexMetaData() {
-        return this.danglingIndexMetaData;
+    public List<DanglingIndexInfo> getDanglingIndexInfo() {
+        return this.danglingIndexInfo;
     }
 
-    public NodeFindDanglingIndexResponse(DiscoveryNode node, List<IndexMetaData> danglingIndexMetaData) {
+    public NodeFindDanglingIndexResponse(DiscoveryNode node, List<DanglingIndexInfo> danglingIndexInfo) {
         super(node);
-        this.danglingIndexMetaData = danglingIndexMetaData;
+        this.danglingIndexInfo = danglingIndexInfo;
     }
 
     protected NodeFindDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
-        this.danglingIndexMetaData = in.readList(IndexMetaData::readFrom);
+        this.danglingIndexInfo = in.readList(DanglingIndexInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.danglingIndexMetaData);
+        out.writeList(this.danglingIndexInfo);
     }
 }

@@ -352,17 +352,12 @@ public class ContextIndexSearcher extends IndexSearcher {
     public interface QueryCancellable {
 
         void checkCancelled();
-        default void checkDirReaderCancelled() {
-            checkCancelled();
-        }
     }
-
-
 
     /**
      * Wraps an {@link IndexReader} with a {@link QueryCancellable}.
      */
-    private static class CancellableDirectoryReader extends FilterDirectoryReader {
+    static class CancellableDirectoryReader extends FilterDirectoryReader {
 
         private final Holder<QueryCancellable> cancellableHolder;
 
@@ -394,7 +389,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     /**
      * Wraps a {@link FilterLeafReader} with a {@link QueryCancellable}.
      */
-    private static class CancellableLeafReader extends FilterLeafReader {
+    static class CancellableLeafReader extends FilterLeafReader {
 
         private final Holder<QueryCancellable> cancellable;
 
@@ -458,7 +453,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     /**
      * Wrapper class for {@link FilterTerms} that check for query cancellation or timeout.
      */
-    private static class ExitableTerms extends FilterTerms {
+    static class ExitableTerms extends FilterTerms {
 
         private final QueryCancellable cancellable;
 
@@ -489,13 +484,13 @@ public class ContextIndexSearcher extends IndexSearcher {
         private ExitableTermsEnum(TermsEnum termsEnum, QueryCancellable cancellable) {
             super(termsEnum);
             this.cancellable = cancellable;
-            this.cancellable.checkDirReaderCancelled();
+            this.cancellable.checkCancelled();
         }
 
         @Override
         public BytesRef next() throws IOException {
             // Before every iteration, check if the iteration should exit
-            this.cancellable.checkDirReaderCancelled();
+            this.cancellable.checkCancelled();
             return in.next();
         }
     }
@@ -503,7 +498,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     /**
      * Wrapper class for {@link PointValues} that checks for query cancellation or timeout.
      */
-    private static class ExitablePointValues extends PointValues {
+    static class ExitablePointValues extends PointValues {
 
         private final PointValues in;
         private final QueryCancellable cancellable;
@@ -511,60 +506,60 @@ public class ContextIndexSearcher extends IndexSearcher {
         private ExitablePointValues(PointValues in, QueryCancellable cancellable) {
             this.in = in;
             this.cancellable = cancellable;
-            this.cancellable.checkDirReaderCancelled();
+            this.cancellable.checkCancelled();
         }
 
         @Override
         public void intersect(IntersectVisitor visitor) throws IOException {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             in.intersect(new ExitableIntersectVisitor(visitor, cancellable));
         }
 
         @Override
         public long estimatePointCount(IntersectVisitor visitor) {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.estimatePointCount(visitor);
         }
 
         @Override
         public byte[] getMinPackedValue() throws IOException {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.getMinPackedValue();
         }
 
         @Override
         public byte[] getMaxPackedValue() throws IOException {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.getMaxPackedValue();
         }
 
         @Override
         public int getNumDimensions() throws IOException {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.getNumDimensions();
         }
 
         @Override
         public int getNumIndexDimensions() throws IOException {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.getNumIndexDimensions();
         }
 
         @Override
         public int getBytesPerDimension() throws IOException {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.getBytesPerDimension();
         }
 
         @Override
         public long size() {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.size();
         }
 
         @Override
         public int getDocCount() {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.getDocCount();
         }
     }
@@ -584,7 +579,7 @@ public class ContextIndexSearcher extends IndexSearcher {
 
         private void checkAndThrowWithSampling() {
             if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                cancellable.checkDirReaderCancelled();
+                cancellable.checkCancelled();
             }
         }
 
@@ -602,13 +597,13 @@ public class ContextIndexSearcher extends IndexSearcher {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             return in.compare(minPackedValue, maxPackedValue);
         }
 
         @Override
         public void grow(int count) {
-            cancellable.checkDirReaderCancelled();
+            cancellable.checkCancelled();
             in.grow(count);
         }
     }

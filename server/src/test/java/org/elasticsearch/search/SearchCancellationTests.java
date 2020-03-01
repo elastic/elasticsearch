@@ -20,14 +20,13 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -45,7 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchCancellationTests extends ESTestCase {
 
-    private static final String FIELD_NAME = "foo";
+    private static final String STRING_FIELD_NAME = "foo";
+    private static final String POINT_FIELD_NAME = "point";
 
     private static Directory dir;
     private static IndexReader reader;
@@ -68,7 +68,8 @@ public class SearchCancellationTests extends ESTestCase {
     private static void indexRandomDocuments(RandomIndexWriter w, int numDocs, int repeatChar) throws IOException {
         for (int i = 1; i <= numDocs; ++i) {
             Document doc = new Document();
-            doc.add(new StringField(FIELD_NAME, "a".repeat(i + repeatChar), Field.Store.NO));
+            doc.add(new StringField(STRING_FIELD_NAME, "a".repeat(i + repeatChar), Field.Store.NO));
+            doc.add(new IntPoint(POINT_FIELD_NAME, i, i + 1));
             w.addDocument(doc);
         }
     }
@@ -85,18 +86,10 @@ public class SearchCancellationTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean();
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCancellable(new ContextIndexSearcher.QueryCancellable() {
-            @Override
-            public void checkCancelled() {
-                if (cancelled.get()) {
-                    throw new TaskCancelledException("cancelled");
-                }
+        searcher.setCancellable(() -> {
+            if (cancelled.get()) {
+                throw new TaskCancelledException("cancelled");
             }
-
-            @Override
-            public void checkDirReaderCancelled() {
-            }
-
         });
         searcher.search(new MatchAllDocsQuery(), collector);
         assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
@@ -105,27 +98,22 @@ public class SearchCancellationTests extends ESTestCase {
             () -> searcher.search(new MatchAllDocsQuery(), collector));
     }
 
-    public void testCancellableDirReader() throws IOException {
-        TotalHitCountCollector collector = new TotalHitCountCollector();
+    public void testCancellableDirectoryReader() throws IOException {
         AtomicBoolean cancelled = new AtomicBoolean();
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCancellable(new ContextIndexSearcher.QueryCancellable() {
-            @Override
-            public void checkCancelled() {
-            }
-
-            @Override
-            public void checkDirReaderCancelled() {
-                if (cancelled.get()) {
-                    throw new TaskCancelledException("cancelled");
-                }
+        searcher.setCancellable(() -> {
+            if (cancelled.get()) {
+                throw new TaskCancelledException("cancelled");
             }
         });
-        searcher.search(new PrefixQuery(new Term(FIELD_NAME, "a")), collector);
-        assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
+        searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).iterator();
+        searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME).getDocCount();
+
         cancelled.set(true);
-        expectThrows(TaskCancelledException.class, () ->
-                searcher.search(new PrefixQuery(new Term(FIELD_NAME, "a")), collector));
+        expectThrows(TaskCancelledException.class,
+                () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).iterator());
+        expectThrows(TaskCancelledException.class,
+                () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME).getDocCount());
     }
 }

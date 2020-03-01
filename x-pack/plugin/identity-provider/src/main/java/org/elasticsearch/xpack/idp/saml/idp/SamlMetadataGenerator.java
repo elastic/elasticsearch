@@ -42,22 +42,25 @@ public class SamlMetadataGenerator {
     }
 
     public void generateMetadata(String spEntityId, ActionListener<SamlMetadataResponse> listener) {
-        try {
-            // this will be async
-            SamlServiceProvider sp = idp.getRegisteredServiceProvider(spEntityId);
-            if (null == sp) {
-                listener.onFailure(new IllegalArgumentException("Service provider with Entity ID [" + spEntityId
-                    + "] is not registered with this Identity Provider"));
-                return;
-            }
-            EntityDescriptor metadata = buildEntityDescriptor(sp);
-            final X509Credential signingCredential = idp.getMetadataSigningCredential();
-            Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
-            listener.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
-        } catch (Exception e) {
-            logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
-            listener.onFailure(e);
-        }
+        idp.getRegisteredServiceProvider(spEntityId, ActionListener.wrap(
+            sp -> {
+                try {
+                    if (null == sp) {
+                        listener.onFailure(new IllegalArgumentException("Service provider with Entity ID [" + spEntityId
+                            + "] is not registered with this Identity Provider"));
+                        return;
+                    }
+                    EntityDescriptor metadata = buildEntityDescriptor(sp);
+                    final X509Credential signingCredential = idp.getMetadataSigningCredential();
+                    Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
+                    listener.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
+                } catch (Exception e) {
+                    logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
+                    listener.onFailure(e);
+                }
+            },
+            listener::onFailure
+        ));
     }
 
     EntityDescriptor buildEntityDescriptor(SamlServiceProvider sp) throws Exception {

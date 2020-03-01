@@ -8,16 +8,20 @@ package org.elasticsearch.xpack.idp.saml.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.io.Unmarshaller;
@@ -79,6 +83,19 @@ public abstract class IdpSamlTestCase extends ESTestCase {
             Locale.setDefault(restoreLocale);
             restoreLocale = null;
         }
+    }
+
+    protected static void mockRegisteredServiceProvider(SamlIdentityProvider idp, String entityId, SamlServiceProvider sp) {
+        Mockito.doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            assertThat(args, Matchers.arrayWithSize(2));
+            assertThat(args[0], Matchers.equalTo(entityId));
+            assertThat(args[1], Matchers.instanceOf(ActionListener.class));
+            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[1];
+
+            listener.onResponse(sp);
+            return null;
+        }).when(idp).getRegisteredServiceProvider(Mockito.eq(entityId), Mockito.any(ActionListener.class));
     }
 
     protected List<X509Credential> readCredentials() throws CertificateException, IOException {

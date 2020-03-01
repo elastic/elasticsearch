@@ -68,8 +68,8 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         when(sp2.getAllowedNameIdFormats()).thenReturn(Set.of(PERSISTENT));
         when(sp2.getSpSigningCredential()).thenReturn(readCredentials("RSA", 4096));
         when(sp2.shouldSignAuthnRequests()).thenReturn(true);
-        when(idp.getRegisteredServiceProvider("https://sp1.kibana.org")).thenReturn(sp1);
-        when(idp.getRegisteredServiceProvider("https://sp2.kibana.org")).thenReturn(sp2);
+        mockRegisteredServiceProvider(idp, "https://sp1.kibana.org", sp1);
+        mockRegisteredServiceProvider(idp, "https://sp2.kibana.org", sp2);
         validator = new SamlAuthnRequestValidator(samlFactory, idp);
     }
 
@@ -187,10 +187,10 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         final String relayState = randomAlphaOfLength(6);
         final AuthnRequest authnRequest = buildAuthnRequest("https://unknown.kibana.org", new URL("https://unknown.kibana.org/saml/acs"),
             idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        mockRegisteredServiceProvider(idp, "https://unknown.kibana.org", null);
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
         assertThat(e.getMessage(), containsString("https://unknown.kibana.org"));
     }

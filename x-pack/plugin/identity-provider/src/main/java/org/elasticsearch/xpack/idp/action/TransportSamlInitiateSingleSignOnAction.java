@@ -35,25 +35,35 @@ import java.util.Set;
 public class TransportSamlInitiateSingleSignOnAction
     extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
 
+    private final Logger logger = LogManager.getLogger();
+
     private final SecurityContext securityContext;
     private final Environment env;
-    private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
+    private final SamlFactory samlFactory;
 
     @Inject
-    public TransportSamlInitiateSingleSignOnAction(TransportService transportService,
-                                                   SecurityContext securityContext, ActionFilters actionFilters, Environment environment) {
+    public TransportSamlInitiateSingleSignOnAction(TransportService transportService, ActionFilters actionFilters,
+                                                   SecurityContext securityContext, Environment environment, SamlFactory samlFactory) {
         super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
         this.securityContext = securityContext;
         this.env = environment;
+        this.samlFactory = samlFactory;
     }
 
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        final SamlFactory samlFactory = new SamlFactory();
+        // TODO : Inject this IDP from the plugin
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
+        idp.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
+            sp -> doExecute(request, idp, sp, listener),
+            listener::onFailure
+        ));
+    }
+
+    private void doExecute(SamlInitiateSingleSignOnRequest request, SamlIdentityProvider idp, SamlServiceProvider sp,
+                           ActionListener<SamlInitiateSingleSignOnResponse> listener) {
         try {
-            final SamlServiceProvider sp = idp.getRegisteredServiceProvider(request.getSpEntityId());
             if (null == sp) {
                 final String message =
                     "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.saml.idp;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -93,9 +94,15 @@ public class CloudIdp implements SamlIdentityProvider {
         return sloEndpoints.get(binding);
     }
 
+    /**
+     * Asynchronously lookup the specified {@link SamlServiceProvider} by entity-id.
+     * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
+     *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
+     *                 the backing store (elasticsearch index) that hold the SP data).
+     */
     @Override
-    public SamlServiceProvider getRegisteredServiceProvider(String spEntityId) {
-        return registeredServiceProviders.get(spEntityId);
+    public void getRegisteredServiceProvider(String spEntityId, ActionListener<SamlServiceProvider> listener) {
+        listener.onResponse(registeredServiceProviders.get(spEntityId));
     }
 
     @Override

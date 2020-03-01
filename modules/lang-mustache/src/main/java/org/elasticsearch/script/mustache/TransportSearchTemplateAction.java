@@ -32,15 +32,16 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
@@ -85,13 +86,13 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             } else {
                 listener.onResponse(response);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
     static SearchRequest convert(SearchTemplateRequest searchTemplateRequest, SearchTemplateResponse response, ScriptService scriptService,
-                                 NamedXContentRegistry xContentRegistry) throws IOException {
+                                 NamedXContentRegistry xContentRegistry) throws Exception {
         Script script = new Script(searchTemplateRequest.getScriptType(),
             searchTemplateRequest.getScriptType() == ScriptType.STORED ? null : TEMPLATE_LANG, searchTemplateRequest.getScript(),
                 searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams());
@@ -110,6 +111,19 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             builder.parseXContent(parser, false);
             builder.explain(searchTemplateRequest.isExplain());
             builder.profile(searchTemplateRequest.isProfile());
+            if (searchRequest.source() == null) {
+                searchRequest.source(new SearchSourceBuilder());
+            }
+            Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+            if (trackTotalHitsUpTo != null) {
+                if (builder.trackTotalHitsUpTo() == null) {
+                    builder.trackTotalHitsUpTo(trackTotalHitsUpTo);
+                } else if (builder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                    && builder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                    throw new IllegalArgumentException("[" + RestSearchAction.TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
+                        "if the tracking of total hits is not accurate, got " + trackTotalHitsUpTo);
+                }
+            }
             searchRequest.source(builder);
         }
         return searchRequest;

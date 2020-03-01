@@ -19,12 +19,15 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -36,6 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -172,5 +176,74 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
         assertThat(searchTemplateResponse5.getSource().utf8ToString(),
                 equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+    }
+
+    public void testMultiTemplateQueryHitCount() throws Exception {
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i =0; i <10001; i ++) {
+            bulkRequestBuilder.add(client().prepareIndex("msearch").setId(String.valueOf(i)).setSource("{\"theField\":\"foo\"}",
+                XContentType.JSON));
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+
+        // Search #1
+        SearchTemplateRequest search1 = new SearchTemplateRequest();
+        search1.setRequest(new SearchRequest().indices("msearch"));
+        search1.setScriptType(ScriptType.INLINE);
+        search1.setScript("{{! ignore me }}{\"query\":{\"match_all\":{}}}");
+        multiRequest.add(search1);
+
+        // Search #2
+        // When the request parameter `rest_total_hits_as_int` is set to true, `trackTotalHits` will also be set to true,
+        // we should test that we can get an accurate hits count.
+        SearchTemplateRequest search2 = new SearchTemplateRequest();
+        SearchRequest searchRequestWithRestTotalHitsAsInt = new SearchRequest();
+        searchRequestWithRestTotalHitsAsInt.indices("msearch");
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        searchRequestWithRestTotalHitsAsInt.source(builder.trackTotalHits(true));
+        search2.setRequest(searchRequestWithRestTotalHitsAsInt);
+        search2.setScriptType(ScriptType.INLINE);
+        search2.setScript("{{! ignore me }}{\"query\":{\"match_all\":{}}}");
+        multiRequest.add(search2);
+
+
+        // Search #3
+        // When `rest_total_hits_as_int` is set to true, `trackTotalHits` should not be set to a not accurate number
+        SearchTemplateRequest search3 = new SearchTemplateRequest();
+        search3.setRequest(searchRequestWithRestTotalHitsAsInt);
+        search3.setScriptType(ScriptType.INLINE);
+        search3.setScript("{{! ignore me }}{\"query\":{\"match_all\":{}}, \"track_total_hits\":100}");
+        multiRequest.add(search3);
+
+        // Search #4
+        SearchTemplateRequest search4 = new SearchTemplateRequest();
+        search4.setRequest(new SearchRequest().indices("msearch"));
+        search4.setScriptType(ScriptType.INLINE);
+        search4.setScript("{{! ignore me }}{\"query\":{\"match_all\":{}}, \"track_total_hits\":true}");
+        multiRequest.add(search4);
+
+        MultiSearchTemplateResponse response = client().execute(MultiSearchTemplateAction.INSTANCE, multiRequest).get();
+        assertThat(response.getResponses(), arrayWithSize(4));
+        assertThat(response.getTook().millis(), greaterThan(0L));
+
+        MultiSearchTemplateResponse.Item response1 = response.getResponses()[0];
+        assertThat(response1.isFailure(), is(false));
+        assertThat(response1.getResponse().getResponse().getHits().getTotalHits().value, equalTo(10000L));
+
+        MultiSearchTemplateResponse.Item response2 = response.getResponses()[1];
+        assertThat(response2.isFailure(), is(false));
+        assertThat(response2.getResponse().getResponse().getHits().getTotalHits().value, equalTo(10001L));
+
+        MultiSearchTemplateResponse.Item response3 = response.getResponses()[2];
+        assertThat(response3.isFailure(), is(true));
+        assertThat(response3.getFailureMessage(), containsString(
+            "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate"));
+
+        MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
+        assertThat(response4.isFailure(), is(false));
+        assertThat(response4.getResponse().getResponse().getHits().getTotalHits().value, equalTo(10001L));
     }
 }

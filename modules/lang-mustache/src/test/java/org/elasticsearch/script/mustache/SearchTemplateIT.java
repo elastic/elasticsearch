@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -104,6 +105,67 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+    }
+
+    /**
+     * Test the template query's hit count with an index which has more than 10k documents, relates to #52801.
+     */
+    public void testTemplateQueryHitCount() throws Exception {
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i =0; i <10001; i ++) {
+            bulkRequestBuilder.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource("{\"theField\":\"foo\"}",
+                XContentType.JSON));
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("test");
+
+        String queryWithNoTrackTotalHits = "{\"source\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}}}\"}";
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent,
+            queryWithNoTrackTotalHits));
+        request.setRequest(searchRequest);
+        SearchTemplateResponse searchResponse1 = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        assertThat(searchResponse1.getResponse().getHits().getTotalHits().value, equalTo(10000L));
+
+        // When the request parameter `rest_total_hits_as_int` is set to true, `trackTotalHits` will also be set to true,
+        // we should test that we can get an accurate hits count.
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        searchRequest.source(builder.trackTotalHits(true));
+        request.setRequest(searchRequest);
+        SearchTemplateResponse searchResponse2 = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        assertThat(searchResponse2.getResponse().getHits().getTotalHits().value, equalTo(10001L));
+
+        // When `rest_total_hits_as_int` is set to true, `trackTotalHits` should not be set to a not accurate number
+        String queryWithInvalidTrackTotalHits =
+            "{" + "  \"source\" : \"{ \\\"track_total_hits\\\": \\\"{{trackTotalHits}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                + "  \"params\":{"
+                + "    \"trackTotalHits\": 100"
+                + "  }"
+                + "}";
+        SearchTemplateRequest requestWithInvalidTrackTotalHits = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent,
+            queryWithInvalidTrackTotalHits));
+        requestWithInvalidTrackTotalHits.setRequest(searchRequest);
+        Exception e = expectThrows(Exception.class,
+            () -> client().execute(SearchTemplateAction.INSTANCE, requestWithInvalidTrackTotalHits).get());
+        assertThat(e.getMessage(), containsString(
+            "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate"));
+
+        // When `rest_total_hits_as_int` is not set but `trackTotalHits` is set to true, we can also get an accurate hits count
+        String queryWithValidTrackTotalHits =
+            "{" + "  \"source\" : \"{ \\\"track_total_hits\\\": \\\"{{trackTotalHits}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                + "  \"params\":{"
+                + "    \"trackTotalHits\": true"
+                + "  }"
+                + "}";
+        SearchTemplateRequest requestWithValidTrackTotalHits = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent,
+            queryWithValidTrackTotalHits));
+        SearchRequest newSearchRequest = new SearchRequest();
+        newSearchRequest.indices("test");
+        requestWithValidTrackTotalHits.setRequest(newSearchRequest);
+        SearchTemplateResponse searchResponse3 = client().execute(SearchTemplateAction.INSTANCE, requestWithValidTrackTotalHits).get();
+        assertThat(searchResponse3.getResponse().getHits().getTotalHits().value, equalTo(10001L));
     }
 
     /**

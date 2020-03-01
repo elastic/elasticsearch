@@ -25,10 +25,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -174,9 +174,9 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
-        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID), new ActionListener<>() {
+        this.nodeClient.execute(ListDanglingIndicesAction.INSTANCE, new ListDanglingIndicesRequest(indexUUID), new ActionListener<>() {
             @Override
-            public void onResponse(FindDanglingIndexResponse response) {
+            public void onResponse(ListDanglingIndicesResponse response) {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
@@ -190,10 +190,10 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                     return;
                 }
 
-                final List<NodeFindDanglingIndexResponse> nodes = response.getNodes();
+                final List<NodeListDanglingIndicesResponse> nodes = response.getNodes();
 
-                for (NodeFindDanglingIndexResponse nodeResponse : nodes) {
-                    for (DanglingIndexInfo each : nodeResponse.getDanglingIndexInfo()) {
+                for (NodeListDanglingIndicesResponse nodeResponse : nodes) {
+                    for (DanglingIndexInfo each : nodeResponse.getDanglingIndices()) {
                         if (each.getIndexUUID().equals(indexUUID)) {
                             listener.onResponse(new Index(each.getIndexName(), each.getIndexUUID()));
                             return;

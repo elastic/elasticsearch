@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.dangling.find;
 
-import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,20 +38,20 @@ public class NodeFindDanglingIndexResponse extends BaseNodeResponse {
      * UUID if the situation is really crazy, though perhaps this is more likely
      * when collating responses from different nodes.
      */
-    private final List<DanglingIndexInfo> danglingIndexInfo;
+    private final List<IndexMetaData> danglingIndexInfo;
 
-    public List<DanglingIndexInfo> getDanglingIndexInfo() {
+    public List<IndexMetaData> getDanglingIndexInfo() {
         return this.danglingIndexInfo;
     }
 
-    public NodeFindDanglingIndexResponse(DiscoveryNode node, List<DanglingIndexInfo> danglingIndexInfo) {
+    public NodeFindDanglingIndexResponse(DiscoveryNode node, List<IndexMetaData> danglingIndexInfo) {
         super(node);
         this.danglingIndexInfo = danglingIndexInfo;
     }
 
     protected NodeFindDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
-        this.danglingIndexInfo = in.readList(DanglingIndexInfo::new);
+        this.danglingIndexInfo = in.readList(IndexMetaData::readFrom);
     }
 
     @Override

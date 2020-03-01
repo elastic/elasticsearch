@@ -83,7 +83,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
 
     @Override
     protected NodeListDanglingIndicesRequest newNodeRequest(ListDanglingIndicesRequest request) {
-        return new NodeListDanglingIndicesRequest();
+        return new NodeListDanglingIndicesRequest(request.getIndexUUID());
     }
 
     @Override
@@ -97,13 +97,18 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
 
         final List<DanglingIndexInfo> indexMetaData = new ArrayList<>();
 
+        final String indexFilter = request.getIndexUUID();
+
         for (IndexMetaData each : danglingIndicesState.getDanglingIndices().values()) {
-            DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
-                localNode.getId(),
-                each.getIndex().getName(),
-                each.getIndexUUID(),
-                each.getCreationDate());
-            indexMetaData.add(danglingIndexInfo);
+            if (indexFilter == null || indexFilter.equals(each.getIndexUUID())) {
+                DanglingIndexInfo danglingIndexInfo = new DanglingIndexInfo(
+                    localNode.getId(),
+                    each.getIndex().getName(),
+                    each.getIndexUUID(),
+                    each.getCreationDate()
+                );
+                indexMetaData.add(danglingIndexInfo);
+            }
         }
 
         return new NodeListDanglingIndicesResponse(localNode, indexMetaData);

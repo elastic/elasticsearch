@@ -161,9 +161,6 @@ import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingInde
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataAction;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataRequest;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataResponse;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
@@ -1171,16 +1168,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public void findDanglingIndex(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener) {
             execute(FindDanglingIndexAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<FindDanglingIndexMetaDataResponse> findDanglingIndexMetaData(FindDanglingIndexMetaDataRequest request) {
-            return execute(FindDanglingIndexMetaDataAction.INSTANCE, request);
-        }
-
-        @Override
-        public void findDanglingIndexMetaData(FindDanglingIndexMetaDataRequest request, ActionListener<FindDanglingIndexMetaDataResponse> listener) {
-            execute(FindDanglingIndexMetaDataAction.INSTANCE, request, listener);
         }
 
         @Override

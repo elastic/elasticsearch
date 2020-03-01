@@ -24,10 +24,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataAction;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataRequest;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.FindDanglingIndexMetaDataResponse;
-import org.elasticsearch.action.admin.indices.dangling.find_metadata.NodeFindDanglingIndexMetaDataResponse;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -104,11 +104,11 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
         final String indexUUID = request.getIndexUUID();
 
         this.nodeClient.execute(
-            FindDanglingIndexMetaDataAction.INSTANCE,
-            new FindDanglingIndexMetaDataRequest(indexUUID),
+            FindDanglingIndexAction.INSTANCE,
+            new FindDanglingIndexRequest(indexUUID),
             new ActionListener<>() {
                 @Override
-                public void onResponse(FindDanglingIndexMetaDataResponse response) {
+                public void onResponse(FindDanglingIndexResponse response) {
                     if (response.hasFailures()) {
                         for (FailedNodeException failure : response.failures()) {
                             logger.error("Failed to query " + failure.nodeId(), failure);
@@ -123,8 +123,8 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                     }
 
                     final List<IndexMetaData> metaDataSortedByVersion = new ArrayList<>();
-                    for (NodeFindDanglingIndexMetaDataResponse each : response.getNodes()) {
-                        metaDataSortedByVersion.addAll(each.getDanglingIndexMetaData());
+                    for (NodeFindDanglingIndexResponse each : response.getNodes()) {
+                        metaDataSortedByVersion.addAll(each.getDanglingIndexInfo());
                     }
                     metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetaData::getVersion));
 

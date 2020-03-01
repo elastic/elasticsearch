@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
-final class NewLiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+public final class NewLiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private final KeyedSemaphore<BytesRef> keyedSemaphore = new KeyedSemaphore<>();
 
@@ -474,7 +474,7 @@ final class NewLiveVersionMap implements ReferenceManager.RefreshListener, Accou
         return keyedSemaphore.acquire(uid);
     }
 
-    Releasable tryAcquireLock(BytesRef uid) {
+    public Releasable tryAcquireLock(BytesRef uid) {
         return keyedSemaphore.tryAcquire(uid);
     }
 

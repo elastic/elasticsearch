@@ -133,6 +133,7 @@ public class BatchedShardExecutor implements IndexEventListener {
 
         if (shardState == null) {
             onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+            shardOp.close();
             return;
         }
 
@@ -141,6 +142,7 @@ public class BatchedShardExecutor implements IndexEventListener {
             // to ensure that it does not get lost.
             if (shardState.isClosed() && shardState.removePreIndexed(shardOp)) {
                 onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
+                shardOp.close();
             } else {
                 maybeSchedule(shardState);
             }
@@ -207,13 +209,14 @@ public class BatchedShardExecutor implements IndexEventListener {
                     if (shardOp instanceof PrimaryOp) {
                         PrimaryOp primaryOp = (PrimaryOp) shardOp;
                         Runnable rescheduler = () -> enqueueAndScheduleWrite(primaryOp, false);
-                        Runnable writeScheduler = () -> enqueueAndScheduleWrite(primaryOp, false);
+                        Runnable writeScheduler = () -> enqueueWriteAndFlush(shardState, primaryOp);
                         opCompleted = primaryOpHandler.apply(primaryOp, new Tuple<>(rescheduler, writeScheduler));
                     } else {
                         opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
                     }
                 } catch (Exception e) {
                     onFailure(Stream.of(shardOp.getWriteListener()), e);
+                    shardOp.close();
                 } finally {
                     ++opsExecuted;
                     if (opCompleted) {
@@ -264,19 +267,25 @@ public class BatchedShardExecutor implements IndexEventListener {
                                 if (currentWrite != null) {
                                     try (IndexShard.OperationContext toClose = currentWrite) {
                                         Engine.Result result = currentWrite.writeToTranslog();
-                                        context.markOperationAsWritten(result);
+                                        context.markOperationAsWritten(result.getTranslogLocation());
                                     } catch (Exception e) {
                                         writeSuccess = false;
-                                        onFailure(Stream.of(indexedOp.getFlushListener()), e);
+                                        if (context.hasMoreOperationsToIndex()) {
+                                            onFailure(Stream.of(indexedOp.getWriteListener()), e);
+                                        } else {
+                                            onFailure(Stream.of(indexedOp.getFlushListener()), e);
+                                        }
                                         indexedOp.close();
+                                        break;
                                     }
+                                } else {
+                                    context.markOperationAsWritten(null);
                                 }
                             }
                             if (writeSuccess) {
                                 if (context.hasMoreOperationsToIndex()) {
                                     enqueueAndScheduleWrite(indexedOp, false);
                                 } else {
-                                    indexedOp.close();
                                     opsToSync.add(indexedOp);
                                 }
                             }
@@ -325,6 +334,8 @@ public class BatchedShardExecutor implements IndexEventListener {
                             immediateRefresh = true;
                             writtenOp.getFlushListener().setForcedRefresh(true);
                         }
+
+                        writtenOp.close();
                     }
 
                     if (opsToHandle == 0) {

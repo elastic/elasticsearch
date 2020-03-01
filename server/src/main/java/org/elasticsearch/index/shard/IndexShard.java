@@ -369,6 +369,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
     }
 
+    public boolean canAcquireVersionLock(String id) {
+        Engine engine = getEngine();
+        if (engine instanceof InternalEngine) {
+            InternalEngine internalEngine = (InternalEngine) engine;
+            Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            Releasable releasable = internalEngine.versionMap.tryAcquireLock(uidTerm.bytes());
+            if (releasable != null) {
+                releasable.close();
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
     public ThreadPool getThreadPool() {
         return this.threadPool;
     }

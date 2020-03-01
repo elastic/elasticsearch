@@ -96,6 +96,11 @@ public class NewShardIndexer {
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
+                if (context.getPrimary().canAcquireVersionLock(updateRequest.id()) == false) {
+                    context.setRequestToIndex(updateRequest);
+                    handleVersionAcquireFailure(context, rescheduler, writeScheduler, threadPool);
+                    return false;
+                }
                 updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
@@ -228,7 +233,7 @@ public class NewShardIndexer {
         if (context.hasPendingWrites()) {
             writeScheduler.run();
         } else {
-            threadPool.schedule(rescheduler, TimeValue.timeValueMillis(20), ThreadPool.Names.GENERIC);
+            threadPool.schedule(rescheduler, TimeValue.timeValueMillis(10), ThreadPool.Names.GENERIC);
         }
     }
 

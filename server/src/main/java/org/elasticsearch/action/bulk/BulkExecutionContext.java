@@ -299,8 +299,10 @@ class BulkExecutionContext implements Releasable {
         return currentIndexIndex != currentWriteIndex;
     }
 
-    public void markOperationAsWritten(Engine.Result result) {
-        locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+    public void markOperationAsWritten(Translog.Location location) {
+        if (location != null) {
+            locationToSync = TransportWriteAction.locationToSync(locationToSync, location);
+        }
         advanceWritten();
     }
 

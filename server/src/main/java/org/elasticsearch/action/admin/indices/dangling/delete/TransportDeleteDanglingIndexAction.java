@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.dangling.delete;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -158,7 +160,21 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+        final MetaData metaData = currentState.getMetaData();
+
+        for (ObjectObjectCursor<String, IndexMetaData> each : metaData.indices()) {
+            if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
+                throw new IllegalArgumentException(
+                    "Refusing to delete dangling index "
+                        + indexToDelete
+                        + " as an index with UUID ["
+                        + indexToDelete.getUUID()
+                        + "] already exists in the cluster state"
+                );
+            }
+        }
+
+        MetaData.Builder metaDataBuilder = MetaData.builder(metaData);
 
         final IndexGraveyard newGraveyard = IndexGraveyard.builder(metaDataBuilder.indexGraveyard())
             .addTombstone(indexToDelete)

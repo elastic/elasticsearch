@@ -1,39 +1,24 @@
 ---
 "Insert more docs to joda index":
+  - skip:
+      features: "warnings"
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "joda"}}'
-          - '{"datetime": "2020-01-01"}'
+          - '{"datetime": "2019-01-01T00:00+01:00"}'
 
   - do:
+      warnings:
+        - "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
       search:
         rest_total_hits_as_int: true
-        index: java
+        index: joda
         body:
+          sort: datetime
           query:
             range:
               datetime:
-                gte: "2019-12-01"
-                lte: "2020-01-02"
-
----
-"Insert more docs to java index":
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "java"}}'
-          - '{"datetime": "2020-01-01"}'
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: java
-        body:
-          query:
-            range:
-              datetime:
-                gte: "2019-12-01"
-                lte: "2020-01-02"
+                gte: "2019-01-01T00:00+01:00"
+                lte: "2019-01-01T00:00+01:00"

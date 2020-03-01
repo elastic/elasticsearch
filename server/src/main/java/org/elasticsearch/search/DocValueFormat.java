@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
@@ -196,18 +199,13 @@ public interface DocValueFormat extends NamedWriteable {
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();
             this.resolution = resolution;
-        }
+            logger.info("fffin0 " + formatter.pattern() + " " + (formatter instanceof JodaDateFormatter ));
 
+        }
+        private final Logger logger = LogManager.getLogger(getClass());
         public DateTime(StreamInput in) throws IOException {
-            String input = in.readString();
-            //todo pg need to test this..
-            if (Joda.isJodaPattern(in.getVersion(), input)) {
-                this.formatter = Joda.forPattern(input);
-            }else{
-                this.formatter = DateFormatter.forPattern(input);
-            }
-            System.out.println("he "+input);
-            this.parser = formatter.toDateMathParser();
+            String datePattern = in.readString();
+
             String zoneId = in.readString();
             if (in.getVersion().before(Version.V_7_0_0)) {
                 this.timeZone = DateUtils.of(zoneId);
@@ -216,6 +214,26 @@ public interface DocValueFormat extends NamedWriteable {
                 this.timeZone = ZoneId.of(zoneId);
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                //if an index was created in 6.8 and then upgraded to 7.7 it will have a flag indicating this is joda
+                boolean isJoda = in.readBoolean();
+                this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
+                logger.info("fffin1 " + datePattern + " " + isJoda + " " + in.getVersion());
+            } else if (Joda.isJodaPattern(in.getVersion(), datePattern)) {
+                //when received a stream fom 6.0-6.latest it can be java if starts with 8 otherwise joda
+                this.formatter = Joda.forPattern(datePattern);
+                logger.info("fffin2" +datePattern+" "+ Joda.isJodaPattern(in.getVersion(), datePattern)+" " +in.getVersion());
+
+            }else{
+                // not sure if this is joda or java for versions earlier then 7.7.
+                //todo consider throwing exception.. if version is earlier then 6.
+                this.formatter = DateFormatter.forPattern(datePattern);
+                logger.info("fffin3" +datePattern+" "+ Joda.isJodaPattern(in.getVersion(), datePattern)+" " +in.getVersion());
+
+            }
+
+            this.parser = formatter.toDateMathParser();
+
         }
 
         @Override
@@ -231,6 +249,10 @@ public interface DocValueFormat extends NamedWriteable {
             } else {
                 out.writeString(timeZone.getId());
                 out.writeVInt(resolution.ordinal());
+            }
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                //in order not to loose information if the formatter is a joda we send a flag
+                out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
             }
         }
 

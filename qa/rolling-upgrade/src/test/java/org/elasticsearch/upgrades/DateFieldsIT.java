@@ -20,19 +20,14 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class JodaIT extends AbstractRollingTestCase {
-    /**
-     * Create a mapping that explicitly disables the _all field (possible in 6x, see #37429)
-     * and check that it can be upgraded to 7x.
-     */
-    public void testAllFieldDisable6x() throws Exception {
-//        assumeTrue("_all", UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
+public class DateFieldsIT extends AbstractRollingTestCase {
+
+    public void testDocValueAndDateFields() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Request createTestIndex = new Request("PUT", "joda_it");
@@ -54,8 +49,6 @@ public class JodaIT extends AbstractRollingTestCase {
                     "}"
                 );
                 Version minNodeVersion = getMinVersion();
-                System.out.println(UPGRADE_FROM_VERSION);
-                System.out.println(minNodeVersion);
 
                 if (minNodeVersion.equals(Version.V_6_8_0)) {
                     createTestIndex.setOptions(
@@ -123,16 +116,8 @@ public class JodaIT extends AbstractRollingTestCase {
                         "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
                         "Use new java.time date format specifiers."));
 
-                 searchResp = client().performRequest(search);
+                searchResp = client().performRequest(search);
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
-                break;
-            default:
-//                final Request request = new Request("GET", "all-index");
-//                Response response = client().performRequest(request);
-//                assertEquals(200, response.getStatusLine().getStatusCode());
-//                Object enabled = XContentMapValues.extractValue("all-index.mappings._all.enabled", entityAsMap(response));
-//                assertNotNull(enabled);
-//                assertEquals(false, enabled);
                 break;
         }
     }

@@ -23,11 +23,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class DateFieldsIT extends AbstractRollingTestCase {
+
 
     private static final String V_6_8_1_PLUS_WARNING = "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
         "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'." +
@@ -40,15 +42,25 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     private static final String V_6_8_0_WARNING = "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
         "Prefix your date format with '8' to use the new specifier.";
 
+    @BeforeClass
+    public static void init(){
+        assumeTrue("upgrading from before 7.7 will fail parsing joda formats",
+            UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
+    }
     public void testJodaBackedDocValueAndDateFields() throws Exception {
+
+
         switch (CLUSTER_TYPE) {
             case OLD:
-                Request createTestIndex = indexWithDateField("joda_it", "YYYY-MM-dd'T'HH:mm:SSZZ");
+                Request createTestIndex = indexWithDateField("joda_it", "YYYY-MM-dd'T'HH:mm:ssZZ");
 
-                if (getMinVersion().equals(Version.V_6_8_0)) {
+                Version minVersion = getMinVersion();
+                if (minVersion.equals(Version.V_6_8_0)) {
                     createTestIndex.setOptions(expectWarnings(V_6_8_0_WARNING));
-                } else {
+                } else if (minVersion.onOrAfter(Version.V_6_8_1) && minVersion.before(Version.V_7_0_0)) {
                     createTestIndex.setOptions(expectWarnings(V_6_8_1_PLUS_WARNING));
+                } else {
+                    createTestIndex.setOptions(expectWarnings(V_7_0_0_PLUS_WARNING));
                 }
 
                 Response resp = client().performRequest(createTestIndex);
@@ -72,8 +84,9 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 break;
             case UPGRADED:
                 postNewDoc("joda_it/_doc");
-
                 search = dateRangeSearch("joda_it/_search");
+                //somehow  this can at times not have a warning..
+
                 search.setOptions(expectWarnings(V_7_0_0_PLUS_WARNING));
                 searchResp = client().performRequest(search);
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
@@ -84,7 +97,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     public void testJavaBackedDocValueAndDateFields() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD:
-                Request createTestIndex = indexWithDateField("java_it", "8yyyy-MM-dd'T'HH:mm:SSXXX");
+                Request createTestIndex = indexWithDateField("java_it", "8yyyy-MM-dd'T'HH:mm:ssXXX");
                 Response resp = client().performRequest(createTestIndex);
                 assertEquals(200, resp.getStatusLine().getStatusCode());
 
@@ -128,20 +141,17 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
     private Request indexWithDateField(String indexName, String format) {
         Request createTestIndex = new Request("PUT", indexName);
-        createTestIndex.addParameter("include_type_name", "true");
         createTestIndex.setJsonEntity("{\n" +
             "  \"settings\": {\n" +
             "    \"index.number_of_shards\": 3\n" +
             "  },\n" +
             "  \"mappings\": {\n" +
-            "    \"_doc\": {\n" +
             "      \"properties\": {\n" +
             "        \"datetime\": {\n" +
             "          \"type\": \"date\",\n" +
             "          \"format\": \"" + format + "\"\n" +
             "        }\n" +
             "      }\n" +
-            "    }\n" +
             "  }\n" +
             "}"
         );

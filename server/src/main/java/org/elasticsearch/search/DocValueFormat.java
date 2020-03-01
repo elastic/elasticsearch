@@ -215,18 +215,18 @@ public interface DocValueFormat extends NamedWriteable {
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
             if (in.getVersion().onOrAfter(Version.CURRENT)) {
-                //if an index was created in 6.8 and then upgraded to 7.7 it will have a flag indicating this is joda
+                //if stream is from 7.7 it will have a flag indicating if format is joda
                 boolean isJoda = in.readBoolean();
                 this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
                 logger.info("fffin1 " + datePattern + " " + isJoda + " " + in.getVersion());
             } else if (Joda.isJodaPattern(in.getVersion(), datePattern)) {
-                //when received a stream fom 6.0-6.latest it can be java if starts with 8 otherwise joda
+                //when received a stream from 6.0-6.latest it can be java if starts with 8 otherwise joda
                 this.formatter = Joda.forPattern(datePattern);
                 logger.info("fffin2" +datePattern+" "+ Joda.isJodaPattern(in.getVersion(), datePattern)+" " +in.getVersion());
 
             }else{
-                // not sure if this is joda or java for versions earlier then 7.7.
-                //todo consider throwing exception.. if version is earlier then 6.
+                // unknown if this is joda or java for versions earlier then [7.0-7.7).
+                //todo consider throwing exception.. .
                 this.formatter = DateFormatter.forPattern(datePattern);
                 logger.info("fffin3" +datePattern+" "+ Joda.isJodaPattern(in.getVersion(), datePattern)+" " +in.getVersion());
 

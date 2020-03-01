@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 
 import java.text.ParsePosition;
@@ -157,6 +159,7 @@ class JavaDateFormatter implements DateFormatter {
         return printer;
     }
 
+    private final Logger logger = LogManager.getLogger(getClass());
     @Override
     public TemporalAccessor parse(String input) {
         if (Strings.isNullOrEmpty(input)) {
@@ -166,6 +169,7 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input);
         } catch (DateTimeParseException e) {
+logger.error("heerror ",e);
             throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
         }
     }

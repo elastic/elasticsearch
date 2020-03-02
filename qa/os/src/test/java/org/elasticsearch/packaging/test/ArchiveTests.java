@@ -126,7 +126,6 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-
     public void test50StartAndStop() throws Exception {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));

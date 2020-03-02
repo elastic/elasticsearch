@@ -160,7 +160,6 @@ public class WindowsServiceTests extends PackagingTestCase {
         }
     }
 
-
     public void test20CustomizeServiceId() {
         String serviceId = "my-es-service";
         String displayName = DEFAULT_DISPLAY_NAME.replace(DEFAULT_ID, serviceId);

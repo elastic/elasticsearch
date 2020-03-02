@@ -41,14 +41,14 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     @Override
     protected SwapAliasesAndDeleteSourceIndexStep copyInstance(SwapAliasesAndDeleteSourceIndexStep instance) {
         return new SwapAliasesAndDeleteSourceIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getRestoredIndexPrefix());
+            instance.getTargetIndexPrefix());
     }
 
     @Override
     public SwapAliasesAndDeleteSourceIndexStep mutateInstance(SwapAliasesAndDeleteSourceIndexStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String restoredIndexPrefix = instance.getRestoredIndexPrefix();
+        String restoredIndexPrefix = instance.getTargetIndexPrefix();
         switch (between(0, 2)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));

@@ -21,18 +21,18 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Following a restore from snapshot operation this swaps all the aliases from the source index to the restored index and delete the
- * source index.
+ * This step swaps all the aliases from the source index to the restored index and deletes the source index. This is useful in scenarios
+ * following a restore from snapshot operation where the restored index will take the place of the source index in the ILM lifecycle.
  */
 public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
-    public static final String NAME = "swap-aliases-to-restored";
+    public static final String NAME = "swap-aliases";
     private static final Logger logger = LogManager.getLogger(SwapAliasesAndDeleteSourceIndexStep.class);
 
-    private final String restoredIndexPrefix;
+    private final String targetIndexPrefix;
 
-    public SwapAliasesAndDeleteSourceIndexStep(StepKey key, StepKey nextStepKey, Client client, String restoredIndexPrefix) {
+    public SwapAliasesAndDeleteSourceIndexStep(StepKey key, StepKey nextStepKey, Client client, String targetIndexPrefix) {
         super(key, nextStepKey, client);
-        this.restoredIndexPrefix = restoredIndexPrefix;
+        this.targetIndexPrefix = targetIndexPrefix;
     }
 
     @Override
@@ -40,27 +40,27 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         return true;
     }
 
-    public String getRestoredIndexPrefix() {
-        return restoredIndexPrefix;
+    public String getTargetIndexPrefix() {
+        return targetIndexPrefix;
     }
 
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, ClusterStateObserver observer,
                               Listener listener) {
         String originalIndex = indexMetaData.getIndex().getName();
-        final String restoredIndexName = restoredIndexPrefix + originalIndex;
-        IndexMetaData restoredIndexMetaData = currentClusterState.metaData().index(restoredIndexName);
+        final String targetIndexName = targetIndexPrefix + originalIndex;
+        IndexMetaData targetIndexMetadata = currentClusterState.metaData().index(targetIndexName);
 
-        if (restoredIndexMetaData == null) {
+        if (targetIndexMetadata == null) {
             String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-            String errorMessage = String.format(Locale.ROOT, "restored index [%s] doesn't exist. stopping execution of lifecycle [%s] for" +
-                " index [%s]", restoredIndexName, policyName, originalIndex);
+            String errorMessage = String.format(Locale.ROOT, "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" +
+                " index [%s]", targetIndexName, policyName, originalIndex);
             logger.debug(errorMessage);
             listener.onFailure(new IllegalStateException(errorMessage));
             return;
         }
 
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetaData, getMasterTimeout(currentClusterState), restoredIndexName, listener);
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetaData, getMasterTimeout(currentClusterState), targetIndexName, listener);
     }
 
     /**
@@ -104,7 +104,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), restoredIndexPrefix);
+        return Objects.hash(super.hashCode(), targetIndexPrefix);
     }
 
     @Override
@@ -117,6 +117,6 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         }
         SwapAliasesAndDeleteSourceIndexStep other = (SwapAliasesAndDeleteSourceIndexStep) obj;
         return super.equals(obj) &&
-            Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix);
+            Objects.equals(targetIndexPrefix, other.targetIndexPrefix);
     }
 }

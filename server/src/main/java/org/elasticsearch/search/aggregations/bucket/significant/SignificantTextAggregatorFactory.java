@@ -84,7 +84,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         // and just use the given field name as a placeholder.
         this.fieldType = queryShardContext.fieldMapper(fieldName);
         if (fieldType != null && fieldType.indexAnalyzer() == null) {
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no index analyzer, but SignificantText " +
+            throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
                 "requires an analyzed field");
         }
         this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;

@@ -84,6 +84,10 @@ public abstract class AExpression extends ANode {
      */
     boolean internal = false;
 
+    // This is used to support the transition from a mutable to immutable state.
+    // Currently, the IR tree is built during the user tree "write" phase, so
+    // this is stored on the node to set during the "semantic" phase and then
+    // use during the "write" phase.
     PainlessCast cast = null;
 
     /**

@@ -184,7 +184,7 @@ the same way.
 <<analyzer,`analyzer`>>::
 
     The <<analysis,analyzer>> which should be used for
-    <<mapping-index,`analyzed`>> string fields, both at index-time and at
+    `text` fields, both at index-time and at
     search-time (unless overridden by the
     <<search-analyzer,`search_analyzer`>>). Defaults to the default index
     analyzer, or the <<analysis-standard-analyzer,`standard` analyzer>>.
@@ -215,7 +215,7 @@ the same way.
 <<search-analyzer,`search_analyzer`>>::
 
     The <<analyzer,`analyzer`>> that should be used at search time on
-    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+    <<text,`text`>> fields. Defaults to the `analyzer` setting.
 
 <<search-quote-analyzer,`search_quote_analyzer`>>::
 
@@ -229,8 +229,7 @@ the same way.
 
 <<term-vector,`term_vector`>>::
 
-    Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
-    field. Defaults to `no`. This option configures the root field and shingle
+    Whether term vectors should be stored for the field. Defaults to `no`. This option configures the root field and shingle
     subfields, but not the prefix subfield.
 
 

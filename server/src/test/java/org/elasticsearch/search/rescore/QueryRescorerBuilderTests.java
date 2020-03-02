@@ -144,7 +144,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
             null, null, null, null, null,
-            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, null) {
+            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -188,7 +188,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, null, null,
-                xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, null) {
+                xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);

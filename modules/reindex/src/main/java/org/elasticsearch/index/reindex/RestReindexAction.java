@@ -26,7 +26,6 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -41,7 +40,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_reindex"));
+        return List.of(new Route(POST, "/_reindex"));
     }
 
     @Override

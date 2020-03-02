@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAut
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -52,7 +51,7 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_security/oidc/prepare"));
+        return List.of(new Route(POST, "/_security/oidc/prepare"));
     }
 
     @Override

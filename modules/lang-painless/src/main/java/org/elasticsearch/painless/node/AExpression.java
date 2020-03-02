@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -85,14 +84,6 @@ public abstract class AExpression extends ANode {
     boolean internal = false;
 
     /**
-     * Set to the value of the constant this expression node represents if
-     * and only if the node represents a constant.  If this is not null
-     * this node will be replaced by an {@link EConstant} during casting
-     * if it's not already one.
-     */
-    Object constant = null;
-
-    /**
      * Set to true by {@link ENull} to represent a null value.
      */
     boolean isNull = false;
@@ -134,97 +125,14 @@ public abstract class AExpression extends ANode {
         PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
-            if (constant == null || this instanceof EConstant) {
-                // For the case where a cast is not required and a constant is not set
-                // or the node is already an EConstant no changes are required to the tree.
-
-                return this;
-            } else {
-                // For the case where a cast is not required but a
-                // constant is set, an EConstant replaces this node
-                // with the constant copied from this node.  Note that
-                // for constants output data does not need to be copied
-                // from this node because the output data for the EConstant
-                // will already be the same.
-
-                EConstant econstant = new EConstant(location, constant);
-                econstant.analyze(scriptRoot, scope);
-
-                if (!expected.equals(econstant.actual)) {
-                    throw createError(new IllegalStateException("Illegal tree structure."));
-                }
-
-                return econstant;
-            }
+            return this;
         } else {
-            if (constant == null) {
-                // For the case where a cast is required and a constant is not set.
-                // Modify the tree to add an ECast between this node and its parent.
-                // The output data from this node is copied to the ECast for
-                // further reads done by the parent.
+            ECast ecast = new ECast(location, this, cast);
+            ecast.statement = statement;
+            ecast.actual = expected;
+            ecast.isNull = isNull;
 
-                ECast ecast = new ECast(location, this, cast);
-                ecast.statement = statement;
-                ecast.actual = expected;
-                ecast.isNull = isNull;
-
-                return ecast;
-            } else {
-                if (PainlessLookupUtility.isConstantType(expected)) {
-                    // For the case where a cast is required, a constant is set,
-                    // and the constant can be immediately cast to the expected type.
-                    // An EConstant replaces this node with the constant cast appropriately
-                    // from the constant value defined by this node.  Note that
-                    // for constants output data does not need to be copied
-                    // from this node because the output data for the EConstant
-                    // will already be the same.
-
-                    constant = AnalyzerCaster.constCast(location, constant, cast);
-
-                    EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(scriptRoot, scope);
-
-                    if (!expected.equals(econstant.actual)) {
-                        throw createError(new IllegalStateException("Illegal tree structure."));
-                    }
-
-                    return econstant;
-                } else if (this instanceof EConstant) {
-                    // For the case where a cast is required, a constant is set,
-                    // the constant cannot be immediately cast to the expected type,
-                    // and this node is already an EConstant.  Modify the tree to add
-                    // an ECast between this node and its parent.  Note that
-                    // for constants output data does not need to be copied
-                    // from this node because the output data for the EConstant
-                    // will already be the same.
-
-                    ECast ecast = new ECast(location, this, cast);
-                    ecast.actual = expected;
-
-                    return ecast;
-                } else {
-                    // For the case where a cast is required, a constant is set,
-                    // the constant cannot be immediately cast to the expected type,
-                    // and this node is not an EConstant.  Replace this node with
-                    // an Econstant node copying the constant from this node.
-                    // Modify the tree to add an ECast between the EConstant node
-                    // and its parent.  Note that for constants output data does not
-                    // need to be copied from this node because the output data for
-                    // the EConstant will already be the same.
-
-                    EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(scriptRoot, scope);
-
-                    if (!actual.equals(econstant.actual)) {
-                        throw createError(new IllegalStateException("Illegal tree structure."));
-                    }
-
-                    ECast ecast = new ECast(location, econstant, cast);
-                    ecast.actual = expected;
-
-                    return ecast;
-                }
-            }
+            return ecast;
         }
     }
 }

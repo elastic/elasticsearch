@@ -17,17 +17,15 @@ import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/{index}/_freeze"),
-            new Route(POST, "/{index}/_unfreeze")));
+            new Route(POST, "/{index}/_unfreeze"));
     }
 
     @Override

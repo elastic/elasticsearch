@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,9 +28,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStopDatafeedAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestStopDatafeedAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -43,8 +38,7 @@ public class RestStopDatafeedAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stop",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stop",
-                deprecationLogger)
+                POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stop")
         );
     }
 

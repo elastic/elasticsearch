@@ -213,18 +213,15 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Map<String, Object> metaData) throws IOException {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metaData) {
-            {
-                // even in the case of an unmapped aggregator, validate the
-                // order
-                InternalOrder.validate(order, this);
-            }
-
+        Aggregator agg = new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
             }
         };
+        // even in the case of an unmapped aggregator, validate the order
+        order.validate(agg);
+        return agg;
     }
 
     private static boolean isAggregationSort(BucketOrder order) {

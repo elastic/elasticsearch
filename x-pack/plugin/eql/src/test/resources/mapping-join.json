@@ -1,0 +1,16 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "serial_event_id" : {
+            "type" : "long"
+        },
+        "parent_child" : {
+            "type" : "join",
+            "relations" : {
+                "question" : "answer"
+            }
+        }
+    }
+}

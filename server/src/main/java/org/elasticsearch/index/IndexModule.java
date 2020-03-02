@@ -30,6 +30,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.TriFunction;
@@ -130,7 +131,9 @@ public final class IndexModule {
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
+    private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
+    private final BooleanSupplier allowExpensiveQueries;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -145,13 +148,17 @@ public final class IndexModule {
             final IndexSettings indexSettings,
             final AnalysisRegistry analysisRegistry,
             final EngineFactory engineFactory,
-            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
+            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+            final BooleanSupplier allowExpensiveQueries,
+            final IndexNameExpressionResolver expressionResolver) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
+        this.allowExpensiveQueries = allowExpensiveQueries;
+        this.expressionResolver = expressionResolver;
     }
 
     /**
@@ -396,7 +403,8 @@ public final class IndexModule {
                                         MapperRegistry mapperRegistry,
                                         IndicesFieldDataCache indicesFieldDataCache,
                                         NamedWriteableRegistry namedWriteableRegistry,
-                                        BooleanSupplier idFieldDataEnabled, ValuesSourceRegistry valuesSourceRegistry) throws IOException {
+                                        BooleanSupplier idFieldDataEnabled,
+                                        ValuesSourceRegistry valuesSourceRegistry) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
             indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
@@ -423,7 +431,8 @@ public final class IndexModule {
                 new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
-                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, valuesSourceRegistry);
+                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
+                valuesSourceRegistry);
             success = true;
             return indexService;
         } finally {

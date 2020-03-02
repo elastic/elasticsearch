@@ -37,8 +37,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -47,9 +45,9 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_mapping/field/{fields}"),
-            new Route(GET, "/{index}/_mapping/field/{fields}")));
+            new Route(GET, "/{index}/_mapping/field/{fields}"));
     }
 
     @Override

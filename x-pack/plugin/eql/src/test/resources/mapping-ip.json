@@ -1,0 +1,10 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "ip_addr" : {
+            "type" : "ip"
+        }
+    }
+}

@@ -14,14 +14,13 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_enrich/policy/{name}"));
+        return List.of(new Route(DELETE, "/_enrich/policy/{name}"));
     }
 
     @Override

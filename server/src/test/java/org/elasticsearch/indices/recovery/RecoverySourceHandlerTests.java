@@ -136,7 +136,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         } else {
             // verify that both sending and receiving files can be completed with a single thread
             threadPool = new TestThreadPool(getTestName(),
-                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor"));
+                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor",
+                    false));
             recoveryExecutor = threadPool.executor("recovery_executor");
         }
     }

@@ -46,6 +46,8 @@ include::../execution.asciidoc[]
 ==== Response
 
 The returned +{response}+ contains the newly created trained model.
+The +{response}+ will omit the model definition as a precaution against
+streaming large model definitions back to the client.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

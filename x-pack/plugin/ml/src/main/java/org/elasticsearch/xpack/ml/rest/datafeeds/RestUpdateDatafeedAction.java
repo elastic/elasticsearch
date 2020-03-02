@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,9 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpdateDatafeedAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -37,8 +34,7 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_update",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_update",
-                deprecationLogger)
+                POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_update")
         );
     }
 
@@ -50,8 +46,15 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
+        IndicesOptions indicesOptions = null;
+        if (restRequest.hasParam("expand_wildcards")
+            || restRequest.hasParam("ignore_unavailable")
+            || restRequest.hasParam("allow_no_indices")
+            || restRequest.hasParam("ignore_throttled")) {
+            indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        }
         XContentParser parser = restRequest.contentParser();
-        UpdateDatafeedAction.Request updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, parser);
+        UpdateDatafeedAction.Request updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         updateDatafeedRequest.timeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.timeout()));
         updateDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", updateDatafeedRequest.masterNodeTimeout()));
 

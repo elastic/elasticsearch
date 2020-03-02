@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResp
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -47,7 +46,7 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_security/oidc/logout"));
+        return List.of(new Route(POST, "/_security/oidc/logout"));
     }
 
     @Override

@@ -31,7 +31,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 
@@ -39,7 +38,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, "/_ingest/pipeline/{id}"));
+        return List.of(new Route(PUT, "/_ingest/pipeline/{id}"));
     }
 
     @Override

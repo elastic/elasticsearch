@@ -1,0 +1,17 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "endgame" : {
+            "properties" : {
+                "pid" : {
+                    "type" : "long"
+                },
+                "user_name" : {
+                    "type" : "keyword"
+                }
+            }
+        }
+    }
+}

@@ -27,6 +27,14 @@
   - match: { found : true}
   - match: { _id: "my_watch" }
 
+  - do:
+      cluster.health:
+        index: .watches
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
+        wait_for_events: languid
+        timeout: 1m
+
   # execute watch
   - do:
       watcher.execute_watch:

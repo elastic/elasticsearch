@@ -46,10 +46,13 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, SearchContext searchContext, Aggregator parent,
-                                          boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        return new BoxplotAggregator(name, (ValuesSource.Numeric) valuesSource, config.format(), compression, searchContext, parent,
+        return new BoxplotAggregator(name, valuesSource, config.format(), compression, searchContext, parent,
             pipelineAggregators, metaData);
     }
 }

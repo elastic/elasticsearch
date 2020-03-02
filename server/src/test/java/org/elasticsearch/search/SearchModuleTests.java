@@ -52,7 +52,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -128,7 +128,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
             public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-                return singletonList(new ExplainFetchSubPhase());
+                return singletonList(new ExplainPhase());
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeFetchSubPhase));

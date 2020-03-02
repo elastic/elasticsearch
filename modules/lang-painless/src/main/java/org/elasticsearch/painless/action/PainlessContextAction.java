@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -196,7 +195,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Override
         public List<Route> routes() {
-            return singletonList(new Route(GET, "/_scripts/painless/_context"));
+            return List.of(new Route(GET, "/_scripts/painless/_context"));
         }
 
         @Override

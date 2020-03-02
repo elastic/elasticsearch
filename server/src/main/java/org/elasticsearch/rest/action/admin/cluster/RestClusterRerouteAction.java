@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterRerouteAction extends BaseRestHandler {
@@ -63,7 +62,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_cluster/reroute"));
+        return List.of(new Route(POST, "/_cluster/reroute"));
     }
 
     @Override

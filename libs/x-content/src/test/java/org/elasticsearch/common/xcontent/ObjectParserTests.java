@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectParserTests extends ESTestCase {
@@ -274,6 +275,24 @@ public class ObjectParserTests extends ESTestCase {
         assertNotNull(s.object);
     }
 
+    public void testObjectOrNullWhenNull() throws IOException {
+        StaticTestStruct nullMarker = new StaticTestStruct();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : null}");
+        ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
+        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, nullMarker, new ParseField("object"));
+        StaticTestStruct s = objectParser.parse(parser, null);
+        assertThat(s.object, equalTo(nullMarker));
+    }
+
+    public void testObjectOrNullWhenNonNull() throws IOException {
+        StaticTestStruct nullMarker = new StaticTestStruct();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : {}}");
+        ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
+        objectParser.declareObjectOrNull(StaticTestStruct::setObject, objectParser, nullMarker, new ParseField("object"));
+        StaticTestStruct s = objectParser.parse(parser, null);
+        assertThat(s.object, not(nullValue()));
+    }
+
     public void testEmptyObjectInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object_array\" : [{}]}");
         ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
@@ -320,15 +339,32 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testAllVariants() throws IOException {
+        double expectedNullableDouble;
+        int expectedNullableInt;
+
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         builder.field("int_field", randomBoolean() ? "1" : 1);
+        if (randomBoolean()) {
+            builder.nullField("nullable_int_field");
+            expectedNullableInt = -1;
+        } else {
+            expectedNullableInt = randomInt();
+            builder.field("nullable_int_field", expectedNullableInt);
+        }
         if (randomBoolean()) {
             builder.array("int_array_field", randomBoolean() ? "1" : 1);
         } else {
             builder.field("int_array_field", randomBoolean() ? "1" : 1);
         }
         builder.field("double_field", randomBoolean() ? "2.1" : 2.1d);
+        if (randomBoolean()) {
+            builder.nullField("nullable_double_field");
+            expectedNullableDouble = Double.NaN;
+        } else {
+            expectedNullableDouble = randomDouble();
+            builder.field("nullable_double_field", expectedNullableDouble);
+        }
         if (randomBoolean()) {
             builder.array("double_array_field", randomBoolean() ? "2.1" : 2.1d);
         } else {
@@ -363,9 +399,11 @@ public class ObjectParserTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder));
         class TestStruct {
             int int_field;
+            int nullableIntField;
             long long_field;
             float float_field;
             double double_field;
+            double nullableDoubleField;
             String string_field;
             List<Integer> int_array_field;
             List<Long> long_array_field;
@@ -377,6 +415,9 @@ public class ObjectParserTests extends ESTestCase {
             public void setInt_field(int int_field) {
                 this.int_field = int_field;
             }
+            public void setNullableIntField(int nullableIntField) {
+                this.nullableIntField = nullableIntField;
+            }
             public void setLong_field(long long_field) {
                 this.long_field = long_field;
             }
@@ -385,6 +426,9 @@ public class ObjectParserTests extends ESTestCase {
             }
             public void setDouble_field(double double_field) {
                 this.double_field = double_field;
+            }
+            public void setNullableDoubleField(double nullableDoubleField) {
+                this.nullableDoubleField = nullableDoubleField;
             }
             public void setString_field(String string_field) {
                 this.string_field = string_field;
@@ -415,10 +459,12 @@ public class ObjectParserTests extends ESTestCase {
         }
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
         objectParser.declareInt(TestStruct::setInt_field, new ParseField("int_field"));
+        objectParser.declareIntOrNull(TestStruct::setNullableIntField, -1, new ParseField("nullable_int_field"));
         objectParser.declareIntArray(TestStruct::setInt_array_field, new ParseField("int_array_field"));
         objectParser.declareLong(TestStruct::setLong_field, new ParseField("long_field"));
         objectParser.declareLongArray(TestStruct::setLong_array_field, new ParseField("long_array_field"));
         objectParser.declareDouble(TestStruct::setDouble_field, new ParseField("double_field"));
+        objectParser.declareDoubleOrNull(TestStruct::setNullableDoubleField, Double.NaN, new ParseField("nullable_double_field"));
         objectParser.declareDoubleArray(TestStruct::setDouble_array_field, new ParseField("double_array_field"));
         objectParser.declareFloat(TestStruct::setFloat_field, new ParseField("float_field"));
         objectParser.declareFloatArray(TestStruct::setFloat_array_field, new ParseField("float_array_field"));
@@ -430,6 +476,7 @@ public class ObjectParserTests extends ESTestCase {
         TestStruct parse = objectParser.parse(parser, new TestStruct(), null);
         assertArrayEquals(parse.double_array_field.toArray(), Collections.singletonList(2.1d).toArray());
         assertEquals(parse.double_field, 2.1d, 0.0d);
+        assertThat(parse.nullableDoubleField, equalTo(expectedNullableDouble));
 
         assertArrayEquals(parse.long_array_field.toArray(), Collections.singletonList(4L).toArray());
         assertEquals(parse.long_field, 4L);
@@ -439,6 +486,7 @@ public class ObjectParserTests extends ESTestCase {
 
         assertArrayEquals(parse.int_array_field.toArray(), Collections.singletonList(1).toArray());
         assertEquals(parse.int_field, 1);
+        assertThat(parse.nullableIntField, equalTo(expectedNullableInt));
 
         assertArrayEquals(parse.float_array_field.toArray(), Collections.singletonList(3.1f).toArray());
         assertEquals(parse.float_field, 3.1f, 0.0f);

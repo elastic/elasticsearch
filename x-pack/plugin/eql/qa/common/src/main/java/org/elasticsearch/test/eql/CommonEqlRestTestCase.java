@@ -51,9 +51,9 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
         searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"implicit_join_key_field\": \"\"}",
             400, "implicit join key field is null or empty"));
         searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"size\": 0}",
-            400, "size must be more than 0"));
+            400, "size must be greater than 0"));
         searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"size\": -1}",
-            400, "size must be more than 0"));
+            400, "size must be greater than 0"));
         searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"search_after\": null}",
             400, "search_after doesn't support values of type: VALUE_NULL"));
         searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"search_after\": []}",

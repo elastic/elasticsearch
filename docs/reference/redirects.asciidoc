@@ -91,11 +91,6 @@ See <<transform-resource>>.
 
 See <<transform-resource>>.
 
-[role="exclude",id="configuring-monitoring"]
-=== Configuring monitoring
-
-See <<monitoring-overview>>.
-
 [role="exclude",id="es-monitoring"]
 === Monitoring {es}
 
@@ -365,8 +360,3 @@ See <<slm-api-start>>.
 === Stop {slm} API
 
 See <<slm-api-stop>>.
-
-[role="exclude",id="eql-search"]
-=== EQL search  API
-
-See <<eql>>.

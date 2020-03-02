@@ -15,15 +15,13 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_enrich/policy/{name}"), new Route(GET, "/_enrich/policy")));
+        return List.of(new Route(GET, "/_enrich/policy/{name}"), new Route(GET, "/_enrich/policy"));
     }
 
     @Override

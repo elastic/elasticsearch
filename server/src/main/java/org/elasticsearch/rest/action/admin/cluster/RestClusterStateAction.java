@@ -43,8 +43,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
@@ -62,10 +60,10 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cluster/state"),
             new Route(GET, "/_cluster/state/{metric}"),
-            new Route(GET, "/_cluster/state/{metric}/{indices}")));
+            new Route(GET, "/_cluster/state/{metric}/{indices}"));
     }
 
     @Override

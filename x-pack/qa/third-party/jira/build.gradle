@@ -12,21 +12,16 @@ dependencies {
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
+restResources {
+  restApi {
+    includeXpack 'watcher'
+  }
+}
 
 String jiraUrl = System.getenv('jira_url')
 String jiraUser = System.getenv('jira_user')
 String jiraPassword = System.getenv('jira_password')
 String jiraProject = System.getenv('jira_project')
-
-testClusters.integTest {
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-  setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
-  setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
-}
 
 task cleanJira(type: DefaultTask) {
   doLast {
@@ -46,6 +41,14 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
   testingConventions.enabled = false
 } else {
   testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+    setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
+    setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
     setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
     keystore 'xpack.notification.jira.account.test.secure_url', jiraUrl
     keystore 'xpack.notification.jira.account.test.secure_user', jiraUser

@@ -16,14 +16,13 @@ import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, "/_slm/policy/{name}"));
+        return List.of(new Route(PUT, "/_slm/policy/{name}"));
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -61,6 +62,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final TransformServices transformServices;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
     private volatile int numFailureRetries;
 
@@ -69,13 +71,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         TransformServices transformServices,
         ThreadPool threadPool,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        IndexNameExpressionResolver resolver
     ) {
         super(TransformField.TASK_NAME, Transform.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformServices = transformServices;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.resolver = resolver;
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
@@ -83,7 +87,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     @Override
     public PersistentTasksCustomMetaData.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
                 + params.getId()
@@ -101,8 +105,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {
         String[] indices = resolver.concreteIndexNames(
             clusterState,
             IndicesOptions.lenientExpandOpen(),
@@ -265,9 +268,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<Void> templateCheckListener = ActionListener.wrap(
             aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
             error -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(error);
                 String msg = "Failed to create internal index mappings";
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
+                logger.error(msg, cause);
+                markAsFailed(buildTask, msg + "[" + cause + "]");
             }
         );
 

@@ -512,8 +512,8 @@ setup:
 ---
 "Composite aggregation with unmapped field":
   - skip:
-      version: " - 7.99.99"
-      reason:  starting in 8.0 the composite aggregation handles unmapped fields as keywords
+      version: " - 7.1.99"
+      reason:  starting in 7.2.0 the composite aggregation handles unmapped fields as keywords
 
   - do:
       search:
@@ -786,8 +786,8 @@ setup:
 ---
 "date_histogram with time_zone":
   - skip:
-      version: " - 7.99.99"
-      reason: This will fail against 7.whatever until we backport the fix
+      version: " - 7.6.0"
+      reason: Fixed in 7.6.0
   - do:
       index:
         index:   test

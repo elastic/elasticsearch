@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredi
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -56,8 +58,6 @@ import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.TimeUnit;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -129,7 +129,8 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.dateOfEscapedLiteral;
 import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLiteral;
@@ -700,6 +701,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         SqlTypedParamValue param = param(ctx.PARAM());
         DataType dataType = SqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
+        if (dataType == null) {
+            throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
+        }
         if (param.value == null) {
             // no conversion is required for null values
             return new Literal(source, null, dataType);
@@ -717,6 +721,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
+            if (canConvert(sourceType, dataType) == false) {
+                throw new ParsingException(source, "Cannot cast value [{}] of type [{}] to parameter type [{}]", param.value, sourceType,
+                    dataType);
+            }
             return new Literal(source, converterFor(sourceType, dataType).convert(param.value), dataType);
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);

@@ -114,7 +114,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -427,13 +427,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "checksum", "true"));
+            builder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom(random, "false", "checksum", "true"));
         }
 
-        if (randomBoolean()) {
+        if (random.nextBoolean()) {
             // keep this low so we don't stall tests
             builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
                     RandomNumbers.randomIntBetween(random, 1, 15) + "ms");
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(IndexSettings.ON_HEAP_ID_TERMS_INDEX.getKey(), random.nextBoolean());
         }
 
         return builder;
@@ -873,8 +877,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setIgnoreIdleThreads(false).get().getNodes()
-                .stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
+            final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setThreads(99999).setIgnoreIdleThreads(false)
+                .get().getNodes().stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
             logger.info("{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
                 client().admin().cluster().prepareState().get().getState(),
@@ -1604,7 +1608,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m")
             // by default we never cache below 10k docs in a segment,
             // bypass this limit so that caching gets some testing in
             // integration tests that usually create few documents
@@ -1615,12 +1618,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
-        if (rarely()) {
-            // Sometimes adjust the minimum search thread pool size, causing
-            // QueueResizingEsThreadPoolExecutor to be used instead of a regular
-            // fixed thread pool
-            builder.put("thread_pool.search.min_queue_size", 100);
-        }
         return builder.build();
     }
 
@@ -1796,6 +1793,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
+        mocks.add(MockScriptService.TestPlugin.class);
         return Collections.unmodifiableList(mocks);
     }
 

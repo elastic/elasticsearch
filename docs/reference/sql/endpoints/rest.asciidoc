@@ -371,6 +371,26 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[non_json]
 
+[TIP]
+=================
+A useful and less obvious usage for standard query DSL filtering is to search documents by a specific <<search-routing, routing key>>.
+Because {es-sql} does not support a `routing` parameter, one can specify a <<mapping-routing-field, `terms` filter for the `_routing` field>> instead:
+
+[source,console]
+--------------------------------------------------
+POST /_sql?format=txt
+{
+    "query": "SELECT * FROM library",
+    "filter": {
+        "terms": {
+            "_routing": ["abc"]
+        }
+    }
+}
+--------------------------------------------------
+// TEST[setup:library]
+=================
+
 [[sql-rest-columnar]]
 === Columnar results
 

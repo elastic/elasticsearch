@@ -12,9 +12,9 @@
 # source the default env file
 if [ -f "${path.env}" ]; then
     . "${path.env}"
-else
-  ES_PATH_CONF="${path.conf}"
 fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
 
 REMOVE_DIRS=false
 REMOVE_JVM_OPTIONS_DIRECTORY=false

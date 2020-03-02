@@ -32,8 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -41,9 +39,9 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(PUT, "/{index}/_settings"),
-            new Route(PUT, "/_settings")));
+            new Route(PUT, "/_settings"));
     }
 
     @Override

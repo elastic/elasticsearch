@@ -110,7 +110,7 @@ public abstract class SourceGenerator {
             source.sort("_doc");
             return;
         }
-        for (Sort sortable : container.sort()) {
+        for (Sort sortable : container.sort().values()) {
             SortBuilder<?> sortBuilder = null;
 
             if (sortable instanceof AttributeSort) {

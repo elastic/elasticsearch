@@ -15,7 +15,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
@@ -24,7 +23,7 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, "/{index}/_ccr/follow"));
+        return List.of(new Route(PUT, "/{index}/_ccr/follow"));
     }
 
     @Override

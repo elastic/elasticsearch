@@ -42,10 +42,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.List;
-import java.util.ArrayList;
 
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
@@ -134,7 +134,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             try {
                 final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
                 Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), settings.fuzzyPrefixLength,
-                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions);
+                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions, context);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 disjuncts.add(rethrowUnlessLenient(e));

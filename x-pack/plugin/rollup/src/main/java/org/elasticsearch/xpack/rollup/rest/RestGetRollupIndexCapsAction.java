@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetRollupIndexCapsAction extends BaseRestHandler {
@@ -26,7 +25,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/{index}/_rollup/data"));
+        return List.of(new Route(GET, "/{index}/_rollup/data"));
     }
 
     @Override

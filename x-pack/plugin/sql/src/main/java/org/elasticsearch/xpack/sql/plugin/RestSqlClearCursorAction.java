@@ -18,14 +18,13 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT));
+        return List.of(new Route(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT));
     }
 
     @Override

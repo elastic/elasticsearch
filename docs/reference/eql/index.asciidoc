@@ -30,7 +30,11 @@ Consider using EQL if you:
 === In this section
 
 * <<eql-requirements>>
+* <<eql-search>>
 * <<eql-syntax>>
+* <<eql-limitations>>
 
 include::requirements.asciidoc[]
+include::search.asciidoc[]
 include::syntax.asciidoc[]
+include::limitations.asciidoc[]

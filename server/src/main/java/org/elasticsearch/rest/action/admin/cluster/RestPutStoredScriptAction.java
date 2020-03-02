@@ -30,8 +30,6 @@ import org.elasticsearch.script.StoredScriptSource;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -39,11 +37,11 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_scripts/{id}"),
             new Route(PUT, "/_scripts/{id}"),
             new Route(POST, "/_scripts/{id}/{context}"),
-            new Route(PUT, "/_scripts/{id}/{context}")));
+            new Route(PUT, "/_scripts/{id}/{context}"));
     }
 
     @Override

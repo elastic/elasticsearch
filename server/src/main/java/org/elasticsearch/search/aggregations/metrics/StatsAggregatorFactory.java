@@ -20,15 +20,19 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,12 +50,27 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(StatsAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new MetricAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        ValuesSource valuesSource,
+                                        DocValueFormat formatter,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                    return new StatsAggregator(name, (Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
+                }
+            });
+    }
+
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData)
-            throws IOException {
+                                            Map<String, Object> metaData) throws IOException {
         return new StatsAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 
@@ -62,10 +81,14 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (valuesSource instanceof Numeric == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            StatsAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        return new StatsAggregator(name, (Numeric) valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent,
+            pipelineAggregators, metaData);
     }
 }

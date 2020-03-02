@@ -33,8 +33,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -57,11 +55,11 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_bulk"),
             new Route(PUT, "/_bulk"),
             new Route(POST, "/{index}/_bulk"),
-            new Route(PUT, "/{index}/_bulk")));
+            new Route(PUT, "/{index}/_bulk"));
     }
 
     @Override

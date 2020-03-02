@@ -41,7 +41,6 @@ dependencies {
   runtime 'org.apache.commons:commons-math3:3.2'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked,-processing"
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 compileJava.options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])

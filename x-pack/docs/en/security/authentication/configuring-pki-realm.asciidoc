@@ -3,11 +3,8 @@
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
 the desired network layers (transport or http), and map the Distinguished Names
-(DNs) from the Subject field in the user certificates to roles. You create the mappings in a role mapping file or use the role mappings API.
-
-If you want the same users to also be authenticated using certificates when they connect to {kib}, you must configure the {es} PKI realm to
-<<pki-realm-for-proxied-clients,allow delegation>> and to
-{kibana-ref}/kibana-authentication.html#pki-authentication[enable PKI authentication in {kib}].
+(DNs) from the Subject field in the user certificates to roles. You create the
+mappings in a role mapping file or use the role mappings API.
 
 You can also use a combination of PKI and username/password authentication. For
 example, you can enable SSL/TLS on the transport layer and define a PKI realm to
@@ -46,10 +43,14 @@ configuration does not permit PKI authentication to {kib}.
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the
 `native` or `file` realms, you must include them in the realm chain.
+--
 
-If you want to use something other than the CN of the Subject DN as the
-username, you can specify a regex to extract the desired username. The regex is
-applied on the Subject DN. For example, the regex in the following
+. Optional: If you want to use something other than the CN of the Subject DN as
+the username, you can specify a regex to extract the desired username. The regex
+is applied on the Subject DN.
++
+--
+For example, the regex in the following
 configuration extracts the email address from the Subject DN:
 
 [source, yaml]
@@ -68,6 +69,10 @@ NOTE: If the regex is too restrictive and does not match the Subject DN of the
 client's certificate, then the realm does not authenticate the certificate.
 
 --
+
+. If you want the same users to also be authenticated using certificates when
+they connect to {kib}, you must configure the {es} PKI realm to allow delegation.
+See <<pki-realm-for-proxied-clients>>.
 
 . Restart {es} because realm configuration is not reloaded automatically. If
 you're following through with the next steps, you might wish to hold the
@@ -108,7 +113,7 @@ users' certificates.
 
 To configure the PKI realm with its own truststore, specify the
 `truststore.path` option. The path must be located within the Elasticsearch
-configuration directory (ES_PATH_CONF). For example:
+configuration directory (`ES_PATH_CONF`). For example:
 
 [source, yaml]
 ------------------------------------------------------------
@@ -200,52 +205,75 @@ alternative to role mapping.
 
 --
 
+. If you want the same users to also be authenticated using certificates when
+they connect to {kib},
+{kibana-ref}/kibana-authentication.html#pki-authentication[enable PKI authentication in {kib}].
+
 [[pki-realm-for-proxied-clients]]
 ==== PKI authentication for clients connecting to {kib}
 
 By default, the PKI realm relies on the node's network interface to perform the
 SSL/TLS handshake and extract the client certificate. This behaviour requires
-that that clients connect directly to {es} so that their SSL connection is
-terminated by the {es} node.  If SSL/TLS authenticatication is to be performed
-by {kib}, the PKI realm must be configured to permit delegation.
+that clients connect directly to {es} so that their SSL connection is terminated
+by the {es} node.  If SSL/TLS authentication is to be performed by {kib}, the
+PKI realm must be configured to permit delegation.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},
 {kib} performs the SSL/TLS authentication. {kib} then forwards the client's
-certificate chain, by calling an {es} API, to have them further validated by
+certificate chain (by calling an {es} API) to have them further validated by
 the PKI realms that have been configured for delegation.
 
 To permit authentication delegation for a specific {es} PKI realm, start by
 configuring the realm for the usual case, as detailed in the
-<<pki-realm-for-direct-clients>>
-section. Note that you must explicitly configure a `truststore` (or,
-equivalently `certificate_authorities`) even though it is the same trust
-configuration that you have configured on the network layer.  Afterwards,
-simply toggle the `delegation.enabled` realm setting to `true`.  This realm is
-now allowed to validate delegated PKI authentication (after restarting {es}).
+<<pki-realm-for-direct-clients>> section. Note that you must explicitly
+configure a `truststore` (or, equivalently `certificate_authorities`) even
+though it is the same trust configuration that you have configured on the
+network layer. The `xpack.security.authc.token.enabled` setting must also be
+`true`. Then simply toggle the `delegation.enabled` realm setting to `true`. For example:
 
-NOTE: PKI authentication delegation requires that the
-`xpack.security.authc.token.enabled` setting be `true` and that SSL/TLS be
-configured (without SSL/TLS client authentication).
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      token.enabled: true
+      realms:
+        pki:
+          pki1:
+            order: 1
+            delegation.enabled: true
+            truststore:
+              path: "pki1_truststore.jks"
+------------------------------------------------------------
 
-NOTE: {kib} also needs to be
-{kibana-ref}/kibana-authentication.html#pki-authentication[configured to allow
-PKI certificate authentication].
+After you restart {es}, this realm can validate delegated PKI authentication.
+For more information about these settings, see <<security-settings>>.
+
+[NOTE]
+====
+
+. PKI authentication delegation requires that SSL/TLS is configured (without
+SSL/TLS client authentication). See <<ssl-tls>>.
+. You must also
+{kibana-ref}/kibana-authentication.html#pki-authentication[configure {kib} to allow PKI certificate authentication].
+
+====
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
-connecting directly to {es}. Directly authenticated users, and users that are PKI
+connecting directly to {es}. Directly authenticated users and users that are PKI
 authenticated by delegation to {kib} both follow the same
 <<mapping-roles,role mapping rules>> or
 <<authorization_realms,authorization realms configurations>>.
 
-However, if you use the <<security-role-mapping-apis,role mapping APIs>>,
-you can distinguish between users that are authenticated by delegation and
-users that are authenticated directly. The former have the
-extra fields `pki_delegated_by_user` and `pki_delegated_by_realm` in the user's
-metadata. In the common setup, where authentication is delegated to {kib}, the
-values of these fields are `kibana` and `reserved`, respectively. For example,
-the following role mapping rule will assign the `role_for_pki1_direct` role to
-all users that have been authenticated directly by the `pki1` realm, by
-connecting to {es} instead of going through {kib}:
+If you use the <<security-role-mapping-apis,role mapping APIs>>, however, you
+can distinguish between users that are authenticated by delegation and users
+that are authenticated directly. The former have the extra fields
+`pki_delegated_by_user` and `pki_delegated_by_realm` in the user's metadata. In
+the common setup, where authentication is delegated to {kib}, the values of
+these fields are `kibana` and `reserved`, respectively. For example, the
+following role mapping rule assigns the `role_for_pki1_direct` role to all users
+that have been authenticated directly by the `pki1` realm, by connecting to {es}
+instead of going through {kib}:
 
 [source,console]
 --------------------------------------------------
@@ -268,5 +296,5 @@ PUT /_security/role_mapping/direct_pki_only
 }
 --------------------------------------------------
 
-<1> only when this metadata field is set (it is *not* `null`) the user has been
-authenticated in the delegation scenario.
+<1> If this metadata field is set (that is to say, it is *not* `null`), the user
+has been authenticated in the delegation scenario.

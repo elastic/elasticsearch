@@ -88,7 +88,7 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
-    
+
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class, InPipe.class);
 
     private final Class<T> subclass;
@@ -158,6 +158,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Test {@link Node#replaceChildren} implementation on {@link #subclass}.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53011")
     public void testReplaceChildren() throws Exception {
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);

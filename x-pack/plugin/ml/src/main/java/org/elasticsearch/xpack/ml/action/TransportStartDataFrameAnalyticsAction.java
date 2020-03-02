@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -459,19 +460,24 @@ public class TransportStartDataFrameAnalyticsAction
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) persistentTask.getState();
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
             switch (analyticsState) {
-                case STARTED:
                 case REINDEXING:
                 case ANALYZING:
                     return true;
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
-                // The STARTING case here is expected to be incredibly short-lived, just occurring during the
-                // time period when a job has successfully been assigned to a node but the request to update
+                // The STARTING and STARTED cases here are expected to be incredibly short-lived.
+                //
+                // STARTING just occurring during the time period when a job has successfully
+                // been assigned to a node but the request to update
                 // its task state is still in-flight.  (The long-lived STARTING case when a lazy node needs to
                 // be added to the cluster to accommodate the job was dealt with higher up this method when the
                 // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
+                //
+                // STARTED occurring between the task starting to work and all the necessary indices being
+                // updated or created.
                 case STARTING:
+                case STARTED:
                 case STOPPED:
                     return false;
                 case FAILED:
@@ -510,6 +516,10 @@ public class TransportStartDataFrameAnalyticsAction
         String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
+            // This is OK as indices are created on demand
+            if (clusterState.metaData().hasIndex(index) == false) {
+                continue;
+            }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
                 unavailableIndices.add(index);
@@ -572,7 +582,10 @@ public class TransportStartDataFrameAnalyticsAction
             String id = params.getId();
 
             List<String> unavailableIndices =
-                verifyIndicesPrimaryShardsAreActive(clusterState, resolver, AnomalyDetectorsIndex.configIndexName());
+                verifyIndicesPrimaryShardsAreActive(clusterState,
+                    resolver,
+                    AnomalyDetectorsIndex.configIndexName(),
+                    MlStatsIndex.indexPattern());
             if (unavailableIndices.size() != 0) {
                 String reason = "Not opening data frame analytics job [" + id +
                     "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";

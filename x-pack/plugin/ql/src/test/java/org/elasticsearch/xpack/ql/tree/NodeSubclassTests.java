@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.tree.NodeTests.ChildrenAreAProperty;
@@ -56,6 +58,7 @@ import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.mockito.Mockito.mock;
@@ -85,6 +88,8 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
+    
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class, InPipe.class);
 
     private final Class<T> subclass;
 
@@ -563,7 +568,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     protected boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
-        return false;
+        return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
     private List<?> makeListOfSameSizeOtherThan(Type listType, List<?> original) throws Exception {

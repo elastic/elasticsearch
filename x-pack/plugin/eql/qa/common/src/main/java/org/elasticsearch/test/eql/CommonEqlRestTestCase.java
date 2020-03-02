@@ -36,31 +36,31 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
     }
 
     public static final String defaultValidationIndexName = "eql_search_validation_test";
-    private static final String validRule = "process where user = 'SYSTEM'";
+    private static final String validQuery = "process where user = 'SYSTEM'";
 
     public static final ArrayList<SearchTestConfiguration> searchValidationTests;
     static {
         searchValidationTests = new ArrayList<>();
         searchValidationTests.add(new SearchTestConfiguration(null, 400, "request body or source parameter is required"));
-        searchValidationTests.add(new SearchTestConfiguration("{}", 400, "rule is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"\"}", 400, "rule is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"timestamp_field\": \"\"}",
+        searchValidationTests.add(new SearchTestConfiguration("{}", 400, "query is null or empty"));
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"\"}", 400, "query is null or empty"));
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}",
             400, "timestamp field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"event_type_field\": \"\"}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"event_type_field\": \"\"}",
             400, "event type field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"implicit_join_key_field\": \"\"}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"implicit_join_key_field\": \"\"}",
             400, "implicit join key field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"size\": 0}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"size\": 0}",
             400, "size must be greater than 0"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"size\": -1}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"size\": -1}",
             400, "size must be greater than 0"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"search_after\": null}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"search_after\": null}",
             400, "search_after doesn't support values of type: VALUE_NULL"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"search_after\": []}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"search_after\": []}",
             400, "must contains at least one value"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"query\": null}",
-            400, "query doesn't support values of type: VALUE_NULL"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"query\": {}}",
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"filter\": null}",
+            400, "filter doesn't support values of type: VALUE_NULL"));
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"filter\": {}}",
             400, "query malformed, empty clause found"));
     }
 

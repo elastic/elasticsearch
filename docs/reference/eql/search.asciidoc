@@ -27,7 +27,7 @@ PUT sec_logs/_bulk?refresh
 You can now use the EQL search API to search this index using an EQL query.
 
 The following request searches the `sec_logs` index using the EQL query
-specified in the `rule` parameter. The EQL query matches events with an
+specified in the `query` parameter. The EQL query matches events with an
 `event.category` of `process` that have a `process.name` of `cmd.exe`.
 
 [source,console]
@@ -35,7 +35,7 @@ specified in the `rule` parameter. The EQL query matches events with an
 GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
-  "rule": """
+  "query": """
     process where process.name == "cmd.exe"
   """
 }

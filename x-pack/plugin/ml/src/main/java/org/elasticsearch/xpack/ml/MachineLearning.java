@@ -903,6 +903,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     }
 
     @Override
+    public List<SearchExtSpec<?>> getSearchExts() {
+        return emptyList();
+    }
+
+    @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return UnaryOperator.identity();
     }

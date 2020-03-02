@@ -141,7 +141,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         return new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
-    // todo: this can be removed for 8.0 after backport
     public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
         if (node.isDataNode() == false) {
             if (explain != null) {

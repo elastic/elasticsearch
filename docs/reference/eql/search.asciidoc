@@ -36,6 +36,7 @@ specified in the `query` parameter. The EQL query matches events with an
 GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
+  "timestamp_field": "@timestamp",
   "query": """
     process where process.name == "cmd.exe"
   """
@@ -61,7 +62,7 @@ The API returns the following response containing the matching event:
       {
         "_index": "sec_logs",
         "_id": "1",
-        "_score": 0.9400072,
+        "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:06:07.000Z",
           "agent": {
@@ -74,7 +75,8 @@ The API returns the following response containing the matching event:
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        }
+        },
+        "sort" : [1607339167000]
       }
     ]
   }
@@ -98,6 +100,7 @@ field.
 GET sec_logs/_eql/search
 {
   "event_type_field": "file.type",
+  "timestamp_field": "@timestamp",
   "query": """
     file where agent.id == "8a4f500d"
   """
@@ -145,6 +148,7 @@ filtered documents.
 GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
+  "timestamp_field": "@timestamp",
   "filter": {
     "range" : {
       "file.size" : {

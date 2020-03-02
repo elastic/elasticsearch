@@ -107,7 +107,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
             copyMetadataKey, ClusterHealthStatus.GREEN, RESTORED_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
-            RESTORED_INDEX_PREFIX, nextStepKey.getName());
+            RESTORED_INDEX_PREFIX, nextStepKey != null ? nextStepKey.getName() : "null");
         CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, swapAliasesKey, RESTORED_INDEX_PREFIX,
             LifecycleSettings.LIFECYCLE_NAME);
         // sending this step to null as the restored index (which will after this step essentially be the source index) was sent to the next

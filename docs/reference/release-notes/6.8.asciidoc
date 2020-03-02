@@ -5,10 +5,6 @@
 [[bug-6.8.7]]
 === Bug fixes
 
-Machine Learning::
-* Include out-of-order as well as in-order terms in categorization reverse
-searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
-
 Authentication::
 * Preserve ApiKey credentials for async verification {pull}51244[#51244]
 
@@ -23,6 +19,10 @@ Features/Java Low Level REST Client::
 
 Infra/Core::
 * Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
+
+Machine Learning::
+* Include out-of-order as well as in-order terms in categorization reverse
+searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
 
 SQL::
 * Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])

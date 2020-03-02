@@ -81,7 +81,9 @@ See  <<role-mapping-resources>>.
 
 ==== Role Templates
 
-NOTE: Role templates require the relevant scripting feature to be enabled, otherwise the creation of a role mapping with role templates will fail. See <<allowed-script-types-setting>>.
+NOTE: Role templates require the relevant scripting feature to be enabled,
+otherwise the creation of a role mapping with role templates will fail.
+See <<allowed-script-types-setting>>.
 
 The most common use for role mappings is to create a mapping from a known value
 on the user to a fixed role name.
@@ -234,6 +236,38 @@ POST /_security/role_mapping/mapping5
     group names into a valid JSON array.
 <2> Because the template produces a JSON array, the format must be
     set to `json`.
+
+In addition to inline script, we can also use stored script for the
+`template` field. Above role mapping can also be created with the follows:
+
+[source,console]
+------------------------------------------------------------
+POST /_scripts/derive-roles
+{
+  "script": {
+      "lang": "mustache",
+      "source" : "{{#tojson}}groups{{/tojson}}"
+  }
+}
+------------------------------------------------------------
+
+[source,console]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping5
+{
+  "role_templates": [
+    {
+      "template": { "id": "derive-roles" },
+      "format" : "json"
+    }
+  ],
+  "rules": {
+    "field" : { "realm.name" : "saml1" }
+  },
+  "enabled": true
+}
+------------------------------------------------------------
+// TEST[continued]
 
 The following example matches users within a specific LDAP sub-tree:
 

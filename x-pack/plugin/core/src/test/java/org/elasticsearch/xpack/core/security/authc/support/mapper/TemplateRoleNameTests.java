@@ -193,7 +193,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[inline]"));
     }
 
-    public void testValidateWillFailawhenStoredScriptIsNotEnabled() {
+    public void testValidateWillFailWhenStoredScriptIsNotEnabled() {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
@@ -214,5 +214,23 @@ public class TemplateRoleNameTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new TemplateRoleName(storedScript, Format.STRING).validate(scriptService));
         assertThat(e.getMessage(), containsString("[stored]"));
+    }
+
+    public void testValidateWillFailWhenStoredScriptIsNotFound() {
+        final ScriptService scriptService = new ScriptService(Settings.EMPTY,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+        final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final MetaData metaData = mock(MetaData.class);
+        final ScriptMetaData scriptMetaData = new ScriptMetaData.Builder(null).build();
+        when(clusterChangedEvent.state()).thenReturn(clusterState);
+        when(clusterState.metaData()).thenReturn(metaData);
+        when(metaData.custom(ScriptMetaData.TYPE)).thenReturn(scriptMetaData);
+        scriptService.applyClusterState(clusterChangedEvent);
+
+        final BytesReference storedScript = new BytesArray("{ \"id\":\"foo\" }");
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new TemplateRoleName(storedScript, Format.STRING).validate(scriptService));
+        assertThat(e.getMessage(), containsString("unable to find script"));
     }
 }

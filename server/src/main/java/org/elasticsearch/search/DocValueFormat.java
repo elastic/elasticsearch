@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -199,10 +197,8 @@ public interface DocValueFormat extends NamedWriteable {
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();
             this.resolution = resolution;
-            logger.info("fffin0 " + formatter.pattern() + " " + (formatter instanceof JodaDateFormatter ));
 
         }
-        private final Logger logger = LogManager.getLogger(getClass());
         public DateTime(StreamInput in) throws IOException {
             String datePattern = in.readString();
 
@@ -218,18 +214,13 @@ public interface DocValueFormat extends NamedWriteable {
                 //if stream is from 7.7 it will have a flag indicating if format is joda
                 boolean isJoda = in.readBoolean();
                 this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
-                logger.info("fffin1 " + datePattern + " " + isJoda + " " + in.getVersion());
             } else if (Joda.isJodaPattern(in.getVersion(), datePattern)) {
                 //when received a stream from 6.0-6.latest it can be java if starts with 8 otherwise joda
                 this.formatter = Joda.forPattern(datePattern);
-                logger.info("fffin2" +datePattern+" "+ Joda.isJodaPattern(in.getVersion(), datePattern)+" " +in.getVersion());
-
             }else{
                 // unknown if this is joda or java for versions earlier then [7.0-7.7).
                 //todo consider throwing exception.. .
                 this.formatter = DateFormatter.forPattern(datePattern);
-                logger.info("fffin3" +datePattern+" "+ Joda.isJodaPattern(in.getVersion(), datePattern)+" " +in.getVersion());
-
             }
 
             this.parser = formatter.toDateMathParser();

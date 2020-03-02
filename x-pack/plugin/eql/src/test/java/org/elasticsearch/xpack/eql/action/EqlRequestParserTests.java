@@ -31,7 +31,7 @@ public class EqlRequestParserTests extends ESTestCase {
     }
 
     public void testSearchRequestParser() throws IOException {
-        assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
+        assertParsingErrorMessage("{\"filter\" : 123}", "filter doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"timestamp_field\" : 123}", "timestamp_field doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
@@ -43,32 +43,32 @@ public class EqlRequestParserTests extends ESTestCase {
         assertParsingErrorMessage("{\"search_after\" : 123}", "search_after doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"rule\" : 123}", "rule doesn't support values of type: VALUE_NUMBER",
+        assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
 
-        assertParsingErrorMessage("{\"rule\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
+        assertParsingErrorMessage("{\"query\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
             EqlSearchRequest::fromXContent);
 
-        EqlSearchRequest request = generateRequest("endgame-*", "{\"query\" : {\"match\" : {\"foo\":\"bar\"}}, "
+        EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_type_field\" : \"etf\","
             + "\"implicit_join_key_field\" : \"imjf\","
             + "\"search_after\" : [ 12345678, \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
             + "\"size\" : \"101\","
-            + "\"rule\" : \"file where user != 'SYSTEM' by file_path\""
+            + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
             + "}", EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
-        assertTrue(request.query() instanceof MatchQueryBuilder);
-        MatchQueryBuilder query = (MatchQueryBuilder)request.query();
-        assertEquals("foo", query.fieldName());
-        assertEquals("bar", query.value());
+        assertTrue(request.filter() instanceof MatchQueryBuilder);
+        MatchQueryBuilder filter = (MatchQueryBuilder)request.filter();
+        assertEquals("foo", filter.fieldName());
+        assertEquals("bar", filter.value());
         assertEquals("tsf", request.timestampField());
         assertEquals("etf", request.eventTypeField());
         assertEquals("imjf", request.implicitJoinKeyField());
         assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
         assertEquals(101, request.fetchSize());
-        assertEquals("file where user != 'SYSTEM' by file_path", request.rule());
+        assertEquals("file where user != 'SYSTEM' by file_path", request.query());
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)

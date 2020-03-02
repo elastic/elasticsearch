@@ -106,12 +106,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY,
-            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get));
+            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get, System::nanoTime));
     }
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))) {
+        if (SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))
+                && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
         }
         return Optional.empty();

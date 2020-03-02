@@ -14,6 +14,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.TimedCounter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,11 +46,15 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),
             randomCounter(), randomCounter(),
-            randomCounter(), randomCounter(),
-            randomCounter());
+            randomCounter(), randomTimedCounter(),
+            randomTimedCounter());
     }
 
     private Counter randomCounter() {
         return new Counter(randomLong(), randomLong(), randomLong(), randomLong());
+    }
+
+    private TimedCounter randomTimedCounter() {
+        return new TimedCounter(randomLong(), randomLong(), randomLong(), randomLong(), randomLong());
     }
 }

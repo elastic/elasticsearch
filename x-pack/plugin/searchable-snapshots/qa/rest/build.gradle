@@ -16,3 +16,10 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
 }
+
+restResources {
+  restApi {
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
+    includeXpack 'searchable_snapshots'
+  }
+}

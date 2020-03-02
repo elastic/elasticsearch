@@ -30,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.TimedCounter;
 import org.elasticsearch.xpack.searchablesnapshots.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastByNodeAction<SearchableSnapshotsStatsRequest,
@@ -93,7 +95,9 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
             if (indexMetaData != null) {
                 Settings indexSettings = indexMetaData.getSettings();
                 if (INDEX_STORE_TYPE_SETTING.get(indexSettings).equals(SNAPSHOT_DIRECTORY_FACTORY_KEY)) {
-                    searchableSnapshotIndices.add(concreteIndex);
+                    if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings)) {
+                        searchableSnapshotIndices.add(concreteIndex);
+                    }
                 }
             }
         }
@@ -122,12 +126,16 @@ public class TransportSearchableSnapshotsStatsAction extends TransportBroadcastB
             toCounter(inputStats.getForwardSmallSeeks()), toCounter(inputStats.getBackwardSmallSeeks()),
             toCounter(inputStats.getForwardLargeSeeks()), toCounter(inputStats.getBackwardLargeSeeks()),
             toCounter(inputStats.getContiguousReads()), toCounter(inputStats.getNonContiguousReads()),
-            toCounter(inputStats.getCachedBytesRead()), toCounter(inputStats.getCachedBytesWritten()),
-            toCounter(inputStats.getDirectBytesRead()));
+            toCounter(inputStats.getCachedBytesRead()), toTimedCounter(inputStats.getCachedBytesWritten()),
+            toTimedCounter(inputStats.getDirectBytesRead()));
     }
 
     private static Counter toCounter(final IndexInputStats.Counter counter) {
         return new Counter(counter.count(), counter.total(), counter.min(), counter.max());
+    }
+
+    private static TimedCounter toTimedCounter(final IndexInputStats.TimedCounter counter) {
+        return new TimedCounter(counter.count(), counter.total(), counter.min(), counter.max(), counter.totalNanoseconds());
     }
 
     @Nullable

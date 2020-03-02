@@ -91,11 +91,6 @@ See <<transform-resource>>.
 
 See <<transform-resource>>.
 
-[role="exclude",id="configuring-monitoring"]
-=== Configuring monitoring
-
-See <<monitoring-overview>>.
-
 [role="exclude",id="es-monitoring"]
 === Monitoring {es}
 
@@ -282,6 +277,16 @@ See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
 
 This page was deleted.
 See <<put-dfanalytics>>.
+
+[role="exclude",id="data-frames-settings"]
+=== {transforms-cap}  settings in Elasticsearch
+
+See <<transform-settings>>.
+
+[role="exclude",id="general-data-frames-settings"]
+==== General {transforms} settings
+
+See <<general-transform-settings>>.
 
 [role="exclude",id="ml-results-resource"]
 === Results resources

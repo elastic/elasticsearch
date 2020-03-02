@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.action;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -97,7 +98,7 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
 
     public final void test() {
         EqlSearchResponse response = new EqlSearchRequestBuilder(client(), EqlSearchAction.INSTANCE)
-            .indices(testIndexName).rule(spec.query()).get();
+            .indices(testIndexName).query(spec.query()).get();
 
         List<SearchHit> events = response.hits().events();
         assertNotNull(events);
@@ -105,7 +106,7 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         final int len = events.size();
         final long ids[] = new long[len];
         for (int i = 0; i < events.size(); i++) {
-            ids[i] = events.get(i).docId();
+            ids[i] = ((Number) events.get(i).getSourceAsMap().get("serial_event_id")).longValue();
         }
         final String msg = "unexpected result for spec: [" + spec.toString() + "]";
         assertArrayEquals(msg, spec.expectedEventIds(), ids);

@@ -430,12 +430,12 @@ public class AllocationService {
 
         removeDelayMarkers(allocation);
 
-        allocateExistingShards(allocation);  // try to allocate existing shard copies first
+        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 
-    private void allocateExistingShards(RoutingAllocation allocation) {
+    private void allocateExistingUnassignedShards(RoutingAllocation allocation) {
         allocation.routingNodes().unassigned().sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {

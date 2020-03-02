@@ -1162,16 +1162,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<FindDanglingIndexResponse> findDanglingIndex(FindDanglingIndexRequest request) {
-            return execute(FindDanglingIndexAction.INSTANCE, request);
-        }
-
-        @Override
-        public void findDanglingIndex(FindDanglingIndexRequest request, ActionListener<FindDanglingIndexResponse> listener) {
-            execute(FindDanglingIndexAction.INSTANCE, request, listener);
-        }
-
-        @Override
         public ActionFuture<ImportDanglingIndexResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
             return execute(ImportDanglingIndexAction.INSTANCE, request);
         }

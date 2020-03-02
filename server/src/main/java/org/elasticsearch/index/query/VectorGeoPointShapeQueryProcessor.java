@@ -91,7 +91,14 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(Circle circle) {
-            return LatLonPoint.newDistanceQuery(fieldName, circle.getLat(), circle.getLon(), circle.getRadiusMeters());
+            Query query = LatLonPoint.newDistanceQuery(
+                fieldName, circle.getLat(), circle.getLon(), circle.getRadiusMeters());
+            if (fieldType.hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(
+                    fieldName, circle.getLat(), circle.getLon(), circle.getRadiusMeters());
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         @Override
@@ -171,9 +178,14 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
 
         @Override
         public Query visit(Rectangle r) {
-            return LatLonPoint.newBoxQuery(fieldName, r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+            Query query = LatLonPoint.newBoxQuery(fieldName, r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+            if (fieldType.hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(
+                    fieldName, r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
     }
-
 }
 

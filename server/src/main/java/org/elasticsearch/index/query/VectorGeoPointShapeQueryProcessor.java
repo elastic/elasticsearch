@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeoShapeType;
@@ -130,16 +132,26 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
                 + GeoShapeType.MULTIPOINT + " queries");
         }
 
-        @Override
-        public Query visit(MultiPolygon multiPolygon) {
-            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
-            GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, true, collector);
+        // helper for visit(MultiPolygon multiPolygon) and visit(Polygon polygon)
+        private Query visit(ArrayList<org.elasticsearch.geometry.Polygon> collector) {
             org.apache.lucene.geo.Polygon[] polygons =
                 new org.apache.lucene.geo.Polygon[collector.size()];
             for (int j = 0; j < collector.size(); j++) {
                 polygons[j] = toLucenePolygon(collector.get(j));
             }
-            return LatLonPoint.newPolygonQuery(fieldName, polygons);
+            Query query = LatLonPoint.newPolygonQuery(fieldName, polygons);
+            if (fieldType.hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newSlowPolygonQuery(fieldName, polygons);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
+        }
+
+        @Override
+        public Query visit(MultiPolygon multiPolygon) {
+            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, true, collector);
+            return visit(collector);
         }
 
         @Override
@@ -153,12 +165,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         public Query visit(org.elasticsearch.geometry.Polygon polygon) {
             ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
             GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
-            org.apache.lucene.geo.Polygon[] polygons =
-                new org.apache.lucene.geo.Polygon[collector.size()];
-            for (int i = 0; i < collector.size(); i++) {
-                polygons[i] = toLucenePolygon(collector.get(i));
-            }
-            return LatLonPoint.newPolygonQuery(fieldName, polygons);
+            return visit(collector);
         }
 
         @Override

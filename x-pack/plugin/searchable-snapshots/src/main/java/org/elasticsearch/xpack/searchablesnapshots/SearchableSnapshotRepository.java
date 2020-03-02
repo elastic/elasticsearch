@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -36,6 +38,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -75,7 +78,8 @@ public class SearchableSnapshotRepository extends FilterRepository {
         blobStoreRepository = (BlobStoreRepository) in;
     }
 
-    private Directory makeDirectory(IndexSettings indexSettings, ShardPath shardPath, CacheService cacheService) throws IOException {
+    private Directory makeDirectory(IndexSettings indexSettings, ShardPath shardPath, CacheService cacheService,
+                                    LongSupplier currentTimeNanosSupplier) throws IOException {
 
         IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
         BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
@@ -87,11 +91,16 @@ public class SearchableSnapshotRepository extends FilterRepository {
         Directory directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
         if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
             final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
-            directory = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardPath.getShardId());
+            directory = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardPath.getShardId(),
+                currentTimeNanosSupplier);
         }
         directory = new InMemoryNoOpCommitDirectory(directory);
 
-        try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+        final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setMergePolicy(NoMergePolicy.INSTANCE);
+
+        try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
             final Map<String, String> userData = new HashMap<>();
             indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
 
@@ -148,7 +157,8 @@ public class SearchableSnapshotRepository extends FilterRepository {
     }
 
     public static IndexStorePlugin.DirectoryFactory newDirectoryFactory(final Supplier<RepositoriesService> repositoriesService,
-                                                                        final Supplier<CacheService> cacheService) {
+                                                                        final Supplier<CacheService> cacheService,
+                                                                        final LongSupplier currentTimeNanosSupplier) {
         return (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
             assert repositories != null;
@@ -161,7 +171,7 @@ public class SearchableSnapshotRepository extends FilterRepository {
             final CacheService cache = cacheService.get();
             assert cache != null;
 
-            return ((SearchableSnapshotRepository) repository).makeDirectory(indexSettings, shardPath, cache);
+            return ((SearchableSnapshotRepository) repository).makeDirectory(indexSettings, shardPath, cache, currentTimeNanosSupplier);
         };
     }
 }

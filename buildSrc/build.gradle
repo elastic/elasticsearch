@@ -80,6 +80,9 @@ sourceSets {
 compileMinimumRuntimeJava {
   targetCompatibility = 8
   sourceCompatibility = 8
+  tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+  }
 }
 
 jar {
@@ -193,6 +196,18 @@ if (project != rootProject) {
     exclude 'buildSrc.marker'
     into('META-INF') {
       from configurations.reaper
+    }
+  }
+
+  // Track reaper jar as a test input using runtime classpath normalization strategy
+  tasks.withType(Test).configureEach {
+    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+  }
+
+  normalization {
+    runtimeClasspath {
+      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+      ignore('META-INF/reaper.jar')
     }
   }
 

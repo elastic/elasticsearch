@@ -90,7 +90,7 @@ setup:
         job_id: job-stats-test
   - match:
       $body: |
-        / #id                    state    data.processed_records     model.bytes    model.memory_status     forecast.total     bucket.count
+        / #id                    state    data.processed_records     model.bytes    model.memory_status     forecasts.total     buckets.count
         ^ (job\-stats\-test \s+  \w+  \s+ \d+                   \s+  .*?        \s+ \w+                 \s+ \d+           \s+  \d+         \n)+  $/
 
   - do:
@@ -99,7 +99,7 @@ setup:
         job_id: job-stats-test
   - match:
       $body: |
-        /^  id                \s+  state \s+ data\.processed_records \s+ model\.bytes \s+ model\.memory_status \s+ forecast\.total \s+ bucket\.count  \n
+        /^  id                \s+  state \s+ data\.processed_records \s+ model\.bytes \s+ model\.memory_status \s+ forecasts\.total \s+ buckets\.count  \n
            (job\-stats\-test  \s+  \w+   \s+ \d+                     \s+ .*?         \s+ \w+                  \s+ \d+             \s+ \d+            \n)+  $/
 
   - do:

@@ -108,7 +108,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY,
-            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get));
+            SearchableSnapshotRepository.newDirectoryFactory(repositoriesService::get, cacheService::get, System::nanoTime));
     }
 
     @Override

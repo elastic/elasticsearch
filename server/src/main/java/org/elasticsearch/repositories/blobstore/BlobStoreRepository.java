@@ -202,14 +202,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", true, Setting.Property.NodeScope);
 
     /**
-     * When set to {@code true}, {@link #bestEffortConsistency} will be set to {@code true} and concurrent modifications of the repository
-     * contents will not result in the repository being marked as corrupted.
-     * Note: This setting is intended as a backwards compatibility solution for 7.x and will go away in 8.
-     */
-    public static final Setting<Boolean> ALLOW_CONCURRENT_MODIFICATION =
-        Setting.boolSetting("allow_concurrent_modifications", false, Setting.Property.Deprecated);
-
-    /**
      * Setting to disable caching of the latest repository data.
      */
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA =
@@ -347,7 +339,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
         bestEffortConsistency = uncleanStart || isReadOnly()
             || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION)
-            || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN || ALLOW_CONCURRENT_MODIFICATION.get(metadata.settings());
+            || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN;
         if (isReadOnly()) {
             // No need to waste cycles, no operations can run against a read-only repository
             return;

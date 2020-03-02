@@ -265,7 +265,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
                 return;
             }
-            transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
+            transformTaskHolder.set(
+                createTransform(config.getId(), config.getVersion(), config.getFrequency(), config.getSource().requiresRemoteCluster())
+            );
             transformConfigHolder.set(config);
             if (config.getDestination().getPipeline() != null) {
                 if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
@@ -311,8 +313,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static TransformTaskParams createTransform(String transformId, Version transformVersion, TimeValue frequency) {
-        return new TransformTaskParams(transformId, transformVersion, frequency);
+    private static TransformTaskParams createTransform(
+        String transformId,
+        Version transformVersion,
+        TimeValue frequency,
+        Boolean requiresRemoteCluster
+    ) {
+        return new TransformTaskParams(transformId, transformVersion, frequency, requiresRemoteCluster);
     }
 
     @SuppressWarnings("unchecked")

@@ -233,7 +233,7 @@ public class NewShardIndexer {
         if (context.hasPendingWrites()) {
             writeScheduler.run();
         } else {
-            threadPool.schedule(rescheduler, TimeValue.timeValueMillis(10), ThreadPool.Names.GENERIC);
+            threadPool.schedule(rescheduler, TimeValue.timeValueMillis(3), ThreadPool.Names.GENERIC);
         }
     }
 

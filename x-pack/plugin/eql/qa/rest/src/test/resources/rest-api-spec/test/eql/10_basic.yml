@@ -17,7 +17,7 @@ setup:
       eql.search:
         index: eql_test
         body:
-          rule: "process where user = 'SYSTEM'"
+          query: "process where user = 'SYSTEM'"
 
   - match: {timed_out: false}
   - match: {hits.total.value: 1}

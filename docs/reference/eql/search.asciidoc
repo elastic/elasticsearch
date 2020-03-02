@@ -36,7 +36,7 @@ GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
   "timestamp_field": "@timestamp",
-  "rule": """
+  "query": """
     process where process.name == "cmd.exe"
   """
 }

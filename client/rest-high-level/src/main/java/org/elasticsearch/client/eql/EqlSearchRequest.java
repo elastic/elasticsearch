@@ -36,32 +36,32 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
-    private QueryBuilder query = null;
+    private QueryBuilder filter = null;
     private String timestampField = "timestamp";
     private String eventTypeField = "event_type";
     private String implicitJoinKeyField = "agent.id";
     private int fetchSize = 50;
     private SearchAfterBuilder searchAfterBuilder;
-    private String rule;
+    private String query;
 
-    static final String KEY_QUERY = "query";
+    static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_EVENT_TYPE_FIELD = "event_type_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
-    static final String KEY_RULE = "rule";
+    static final String KEY_QUERY = "query";
 
-    public EqlSearchRequest(String indices, String rule) {
+    public EqlSearchRequest(String indices, String query) {
         indices(indices);
-        rule(rule);
+        query(query);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (query != null) {
-            builder.field(KEY_QUERY, query);
+        if (filter != null) {
+            builder.field(KEY_FILTER, filter);
         }
         builder.field(KEY_TIMESTAMP_FIELD, timestampField());
         builder.field(KEY_EVENT_TYPE_FIELD, eventTypeField());
@@ -74,7 +74,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             builder.array(KEY_SEARCH_AFTER, searchAfterBuilder.getSortValues());
         }
 
-        builder.field(KEY_RULE, rule);
+        builder.field(KEY_QUERY, query);
         builder.endObject();
         return builder;
     }
@@ -88,12 +88,12 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
-    public QueryBuilder query() {
-        return this.query;
+    public QueryBuilder filter() {
+        return this.filter;
     }
 
-    public EqlSearchRequest query(QueryBuilder query) {
-        this.query = query;
+    public EqlSearchRequest filter(QueryBuilder filter) {
+        this.filter = filter;
         return this;
     }
 
@@ -156,13 +156,13 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
-    public String rule() {
-        return this.rule;
+    public String query() {
+        return this.query;
     }
 
-    public EqlSearchRequest rule(String rule) {
-        Objects.requireNonNull(rule, "rule must not be null");
-        this.rule = rule;
+    public EqlSearchRequest query(String query) {
+        Objects.requireNonNull(query, "query must not be null");
+        this.query = query;
         return this;
     }
 
@@ -175,16 +175,15 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return
-            fetchSize == that.fetchSize &&
+        return fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(query, that.query) &&
+                Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(eventTypeField, that.eventTypeField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
-                Objects.equals(rule, that.rule);
+                Objects.equals(query, that.query);
     }
 
     @Override
@@ -192,13 +191,13 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return Objects.hash(
             Arrays.hashCode(indices),
             indicesOptions,
-            query,
+            filter,
             fetchSize,
             timestampField,
             eventTypeField,
             implicitJoinKeyField,
             searchAfterBuilder,
-            rule);
+            query);
     }
 
     public String[] indices() {

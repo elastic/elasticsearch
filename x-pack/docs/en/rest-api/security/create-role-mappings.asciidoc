@@ -237,7 +237,7 @@ POST /_security/role_mapping/mapping5
 <2> Because the template produces a JSON array, the format must be
     set to `json`.
 
-In addition to inline script, we can also use stored script for the
+In addition to an inline script, you can also use a stored script for the
 `template` field. Above role mapping can also be created with the follows:
 
 [source,console]

@@ -26,7 +26,6 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

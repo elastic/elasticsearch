@@ -1,7 +1,7 @@
 {
   "cat.ml_jobs":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/cat-anomaly-detectors.html"
     },
     "stability":"stable",
     "url":{

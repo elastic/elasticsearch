@@ -51,6 +51,8 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
+        importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
+
         return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestToXContentListener<>(channel) {
             @Override
             protected RestStatus getStatus(AcknowledgedResponse acknowledgedResponse) {

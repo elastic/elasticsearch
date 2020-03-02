@@ -52,6 +52,9 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
+        deleteRequest.timeout(request.paramAsTime("timeout", deleteRequest.timeout()));
+        deleteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRequest.masterNodeTimeout()));
+
         return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestToXContentListener<>(channel) {
             @Override
             protected RestStatus getStatus(AcknowledgedResponse acknowledgedResponse) {

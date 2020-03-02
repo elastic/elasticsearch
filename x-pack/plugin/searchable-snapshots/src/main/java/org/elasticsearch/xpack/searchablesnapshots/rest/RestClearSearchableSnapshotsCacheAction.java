@@ -28,7 +28,7 @@ public class RestClearSearchableSnapshotsCacheAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "clear_searchable_snapshots_indices_action";
+        return "clear_indices_searchable_snapshots_cache_action";
     }
 
     @Override

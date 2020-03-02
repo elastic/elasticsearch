@@ -252,7 +252,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         private boolean isExclusivelyTargetingCurrentVersionCluster() {
             assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
-
             return testNodeVersions.size() == 1 &&
                     testNodeVersions.iterator().next().equals(Version.CURRENT);
         }

@@ -29,7 +29,7 @@ import java.util.Map;
 
 /**
  * This is test is meant to verify that when upgrading from 6.x version to 7.7 or newer it is able to parse date fields with joda pattern.
- * This test cannot be implemented in yml because in mixed cluster because
+ * This test cannot be implemented in yml because in mixed cluster
  * there are 3 options of warnings to be returned (it was refactored few times).
  * A special flag on DocValues is used to indicate that an index was created in 6.x and has a joda pattern.
  * When upgrading from 7.0-7.6 to 7.7 there is no way to tell if a pattern was created in 6.x as this flag cannot be added.
@@ -52,7 +52,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
     @BeforeClass
     public static void init(){
-        assumeTrue("upgrading from before 7.7 will fail parsing joda formats",
+        assumeTrue("upgrading from 7.0-7.6 will fail parsing joda formats",
             UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
     }
 

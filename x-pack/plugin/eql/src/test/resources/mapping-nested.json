@@ -4,7 +4,7 @@
             "type" : "keyword"
         },
         "timestamp" : {
-            "type" : "keyword"
+            "type" : "date"
         },
         "processes" : {
             "type" : "nested",

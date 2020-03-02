@@ -25,9 +25,12 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -60,10 +63,19 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        if (valuesSource instanceof ValuesSource.GeoPoint == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            GeoCentroidAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof GeoCentroidAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected "
+                + GeoCentroidAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return new GeoCentroidAggregator(name, searchContext, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metaData);
+        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, (ValuesSource.GeoPoint) valuesSource,
+            pipelineAggregators, metaData);
+    }
+
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+            (GeoCentroidAggregatorSupplier) GeoCentroidAggregator::new);
     }
 }

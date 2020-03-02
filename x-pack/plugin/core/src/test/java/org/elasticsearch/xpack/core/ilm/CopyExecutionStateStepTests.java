@@ -91,7 +91,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         assertEquals(oldIndexData.getLifecycleDate(), newIndexData.getLifecycleDate());
         assertEquals(oldIndexData.getPhase(), newIndexData.getPhase());
         assertEquals(oldIndexData.getAction(), newIndexData.getAction());
-        assertEquals(ShrunkenIndexCheckStep.NAME, newIndexData.getStep());
+        assertEquals(step.getTargetNextStepName(), newIndexData.getStep());
     }
     public void testPerformActionWithNoTarget() {
         CopyExecutionStateStep step = createRandomInstance();

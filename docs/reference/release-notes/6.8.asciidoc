@@ -1,8 +1,6 @@
 [[release-notes-6.8.7]]
 == {es} version 6.8.7
 
-coming::[6.8.7]
-
 [discrete]
 [[bug-6.8.7]]
 === Bug fixes
@@ -10,6 +8,36 @@ coming::[6.8.7]
 Machine Learning::
 * Include out-of-order as well as in-order terms in categorization reverse
 searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
+
+Authentication::
+* Preserve ApiKey credentials for async verification {pull}51244[#51244]
+
+CCR::
+* Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
+
+Engine::
+* Account soft-deletes in FrozenEngine {pull}51192[#51192] (issue: {issue}50775[#50775])
+
+Features/Java Low Level REST Client::
+* Improve warning value extraction performance in Response {pull}50208[#50208] (issue: {issue}24114[#24114])
+
+Infra/Core::
+* Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
+
+SQL::
+* Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
+* Fix ORDER BY YEAR() function {pull}51562[#51562] (issue: {issue}51224[#51224])
+* Fix issue with CAST and NULL checking. {pull}50371[#50371] (issue: {issue}50191[#50191])
+
+Search::
+* Fix NPE bug inner_hits {pull}50709[#50709] (issue: {issue}50539[#50539])
+
+[[enhancement-6.8.7]]
+[float]
+=== Enhancements
+
+SQL::
+* SQL: Verify Full-Text Search functions not allowed in SELECT {pull}51568[#51568] (issue: {issue}47446[#47446])
 
 [[release-notes-6.8.6]]
 == {es} version 6.8.6
@@ -26,7 +54,15 @@ Features/Watcher::
 Infra/Packaging::
 * Restrict support for CMS to pre-JDK 14 {pull}49123[#49123] (issue: {issue}46973[#46973])
 
+[[upgrade-6.8.7]]
+[float]
+=== Upgrades
 
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
+
+Network::
+* Upgrade to Netty 4.1.43 {pull}49798[#49798]
 
 [[bug-6.8.6]]
 [float]

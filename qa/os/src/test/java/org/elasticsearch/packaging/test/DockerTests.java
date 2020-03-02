@@ -145,15 +145,19 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that a keystore can be manually created using the provided CLI tool.
      */
-    public void test040CreateKeystoreManually() throws InterruptedException {
+    public void test040CreateKeystoreManually() throws Exception {
         final Installation.Executables bin = installation.executables();
+
+        // wait until Elasticsearch is green before messing around with the
+        // files it needs for startup
+        waitForElasticsearch(installation);
 
         final Path keystorePath = installation.config("elasticsearch.keystore");
 
         waitForPathToExist(keystorePath);
 
         // Move the auto-created one out of the way, or else the CLI prompts asks us to confirm
-        sh.run("mv " + keystorePath + " " + keystorePath + ".bak");
+        sh.run("rm " + keystorePath);
 
         sh.run(bin.keystoreTool + " create");
 

@@ -70,7 +70,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo("current-data-node-with-0-tasks-transform-remote-disabled")
         );
         assertThat(
-            executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_5_0, null, true), cs).getExecutorNode(),
+            executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_7_0, null, true), cs).getExecutorNode(),
             equalTo("past-data-node-1")
         );
     }
@@ -102,7 +102,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_7_0, null, false), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_8_0_0, null, false), cs);
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
@@ -110,7 +110,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-transform-disabled:not a transform node"
                     + "|"
-                    + "past-data-node-1:node has version: 7.5.0 but transform requires at least 7.7.0"
+                    + "past-data-node-1:node has version: 7.7.0 but transform requires at least 8.0.0"
                     + "]"
             )
         );
@@ -276,9 +276,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "past-data-node-1",
                     buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
+                    transformNodeAttributes,
                     new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                    Version.V_7_5_0
+                    Version.V_7_7_0
                 )
             );
         }

@@ -137,9 +137,14 @@ tag::analyzed-fields-includes[]
 An array of strings that defines the fields that will be included in the analysis.
 end::analyzed-fields-includes[]
 
-tag::assignment-explanation[]
+tag::assignment-explanation-anomaly-jobs[]
+For open {anomaly-jobs} only, contains messages relating to the selection
+of a node to run the job.
+end::assignment-explanation-anomaly-jobs[]
+
+tag::assignment-explanation-datafeeds[]
 For started {dfeeds} only, contains messages relating to the selection of a node.
-end::assignment-explanation[]
+end::assignment-explanation-datafeeds[]
 
 tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
@@ -158,9 +163,19 @@ so do not set the `background_persist_interval` value too low.
 --
 end::background-persist-interval[]
 
+tag::bucket-allocation-failures-count[]
+The number of buckets for which new entities in incoming data were not processed
+due to insufficient model memory. This situation is also signified by a
+`hard_limit: memory_status` property value.
+end::bucket-allocation-failures-count[]
+
 tag::bucket-count[]
 The number of buckets processed.
 end::bucket-count[]
+
+tag::bucket-count-anomaly-jobs[]
+The number of bucket results produced by the job.
+end::bucket-count-anomaly-jobs[]
 
 tag::bucket-span[]
 The size of the interval that the analysis is aggregated into, typically between
@@ -174,6 +189,27 @@ tag::bucket-span-results[]
 The length of the bucket in seconds. This value matches the `bucket_span`
 that is specified in the job.
 end::bucket-span-results[]
+
+tag::bucket-time-exponential-average[]
+Exponential moving average of all bucket processing times, in milliseconds.
+end::bucket-time-exponential-average[]
+
+tag::bucket-time-exponential-average-hour[]
+Exponentially-weighted moving average of bucket processing times
+calculated in a 1 hour time window, in milliseconds.
+end::bucket-time-exponential-average-hour[]
+
+tag::bucket-time-maximum[]
+Maximum among all bucket processing times, in milliseconds.
+end::bucket-time-maximum[]
+
+tag::bucket-time-minimum[]
+Minimum among all bucket processing times, in milliseconds.
+end::bucket-time-minimum[]
+
+tag::bucket-time-total[]
+Sum of all bucket processing times, in milliseconds.
+end::bucket-time-total[]
 
 tag::by-field-name[]
 The field used to split the data. In particular, this property is used for 
@@ -252,6 +288,24 @@ customize the tokenizer or post-tokenization filtering, use the
 `pattern_replace` character filters. The effect is exactly the same.
 end::categorization-filters[]
 
+tag::categorization-status[]
+The status of categorization for the job. Contains one of the following values:
++
+--
+* `ok`: Categorization is performing acceptably well (or not being used at all).
+* `warn`: Categorization is detecting a distribution of categories that suggests
+the input data is inappropriate for categorization. Problems could be that there
+is only one category, more than 90% of categories are rare, the number of
+categories is greater than 50% of the number of categorized documents, there are
+no frequently matched categories, or more than 50% of categories are dead.
+
+--
+end::categorization-status[]
+
+tag::categorized-doc-count[]
+The number of documents that have had a field categorized.
+end::categorized-doc-count[]
+
 tag::char-filter[]
 One or more <<analysis-charfilters,character filters>>. In addition to the
 built-in character filters, other plugins can provide more character filters.
@@ -262,7 +316,6 @@ analyzer and you need to achieve the equivalent of `categorization_filters`
 add them here as
 <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 end::char-filter[]
-
 
 tag::compute-feature-influence[]
 If `true`, the feature influence calculation is enabled. Defaults to `true`.
@@ -451,13 +504,25 @@ sorted by the `id` value in ascending order.
 `progress`:::
 (array) The progress report of the {dfanalytics-job} by phase.
   
-`phase`:::
+`phase`::::
 (string) Defines the phase of the {dfanalytics-job}. Possible phases: 
 `reindexing`, `loading_data`, `analyzing`, and `writing_results`.
     
-`progress_percent`:::
+`progress_percent`::::
 (integer) The progress that the {dfanalytics-job} has made expressed in 
 percentage.
+
+`memory_usage`:::
+(Optional, Object) An object describing memory usage of the analytics.
+It will be present only after the job has started and memory usage has
+been reported.
+
+`timestamp`::::
+(date) The timestamp when memory usage was calculated.
+
+`peak_usage_bytes`::::
+(long) The number of bytes used at the highest peak of memory usage.
+
 end::data-frame-analytics-stats[]
 
 tag::datafeed-id[]
@@ -471,6 +536,13 @@ tag::datafeed-id-wildcard[]
 Identifier for the {dfeed}. It can be a {dfeed} identifier or a wildcard
 expression.
 end::datafeed-id-wildcard[]
+
+tag::dead-category-count[]
+The number of categories created by categorization that will never be assigned
+again because another category's definition makes it a superset of the dead
+category. (Dead categories are a side effect of the way categorization has no
+prior training.)
+end::dead-category-count[]
 
 tag::decompress-definition[]
 Specifies whether the included model definition should be returned as a JSON map (`true`) or 
@@ -552,6 +624,17 @@ A unique identifier for the detector. This identifier is based on the order of
 the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
 
+tag::earliest-record-timestamp[]
+The timestamp of the earliest chronologically input document.
+end::earliest-record-timestamp[]
+
+tag::empty-bucket-count[]
+The number of buckets which did not contain any data. If your data
+contains many empty buckets, consider increasing your `bucket_span` or using
+functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or
+`non_zero_count`.
+end::empty-bucket-count[]
+
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have better generalization error. However,
@@ -618,6 +701,11 @@ tag::filter-id[]
 A string that uniquely identifies a filter.
 end::filter-id[]
 
+tag::forecast-total[]
+The number of individual forecasts currently available for the job. A value of
+`1` or more indicates that forecasts exist.
+end::forecast-total[]
+
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
 time. The default value is either the bucket span for short bucket spans, or,
@@ -627,6 +715,10 @@ the last (partial) bucket are written then eventually overwritten by the full
 bucket results. If the {dfeed} uses aggregations, this value must be divisible
 by the interval of the date histogram aggregation.
 end::frequency[]
+
+tag::frequent-category-count[]
+The number of categories that match more than 1% of categorized documents.
+end::frequent-category-count[]
 
 tag::from[]
 Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
@@ -687,6 +779,26 @@ also want to use a field name that is not specifically named in a detector, but
 is available as part of the input data. When you use multiple detectors, the use 
 of influencers is recommended as it aggregates results for each influencer entity.
 end::influencers[]
+
+tag::input-bytes[]
+The number of bytes of input data posted to the {anomaly-job}.
+end::input-bytes[]
+
+tag::input-field-count[]
+The total number of fields in input documents posted to the {anomaly-job}. This
+count includes fields that are not used in the analysis. However, be aware that
+if you are using a {dfeed}, it extracts only the required fields from the
+documents it retrieves before posting them to the job.
+end::input-field-count[]
+
+tag::input-record-count[]
+The number of input documents posted to the {anomaly-job}.
+end::input-record-count[]
+
+tag::invalid-date-count[]
+The number of input documents with either a missing date field or a date that
+could not be parsed.
+end::invalid-date-count[]
 
 tag::is-interim[]
 If `true`, this is an interim result. In other words, the results are calculated
@@ -753,6 +865,10 @@ relevant relationships between the features and the {depvar}. The smaller this
 parameter the larger individual trees will be and the longer train will take.
 end::lambda[]
 
+tag::last-data-time[]
+The timestamp at which data was last analyzed, according to server time.
+end::last-data-time[]
+
 tag::latency[]
 The size of the window in which to expect data that is out of time order. The 
 default value is 0 (no latency). If you specify a non-zero value, it must be 
@@ -765,6 +881,18 @@ the <<ml-post-data,post data>> API.
 
 --
 end::latency[]
+
+tag::latest-empty-bucket-timestamp[]
+The timestamp of the last bucket that did not contain any data.
+end::latest-empty-bucket-timestamp[]
+
+tag::latest-record-timestamp[]
+The timestamp of the latest chronologically input document.
+end::latest-record-timestamp[]
+
+tag::latest-sparse-record-timestamp[]
+The timestamp of the last bucket that was considered sparse.
+end::latest-sparse-record-timestamp[]
 
 tag::max-empty-searches[]
 If a real-time {dfeed} has never seen any data (including during any initial
@@ -803,6 +931,19 @@ ensemble method. Available methods are `lof`, `ldof`, `distance_kth_nn`,
 `distance_knn`.
 end::method[]
 
+tag::missing-field-count[]
+The number of input documents that are missing a field that the {anomaly-job} is
+configured to analyze. Input documents with missing fields are still processed
+because it is possible that not all fields are missing.
++
+--
+NOTE: If you are using {dfeeds} or posting data to the job in JSON format, a
+high `missing_field_count` is often not an indication of data issues. It is not
+necessarily a cause for concern.
+
+--
+end::missing-field-count[]
+
 tag::mode[]
 There are three available modes: 
 +
@@ -813,6 +954,17 @@ recommended value.
 * `off`: No chunking is applied.
 --
 end::mode[]
+
+tag::model-bytes[]
+The number of bytes of memory used by the models. This is the maximum value
+since the last time the model was persisted. If the job is closed, this value
+indicates the latest size.
+end::model-bytes[]
+
+tag::model-bytes-exceeded[]
+The number of bytes over the high limit for memory usage at the last allocation
+failure.
+end::model-bytes-exceeded[]
 
 tag::model-id[]
 The unique identifier of the trained {infer} model.
@@ -843,6 +995,10 @@ see <<ml-settings>>.
 --
 end::model-memory-limit[]
 
+tag::model-memory-limit-anomaly-jobs[]
+The upper limit for model memory usage, checked on increasing values.
+end::model-memory-limit-anomaly-jobs[]
+
 tag::model-memory-limit-dfa[]
 The approximate maximum amount of memory resources that are permitted for 
 analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If 
@@ -851,6 +1007,19 @@ setting, an error occurs when you try to create {dfanalytics-jobs} that have
 `model_memory_limit` values greater than that setting. For more information, see 
 <<ml-settings>>.
 end::model-memory-limit-dfa[]
+
+tag::model-memory-status[]
+The status of the mathematical models, which can have one of the following
+values:
++
+--
+* `ok`: The models stayed below the configured value.
+* `soft_limit`: The models used more than 60% of the configured memory limit
+and older unused models will be pruned to free up space.
+* `hard_limit`: The models used more space than the configured memory limit.
+As a result, not all incoming data was processed.
+--
+end::model-memory-status[]
 
 tag::model-plot-config[]
 This advanced configuration option stores model information along with the
@@ -894,6 +1063,10 @@ The default value is `1`, which means snapshots that are one day (twenty-four ho
 older than the newest snapshot are deleted.
 end::model-snapshot-retention-days[]
 
+tag::model-timestamp[]
+The timestamp of the last record when the model stats were gathered.
+end::model-timestamp[]
+
 tag::multivariate-by-fields[]
 This functionality is reserved for internal use. It is not supported for use in 
 customer environments and is not subject to the support SLA of official GA 
@@ -924,10 +1097,27 @@ improve diversity in the ensemble. Therefore, only override this if you are
 confident that the value you choose is appropriate for the data set.
 end::n-neighbors[]
 
-tag::node[]
+tag::node-address[]
+The network address of the node.
+end::node-address[]
+
+tag::node-datafeeds[]
 For started {dfeeds} only, this information pertains to the node upon which the
 {dfeed} is started.
-end::node[]
+end::node-datafeeds[]
+
+tag::node-ephemeral-id[]
+The ephemeral ID of the node.
+end::node-ephemeral-id[]
+
+tag::node-id[]
+The unique identifier of the node.
+end::node-id[]
+
+tag::node-jobs[]
+Contains properties for the node that runs the job. This information is
+available only for open jobs.
+end::node-jobs[]
 
 tag::num-top-classes[]
 Defines the number of categories for which the predicted 
@@ -936,18 +1126,30 @@ total number of categories (in the {version} version of the {stack}, it's two)
 to predict then we will report all category probabilities. Defaults to 2.
 end::num-top-classes[]
 
-tag::over-field-name[]
-The field used to split the data. In particular, this property is used for 
-analyzing the splits with respect to the history of all splits. It is used for 
-finding unusual values in the population of all splits. For more information,
-see {ml-docs}/ml-configuring-pop.html[Performing population analysis].
-end::over-field-name[]
+tag::open-time[]
+For open jobs only, the elapsed time for which the job has been open.
+end::open-time[]
+
+tag::out-of-order-timestamp-count[]
+The number of input documents that are out of time sequence and outside
+of the latency window. This information is applicable only when you provide data
+to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
+order documents are  discarded, since jobs require time series data to be in
+ascending chronological order.
+end::out-of-order-timestamp-count[]
 
 tag::outlier-fraction[]
 Sets the proportion of the data set that is assumed to be outlying prior to 
 {oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
 outliers and 95% are inliers.
 end::outlier-fraction[]
+
+tag::over-field-name[]
+The field used to split the data. In particular, this property is used for 
+analyzing the splits with respect to the history of all splits. It is used for 
+finding unusual values in the population of all splits. For more information,
+see {ml-docs}/ml-configuring-pop.html[Performing population analysis].
+end::over-field-name[]
 
 tag::partition-field-name[]
 The field used to segment the analysis. When you use this property, you have 
@@ -958,6 +1160,20 @@ tag::prediction-field-name[]
 Defines the name of the prediction field in the results. 
 Defaults to `<dependent_variable>_prediction`.
 end::prediction-field-name[]
+
+tag::processed-field-count[]
+The total number of fields in all the documents that have been processed by the
+{anomaly-job}. Only fields that are specified in the detector configuration
+object contribute to this count. The timestamp is not included in this count.
+end::processed-field-count[]
+
+tag::processed-record-count[]
+The number of input documents that have been processed by the {anomaly-job}.
+This value includes documents with missing fields, since they are nonetheless
+analyzed. If you use {dfeeds} and have aggregations in your search query, the
+`processed_record_count` is the number of aggregation results processed, not the
+number of {es} documents.
+end::processed-record-count[]
 
 tag::randomize-seed[]
 Defines the seed to the random generator that is used to pick which documents 
@@ -982,6 +1198,10 @@ and `120s`. This randomness improves the query performance when there are
 multiple jobs running on the same node. For more information, see
 {ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
 end::query-delay[]
+
+tag::rare-category-count[]
+The number of categories that match just one categorized document.
+end::rare-category-count[]
 
 tag::renormalization-window-days[]
 Advanced configuration option. The period over which adjustments to the score
@@ -1076,12 +1296,37 @@ The configuration of how to source the analysis data. It requires an
       excluded from the destination.
 end::source-put-dfa[]
 
+tag::sparse-bucket-count[]
+The number of buckets that contained few data points compared to the expected
+number of data points. If your data contains many sparse buckets, consider using
+a longer `bucket_span`.
+end::sparse-bucket-count[]
+
 tag::standardization-enabled[]
 If `true`, then the following operation is performed on the columns before 
 computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
 more information, see 
 https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[this wiki page about standardization].
 end::standardization-enabled[]
+
+tag::state-anomaly-job[]
+The status of the {anomaly-job}, which can be one of the following values:
++
+--
+* `closed`: The job finished successfully with its model state persisted. The
+job must be opened before it can accept further data.
+* `closing`: The job close action is in progress and has not yet completed. A
+closing job cannot accept further data.
+* `failed`: The job did not finish successfully due to an error. This situation
+can occur due to invalid input data, a fatal error occurring during the analysis,
+or an external interaction such as the process being killed by the Linux out of
+memory (OOM) killer. If the job had irrevocably failed, it must be force closed
+and then deleted. If the {dfeed} can be corrected, the job can be closed and
+then re-opened.
+* `opened`: The job is available to receive and process data.
+* `opening`: The job open action is in progress and has not yet completed.
+--
+end::state-anomaly-job[]
 
 tag::state-datafeed[]
 The status of the {dfeed}, which can be one of the following values:
@@ -1157,6 +1402,25 @@ non-customizable tokenizer in older versions of the product. If you want to use
 that tokenizer but change the character or token filters, specify
 `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 end::tokenizer[]
+
+tag::total-by-field-count[]
+The number of `by` field values that were analyzed by the models. This value is
+cumulative for all detectors in the job.
+end::total-by-field-count[]
+
+tag::total-category-count[]
+The number of categories created by categorization.
+end::total-category-count[]
+
+tag::total-over-field-count[]
+The number of `over` field values that were analyzed by the models. This value
+is cumulative for all detectors in the job.
+end::total-over-field-count[]
+
+tag::total-partition-field-count[]
+The number of `partition` field values that were analyzed by the models. This
+value is cumulative for all detectors in the job.
+end::total-partition-field-count[]
 
 tag::training-percent[]
 Defines what percentage of the eligible documents that will 

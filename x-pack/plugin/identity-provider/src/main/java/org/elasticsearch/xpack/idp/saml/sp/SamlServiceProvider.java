@@ -33,7 +33,7 @@ public interface SamlServiceProvider {
     AttributeNames getAttributeNames();
 
     @Nullable
-    X509Credential getSigningCredential();
+    X509Credential getSpSigningCredential();
 
     boolean shouldSignAuthnRequests();
 

@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
@@ -268,6 +269,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
         assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+
+        instant1 = nowInMillis;
+        instant2 = instant1 + 100;
+        expected = new DateRangeIncludingNowQuery(new IndexOrDocValuesQuery(
+            LongPoint.newRangeQuery("field", instant1, instant2),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+        ));
+        assertEquals(expected,
+            ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

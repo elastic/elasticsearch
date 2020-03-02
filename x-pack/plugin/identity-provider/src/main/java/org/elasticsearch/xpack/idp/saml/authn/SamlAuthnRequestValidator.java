@@ -107,7 +107,7 @@ public class SamlAuthnRequestValidator {
                             queryString), listener);
                         return;
                     }
-                    final X509Credential spSigningCredential = sp.getSigningCredential();
+                    final X509Credential spSigningCredential = sp.getSpSigningCredential();
                     if (spSigningCredential == null) {
                         logAndRespond(
                             "Unable to validate signature of authentication request, " +
@@ -115,10 +115,10 @@ public class SamlAuthnRequestValidator {
                             listener);
                         return;
                     }
-                    if (validateSignature(samlRequest, sigAlg, signature, sp.getSigningCredential(), relayState) == false) {
+                    if (validateSignature(samlRequest, sigAlg, signature, spSigningCredential, relayState) == false) {
                         logAndRespond(
                             new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
-                            queryString, samlFactory.describeCredentials(Collections.singletonList(sp.getSigningCredential()))), listener);
+                            queryString, samlFactory.describeCredentials(Collections.singletonList(spSigningCredential))), listener);
                         return;
                     }
                 } else if (Strings.hasText(sigAlg)) {

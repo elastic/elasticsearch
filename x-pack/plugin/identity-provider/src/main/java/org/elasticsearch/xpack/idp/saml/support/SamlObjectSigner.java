@@ -24,9 +24,9 @@ public class SamlObjectSigner {
     private final SamlFactory samlFactory;
 
     public SamlObjectSigner(SamlFactory samlFactory, SamlIdentityProvider idp) {
-        this.samlFactory = samlFactory;
-        this.idp = idp;
         SamlInit.initialize();
+        this.idp = idp;
+        this.samlFactory = samlFactory;
     }
 
     public Element sign(SignableXMLObject object) {

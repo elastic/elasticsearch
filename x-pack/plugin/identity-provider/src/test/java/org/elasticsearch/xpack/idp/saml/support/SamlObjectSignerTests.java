@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -113,7 +112,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
     private SamlIdentityProvider buildIdP(String entityId, X509Credential credential) {
         SamlIdentityProvider idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn(entityId);
-        Mockito.when(idp.getSigningCredential()).thenReturn(credential);
+        when(idp.getSigningCredential()).thenReturn(credential);
         when(idp.getEntityId()).thenReturn(entityId);
         return idp;
     }

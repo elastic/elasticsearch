@@ -334,6 +334,18 @@ public class DynamicTemplate implements ToXContentObject {
         return processedList;
     }
 
+    String getName() {
+        return name;
+    }
+
+    XContentFieldType getXContentFieldType() {
+        return xcontentFieldType;
+    }
+
+    Map<String, Object> getMapping() {
+        return mapping;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

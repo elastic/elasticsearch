@@ -28,10 +28,3 @@ A field containing the event classification, such as `process`, `file`, or
 Timestamp::
 A field containing the date and/or time the event occurred. This is typically
 mapped as a <<date,`date`>> field.
-
-[TIP]
-====
-While no schema is required to use EQL in {es}, we recommend the
-{ecs-ref}[Elastic Common Schema (ECS)]. {es}'s EQL search is designed to work
-with core ECS fields by default.
-====

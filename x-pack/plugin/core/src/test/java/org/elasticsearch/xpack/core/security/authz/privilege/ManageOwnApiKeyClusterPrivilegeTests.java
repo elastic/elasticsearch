@@ -96,15 +96,46 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
     }
 
+    public void testGetAndInvalidateApiKeyWillRespectRunAsUser() {
+        final ClusterPermission clusterPermission =
+            ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
+
+        final Authentication authentication = createMockRunAsAuthentication(
+            "user_a", "realm_a", "realm_a_type",
+            "user_b", "realm_b", "realm_b_type");
+
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get",
+            GetApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate",
+            InvalidateApiKeyRequest.usingRealmAndUserName("realm_b", "user_b"), authentication));
+    }
+
     private Authentication createMockAuthentication(String username, String realmName, String realmType, Map<String, Object> metadata) {
         final User user = new User(username);
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getSourceRealm()).thenReturn(authenticatedBy);
         when(authenticatedBy.getName()).thenReturn(realmName);
         when(authenticatedBy.getType()).thenReturn(realmType);
         when(authentication.getMetadata()).thenReturn(metadata);
+        return authentication;
+    }
+
+    private Authentication createMockRunAsAuthentication(String username, String realmName, String realmType,
+        String runAsUsername, String runAsRealmName, String runAsRealmType) {
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authenticatedBy.getName()).thenReturn(realmName);
+        when(authenticatedBy.getType()).thenReturn(realmType);
+        final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
+        when(lookedUpBy.getName()).thenReturn(runAsRealmName);
+        when(lookedUpBy.getType()).thenReturn(runAsRealmType);
+        final User user = new User(runAsUsername, new String[0], new User(username));
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getSourceRealm()).thenReturn(lookedUpBy);
+        when(authentication.getMetadata()).thenReturn(Map.of());
         return authentication;
     }
 }

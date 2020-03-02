@@ -268,10 +268,12 @@ public class MockWebServer implements Closeable {
         logger.debug("[{}:{}] Counting down all latches before terminating executor", getHostName(), getPort());
         latches.forEach(CountDownLatch::countDown);
 
-        if (server.getExecutor() instanceof ExecutorService) {
-            terminate((ExecutorService) server.getExecutor());
+        if (server != null) {
+            if (server.getExecutor() instanceof ExecutorService) {
+                terminate((ExecutorService) server.getExecutor());
+            }
+            server.stop(0);
         }
-        server.stop(0);
     }
 
     /**

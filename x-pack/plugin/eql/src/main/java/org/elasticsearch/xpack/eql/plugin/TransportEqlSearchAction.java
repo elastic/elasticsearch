@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,8 +28,8 @@ import org.elasticsearch.xpack.eql.session.Configuration;
 import org.elasticsearch.xpack.eql.session.Results;
 
 import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.List;
+
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse> {
     private final SecurityContext securityContext;
@@ -58,7 +56,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                                  String clusterName, ActionListener<EqlSearchResponse> listener) {
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
-        QueryBuilder filter = request.query();
+        QueryBuilder filter = request.filter();
         TimeValue timeout = TimeValue.timeValueSeconds(30);
         boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
@@ -68,23 +66,16 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldTimestamp(request.timestampField())
             .implicitJoinKey(request.implicitJoinKeyField());
 
-        Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen, clientId);
-        //planExecutor.eql(cfg, request.rule(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
-        listener.onResponse(createResponse(null));
+        Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
+                includeFrozen, clientId);
+        planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 
     static EqlSearchResponse createResponse(Results results) {
-        // Stubbed search response
-        // TODO: implement actual search response processing once the parser/executor is in place
-        // Updated for stubbed response to: process where serial_event_id = 1
-        // to validate the sample test until the engine is wired in.
-        List<SearchHit> events = Arrays.asList(
-            new SearchHit(1, "111", null)
-        );
-        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(events, null,
-            null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
+        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.searchHits(), results.sequences(), results.counts(), results
+                .totalHits());
 
-        return new EqlSearchResponse(hits, 0, false);
+        return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut());
     }
 
     static String username(SecurityContext securityContext) {

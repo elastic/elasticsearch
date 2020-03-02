@@ -227,6 +227,8 @@ include::cat/alias.asciidoc[]
 
 include::cat/allocation.asciidoc[]
 
+include::cat/anomaly-detectors.asciidoc[]
+
 include::cat/count.asciidoc[]
 
 include::cat/dataframeanalytics.asciidoc[]
@@ -256,6 +258,8 @@ include::cat/repositories.asciidoc[]
 include::cat/tasks.asciidoc[]
 
 include::cat/thread_pool.asciidoc[]
+
+include::cat/trainedmodel.asciidoc[]
 
 include::cat/shards.asciidoc[]
 

@@ -104,15 +104,16 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
-        return new BucketedSort.ForFloats(context.bigArrays(), order, DocValueFormat.RAW) {
+    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+        return new BucketedSort.ForFloats(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
             public boolean needsScores() { return true; }
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new BucketedSort.ForFloats.Leaf() {
+                return new BucketedSort.ForFloats.Leaf(ctx) {
                     private Scorable scorer;
+                    private float score;
 
                     @Override
                     public void setScorer(Scorable scorer) {
@@ -124,12 +125,13 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
                         assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
                         /* We will never be called by documents that don't match the
                          * query and they'll all have a score, thus `true`. */
+                        score = scorer.score();
                         return true;
                     }
 
                     @Override
-                    protected float docValue() throws IOException {
-                        return scorer.score();
+                    protected float docValue() {
+                        return score;
                     }
                 };
             }

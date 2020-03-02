@@ -41,6 +41,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -291,6 +292,9 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(query));
         assertEquals("[1:41] [bool] failed to parse field [must]", ex.getMessage());
+        Throwable e = ex.getCause();
+        assertThat(e.getMessage(), containsString("unknown query [unknown_query]"));
+
     }
 
     public void testRewrite() throws IOException {

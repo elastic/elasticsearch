@@ -106,7 +106,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void applyStartedShards(final RoutingAllocation allocation, final List<ShardRouting> startedShards) {
+    public void applyStartedShards(final List<ShardRouting> startedShards, final RoutingAllocation allocation) {
         for (ShardRouting startedShard : startedShards) {
             Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
             Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
@@ -114,7 +114,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void applyFailedShards(final RoutingAllocation allocation, final List<FailedShard> failedShards) {
+    public void applyFailedShards(final List<FailedShard> failedShards, final RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
             Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
             Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
@@ -138,8 +138,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void allocateUnassigned(final RoutingAllocation allocation, ShardRouting shardRouting,
-                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(ShardRouting shardRouting, final RoutingAllocation allocation,
+                                   UnassignedAllocationHandler unassignedAllocationHandler) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);

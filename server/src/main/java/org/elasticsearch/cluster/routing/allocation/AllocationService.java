@@ -120,7 +120,7 @@ public class AllocationService {
         startedShards.sort(Comparator.comparing(ShardRouting::primary));
         applyStartedShards(allocation, startedShards);
         for (final ExistingShardsAllocator allocator : existingShardsAllocators.values()) {
-            allocator.applyStartedShards(allocation, startedShards);
+            allocator.applyStartedShards(startedShards, allocation);
         }
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
         String startedShardsAsString
@@ -229,7 +229,7 @@ public class AllocationService {
             }
         }
         for (final ExistingShardsAllocator allocator : existingShardsAllocators.values()) {
-            allocator.applyFailedShards(allocation, failedShards);
+            allocator.applyFailedShards(failedShards, allocation);
         }
 
         reroute(allocation);
@@ -446,7 +446,7 @@ public class AllocationService {
         while (primaryIterator.hasNext()) {
             final ShardRouting shardRouting = primaryIterator.next();
             if (shardRouting.primary()) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(allocation, shardRouting, primaryIterator);
+                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator);
             }
         }
 
@@ -458,7 +458,7 @@ public class AllocationService {
         while (replicaIterator.hasNext()) {
             final ShardRouting shardRouting = replicaIterator.next();
             if (shardRouting.primary() == false) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(allocation, shardRouting, replicaIterator);
+                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
             }
         }
     }
@@ -575,14 +575,13 @@ public class AllocationService {
         }
 
         @Override
-        public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+        public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
                                        UnassignedAllocationHandler unassignedAllocationHandler) {
             unassignedAllocationHandler.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
         }
 
         @Override
-        public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard,
-                                                                           RoutingAllocation allocation) {
+        public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation allocation) {
             assert unassignedShard.unassigned();
             assert allocation.debugDecision();
             final List<NodeAllocationResult> nodeAllocationResults = new ArrayList<>(allocation.nodes().getSize());
@@ -600,11 +599,11 @@ public class AllocationService {
         }
 
         @Override
-        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+        public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
         }
 
         @Override
-        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+        public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         }
 
         @Override

@@ -57,7 +57,7 @@ public interface ExistingShardsAllocator {
     /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      */
-    void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
+    void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
                             UnassignedAllocationHandler unassignedAllocationHandler);
 
     /**
@@ -75,13 +75,13 @@ public interface ExistingShardsAllocator {
      * Called when the given shards have started, so that implementations can invalidate caches and clean up any in-flight activity for
      * those shards.
      */
-    void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards);
+    void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation);
 
     /**
      * Called when the given shards have failed, so that implementations can invalidate caches and clean up any in-flight activity for
      * those shards.
      */
-    void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards);
+    void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation);
 
     /**
      * @return the number of in-flight fetches under this allocator's control.

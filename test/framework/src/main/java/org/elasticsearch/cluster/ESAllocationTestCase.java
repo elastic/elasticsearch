@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -257,12 +256,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public DelayedShardsMockGatewayAllocator() {}
 
         @Override
-        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+        public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
             // no-op
         }
 
         @Override
-        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+        public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
             // no-op
         }
 
@@ -277,8 +276,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                                       ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
+        public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
+                                       UnassignedAllocationHandler unassignedAllocationHandler) {
             if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                 return;
             }

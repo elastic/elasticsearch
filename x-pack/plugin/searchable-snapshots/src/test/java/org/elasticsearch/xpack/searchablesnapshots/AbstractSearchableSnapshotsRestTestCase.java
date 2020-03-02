@@ -187,6 +187,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             .sum();
 
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+
+            Map<String, Object> searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
+            assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+
             final long bytesInCacheBeforeClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
             assertThat(bytesInCacheBeforeClear, greaterThan(0L));
 
@@ -196,9 +200,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final long bytesInCacheAfterClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
             assertThat(bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
 
-            for (int i = 0; i < 5; i++) {
-                assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
-            }
+            searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
+            assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
 
             final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
             assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));

@@ -29,7 +29,8 @@ import java.util.Map;
 
 /**
  * This is test is meant to verify that when upgrading from 6.x version to 7.7 or newer it is able to parse date fields with joda pattern.
- * This test cannot be implemented in yml because in mixed cluster there are 3 options of warnings to be returned (it was refactored few times).
+ * This test cannot be implemented in yml because in mixed cluster because
+ * there are 3 options of warnings to be returned (it was refactored few times).
  * A special flag on DocValues is used to indicate that an index was created in 6.x and has a joda pattern.
  * When upgrading from 7.0-7.6 to 7.7 there is no way to tell if a pattern was created in 6.x as this flag cannot be added.
  * @see org.elasticsearch.search.DocValueFormat.DateTime
@@ -46,8 +47,8 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
         "Use new java.time date format specifiers.";
 
-    private static final String V_6_8_0_WARNING = "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
-        "Prefix your date format with '8' to use the new specifier.";
+    private static final String V_6_8_0_WARNING = "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. "
+        + "Prefix your date format with '8' to use the new specifier.";
 
     @BeforeClass
     public static void init(){

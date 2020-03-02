@@ -61,6 +61,22 @@ public class ValuesSourceConfig {
                                              String format,
                                              ValuesSourceType defaultValueSourceType,
                                              String aggregationName) {
+
+        return internalResolve(context, userValueTypeHint, field, script, missing, timeZone, format, defaultValueSourceType,
+            aggregationName, ValuesSourceConfig::getMappingFromRegistry);
+    }
+
+    public static ValuesSourceConfig internalResolve(QueryShardContext context,
+                                                     ValueType userValueTypeHint,
+                                                     String field,
+                                                     Script script,
+                                                     Object missing,
+                                                     ZoneId timeZone,
+                                                     String format,
+                                                     ValuesSourceType defaultValueSourceType,
+                                                     String aggregationName,
+                                                     FieldResolver fieldResolver
+                                                     ) {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
         ValuesSourceType valuesSourceType;
@@ -105,10 +121,8 @@ public class ValuesSourceConfig {
                     scriptValueType = userValueTypeHint;
                 }
             } else {
-                IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                valuesSourceType = context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
-                    userValueTypeHint, script, defaultValueSourceType);
-
+                valuesSourceType = fieldResolver.getValuesSourceType(context, fieldType, aggregationName, userValueTypeHint,
+                    defaultValueSourceType);
                 aggregationScript = createScript(script, context);
             }
         }
@@ -117,6 +131,28 @@ public class ValuesSourceConfig {
         config.missing(missing);
         config.timezone(timeZone);
         return config;
+    }
+
+    @FunctionalInterface
+    private interface FieldResolver {
+        ValuesSourceType getValuesSourceType(
+            QueryShardContext context,
+            MappedFieldType fieldType,
+            String aggregationName,
+            ValueType userValueTypeHint,
+            ValuesSourceType defaultValuesSourceType);
+
+    }
+
+    private static ValuesSourceType getMappingFromRegistry(
+            QueryShardContext context,
+            MappedFieldType fieldType,
+            String aggregationName,
+            ValueType userValueTypeHint,
+            ValuesSourceType defaultValuesSourceType) {
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+         return context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
+            userValueTypeHint, defaultValuesSourceType);
     }
 
     private static AggregationScript.LeafFactory createScript(Script script, QueryShardContext context) {
@@ -152,6 +188,36 @@ public class ValuesSourceConfig {
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
         return new ValuesSourceConfig(valuesSourceType, null, true, null, null, queryShardContext);
+    }
+
+    /**
+     * AKA legacy resolve.  This method should be called by aggregations not supported by the {@link ValuesSourceRegistry}, to use the
+     * pre-registry logic to decide on the {@link ValuesSourceType}.  New aggregations which extend from
+     * {@link ValuesSourceAggregationBuilder} should not use this method, preferring {@link ValuesSourceConfig#resolve} instead.
+     *
+     * @param context - the query context
+     * @param userValueTypeHint - User specified value type; used for missing values and scripts
+     * @param field - The field being aggregated over.  At least one of field and script must not be null
+     * @param script - The script the user specified.  At least one of field and script must not be null
+     * @param missing - A user specified value to apply when the field is missing.  Should be of type userValueTypeHint
+     * @param timeZone - Used to generate a format for dates
+     * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
+     *               See https://github.com/elastic/elasticsearch/issues/47469
+     * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
+     * @param aggregationName - Name of the aggregation, generally from the aggregation builder.  This is used as a lookup key in the
+     *                          {@link ValuesSourceRegistry}
+     * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
+     */
+    public static ValuesSourceConfig resolveUnregistered(QueryShardContext context,
+                                                         ValueType userValueTypeHint,
+                                                         String field,
+                                                         Script script,
+                                                         Object missing,
+                                                         ZoneId timeZone,
+                                                         String format,
+                                                         ValuesSourceType defaultValueSourceType,
+                                                         String aggregationName) {
+        return null;
     }
 
     private final ValuesSourceType valuesSourceType;

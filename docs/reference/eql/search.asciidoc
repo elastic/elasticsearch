@@ -28,7 +28,7 @@ PUT sec_logs/_bulk?refresh
 You can now use the EQL search API to search this index using an EQL query.
 
 The following request searches the `sec_logs` index using the EQL query
-specified in the `rule` parameter. The EQL query matches events with an
+specified in the `query` parameter. The EQL query matches events with an
 `event.category` value of `process` that have a `process.name` of `cmd.exe`.
 
 [source,console]
@@ -36,7 +36,7 @@ specified in the `rule` parameter. The EQL query matches events with an
 GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
-  "rule": """
+  "query": """
     process where process.name == "cmd.exe"
   """
 }
@@ -98,7 +98,7 @@ field.
 GET sec_logs/_eql/search
 {
   "event_type_field": "file.type",
-  "rule": """
+  "query": """
     file where agent.id == "8a4f500d"
   """
 }
@@ -121,7 +121,7 @@ GET sec_logs/_eql/search
 {
   "timestamp_field": "file.accessed",
   "event_type_field": "event.category",
-  "rule": """
+  "query": """
     file where (file.size > 1 and file.type == "file")
   """
 }
@@ -131,13 +131,13 @@ GET sec_logs/_eql/search
 [[eql-search-filter-query-dsl]]
 === Filter using query DSL
 
-You can use the `query` parameter to specify an additional query using
+You can use the `filter` parameter to specify an additional query using
 <<query-dsl,query DSL>>. This query filters the documents on which the EQL query
 runs.
 
 For example, the following request uses a `range` query to filter the `sec_logs`
 index down to only documents with a `file.size` value greater than `1` but less
-than `1000000` bytes. The EQL query in `rule` parameter then runs on these
+than `1000000` bytes. The EQL query in `query` parameter then runs on these
 filtered documents.
 
 [source,console]
@@ -145,7 +145,7 @@ filtered documents.
 GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
-  "query": {
+  "filter": {
     "range" : {
       "file.size" : {
         "gte" : 1,
@@ -153,7 +153,7 @@ GET sec_logs/_eql/search
       }
     }
   },
-  "rule": """
+  "query": """
     file where (file.type == "file" and file.name == "cmd.exe")
   """
 }

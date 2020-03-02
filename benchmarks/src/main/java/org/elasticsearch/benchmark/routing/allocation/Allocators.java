@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -61,7 +61,7 @@ public final class Allocators {
         public void allocateUnassigned(
             RoutingAllocation allocation,
             ShardRouting shardRouting,
-            RoutingNodes.UnassignedShards.UnassignedIterator iterator
+            ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
         ) {
             // noop
         }

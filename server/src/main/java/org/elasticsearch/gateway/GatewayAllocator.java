@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -140,10 +139,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
     @Override
     public void allocateUnassigned(final RoutingAllocation allocation, ShardRouting shardRouting,
-                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, iterator);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
     // allow for testing infra to change shard allocators implementation
@@ -151,12 +150,12 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                                    PrimaryShardAllocator primaryShardAllocator,
                                                    ReplicaShardAllocator replicaShardAllocator,
                                                    ShardRouting shardRouting,
-                                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
         assert shardRouting.unassigned();
         if (shardRouting.primary()) {
-            primaryShardAllocator.allocateUnassigned(allocation, shardRouting, iterator);
+            primaryShardAllocator.allocateUnassigned(allocation, shardRouting, unassignedAllocationHandler);
         } else {
-            replicaShardAllocator.allocateUnassigned(allocation, shardRouting, iterator);
+            replicaShardAllocator.allocateUnassigned(allocation, shardRouting, unassignedAllocationHandler);
         }
     }
 

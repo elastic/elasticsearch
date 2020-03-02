@@ -576,8 +576,8 @@ public class AllocationService {
 
         @Override
         public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                                       RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
-            iterator.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
+                                       UnassignedAllocationHandler unassignedAllocationHandler) {
+            unassignedAllocationHandler.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
         }
 
         @Override

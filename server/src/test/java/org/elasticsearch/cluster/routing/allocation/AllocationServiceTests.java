@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -292,13 +291,13 @@ public class AllocationServiceTests extends ESTestCase {
 
         @Override
         public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                                       RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                                       UnassignedAllocationHandler unassignedAllocationHandler) {
             final AllocateUnassignedDecision allocateUnassignedDecision = explainUnassignedShardAllocation(shardRouting, allocation);
             if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
-                iterator.initialize(allocateUnassignedDecision.getTargetNode().getId(),
+                unassignedAllocationHandler.initialize(allocateUnassignedDecision.getTargetNode().getId(),
                     shardRouting.primary() ? FAKE_IN_SYNC_ALLOCATION_ID : null, 0L, allocation.changes());
             } else {
-                iterator.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
+                unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
             }
         }
 

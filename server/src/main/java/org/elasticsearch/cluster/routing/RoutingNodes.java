@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
@@ -883,7 +884,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ignored.add(shard);
         }
 
-        public class UnassignedIterator implements Iterator<ShardRouting> {
+        public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
             private ShardRouting current;
@@ -907,6 +908,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              *
              * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
              */
+            @Override
             public ShardRouting initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize,
                                            RoutingChangesObserver routingChangesObserver) {
                 nodes.ensureMutable();
@@ -922,6 +924,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              *
              * @param attempt the result of the allocation attempt
              */
+            @Override
             public void removeAndIgnore(AllocationStatus attempt, RoutingChangesObserver changes) {
                 nodes.ensureMutable();
                 innerRemove();
@@ -940,6 +943,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              * @param  recoverySource the new recovery source to use
              * @return the shard with unassigned info updated
              */
+            @Override
             public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource,
                                                  RoutingChangesObserver changes) {
                 nodes.ensureMutable();

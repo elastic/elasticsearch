@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.gateway.GatewayAllocator;
 
@@ -54,7 +58,7 @@ public interface ExistingShardsAllocator {
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      */
     void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                            RoutingNodes.UnassignedShards.UnassignedIterator iterator);
+                            UnassignedAllocationHandler unassignedAllocationHandler);
 
     /**
      * Returns an explanation for a single unassigned shard.
@@ -84,4 +88,37 @@ public interface ExistingShardsAllocator {
      */
     int getNumberOfInFlightFetches();
 
+    /**
+     * Used by {@link ExistingShardsAllocator#allocateUnassigned} to handle its allocation decisions. A restricted interface to
+     * {@link RoutingNodes.UnassignedShards.UnassignedIterator} to limit what allocators can do.
+     */
+    interface UnassignedAllocationHandler {
+
+        /**
+         * Initializes the current unassigned shard and moves it from the unassigned list.
+         *
+         * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
+         */
+        ShardRouting initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize,
+                                RoutingChangesObserver routingChangesObserver);
+
+        /**
+         * Removes and ignores the unassigned shard (will be ignored for this run, but
+         * will be added back to unassigned once the metadata is constructed again).
+         * Typically this is used when an allocation decision prevents a shard from being allocated such
+         * that subsequent consumers of this API won't try to allocate this shard again.
+         *
+         * @param attempt the result of the allocation attempt
+         */
+        void removeAndIgnore(UnassignedInfo.AllocationStatus attempt, RoutingChangesObserver changes);
+
+        /**
+         * updates the unassigned info and recovery source on the current unassigned shard
+         *
+         * @param  unassignedInfo the new unassigned info to use
+         * @param  recoverySource the new recovery source to use
+         * @return the shard with unassigned info updated
+         */
+        ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource, RoutingChangesObserver changes);
+    }
 }

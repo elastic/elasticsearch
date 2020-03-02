@@ -567,11 +567,11 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(Settings.EMPTY, new TestGatewayAllocator() {
             @Override
             public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                                           RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                                           UnassignedAllocationHandler unassignedAllocationHandler) {
                 if (allocateTest1.get() == false && "test1".equals(shardRouting.index().getName())) {
-                    iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                    unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                 } else {
-                    super.allocateUnassigned(allocation, shardRouting, iterator);
+                    super.allocateUnassigned(allocation, shardRouting, unassignedAllocationHandler);
                 }
             }
         });

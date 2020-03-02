@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -35,7 +34,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     @Override
     public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                                   UnassignedAllocationHandler unassignedAllocationHandler) {
         final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
         assert allocateUnassignedDecision.isDecisionTaken();
 
@@ -43,12 +42,12 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                 // we don't care what the allocation ID is since we know that these shards cannot really be stale, so we can
                 // safely ignore the allocation ID with a forced-stale allocation
-                iterator.updateUnassigned(shardRouting.unassignedInfo(),
+                unassignedAllocationHandler.updateUnassigned(shardRouting.unassignedInfo(),
                     RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE, allocation.changes());
             }
-            iterator.initialize(allocateUnassignedDecision.getTargetNode().getId(), null, 0L, allocation.changes());
+            unassignedAllocationHandler.initialize(allocateUnassignedDecision.getTargetNode().getId(), null, 0L, allocation.changes());
         } else {
-            iterator.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
+            unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
         }
     }
 

@@ -21,8 +21,8 @@ package org.elasticsearch.test.gateway;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.gateway.AsyncShardFetch;
@@ -126,9 +126,9 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     @Override
     public void allocateUnassigned(RoutingAllocation allocation, ShardRouting shardRouting,
-                                   RoutingNodes.UnassignedShards.UnassignedIterator iterator) {
+                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
         currentNodes = allocation.nodes();
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, iterator);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
     /**

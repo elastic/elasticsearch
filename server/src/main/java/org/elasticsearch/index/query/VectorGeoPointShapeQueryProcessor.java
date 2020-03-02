@@ -37,6 +37,7 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
@@ -133,15 +134,15 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         }
 
         // helper for visit(MultiPolygon multiPolygon) and visit(Polygon polygon)
-        private Query visit(ArrayList<org.elasticsearch.geometry.Polygon> collector) {
-            org.apache.lucene.geo.Polygon[] polygons =
+        private Query visit(ArrayList<Polygon> collector) {
+            org.apache.lucene.geo.Polygon[] lucenePolygons =
                 new org.apache.lucene.geo.Polygon[collector.size()];
-            for (int j = 0; j < collector.size(); j++) {
-                polygons[j] = toLucenePolygon(collector.get(j));
+            for (int i = 0; i < collector.size(); i++) {
+                lucenePolygons[i] = toLucenePolygon(collector.get(i));
             }
-            Query query = LatLonPoint.newPolygonQuery(fieldName, polygons);
+            Query query = LatLonPoint.newPolygonQuery(fieldName, lucenePolygons);
             if (fieldType.hasDocValues()) {
-                Query dvQuery = LatLonDocValuesField.newSlowPolygonQuery(fieldName, polygons);
+                Query dvQuery = LatLonDocValuesField.newSlowPolygonQuery(fieldName, lucenePolygons);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
@@ -162,7 +163,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractGeometryFieldM
         }
 
         @Override
-        public Query visit(org.elasticsearch.geometry.Polygon polygon) {
+        public Query visit(Polygon polygon) {
             ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
             GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
             return visit(collector);

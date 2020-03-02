@@ -98,7 +98,7 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
 
     public final void test() {
         EqlSearchResponse response = new EqlSearchRequestBuilder(client(), EqlSearchAction.INSTANCE)
-            .indices(testIndexName).rule(spec.query()).get();
+            .indices(testIndexName).query(spec.query()).get();
 
         List<SearchHit> events = response.hits().events();
         assertNotNull(events);

@@ -17,33 +17,33 @@ public class TransformTests extends ESTestCase {
 
     public void testNodeAttributes() {
         Settings.Builder builder = Settings.builder();
-        boolean transformEnabled = true;
-        boolean remoteEnabled = true;
+        boolean transformEnabled = randomBoolean();
+        boolean transformPluginEnabled = randomBoolean();
+        boolean remoteEnabled = randomBoolean();
 
-        if (randomBoolean()) {
-            transformEnabled = randomBoolean();
-            if (randomBoolean()) {
-                builder.put("node.transform", transformEnabled);
-                if (randomBoolean()) {
-                    // note: the case where node.transform: true and xpack.transform.enabled: false is benign
-                    builder.put("xpack.transform.enabled", randomBoolean());
-                }
-            } else {
-                builder.put("xpack.transform.enabled", transformEnabled);
-            }
+        // randomly use explicit or default setting
+        if ((transformEnabled && randomBoolean()) == false) {
+            builder.put("node.transform", transformEnabled);
         }
 
-        if (randomBoolean()) {
-            remoteEnabled = randomBoolean();
+        // randomly use explicit or default setting
+        if ((remoteEnabled && randomBoolean()) == false) {
             builder.put("cluster.remote.connect", remoteEnabled);
+        }
+
+        if (transformPluginEnabled == false) {
+            builder.put("xpack.transform.enabled", transformPluginEnabled);
         }
 
         builder.put("node.attr.some_other_attrib", "value");
         Transform transform = createTransform(builder.build());
         assertNotNull(transform.additionalSettings());
-        assertEquals(transformEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node")));
         assertEquals(
-            transformEnabled && remoteEnabled,
+            transformPluginEnabled && transformEnabled,
+            Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
+        );
+        assertEquals(
+            transformPluginEnabled && remoteEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect"))
         );
     }

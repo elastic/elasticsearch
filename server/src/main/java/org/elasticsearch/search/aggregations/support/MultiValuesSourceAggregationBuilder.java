@@ -170,9 +170,8 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
                                                                Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
-            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, userValueTypeHint,
-                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, defaultValueSourceType(),
-                getType());
+            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext, userValueTypeHint,
+                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, defaultValueSourceType());
             configs.put(key, config);
         });
         DocValueFormat docValueFormat = resolveFormat(format, userValueTypeHint, defaultValueSourceType());

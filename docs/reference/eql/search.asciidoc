@@ -35,6 +35,7 @@ specified in the `rule` parameter. The EQL query matches events with an
 GET sec_logs/_eql/search
 {
   "event_type_field": "event.category",
+  "timestamp_field": "@timestamp",
   "rule": """
     process where process.name == "cmd.exe"
   """

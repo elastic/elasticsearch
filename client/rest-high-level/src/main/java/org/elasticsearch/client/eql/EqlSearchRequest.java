@@ -37,7 +37,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
     private QueryBuilder query = null;
-    private String timestampField = "@timestamp";
+    private String timestampField = "timestamp";
     private String eventTypeField = "event_type";
     private String implicitJoinKeyField = "agent.id";
     private int fetchSize = 50;

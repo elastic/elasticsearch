@@ -106,7 +106,7 @@ subprojects {
     // Projects that should be formatted and checked with Spotless are
     // listed here, by project path. Once the number of formatted projects
     // is greater than the number of unformatted projects, this can be
-    // switched to an exclude list, and eventualy removed completely.
+    // switched to an exclude list, and eventually removed completely.
     def projectPathsToFormat = [
       ':benchmarks',
       ':build-tools',
@@ -193,7 +193,7 @@ task verifyVersions {
       throw new GradleException("Must run in online mode to verify versions")
     }
     // Read the list from maven central.
-    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here
+    // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
       bwcVersions.compareToAuthoritative(
@@ -219,8 +219,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/52998" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")

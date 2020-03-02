@@ -626,6 +626,10 @@ public class XPackLicenseState {
         return allowForAllLicenses();
     }
 
+    public boolean isConstantKeywordAllowed() {
+        return allowForAllLicenses();
+    }
+
     /**
      * @return true if security is available to be used with the current license type
      */

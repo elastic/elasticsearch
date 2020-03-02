@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.ArrayList;
@@ -27,8 +29,9 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
             List<PhaseProgress> progress = new ArrayList<>(progressSize);
             IntStream.of(progressSize).forEach(progressIndex -> progress.add(
                 new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100))));
+            MemoryUsage memoryUsage = randomBoolean() ? null : MemoryUsageTests.createRandom();
             Response.Stats stats = new Response.Stats(DataFrameAnalyticsConfigTests.randomValidId(),
-                randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, null, randomAlphaOfLength(20));
+                randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, memoryUsage, null, randomAlphaOfLength(20));
             analytics.add(stats);
         }
         return new Response(new QueryPage<>(analytics, analytics.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));

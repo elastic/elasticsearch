@@ -163,6 +163,7 @@ import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexReq
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
@@ -1171,12 +1172,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
+        public ActionFuture<ImportDanglingIndexResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
             return execute(ImportDanglingIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
+        public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<ImportDanglingIndexResponse> listener) {
             execute(ImportDanglingIndexAction.INSTANCE, request, listener);
         }
 

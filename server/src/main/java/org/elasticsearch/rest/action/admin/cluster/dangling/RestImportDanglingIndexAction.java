@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -55,7 +55,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
 
         return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestToXContentListener<>(channel) {
             @Override
-            protected RestStatus getStatus(AcknowledgedResponse acknowledgedResponse) {
+            protected RestStatus getStatus(ImportDanglingIndexResponse acknowledgedResponse) {
                 return ACCEPTED;
             }
         });

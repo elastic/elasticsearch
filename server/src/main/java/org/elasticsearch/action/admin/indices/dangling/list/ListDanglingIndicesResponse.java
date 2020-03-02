@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Models a response to a {@link ListDanglingIndicesRequest}. A list request queries every node in the
@@ -62,18 +63,20 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         return this.hasFailures() ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK;
     }
 
-    private Collection<AggregatedDanglingIndexInfo> resultsByIndexUUID() {
+    // Visible for testing
+    static Collection<AggregatedDanglingIndexInfo> resultsByIndexUUID(List<NodeListDanglingIndicesResponse> nodes) {
         Map<String, AggregatedDanglingIndexInfo> byIndexUUID = new HashMap<>();
 
-        for (NodeListDanglingIndicesResponse nodeResponse : this.getNodes()) {
+        for (NodeListDanglingIndicesResponse nodeResponse : nodes) {
             for (DanglingIndexInfo info : nodeResponse.getDanglingIndices()) {
                 final String indexUUID = info.getIndexUUID();
 
-                final AggregatedDanglingIndexInfo aggregatedInfo = byIndexUUID.computeIfAbsent(indexUUID,
-                    (_uuid) -> new AggregatedDanglingIndexInfo(indexUUID, info
-                    .getIndexName(), info.getCreationDateMillis()));
+                final AggregatedDanglingIndexInfo aggregatedInfo = byIndexUUID.computeIfAbsent(
+                    indexUUID,
+                    (_uuid) -> new AggregatedDanglingIndexInfo(indexUUID, info.getIndexName(), info.getCreationDateMillis())
+                );
 
-                aggregatedInfo.nodeIds.add(nodeResponse.getNode().getId());
+                aggregatedInfo.nodeIds.add(info.getNodeId());
             }
         }
 
@@ -84,7 +87,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("dangling_indices");
 
-        for (AggregatedDanglingIndexInfo info : this.resultsByIndexUUID()) {
+        for (AggregatedDanglingIndexInfo info : resultsByIndexUUID(this.getNodes())) {
             builder.startObject();
 
             builder.field("index_name", info.indexName);
@@ -109,17 +112,55 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         out.writeList(nodes);
     }
 
-    private static class AggregatedDanglingIndexInfo {
+    // visible for testing
+    static class AggregatedDanglingIndexInfo {
         private final String indexUUID;
         private final String indexName;
         private final long creationDateMillis;
         private final List<String> nodeIds;
 
-        private AggregatedDanglingIndexInfo(String indexUUID, String indexName, long creationDateMillis) {
+        AggregatedDanglingIndexInfo(String indexUUID, String indexName, long creationDateMillis) {
             this.indexUUID = indexUUID;
             this.indexName = indexName;
             this.creationDateMillis = creationDateMillis;
             this.nodeIds = new ArrayList<>();
+        }
+
+        // the methods below are used in the unit tests
+
+        public List<String> getNodeIds() {
+            return nodeIds;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            AggregatedDanglingIndexInfo that = (AggregatedDanglingIndexInfo) o;
+            return creationDateMillis == that.creationDateMillis
+                && indexUUID.equals(that.indexUUID)
+                && indexName.equals(that.indexName)
+                && nodeIds.equals(that.nodeIds);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexUUID, indexName, creationDateMillis, nodeIds);
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                "AggregatedDanglingIndexInfo{indexUUID='%s', indexName='%s', creationDateMillis=%d, nodeIds=%s}",
+                indexUUID,
+                indexName,
+                creationDateMillis,
+                nodeIds
+            );
         }
     }
 }

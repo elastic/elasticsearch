@@ -19,7 +19,9 @@ public final class WatcherIndexTemplateRegistryField {
     // Note: if you change this, also inform the kibana team around the watcher-ui
     public static final int INDEX_TEMPLATE_VERSION = 11;
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
+    public static final String HISTORY_TEMPLATE_NAME_10 = ".watch-history-10";
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
+    public static final String HISTORY_TEMPLATE_NAME_NO_ILM_10 = ".watch-history-no-ilm-10";
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";
     public static final String[] TEMPLATE_NAMES = new String[] {

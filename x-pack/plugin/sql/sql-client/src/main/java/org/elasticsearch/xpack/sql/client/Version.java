@@ -100,8 +100,7 @@ public class Version extends org.elasticsearch.xpack.sql.proto.Version {
         return new Version(ver, hash, maj, min, rev);
     }
 
-    @Override
-    public String toString() {
+    public String versionString() {
         return "v" + version + " [" + hash + "]";
     }
 

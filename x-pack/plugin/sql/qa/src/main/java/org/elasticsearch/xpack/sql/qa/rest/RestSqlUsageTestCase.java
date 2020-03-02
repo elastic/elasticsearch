@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -255,13 +256,13 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String sql) throws IOException {
-        String mode = Mode.PLAIN.toString();
+        Mode mode = Mode.PLAIN;
         if (clientType.equals(ClientType.JDBC.toString())) {
-            mode = Mode.JDBC.toString();
+            mode = Mode.JDBC;
         } else if (clientType.startsWith(ClientType.ODBC.toString())) {
-            mode = Mode.ODBC.toString();
+            mode = Mode.ODBC;
         } else if (clientType.equals(ClientType.CLI.toString())) {
-            mode = Mode.CLI.toString();
+            mode = Mode.CLI;
         }
 
         runSql(mode, clientType, sql);
@@ -278,12 +279,13 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         }
         assertEquals(expected, actualMetricValue);
     }
-    
-    private void runSql(String mode, String restClient, String sql) throws IOException {
+
+    private void runSql(Mode mode, String restClient, String sql) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
-        if (randomBoolean()) {
+        Boolean includeVersion = Mode.isDriver(mode) || Mode.isCli(mode);
+        if (randomBoolean() && includeVersion == false) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
         }
@@ -293,9 +295,13 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
-                (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}",
-                ContentType.APPLICATION_JSON));
+        String query = "{\"query\":\"" + sql + "\"" + mode(mode.toString()) +
+            (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"");
+        if (includeVersion) {
+            query += ", \"client_version\": " + "\"" + Version.CURRENT.toString() + "\"";
+        }
+        query += "}";
+        request.setEntity(new StringEntity(query, ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
     

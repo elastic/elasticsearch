@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -188,7 +189,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
             throws IOException {
         boolean columnar = randomBoolean();
-        Map<String, Object> response = runSql(mode.toString(), sql, columnar);
+        Map<String, Object> response = runSql(mode, sql, columnar);
         List<Object> columns = (ArrayList<Object>) response.get("columns");
         assertEquals(1, columns.size());
 
@@ -215,17 +216,19 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(columnValue, row.get(0));
         }
     }
-    
-    private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
+
+    private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
+        String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode.toString()) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
-        
+
         // add a client_id to the request
         if (randomBoolean()) {
             String clientId = randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20));
+            String clientVersion = (Mode.isDriver(mode) || Mode.isCli(mode)) ?
+                ",\"client_version\": \"" + Version.CURRENT.toString() + "\"" : "";
             requestContent = new StringBuilder(requestContent)
-                    .insert(requestContent.length() - 1, ",\"client_id\":\"" + clientId + "\"").toString();
+                    .insert(requestContent.length() - 1, ",\"client_id\":\"" + clientId + "\"" + clientVersion).toString();
         }
         if (randomBoolean()) {
             request.addParameter("error_trace", "true");
@@ -252,14 +255,13 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         // randomize binary response enforcement for drivers (ODBC/JDBC) and CLI
         boolean binaryCommunication = randomBoolean();
-        Mode m = Mode.fromString(mode);
         if (randomBoolean()) {
             // set it explicitly or leave the default (null) as is
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
-            binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication);
+            binaryCommunication = ((Mode.isDriver(mode) || Mode.isCli(mode)) && binaryCommunication);
         } else {
-            binaryCommunication = Mode.isDriver(m) || m == Mode.CLI;
+            binaryCommunication = Mode.isDriver(mode) || Mode.isCli(mode);
         }
         
         // send the query either as body or as request parameter

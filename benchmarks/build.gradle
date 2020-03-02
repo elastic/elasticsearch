@@ -64,3 +64,12 @@ thirdPartyAudit.ignoreViolations(
   'org.openjdk.jmh.profile.HotspotRuntimeProfiler',
   'org.openjdk.jmh.util.Utils'
 )
+
+spotless {
+  java {
+    // IDEs can sometimes run annotation processors that leave files in
+    // here, causing Spotless to complain. Even though this path ought not
+    // to exist, exclude it anyway in order to avoid spurious failures.
+    targetExclude 'src/main/generated/**/*.java'
+  }
+}

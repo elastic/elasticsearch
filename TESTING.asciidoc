@@ -270,33 +270,48 @@ code 137 (128 + 9, where 9 means SIGKILL).
 
 == Testing the REST layer
 
-The available integration tests make use of the java API to communicate with
-the elasticsearch nodes, using the internal binary transport (port 9300 by
-default).
-The REST layer is tested through specific tests that are shared between all
-the elasticsearch official clients and consist of YAML files that describe the
+The REST layer is tested through specific tests that are executed against
+a cluster that is configured and initialized via Gradle. The tests
+themselves can be written in either Java or with a YAML based DSL.
+
+YAML based REST tests should be preferred since these are shared between all
+the elasticsearch official clients. The YAML based tests describe the
 operations to be executed and the obtained results that need to be tested.
 
-The YAML files support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
+The YAML tests support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
+In order to run the the YAML tests, the relevant API specification needs
+to be on the test classpath. Any gradle project that has support for REST
+tests will get the primary API on it's class path. However, to better support
+Gradle incremental builds, it is recommended to explicitly declare which
+parts of the API the tests depend upon.
+
+For example:
+---------------------------------------------------------------------------
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+---------------------------------------------------------------------------
+
+YAML tests that include x-pack specific APIs need to explicitly declare
+which APIs are required through a similar `includeXpack` configuration.
 
 The REST tests are run automatically when executing the "./gradlew check" command. To run only the
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:archives:integ-test-zip:integTest   \
-  -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT"
+./gradlew :distribution:archives:integ-test-zip:integTestRunner \
+ --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT"
 ---------------------------------------------------------------------------
 
-A specific test case can be run with
+A specific test case can be run with the following command:
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:archives:integ-test-zip:integTest \
-  -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT" \
-  -Dtests.method="test {p0=cat.shards/10_basic/Help}"
+./gradlew ':distribution:archives:integ-test-zip:integTestRunner' \
+  --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT" \
+  -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
-
-`*Yaml*IT` are the executable test classes that runs all the
-yaml suites available within the `rest-api-spec` folder.
 
 The REST tests support all the options provided by the randomized runner, plus the following:
 
@@ -459,6 +474,14 @@ version 5.3.2 run:
 ./gradlew v5.3.2#bwcTest
 -------------------------------------------------
 
+Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
+For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
+-------------------------------------------------
+./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
+ -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
+ -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
+-------------------------------------------------
+
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.
 These are automatically checked out and built from source.
 See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
@@ -512,8 +535,9 @@ There are multiple base classes for tests:
 * **`ESIntegTestCase`**: An integration test case that creates a cluster that
   might have multiple nodes.
 * **`ESRestTestCase`**: An integration tests that interacts with an external
-  cluster via the REST API. For instance, YAML tests run via sub classes of
-  `ESRestTestCase`.
+  cluster via the REST API. This is used for Java based REST tests.
+* **`ESClientYamlSuiteTestCase` **: A subclass of `ESRestTestCase` used to run
+  YAML based REST tests.
 
 === Good practices
 

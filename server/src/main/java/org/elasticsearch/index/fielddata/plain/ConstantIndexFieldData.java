@@ -91,6 +91,9 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public SortedSetDocValues getOrdinalsValues() {
+            if (value == null) {
+                return DocValues.emptySortedSet();
+            }
             final BytesRef term = new BytesRef(value);
             final SortedDocValues sortedValues = new AbstractSortedDocValues() {
 

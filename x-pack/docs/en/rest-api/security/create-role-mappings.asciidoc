@@ -82,7 +82,7 @@ See  <<role-mapping-resources>>.
 ==== Role Templates
 
 NOTE: Role templates require the relevant scripting feature to be enabled,
-otherwise the creation of a role mapping with role templates will fail.
+Otherwise, all attempts to create a role mapping with role templates fail.
 See <<allowed-script-types-setting>>.
 
 The most common use for role mappings is to create a mapping from a known value

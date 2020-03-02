@@ -49,7 +49,6 @@ import org.elasticsearch.gateway.PriorityComparator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -73,7 +72,7 @@ public class AllocationService {
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
     private final AllocationDeciders allocationDeciders;
-    private final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
+    private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
 
@@ -95,10 +94,9 @@ public class AllocationService {
      * Inject the {@link ExistingShardsAllocator}s to use. May only be called once.
      */
     public void setExistingShardsAllocators(Map<String, ExistingShardsAllocator> existingShardsAllocators) {
-        assert this.existingShardsAllocators.isEmpty()
-            : "cannot add allocators " + existingShardsAllocators + " to " + this.existingShardsAllocators;
+        assert this.existingShardsAllocators == null : "cannot set allocators " + existingShardsAllocators + " twice";
         assert existingShardsAllocators.isEmpty() == false : "must add at least one ExistingShardsAllocator";
-        this.existingShardsAllocators.putAll(existingShardsAllocators);
+        this.existingShardsAllocators = Collections.unmodifiableMap(existingShardsAllocators);
     }
 
     /**
@@ -119,7 +117,7 @@ public class AllocationService {
             clusterInfoService.getClusterInfo(), currentNanoTime());
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
         startedShards = new ArrayList<>(startedShards);
-        Collections.sort(startedShards, Comparator.comparing(ShardRouting::primary));
+        startedShards.sort(Comparator.comparing(ShardRouting::primary));
         applyStartedShards(allocation, startedShards);
         for (final ExistingShardsAllocator allocator : existingShardsAllocators.values()) {
             allocator.applyStartedShards(allocation, startedShards);
@@ -557,7 +555,7 @@ public class AllocationService {
     }
 
     private boolean assertInitialized() {
-        assert existingShardsAllocators.isEmpty() == false : "must have at least one ExistingShardsAllocator";
+        assert existingShardsAllocators != null: "must have set allocators first";
         return true;
     }
 

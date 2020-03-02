@@ -138,7 +138,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSearchResultsWhenFrozen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-            client().performRequest(freezeRequest);
+            assertOK(client().performRequest(freezeRequest));
             ensureGreen(restoredIndexName);
             for (int i = 0; i < 10; i++) {
                 assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
@@ -149,11 +149,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testCloseAndReopen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
-            client().performRequest(closeRequest);
+            assertOK(client().performRequest(closeRequest));
             ensureGreen(restoredIndexName);
 
             final Request openRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_open");
-            client().performRequest(openRequest);
+            assertOK(client().performRequest(openRequest));
             ensureGreen(restoredIndexName);
 
             for (int i = 0; i < 10; i++) {

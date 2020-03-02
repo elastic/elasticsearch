@@ -51,10 +51,6 @@ public class QueryFolderTests extends ESTestCase {
         // test query term
         assertThat(query, containsString("\"term\":{\"event_type\":{\"value\":\"process\""));
         // test field source extraction
-        assertThat(query, containsString("\"_source\":{\"includes\":["));
-        assertThat(query, containsString("\"pid\""));
-        // test docvalue extraction
-        assertThat(query, containsString("{\"field\":\"command_line\"}"));
-        assertThat(query, containsString("{\"field\":\"timestamp\",\"format\":\"epoch_millis\"}"));
+        assertThat(query, containsString("\"_source\":{\"includes\":[],\"excludes\":[]"));
     }
 }

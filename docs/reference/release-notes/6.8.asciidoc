@@ -37,7 +37,14 @@ Search::
 === Enhancements
 
 SQL::
-* SQL: Verify Full-Text Search functions not allowed in SELECT {pull}51568[#51568] (issue: {issue}47446[#47446])
+* Verify Full-Text Search functions not allowed in SELECT {pull}51568[#51568] (issue: {issue}47446[#47446])
+
+[[upgrade-6.8.7]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
 
 [[release-notes-6.8.6]]
 == {es} version 6.8.6
@@ -53,16 +60,6 @@ Features/Watcher::
 
 Infra/Packaging::
 * Restrict support for CMS to pre-JDK 14 {pull}49123[#49123] (issue: {issue}46973[#46973])
-
-[[upgrade-6.8.7]]
-[float]
-=== Upgrades
-
-Infra/Packaging::
-* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
-
-Network::
-* Upgrade to Netty 4.1.43 {pull}49798[#49798]
 
 [[bug-6.8.6]]
 [float]

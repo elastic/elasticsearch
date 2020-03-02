@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -189,7 +190,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             && derivedState.equals(TransformStats.State.STOPPED) == false
             && derivedState.equals(TransformStats.State.FAILED) == false) {
             derivedState = TransformStats.State.STOPPING;
-            reason = reason.isEmpty() ? "transform is set to stop at the next checkpoint" : reason;
+            reason = Strings.isNullOrEmpty(reason) ? "transform is set to stop at the next checkpoint" : reason;
         }
         return new TransformStats(
             task.getTransformId(),

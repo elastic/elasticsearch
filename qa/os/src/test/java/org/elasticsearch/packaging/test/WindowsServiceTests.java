@@ -26,6 +26,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -147,6 +148,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test16InstallSpecialCharactersInJdkPath() throws IOException {
+        assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) jdk");
         sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
 

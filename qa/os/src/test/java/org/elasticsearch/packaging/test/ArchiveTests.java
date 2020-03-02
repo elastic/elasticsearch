@@ -108,21 +108,18 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test32SpecialCharactersInJdkPath() throws Exception {
         final Installation.Executables bin = installation.executables();
+        assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) path");
         sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
 
         try {
-            if (distribution().hasJdk) {
-                mv(installation.bundledJdk, relocatedJdk);
-            }
+            mv(installation.bundledJdk, relocatedJdk);
             // ask for elasticsearch version to avoid starting the app
             final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
             assertThat(runResult.stdout, startsWith("Version: "));
         } finally {
-            if (distribution().hasJdk) {
-                mv(relocatedJdk, installation.bundledJdk);
-            }
+            mv(relocatedJdk, installation.bundledJdk);
         }
     }
 

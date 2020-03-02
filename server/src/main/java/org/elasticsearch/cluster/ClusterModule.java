@@ -98,12 +98,14 @@ public class ClusterModule extends AbstractModule {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
+    private final List<ClusterPlugin> clusterPlugins;
     // pkg private for tests
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
 
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
                          ClusterInfoService clusterInfoService) {
+        this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -253,7 +255,7 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 
-    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator, List<ClusterPlugin> clusterPlugins) {
+    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {
         final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
         existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator);
 

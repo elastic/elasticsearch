@@ -203,15 +203,15 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRejectsReservedExistingShardsAllocatorName() {
-        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService, Collections.emptyList(), clusterInfoService);
-        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(),
-            List.of(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME))));
+        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
+            List.of(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)), clusterInfoService);
+        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 
     public void testRejectsDuplicateExistingShardsAllocatorName() {
-        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService, Collections.emptyList(), clusterInfoService);
-        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(),
-            List.of(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate"))));
+        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
+            List.of(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")), clusterInfoService);
+        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 
     private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {

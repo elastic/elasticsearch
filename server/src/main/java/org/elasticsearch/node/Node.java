@@ -611,8 +611,7 @@ public class Node implements Closeable {
             // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
             // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
             // reroute, which needs to call into the allocation service. We close the loop here:
-            clusterModule.setExistingShardsAllocators(
-                injector.getInstance(GatewayAllocator.class), pluginsService.filterPlugins(ClusterPlugin.class));
+            clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)

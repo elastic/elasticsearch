@@ -341,7 +341,6 @@ public class TypeParsers {
     }
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
-        //todo pg debug this..
         if (node instanceof String) {
             return DateFormatter.forPattern((String) node);
         }

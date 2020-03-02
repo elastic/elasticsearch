@@ -218,8 +218,7 @@ public interface DocValueFormat extends NamedWriteable {
                 //when received a stream from 6.0-6.latest it can be java if starts with 8 otherwise joda
                 this.formatter = Joda.forPattern(datePattern);
             }else{
-                // unknown if this is joda or java for versions earlier then [7.0-7.7).
-                //todo consider throwing exception.. .
+                // unknown if this is joda or java for versions earlier then [7.0-7.7). Assuming Java.
                 this.formatter = DateFormatter.forPattern(datePattern);
             }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 
 /**
@@ -102,6 +103,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             if (value != null) {
                 builder.setValue(value.toString());
             }
+            TypeParsers.parseMeta(builder, name, node);
             return builder;
         }
     }

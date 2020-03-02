@@ -74,6 +74,10 @@ The following mapping parameters are accepted:
 
 [horizontal]
 
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
+
 `value`::
 
     The value to associate with all documents in the index. If this parameter

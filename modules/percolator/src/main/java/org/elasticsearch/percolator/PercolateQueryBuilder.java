@@ -318,10 +318,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         builder.endObject();
     }
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PercolateQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         String field = (String) args[0];
         BytesReference document = (BytesReference) args[1];
+        @SuppressWarnings("unchecked")
         List<BytesReference> documents = (List<BytesReference>) args[2];
         String indexedDocId = (String) args[3];
         String indexedDocIndex = (String) args[4];

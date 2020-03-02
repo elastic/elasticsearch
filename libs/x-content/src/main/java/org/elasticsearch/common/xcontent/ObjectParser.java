@@ -307,8 +307,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     }
 
                     // Check if this field is in an exclusive set, if it is then mark
-                    // it as seen.  If the set is already marked, then we have a duplicate
-                    // so throw an exception
+                    // it as seen.
                     for (int i = 0; i < this.exclusiveFieldSets.size(); i++) {
                         for (String field : this.exclusiveFieldSets.get(i)) {
                             if (field.equals(currentFieldName)) {
@@ -323,6 +322,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             }
         }
 
+        // Check for a) multiple entries appearing in exclusive field sets and b) empty
+        // required field entries
         StringBuilder message = new StringBuilder();
         for (List<String> fieldset : exclusiveFields) {
             if (fieldset.size() > 1) {

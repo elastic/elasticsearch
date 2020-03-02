@@ -299,7 +299,9 @@ public abstract class AbstractObjectParser<Value, Context>
      * Declares a set of fields of which at most one must appear for parsing to succeed
      *
      * E.g. <code>declareExclusiveFieldSet("foo", "bar");</code> means that only one of 'foo'
-     * or 'bar' must be present, and if both appear then an exception will be thrown.
+     * or 'bar' must be present, and if both appear then an exception will be thrown.  Note
+     * that this does not make 'foo' or 'bar' required - see {@link #declareRequiredFieldSet(String...)}
+     * for required fields.
      *
      * Multiple exclusive sets may be declared
      *

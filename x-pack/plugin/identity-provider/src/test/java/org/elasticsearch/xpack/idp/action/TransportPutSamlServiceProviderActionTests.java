@@ -62,12 +62,12 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
         final PutSamlServiceProviderResponse response = future.actionGet();
         assertThat(response, notNullValue());
-        assertThat(response.docId, equalTo(writeResponse.get().getId()));
-        assertThat(response.entityId, equalTo(document.entityId));
-        assertThat(response.created, equalTo(true));
-        assertThat(response.enabled, equalTo(document.enabled));
-        assertThat(response.primaryTerm, equalTo(writeResponse.get().getPrimaryTerm()));
-        assertThat(response.seqNo, equalTo(writeResponse.get().getSeqNo()));
+        assertThat(response.getDocId(), equalTo(writeResponse.get().getId()));
+        assertThat(response.getEntityId(), equalTo(document.entityId));
+        assertThat(response.isCreated(), equalTo(true));
+        assertThat(response.isEnabled(), equalTo(document.enabled));
+        assertThat(response.getPrimaryTerm(), equalTo(writeResponse.get().getPrimaryTerm()));
+        assertThat(response.getSeqNo(), equalTo(writeResponse.get().getSeqNo()));
 
         assertThat(document.created, equalTo(now));
         assertThat(document.lastModified, equalTo(now));
@@ -89,13 +89,13 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
         final PutSamlServiceProviderResponse response = future.actionGet();
         assertThat(response, notNullValue());
-        assertThat(response.docId, equalTo(existingDocument.docId));
-        assertThat(response.docId, equalTo(writeResponse.get().getId()));
-        assertThat(response.entityId, equalTo(document.entityId));
-        assertThat(response.created, equalTo(false));
-        assertThat(response.enabled, equalTo(document.enabled));
-        assertThat(response.primaryTerm, equalTo(writeResponse.get().getPrimaryTerm()));
-        assertThat(response.seqNo, equalTo(writeResponse.get().getSeqNo()));
+        assertThat(response.getDocId(), equalTo(existingDocument.docId));
+        assertThat(response.getDocId(), equalTo(writeResponse.get().getId()));
+        assertThat(response.getEntityId(), equalTo(document.entityId));
+        assertThat(response.isCreated(), equalTo(false));
+        assertThat(response.isEnabled(), equalTo(document.enabled));
+        assertThat(response.getPrimaryTerm(), equalTo(writeResponse.get().getPrimaryTerm()));
+        assertThat(response.getSeqNo(), equalTo(writeResponse.get().getSeqNo()));
 
         assertThat(document.created, equalTo(existingDocument.created));
         assertThat(document.lastModified, equalTo(now));

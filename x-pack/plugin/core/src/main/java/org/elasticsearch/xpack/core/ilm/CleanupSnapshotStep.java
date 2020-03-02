@@ -16,6 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
@@ -34,6 +36,10 @@ public class CleanupSnapshotStep extends AsyncActionStep {
     @Override
     public boolean isRetryable() {
         return true;
+    }
+
+    public String getSnapshotRepository() {
+        return snapshotRepository;
     }
 
     @Override
@@ -74,5 +80,23 @@ public class CleanupSnapshotStep extends AsyncActionStep {
                 }
             }
         });
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), snapshotRepository);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        CleanupSnapshotStep other = (CleanupSnapshotStep) obj;
+        return super.equals(obj) &&
+            Objects.equals(snapshotRepository, other.snapshotRepository);
     }
 }

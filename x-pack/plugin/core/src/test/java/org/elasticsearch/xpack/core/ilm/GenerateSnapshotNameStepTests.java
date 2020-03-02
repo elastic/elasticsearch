@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 
+import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -44,6 +50,26 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
     @Override
     protected GenerateSnapshotNameStep copyInstance(GenerateSnapshotNameStep instance) {
         return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey());
+    }
+
+    public void testPerformAction() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        IndexMetaData.Builder indexMetadataBuilder =
+            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+
+        ClusterState clusterState =
+            ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetadataBuilder).build()).build();
+
+        GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadataBuilder.build().getIndex(), clusterState);
+
+        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metaData().index(indexName));
+        assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
+            notNullValue());
+        assertThat(executionState.getSnapshotName(), containsStringIgnoringCase(indexName));
+        assertThat(executionState.getSnapshotName(), containsStringIgnoringCase(policyName));
     }
 
     public void testNameGeneration() {

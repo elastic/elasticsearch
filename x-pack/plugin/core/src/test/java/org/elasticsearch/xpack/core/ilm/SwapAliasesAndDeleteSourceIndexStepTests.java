@@ -121,7 +121,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     }
 
     private NoOpClient getIndicesAliasAssertingClient(List<AliasActions> expectedAliasActions) {
-        return new NoOpClient(SwapAliasesAndDeleteSourceIndexStep.class.getSimpleName()) {
+        return new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                       Request request,

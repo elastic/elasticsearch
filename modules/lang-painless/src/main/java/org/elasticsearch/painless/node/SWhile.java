@@ -52,8 +52,8 @@ public final class SWhile extends AStatement {
         condition.analyze(scriptRoot, scope);
         condition = condition.cast(scriptRoot, scope);
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        if (condition instanceof EBoolean) {
+            continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));

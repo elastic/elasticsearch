@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -127,8 +128,21 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    }
+
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        if (filterBuilder != null) {
+            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryShardContext);
+            if (rewrittenFilter != filterBuilder) {
+                SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metaData);
+                rewritten.backgroundFilter(rewrittenFilter);
+                return rewritten;
+            }
+        }
+        return super.doRewrite(queryShardContext);
     }
 
     @Override

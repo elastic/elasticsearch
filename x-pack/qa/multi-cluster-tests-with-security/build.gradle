@@ -8,6 +8,12 @@ dependencies {
   testCompile project(':client:rest-high-level')
 }
 
+restResources {
+  restApi {
+    includeXpack 'security', 'transform'
+  }
+}
+
 task 'remote-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   runner {

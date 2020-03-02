@@ -81,14 +81,22 @@ public class CopyRestTestsTask extends DefaultTask {
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {
-        xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-        ConfigurableFileCollection fileCollection = getProject().files(xpackConfig.getAsFileTree().matching(xpackPatternSet));
-        if (BuildParams.isInternal()) {
-            corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            fileCollection.plus(coreConfig.getAsFileTree().matching(corePatternSet));
-        } else {
-            fileCollection.plus(coreConfig);
+        FileTree coreFileTree = null;
+        FileTree xpackFileTree = null;
+        if (includeXpack.get().isEmpty() == false) {
+            xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
         }
+        if (includeCore.get().isEmpty() == false) {
+            if (BuildParams.isInternal()) {
+                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+                coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
+            } else {
+                coreFileTree = coreConfig.getAsFileTree(); // jar file
+            }
+        }
+        ConfigurableFileCollection fileCollection = getProject().files(coreFileTree, xpackFileTree);
+
         // copy tests only if explicitly requested
         return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
     }

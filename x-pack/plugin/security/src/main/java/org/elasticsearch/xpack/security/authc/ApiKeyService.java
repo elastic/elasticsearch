@@ -884,7 +884,22 @@ public class ApiKeyService {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
-            return authentication.getAuthenticatedBy().getName();
+            return authentication.getSourceRealm().getName();
+        }
+    }
+
+    /**
+     * Returns realm type for the authenticated user.
+     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * then it will return the realm name of user who created this API key.
+     * @param authentication {@link Authentication}
+     * @return realm type
+     */
+    public static String getCreatorRealmType(final Authentication authentication) {
+        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
+        } else {
+            return authentication.getSourceRealm().getType();
         }
     }
 

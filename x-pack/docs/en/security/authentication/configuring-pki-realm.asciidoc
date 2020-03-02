@@ -17,9 +17,9 @@ IMPORTANT: You must enable SSL/TLS with client authentication to use PKI when
 clients connect directly to {es}.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
-`xpack.security.authc.realms.pki` namespace.
-You must explicitly set the `order` attribute. See <<ref-pki-settings>> for all
-of the options you can set for a `pki` realm.
+`xpack.security.authc.realms.pki` namespace. You must explicitly set the `order`
+attribute. See <<ref-pki-settings>> for all of the options you can set for a
+`pki` realm.
 +
 --
 For example, the following snippet shows the most basic `pki` realm configuration:
@@ -43,6 +43,7 @@ configuration does not permit PKI authentication to {kib}.
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the
 `native` or `file` realms, you must include them in the realm chain.
+
 --
 
 . Optional: If you want to use something other than the CN of the Subject DN as
@@ -70,9 +71,9 @@ client's certificate, then the realm does not authenticate the certificate.
 
 --
 
-. Optional: If you want the same users to also be authenticated using certificates when
-they connect to {kib}, you must configure the {es} PKI realm to allow delegation.
-See <<pki-realm-for-proxied-clients>>.
+. Optional: If you want the same users to also be authenticated using
+certificates when they connect to {kib}, you must configure the {es} PKI realm
+to allow delegation. See <<pki-realm-for-proxied-clients>>.
 
 . Restart {es} because realm configuration is not reloaded automatically. If
 you're following through with the next steps, you might wish to hold the
@@ -139,8 +140,8 @@ xpack.security.authc.realms.pki.pki1.truststore.secure_password
 ------------------------------------------------------------
 
 The `certificate_authorities` option can be used as an alternative to the
-`truststore.path` setting, when the certificate files are PEM formatted
-. The setting accepts a list. The two options are exclusive, they cannot be both used
+`truststore.path` setting, when the certificate files are PEM formatted. The
+setting accepts a list. The two options are exclusive, they cannot be both used
 simultaneously.
 --
 
@@ -155,9 +156,7 @@ to which the user is mapped.
 
 You identify a user by the distinguished name in their certificate.
 For example, the following mapping configuration maps `John Doe` to the
-`user` role:
-
-Using the role-mapping API:
+`user` role using the role mapping API:
 
 [source,console]
 --------------------------------------------------
@@ -173,10 +172,7 @@ PUT /_security/role_mapping/users
 
 <1> The distinguished name (DN) of a PKI user.
 
-Or, alternatively, configured inside a role-mapping file. The file's path
-defaults to `ES_PATH_CONF/role_mapping.yml`. You can specify a different path (which must be within
-ES_PATH_CONF) by using the `files.role_mapping` realm setting (e.g.
-`xpack.security.authc.realms.pki.pki1.files.role_mapping`):
+Alternatively, use a role-mapping file. For example:
 
 [source, yaml]
 ------------------------------------------------------------
@@ -186,9 +182,14 @@ user: <1>
 <1> The name of a role.
 <2> The distinguished name (DN) of a PKI user.
 
+The file's path defaults to `ES_PATH_CONF/role_mapping.yml`. You can specify a
+different path (which must be within `ES_PATH_CONF`) by using the
+`files.role_mapping` realm setting (e.g.
+`xpack.security.authc.realms.pki.pki1.files.role_mapping`).
+
 The distinguished name for a PKI user follows X.500 naming conventions which
 place the most specific fields (like `cn` or `uid`) at the beginning of the
-name, and the most general fields (like `o` or `dc`) at the end of the name.
+name and the most general fields (like `o` or `dc`) at the end of the name.
 Some tools, such as _openssl_, may print out the subject name in a different
 format.
 
@@ -204,10 +205,6 @@ NOTE: The PKI realm supports <<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --
-
-. If you want the same users to also be authenticated using certificates when
-they connect to {kib},
-{kibana-ref}/kibana-authentication.html#pki-authentication[enable PKI authentication in {kib}].
 
 [[pki-realm-for-proxied-clients]]
 ==== PKI authentication for clients connecting to {kib}
@@ -247,17 +244,11 @@ xpack:
 ------------------------------------------------------------
 
 After you restart {es}, this realm can validate delegated PKI authentication.
-For more information about these settings, see <<security-settings>>.
-
-[NOTE]
-====
-
-. PKI authentication delegation requires that SSL/TLS is configured (without
-SSL/TLS client authentication). See <<ssl-tls>>.
-. You must also
+You must also 
 {kibana-ref}/kibana-authentication.html#pki-authentication[configure {kib} to allow PKI certificate authentication].
 
-====
+NOTE: PKI authentication delegation requires that SSL/TLS is configured (without
+SSL/TLS client authentication). See <<ssl-tls>>.
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
 connecting directly to {es}. Directly authenticated users and users that are PKI

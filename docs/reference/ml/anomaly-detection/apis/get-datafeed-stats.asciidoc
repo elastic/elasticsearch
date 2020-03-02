@@ -68,7 +68,7 @@ informational; you cannot update their values.
 
 `assignment_explanation`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation]
+include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
 
 `datafeed_id`::
 (string)
@@ -76,12 +76,18 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `node`::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node]
-`node`.`id`::: The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+
+`node`.`id`:::
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
+
 `node`.`name`::: The node name. For example, `0-o0tOo`.
-`node`.`ephemeral_id`::: The node ephemeral ID.
-`node`.`transport_address`::: The host and port where transport HTTP connections
-are accepted. For example, `127.0.0.1:9300`.
+
+`node`.`ephemeral_id`:::
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+
+`node`.`transport_address`::: The host and port where transport HTTP connections are
+accepted. For example, `127.0.0.1:9300`.
 `node`.`attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
 
 `state`::

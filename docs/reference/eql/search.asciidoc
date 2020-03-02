@@ -16,13 +16,14 @@ The following <<docs-bulk,bulk API>> request adds some example log data to the
 [source,console]
 ----
 PUT sec_logs/_bulk?refresh
-{"index":{"_index" : "sec_logs"}}
+{"index":{"_index" : "sec_logs", "_id" : "1"}}
 { "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "sec_logs"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "image_load" }, "file": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "sec_logs"}}
+{"index":{"_index" : "sec_logs", "_id" : "2"}}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "3"}}
 { "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
+// TESTSETUP
 
 You can now use the EQL search API to search this index using an EQL query.
 
@@ -41,8 +42,120 @@ GET sec_logs/_eql/search
   """
 }
 ----
-// TEST[continued]
 
 Because the `sec_log` index follows the ECS, you don't need to specify the
-event type or timestamp fields. The request uses the `event.category` and
-`@timestamp` fields by default.
+timestamp fields. The request uses the `@timestamp` field by default.
+
+The API returns the following response containing the matching event:
+
+[source,console-result]
+----
+{
+  "took": 3,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "sec_logs",
+        "_id": "1",
+        "_score": 0.9400072,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process"
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+
+[discrete]
+[[eql-search-specify-event-type-field]]
+=== Specify an event type field
+
+The EQL search API uses `event_type` as the required <<eql-required-fields,event
+type field>> by default. You can use the `event_type_field` parameter to specify
+another event type field.
+
+For example, the following request specifies `file.type` as the event type
+field.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "event_type_field": "file.type",
+  "query": """
+    file where agent.id == "8a4f500d"
+  """
+}
+----
+
+[discrete]
+[[eql-search-specify-timestamp-field]]
+=== Specify a timestamp field
+
+The EQL search API uses `@timestamp` as the required <<eql-required-fields,event
+timestamp field>> by default. You can use the `timestamp_field` parameter to
+specify another timestamp field.
+
+For example, the following request specifies `file.accessed` as the event
+timestamp field.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "timestamp_field": "file.accessed",
+  "event_type_field": "event.category",
+  "query": """
+    file where (file.size > 1 and file.type == "file")
+  """
+}
+----
+
+[discrete]
+[[eql-search-filter-query-dsl]]
+=== Filter using query DSL
+
+You can use the `filter` parameter to specify an additional query using
+<<query-dsl,query DSL>>. This query filters the documents on which the EQL query
+runs.
+
+For example, the following request uses a `range` query to filter the `sec_logs`
+index down to only documents with a `file.size` value greater than `1` but less
+than `1000000` bytes. The EQL query in `query` parameter then runs on these
+filtered documents.
+
+[source,console]
+----
+GET sec_logs/_eql/search
+{
+  "event_type_field": "event.category",
+  "filter": {
+    "range" : {
+      "file.size" : {
+        "gte" : 1,
+        "lte" : 1000000
+      }
+    }
+  },
+  "query": """
+    file where (file.type == "file" and file.name == "cmd.exe")
+  """
+}
+----

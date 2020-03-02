@@ -204,7 +204,10 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             serverTemplateBuilder.order(clientITMD.order());
             serverTemplateBuilder.version(clientITMD.version());
             if (clientITMD.mappings() != null) {
-                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, clientITMD.mappings().source());
+                // The client-side mappings never include a wrapping type, but server-side mappings
+                // for index templates still do so we need to wrap things here
+                String mappings = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\": " + clientITMD.mappings().source().string() + "}";
+                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
             }
             serverIndexTemplates.add(serverTemplateBuilder.build());
 

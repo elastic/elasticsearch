@@ -106,7 +106,6 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         ActionListener<AcknowledgedResponse> deleteListener
     ) throws Exception {
         findDanglingIndex(deleteRequest.getIndexUUID(), new ActionListener<>() {
-
             @Override
             public void onResponse(Index indexToDelete) {
                 // This flag is checked at this point so that we always check that the supplied index ID
@@ -153,7 +152,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("Failed to find dangling index", e);
+                logger.debug("Failed to find dangling index [" + deleteRequest.getIndexUUID() + "]", e);
                 deleteListener.onFailure(e);
             }
         });

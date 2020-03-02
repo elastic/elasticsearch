@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},
@@ -81,6 +82,9 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                     return;
                 }
 
+                String indexName = indexMetaDataToImport.getIndex().getName();
+                String indexUUID = indexMetaDataToImport.getIndexUUID();
+
                 danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToImport), new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
@@ -89,7 +93,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug("Failed to import dangling index [" + indexMetaDataToImport.getIndexUUID() + "]", e);
+                        logger.debug("Failed to import dangling index [" + indexName + "] [" + indexUUID + "]", e);
                         importListener.onFailure(e);
                     }
                 });
@@ -110,15 +114,15 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
             @Override
             public void onResponse(FindDanglingIndexResponse response) {
                 if (response.hasFailures()) {
+                    final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
+                    ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
+
                     for (FailedNodeException failure : response.failures()) {
-                        logger.error("Failed to query " + failure.nodeId(), failure);
+                        logger.error("Failed to query node [" + failure.nodeId() + "]", failure);
+                        e.addSuppressed(failure);
                     }
 
-                    listener.onFailure(
-                        new ElasticsearchException(
-                            "Failed to query nodes: " + CollectionUtils.map(response.failures(), FailedNodeException::nodeId)
-                        )
-                    );
+                    listener.onFailure(e);
                     return;
                 }
 
@@ -134,7 +138,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 }
 
                 logger.debug(
-                    "Metadata versions {} found for UUID [{}], selecting the highest",
+                    "Metadata versions {} found for index UUID [{}], selecting the highest",
                     CollectionUtils.map(metaDataSortedByVersion, IndexMetaData::getVersion),
                     indexUUID
                 );

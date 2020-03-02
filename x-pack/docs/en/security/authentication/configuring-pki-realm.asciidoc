@@ -70,7 +70,7 @@ client's certificate, then the realm does not authenticate the certificate.
 
 --
 
-. If you want the same users to also be authenticated using certificates when
+. Optional: If you want the same users to also be authenticated using certificates when
 they connect to {kib}, you must configure the {es} PKI realm to allow delegation.
 See <<pki-realm-for-proxied-clients>>.
 

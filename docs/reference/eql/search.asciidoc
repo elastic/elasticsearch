@@ -44,7 +44,7 @@ GET sec_logs/_eql/search
 ----
 
 Because the `sec_log` index follows the ECS, you don't need to specify the
-timestamp fields. The request uses the `@timestamp` field by default.
+timestamp field. The request uses the `@timestamp` field by default.
 
 The API returns the following response containing the matching event:
 

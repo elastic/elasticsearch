@@ -33,8 +33,11 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
@@ -61,7 +64,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         logger.info("creating index [{}]", indexName);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen(indexName);
@@ -121,10 +124,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         logger.info("deleting snapshot [{}]", snapshot);
         deleteSnapshot(repository, snapshot, false);
-
-        final Map<String, Object> searchableSnapshotStats = searchableSnapshotStats(restoredIndexName);
-        assertThat("Expected searchable snapshots stats for " + numberOfShards + " shards but got " + searchableSnapshotStats,
-            searchableSnapshotStats.size(), equalTo(numberOfShards));
     }
 
     public void testSearchResults() throws Exception {
@@ -159,6 +158,51 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             for (int i = 0; i < 10; i++) {
                 assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
             }
+        });
+    }
+
+    public void testStats() throws Exception {
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+            final Map<String, Object> stats = searchableSnapshotStats(restoredIndexName);
+            assertThat("Expected searchable snapshots stats for [" + restoredIndexName + ']', stats.size(), greaterThan(0));
+
+            final int nbShards = Integer.valueOf(extractValue(indexSettings(restoredIndexName), IndexMetaData.SETTING_NUMBER_OF_SHARDS));
+            assertThat("Expected searchable snapshots stats for " + nbShards + " shards but got " + stats, stats.size(), equalTo(nbShards));
+        });
+    }
+
+    public void testClearCache() throws Exception {
+        @SuppressWarnings("unchecked")
+        final Function<Map<?, ?>, Long> sumCachedBytesWritten = stats -> stats.values().stream()
+            .filter(o -> o instanceof List)
+            .flatMap(o -> ((List) o).stream())
+            .filter(o -> o instanceof Map)
+            .map(o -> ((Map<?,?>)o).get("files"))
+            .filter(o -> o instanceof List)
+            .flatMap(o -> ((List) o).stream())
+            .filter(o -> o instanceof Map)
+            .map(o -> ((Map<?,?>)o).get("cached_bytes_written"))
+            .filter(o -> o instanceof Map)
+            .map(o -> ((Map<?,?>)o).get("sum"))
+            .mapToLong(o -> ((Number) o).longValue())
+            .sum();
+
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+            final long bytesInCacheBeforeClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+            assertThat(bytesInCacheBeforeClear, greaterThan(0L));
+
+            final Request request = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_searchable_snapshots/cache/clear");
+            assertOK(client().performRequest(request));
+
+            final long bytesInCacheAfterClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+            assertThat(bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
+
+            for (int i = 0; i < 5; i++) {
+                assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            }
+
+            final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+            assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
         });
     }
 
@@ -282,6 +326,13 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         assertThat("Shard failures when retrieving searchable snapshots stats for index [" + index + "]: " + response,
             extractValue(responseAsMap, "_shards.failed"), equalTo(0));
         return extractValue(responseAsMap, "indices." + index + ".shards");
+    }
+
+    protected static Map<String, Object> indexSettings(String index) throws IOException {
+        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, '/' + index));
+        assertThat("Failed to get settings on index [" + index + "]: " + response,
+            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        return extractValue(responseAsMap(response), index + ".settings");
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {

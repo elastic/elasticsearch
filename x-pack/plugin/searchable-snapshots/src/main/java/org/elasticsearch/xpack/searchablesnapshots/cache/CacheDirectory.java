@@ -100,6 +100,10 @@ public class CacheDirectory extends FilterDirectory {
         super.close();
         // Ideally we could let the cache evict/remove cached files by itself after the
         // directory has been closed.
+        clearCache();
+    }
+
+    public void clearCache() {
         cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
     }
 

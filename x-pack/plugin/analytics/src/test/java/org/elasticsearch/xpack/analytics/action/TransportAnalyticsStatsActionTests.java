@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -56,43 +57,21 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()), usage);
     }
 
-    public void testBoxPlot() throws IOException {
-        AnalyticsUsage n1 = new AnalyticsUsage();
-        ContextParser<Void, Void> parser = n1.trackBoxplot((p, c) -> c);
-        testCase(n1, parser, "boxplot");
-    }
-
-    public void testCumulativeCardinality() throws IOException {
-        AnalyticsUsage n1 = new AnalyticsUsage();
-        ContextParser<Void, Void> parser = n1.trackCumulativeCardinality((p, c) -> c);
-        testCase(n1, parser, "cumulative_cardinality");
-    }
-
-    public void testStringStats() throws IOException {
-        AnalyticsUsage n1 = new AnalyticsUsage();
-        ContextParser<Void, Void> parser = n1.trackStringStats((p, c) -> c);
-        testCase(n1, parser, "string_stats");
-    }
-
-    public void testTopMetrics() throws IOException {
-        AnalyticsUsage n1 = new AnalyticsUsage();
-        ContextParser<Void, Void> parser = n1.trackTopMetrics((p, c) -> c);
-        testCase(n1, parser, "top_metrics");
-    }
-
-
-    private void testCase(AnalyticsUsage realUsage, ContextParser<Void, Void> parser, String name) throws IOException {
+    public void test() throws IOException {
+        AnalyticsUsage.Item item = randomFrom(AnalyticsUsage.Item.values()); 
+        AnalyticsUsage realUsage = new AnalyticsUsage();
         AnalyticsUsage emptyUsage = new AnalyticsUsage();
+        ContextParser<Void, Void> parser = realUsage.track(item, (p, c) -> c);
         ObjectPath unused = run(realUsage, emptyUsage);
-        assertThat(unused.evaluate("stats.0." + name + "_usage"), equalTo(0));
-        assertThat(unused.evaluate("stats.1." + name + "_usage"), equalTo(0));
+        assertThat(unused.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
+        assertThat(unused.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
         int count = between(1, 10000);
         for (int i = 0; i < count; i++) {
             assertNull(parser.parse(null, null));
         }
         ObjectPath used = run(realUsage, emptyUsage);
-        assertThat(used.evaluate("stats.0." + name + "_usage"), equalTo(count));
-        assertThat(used.evaluate("stats.1." + name + "_usage"), equalTo(0));
+        assertThat(used.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(count));
+        assertThat(used.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
     }
 
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {

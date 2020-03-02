@@ -52,12 +52,7 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<Analytic
 
     @Override
     protected AnalyticsStatsAction.NodeResponse nodeOperation(AnalyticsStatsAction.NodeRequest request, Task task) {
-        AnalyticsStatsAction.NodeResponse statsResponse = new AnalyticsStatsAction.NodeResponse(clusterService.localNode());
-        statsResponse.setBoxplotUsage(usage.getBoxplotUsage());
-        statsResponse.setCumulativeCardinalityUsage(usage.getCumulativeCardUsage());
-        statsResponse.setStringStatsUsage(usage.getStringStatsUsage());
-        statsResponse.setTopMetricsUsage(usage.getTopMetricsUsage());
-        return statsResponse;
+        return usage.stats(clusterService.localNode());
     }
 
 }

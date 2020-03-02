@@ -6,60 +6,54 @@
 
 package org.elasticsearch.xpack.analytics;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tracks usage of the Analytics aggregations.
  */
 public class AnalyticsUsage {
-    private final AtomicLong boxplotUsage = new AtomicLong(0);
-    private final AtomicLong cumulativeCardUsage = new AtomicLong(0);
-    private final AtomicLong stringStatsUsage = new AtomicLong(0);
-    private final AtomicLong topMetricsUsage = new AtomicLong(0);
-
-    public <C, T> ContextParser<C, T> trackBoxplot(ContextParser<C, T> realParser) {
-        return track(realParser, boxplotUsage);
+    /**
+     * Items to track.
+     */
+    public enum Item {
+        BOXPLOT,
+        CUMULATIVE_CARDINALITY,
+        STRING_STATS,
+        TOP_METRICS;
     }
 
-    public long getBoxplotUsage() {
-        return boxplotUsage.get();
-    }
+    private final Map<Item, AtomicLong> trackers = new EnumMap<>(Item.class);
 
-    public <C, T> ContextParser<C, T> trackCumulativeCardinality(ContextParser<C, T> realParser) {
-        return track(realParser, cumulativeCardUsage);
-    }
-
-    public long getCumulativeCardUsage() {
-        return cumulativeCardUsage.get();
-    }
-
-    public <C, T> ContextParser<C, T> trackStringStats(ContextParser<C, T> realParser) {
-        return track(realParser, stringStatsUsage);
-    }
-
-    public long getStringStatsUsage() {
-        return stringStatsUsage.get();
-    }
-
-    public <C, T> ContextParser<C, T> trackTopMetrics(ContextParser<C, T> realParser) {
-        return track(realParser, topMetricsUsage);
-    }
-
-    public long getTopMetricsUsage() {
-        return topMetricsUsage.get();
+    public AnalyticsUsage() {
+        for (Item item: Item.values()) {
+            trackers.put(item, new AtomicLong(0));
+        }
     }
 
     /**
      * Track successful parsing.
      */
-    private static <C, T> ContextParser<C, T> track(ContextParser<C, T> realParser, AtomicLong usage) {
+    public <C, T> ContextParser<C, T> track(Item item, ContextParser<C, T> realParser) {
+        AtomicLong usage = trackers.get(item);
         return (parser, context) -> {
             T value = realParser.parse(parser, context);
             // Intentionally doesn't count unless the parser returns cleanly.
             usage.incrementAndGet();
             return value;
         };
+    }
+
+    public AnalyticsStatsAction.NodeResponse stats(DiscoveryNode node) {
+        return new AnalyticsStatsAction.NodeResponse(node,
+                trackers.get(Item.BOXPLOT).get(),
+                trackers.get(Item.CUMULATIVE_CARDINALITY).get(),
+                trackers.get(Item.STRING_STATS).get(),
+                trackers.get(Item.TOP_METRICS).get());
     }
 }

@@ -67,7 +67,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
                 CumulativeCardinalityPipelineAggregator::new,
-                usage.trackStringStats(checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
+                usage.track(AnalyticsUsage.Item.CUMULATIVE_CARDINALITY,
+                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
         );
     }
 
@@ -77,17 +78,17 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                usage.trackStringStats(checkLicense(StringStatsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsUsage.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
                 .addResultReader(InternalStringStats::new),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                usage.trackBoxplot(checkLicense(BoxplotAggregationBuilder.PARSER)))
+                usage.track(AnalyticsUsage.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
                 .addResultReader(InternalBoxplot::new),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                usage.trackTopMetrics(checkLicense(TopMetricsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsUsage.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
                 .addResultReader(InternalTopMetrics::new)
         );
     }

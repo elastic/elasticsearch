@@ -115,26 +115,37 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
         static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
 
-        private long boxplotUsage;
-        private long cumulativeCardinalityUsage;
-        private long stringStatsUsage;
-        private long topMetricsUsage;
+        private final long boxplotUsage;
+        private final long cumulativeCardinalityUsage;
+        private final long stringStatsUsage;
+        private final long topMetricsUsage;
 
-        public NodeResponse(DiscoveryNode node) {
+        public NodeResponse(DiscoveryNode node, long boxplotUsage, long cumulativeCardinalityUsage, long stringStatsUsage,
+                long topMetricsUsage) {
             super(node);
+            this.boxplotUsage = boxplotUsage;
+            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
+            this.stringStatsUsage = stringStatsUsage;
+            this.topMetricsUsage = topMetricsUsage;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
                 boxplotUsage = in.readVLong();
+            } else {
+                boxplotUsage = 0;
             }
             cumulativeCardinalityUsage = in.readZLong();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
                 stringStatsUsage = in.readVLong();
+            } else {
+                stringStatsUsage = 0;
             }
             if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 topMetricsUsage = in.readVLong();
+            } else {
+                topMetricsUsage = 0;
             }
         }
 
@@ -153,22 +164,6 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             }
         }
 
-        public void setBoxplotUsage(long boxplotUsage) {
-            this.boxplotUsage = boxplotUsage;
-        }
-
-        public void setCumulativeCardinalityUsage(long cumulativeCardinalityUsage) {
-            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
-        }
-
-        public void setStringStatsUsage(long stringStatsUsage) {
-            this.stringStatsUsage = stringStatsUsage;
-        }
-
-        public void setTopMetricsUsage(long topMetricsUsage) {
-            this.topMetricsUsage = topMetricsUsage;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -178,6 +173,22 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
             builder.endObject();
             return builder;
+        }
+
+        public long getBoxplotUsage() {
+            return boxplotUsage;
+        }
+
+        public long getCumulativeCardinalityUsage() {
+            return cumulativeCardinalityUsage;
+        }
+
+        public long getStringStatsUsage() {
+            return stringStatsUsage;
+        }
+
+        public long getTopMetricsUsage() {
+            return topMetricsUsage;
         }
     }
 }

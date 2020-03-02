@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.constantkeyword;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
@@ -17,10 +15,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;

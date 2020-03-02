@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class TreeNodeTests extends AbstractXContentTestCase<TreeNode> {
 
@@ -48,7 +49,7 @@ public class TreeNodeTests extends AbstractXContentTestCase<TreeNode> {
     public static TreeNode createRandomLeafNode(double internalValue) {
         return TreeNode.builder(randomInt(100))
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
-            .setLeafValue(internalValue)
+            .setLeafValue(Collections.singletonList(internalValue))
             .setNumberSamples(randomNonNegativeLong())
             .build();
     }
@@ -60,7 +61,7 @@ public class TreeNodeTests extends AbstractXContentTestCase<TreeNode> {
                                                 Integer featureIndex,
                                                 Operator operator) {
         return TreeNode.builder(nodeIndex)
-            .setLeafValue(left == null ? randomDouble() : null)
+            .setLeafValue(left == null ? Collections.singletonList(randomDouble()) : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
             .setLeftChild(left)
             .setRightChild(right)

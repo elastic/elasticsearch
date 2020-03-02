@@ -166,6 +166,22 @@ Some tests related to locale testing also require the flag
 IntelliJ or Eclipse like describe above to use
 `-Djava.locale.providers=SPI,COMPAT`.
 
+### REST Endpoint Conventions
+
+Elasticsearch typically uses singular nouns rather than plurals in URLs.
+For example:
+
+    /_ingest/pipline
+    /_ingest/pipline/{id}
+
+but not:
+
+    /_ingest/piplines
+    /_ingest/piplines/{id}
+
+You may find counterexamples, but new endpoints should use the singular
+form.
+
 ### Java Language Formatting Guidelines
 
 Java files in the Elasticsearch codebase are formatted with the Eclipse JDT

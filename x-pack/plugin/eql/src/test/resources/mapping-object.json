@@ -3,6 +3,9 @@
         "event_type" : {
             "type" : "keyword"
         },
+        "timestamp" : {
+            "type" : "date"
+        },
         "endgame" : {
             "properties" : {
                 "pid" : {

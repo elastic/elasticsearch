@@ -71,11 +71,11 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
      */
     static void deleteSourceIndexAndTransferAliases(Client client, IndexMetaData sourceIndex, TimeValue masterTimeoutValue,
                                                     String targetIndex, Listener listener) {
-        String originalIndex = sourceIndex.getIndex().getName();
+        String sourceIndexName = sourceIndex.getIndex().getName();
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
             .masterNodeTimeout(masterTimeoutValue)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(originalIndex))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(originalIndex));
+            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(sourceIndexName));
         // copy over other aliases from source index
         sourceIndex.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
             AliasMetaData aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;

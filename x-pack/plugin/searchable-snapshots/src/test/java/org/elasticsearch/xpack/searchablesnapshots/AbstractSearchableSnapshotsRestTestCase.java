@@ -43,7 +43,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     protected abstract Settings repositorySettings();
 
-    public void testSearchableSnapshots() throws Exception {
+    private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody) throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
 
@@ -117,34 +117,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final Number count = count(restoredIndexName);
         assertThat("Wrong index count for index " + restoredIndexName, count.intValue(), equalTo(numDocs));
 
-        for (int i = 0; i < 10; i++) {
-            final int randomTieBreaker = randomIntBetween(1, numDocs - 1);
-            Map<String, Object> searchResults;
-            switch (randomInt(3)) {
-                case 0:
-                    searchResults = search(restoredIndexName, QueryBuilders.termQuery("field", String.valueOf(randomTieBreaker)));
-                    assertThat(extractValue(searchResults, "hits.total.value"), equalTo(1));
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> searchHit = (Map<String, Object>) ((List<?>) extractValue(searchResults, "hits.hits")).get(0);
-                    assertThat(extractValue(searchHit, "_index"), equalTo(restoredIndexName));
-                    assertThat(extractValue(searchHit, "_source.field"), equalTo(randomTieBreaker));
-                    break;
-                case 1:
-                    searchResults = search(restoredIndexName, QueryBuilders.rangeQuery("field").lt(randomTieBreaker));
-                    assertThat(extractValue(searchResults, "hits.total.value"), equalTo(randomTieBreaker));
-                    break;
-                case 2:
-                    searchResults = search(restoredIndexName, QueryBuilders.rangeQuery("field").gte(randomTieBreaker));
-                    assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs - randomTieBreaker));
-                    break;
-                case 3:
-                    searchResults = search(restoredIndexName, QueryBuilders.matchQuery("text", "document"));
-                    assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
-                    break;
-                default:
-                    fail("Unsupported randomized search query");
-            }
-        }
+        testCaseBody.runTest(restoredIndexName, numDocs);
 
         logger.info("deleting snapshot [{}]", snapshot);
         deleteSnapshot(repository, snapshot, false);
@@ -152,6 +125,71 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final Map<String, Object> searchableSnapshotStats = searchableSnapshotStats(restoredIndexName);
         assertThat("Expected searchable snapshots stats for " + numberOfShards + " shards but got " + searchableSnapshotStats,
             searchableSnapshotStats.size(), equalTo(numberOfShards));
+    }
+
+    public void testSearchResults() throws Exception {
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+            for (int i = 0; i < 10; i++) {
+                assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            }
+        });
+    }
+
+    public void testSearchResultsWhenFrozen() throws Exception {
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+            final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
+            assertOK(client().performRequest(freezeRequest));
+            ensureGreen(restoredIndexName);
+            for (int i = 0; i < 10; i++) {
+                assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            }
+        });
+    }
+
+    public void testCloseAndReopen() throws Exception {
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+            final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
+            assertOK(client().performRequest(closeRequest));
+            ensureGreen(restoredIndexName);
+
+            final Request openRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_open");
+            assertOK(client().performRequest(openRequest));
+            ensureGreen(restoredIndexName);
+
+            for (int i = 0; i < 10; i++) {
+                assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            }
+        });
+    }
+
+    public void assertSearchResults(String indexName, int numDocs, Boolean ignoreThrottled) throws IOException {
+        final int randomTieBreaker = randomIntBetween(1, numDocs - 1);
+        Map<String, Object> searchResults;
+        switch (randomInt(3)) {
+            case 0:
+                searchResults
+                    = search(indexName, QueryBuilders.termQuery("field", String.valueOf(randomTieBreaker)), ignoreThrottled);
+                assertThat(extractValue(searchResults, "hits.total.value"), equalTo(1));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> searchHit = (Map<String, Object>) ((List<?>) extractValue(searchResults, "hits.hits")).get(0);
+                assertThat(extractValue(searchHit, "_index"), equalTo(indexName));
+                assertThat(extractValue(searchHit, "_source.field"), equalTo(randomTieBreaker));
+                break;
+            case 1:
+                searchResults = search(indexName, QueryBuilders.rangeQuery("field").lt(randomTieBreaker), ignoreThrottled);
+                assertThat(extractValue(searchResults, "hits.total.value"), equalTo(randomTieBreaker));
+                break;
+            case 2:
+                searchResults = search(indexName, QueryBuilders.rangeQuery("field").gte(randomTieBreaker), ignoreThrottled);
+                assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs - randomTieBreaker));
+                break;
+            case 3:
+                searchResults = search(indexName, QueryBuilders.matchQuery("text", "document"), ignoreThrottled);
+                assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+                break;
+            default:
+                fail("Unsupported randomized search query");
+        }
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
@@ -218,9 +256,12 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         return (Number) extractValue(responseAsMap, "count");
     }
 
-    protected static Map<String, Object> search(String index, QueryBuilder query) throws IOException {
+    protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
         request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+        if (ignoreThrottled != null) {
+            request.addParameter("ignore_throttled", ignoreThrottled.toString());
+        }
 
         final Response response = client().performRequest(request);
         assertThat("Failed to execute search request on index [" + index + "]: " + response,
@@ -259,5 +300,13 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @SuppressWarnings("unchecked")
     protected static <T> T extractValue(Map<String, Object> map, String path) {
         return (T) XContentMapValues.extractValue(path, map);
+    }
+
+    /**
+     * The body of a test case, which runs after the searchable snapshot has been created and restored.
+     */
+    @FunctionalInterface
+    interface SearchableSnapshotsTestCaseBody {
+        void runTest(String indexName, int numDocs) throws IOException;
     }
 }

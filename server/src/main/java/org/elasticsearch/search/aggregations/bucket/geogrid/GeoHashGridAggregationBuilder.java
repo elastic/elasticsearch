@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,6 +51,10 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     public GeoHashGridAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        GeoHashGridAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     @Override

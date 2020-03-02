@@ -60,6 +60,7 @@ The API returns the following response containing the matching event:
     "events": [
       {
         "_index": "sec_logs",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.9400072,
         "_source": {

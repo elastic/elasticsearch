@@ -31,6 +31,7 @@ import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -262,6 +263,64 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+    }
+
+    public void testIndexPointsIndexedRectangle() throws Exception {
+        String mapping = Strings.toString(createDefaultMapping());
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        ensureGreen();
+
+        client().prepareIndex(defaultIndexName).setId("point1").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-30 -30)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(defaultIndexName).setId("point2").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-45 -50)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        String indexedShapeIndex = "indexed_query_shapes";
+        String indexedShapePath = "shape";
+        String queryShapesMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties").startObject(indexedShapePath)
+            .field("type", "geo_shape")
+            .endObject()
+            .endObject()
+            .endObject());
+        client().admin().indices().prepareCreate(indexedShapeIndex).setMapping(queryShapesMapping).get();
+        ensureGreen();
+
+        client().prepareIndex(indexedShapeIndex).setId("shape1").setSource(jsonBuilder()
+            .startObject()
+            .field(indexedShapePath, "BBOX(-50, -40, -45, -55)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex(indexedShapeIndex).setId("shape2").setSource(jsonBuilder()
+            .startObject()
+            .field(indexedShapePath, "BBOX(-60, -50, -50, -60)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape1")
+                .relation(ShapeRelation.INTERSECTS)
+                .indexedShapeIndex(indexedShapeIndex)
+                .indexedShapePath(indexedShapePath))
+            .get();
+
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("point2"));
+
+        searchResponse = client().prepareSearch(defaultIndexName)
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape2")
+                .relation(ShapeRelation.INTERSECTS)
+                .indexedShapeIndex(indexedShapeIndex)
+                .indexedShapePath(indexedShapePath))
+            .get();
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 
     public void testRectangleSpanningDateline() throws Exception {

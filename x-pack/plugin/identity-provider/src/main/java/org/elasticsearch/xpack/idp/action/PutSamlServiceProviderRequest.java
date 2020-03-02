@@ -81,7 +81,7 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
                 final URL url = new URL(document.acs);
                 if (url.getProtocol().equals("https") == false) {
                     validationException = addValidationError(
-                        "[" + SamlServiceProviderDocument.Fields.ACS + "] must be a [https] URL", validationException);
+                        "[" + SamlServiceProviderDocument.Fields.ACS + "] must use the [https] protocol", validationException);
                 }
             } catch (MalformedURLException e) {
                 String error = "[" + SamlServiceProviderDocument.Fields.ACS + "] must be a valid URL";

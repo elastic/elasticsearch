@@ -439,28 +439,27 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public ValidationException validate() {
         final ValidationException validation = new ValidationException();
         if (Strings.isNullOrEmpty(name)) {
-            validation.addValidationError("field [" + Fields.NAME.getPreferredName() + "] is required, but was [" + name + "]");
+            validation.addValidationError("field [" + Fields.NAME + "] is required, but was [" + name + "]");
         }
         if (Strings.isNullOrEmpty(entityId)) {
-            validation.addValidationError("field [" + Fields.ENTITY_ID.getPreferredName() + "] is required, but was [" + entityId + "]");
+            validation.addValidationError("field [" + Fields.ENTITY_ID + "] is required, but was [" + entityId + "]");
         }
         if (Strings.isNullOrEmpty(acs)) {
-            validation.addValidationError("field [" + Fields.ACS.getPreferredName() + "] is required, but was [" + acs + "]");
+            validation.addValidationError("field [" + Fields.ACS + "] is required, but was [" + acs + "]");
         }
         if (created == null) {
-            validation.addValidationError("field [" + Fields.CREATED_DATE.getPreferredName() + "] is required, but was [" + created + "]");
+            validation.addValidationError("field [" + Fields.CREATED_DATE + "] is required, but was [" + created + "]");
         }
         if (lastModified == null) {
-            validation.addValidationError(
-                "field [" + Fields.LAST_MODIFIED.getPreferredName() + "] is required, but was [" + lastModified + "]");
+            validation.addValidationError("field [" + Fields.LAST_MODIFIED + "] is required, but was [" + lastModified + "]");
         }
         if (Strings.isNullOrEmpty(privileges.resource)) {
-            validation.addValidationError("field [" + Fields.PRIVILEGES.getPreferredName() + "."
-                + Fields.Privileges.RESOURCE.getPreferredName() + "] is required, but was [" + privileges.resource + "]");
+            validation.addValidationError("field [" + Fields.PRIVILEGES + "." + Fields.Privileges.RESOURCE
+                + "] is required, but was [" + privileges.resource + "]");
         }
         if (Strings.isNullOrEmpty(attributeNames.principal)) {
-            validation.addValidationError("field [" + Fields.ATTRIBUTES.getPreferredName() + "."
-                + Fields.Attributes.PRINCIPAL.getPreferredName() + "] is required, but was [" + attributeNames.principal + "]");
+            validation.addValidationError("field [" + Fields.ATTRIBUTES + "." + Fields.Attributes.PRINCIPAL
+                + "] is required, but was [" + attributeNames.principal + "]");
         }
         if (validation.validationErrors().isEmpty()) {
             return null;

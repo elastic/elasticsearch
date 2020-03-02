@@ -33,14 +33,14 @@ public class RestPutSamlServiceProviderAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(Method.PUT, "/_idp/saml/sp/{entity_id}"),
-            new Route(Method.POST, "/_idp/saml/sp/{entity_id}")
+            new Route(Method.PUT, "/_idp/saml/sp/{sp_entity_id}"),
+            new Route(Method.POST, "/_idp/saml/sp/{sp_entity_id}")
         );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final String entityId = restRequest.param("entity_id");
+        final String entityId = restRequest.param("sp_entity_id");
         try (XContentParser parser = restRequest.contentParser()) {
             final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, parser);
             return channel -> client.execute(PutSamlServiceProviderAction.INSTANCE, request,

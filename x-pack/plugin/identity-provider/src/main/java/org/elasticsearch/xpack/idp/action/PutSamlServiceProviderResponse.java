@@ -17,12 +17,12 @@ import java.util.Objects;
 
 public class PutSamlServiceProviderResponse extends ActionResponse implements ToXContentObject {
 
-    public String docId;
-    public boolean created;
-    public long seqNo;
-    public long primaryTerm;
-    public String entityId;
-    public boolean enabled;
+    private final String docId;
+    private final boolean created;
+    private final long seqNo;
+    private final long primaryTerm;
+    private final String entityId;
+    private final boolean enabled;
 
     public PutSamlServiceProviderResponse(String docId, boolean created, long seqNo, long primaryTerm, String entityId, boolean enabled) {
         this.docId = Objects.requireNonNull(docId, "Document Id cannot be null");
@@ -50,6 +50,30 @@ public class PutSamlServiceProviderResponse extends ActionResponse implements To
         out.writeVLong(primaryTerm);
         out.writeString(entityId);
         out.writeBoolean(enabled);
+    }
+
+    public String getDocId() {
+        return docId;
+    }
+
+    public boolean isCreated() {
+        return created;
+    }
+
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    public long getPrimaryTerm() {
+        return primaryTerm;
+    }
+
+    public String getEntityId() {
+        return entityId;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
     @Override

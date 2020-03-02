@@ -35,7 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -64,7 +63,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         logger.info("creating index [{}]", indexName);
         createIndex(indexName, Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen(indexName);

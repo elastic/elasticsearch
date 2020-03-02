@@ -91,7 +91,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction
     @Override
     protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException {
         final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
-        final CacheDirectory cacheDirectory = unwrap(indexShard.store().directory());
+        final CacheDirectory cacheDirectory = unwrapCacheDirectory(indexShard.store().directory());
         assert cacheDirectory != null;
         assert cacheDirectory.getShardId().equals(shardRouting.shardId());
         return executeShardOperation(request, shardRouting, cacheDirectory);
@@ -101,7 +101,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction
                                                                   CacheDirectory cacheDirectory) throws IOException;
 
     @Nullable
-    private static CacheDirectory unwrap(Directory dir) {
+    private static CacheDirectory unwrapCacheDirectory(Directory dir) {
         while (dir != null) {
             if (dir instanceof CacheDirectory) {
                 return (CacheDirectory) dir;

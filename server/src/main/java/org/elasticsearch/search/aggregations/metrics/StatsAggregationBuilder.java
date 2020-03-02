@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -58,6 +59,10 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     protected StatsAggregationBuilder(StatsAggregationBuilder clone,
                                       Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        StatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     @Override

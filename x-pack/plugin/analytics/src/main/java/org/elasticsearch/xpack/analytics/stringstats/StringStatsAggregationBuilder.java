@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -106,6 +107,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     public StringStatsAggregationBuilder showDistribution(boolean showDistribution) {
         this.showDistribution = showDistribution;
         return this;
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        StringStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     @Override

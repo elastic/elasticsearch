@@ -135,7 +135,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
-    private static ValuesSourceRegistry valuesSourceRegistry;
+    protected static ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_BLACKLIST = List.of(
@@ -213,7 +213,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext.getQueryShardContext(), null)
+        A aggregator = (A) aggregationBuilder
+            .rewrite(searchContext.getQueryShardContext())
+            .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
     }
@@ -683,7 +685,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         String typeName = fieldType.typeName();
         ValuesSourceType vst = fieldType.getValuesSourceType();
-        
+
         if (vst.equals(CoreValuesSourceType.NUMERIC)) {
             if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
                 long encoded = NumericUtils.doubleToSortableLong(Math.abs(randomDouble()));

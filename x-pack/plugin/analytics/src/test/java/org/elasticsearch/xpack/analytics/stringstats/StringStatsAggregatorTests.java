@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +36,11 @@ import java.util.function.Consumer;
 import static java.util.Collections.singleton;
 
 public class StringStatsAggregatorTests extends AggregatorTestCase {
+
+    @BeforeClass()
+    public static void registerBuilder() {
+        StringStatsAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    }
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -258,5 +264,4 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
     }
-
 }

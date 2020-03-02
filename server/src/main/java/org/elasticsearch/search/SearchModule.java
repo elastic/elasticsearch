@@ -352,7 +352,8 @@ public class SearchModule {
                 .addResultReader(InternalMax::new)
                 .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(StatsAggregationBuilder.NAME, StatsAggregationBuilder::new, StatsAggregationBuilder::parse)
-                .addResultReader(InternalStats::new));
+            .addResultReader(InternalStats::new)
+            .setAggregatorRegistrar(StatsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
                 ExtendedStatsAggregationBuilder::parse).addResultReader(InternalExtendedStats::new));
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,
@@ -369,8 +370,9 @@ public class SearchModule {
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
                         .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
         registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
-                MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
-                        .addResultReader(InternalMedianAbsoluteDeviation::new));
+            MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
+                .addResultReader(InternalMedianAbsoluteDeviation::new)
+                .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
                 CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new)
             .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators));
@@ -530,7 +532,7 @@ public class SearchModule {
                 BucketScriptPipelineAggregationBuilder.NAME,
                 BucketScriptPipelineAggregationBuilder::new,
                 BucketScriptPipelineAggregator::new,
-                (name, p) -> BucketScriptPipelineAggregationBuilder.PARSER.parse(p, name)));
+                BucketScriptPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 BucketSelectorPipelineAggregationBuilder.NAME,
                 BucketSelectorPipelineAggregationBuilder::new,
@@ -550,16 +552,14 @@ public class SearchModule {
                 MovFnPipelineAggregationBuilder.NAME,
                 MovFnPipelineAggregationBuilder::new,
                 MovFnPipelineAggregator::new,
-                (name, p) -> MovFnPipelineAggregationBuilder.PARSER.parse(p, name)));
+                MovFnPipelineAggregationBuilder.PARSER));
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
 
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
-        namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
-            String name = (String) c;
-            return spec.getParser().parse(name, p);
-        }));
+        namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(),
+                (p, c) -> spec.getParser().parse(p, (String) c)));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedWriteables.add(

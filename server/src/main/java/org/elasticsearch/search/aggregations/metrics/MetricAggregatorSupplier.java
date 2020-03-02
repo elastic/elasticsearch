@@ -30,11 +30,10 @@ import java.util.List;
 import java.util.Map;
 
 public interface MetricAggregatorSupplier extends AggregatorSupplier {
-
     Aggregator build(String name,
                      ValuesSource valuesSource,
-                     DocValueFormat formatter,
-                     SearchContext searchContext,
+                     DocValueFormat format,
+                     SearchContext context,
                      Aggregator parent,
                      List<PipelineAggregator> pipelineAggregators,
                      Map<String, Object> metaData) throws IOException;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -267,9 +268,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<Void> templateCheckListener = ActionListener.wrap(
             aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
             error -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(error);
                 String msg = "Failed to create internal index mappings";
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
+                logger.error(msg, cause);
+                markAsFailed(buildTask, msg + "[" + cause + "]");
             }
         );
 

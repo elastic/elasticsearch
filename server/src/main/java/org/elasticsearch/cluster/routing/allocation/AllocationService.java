@@ -230,8 +230,9 @@ public class AllocationService {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
         }
-        existingShardsAllocators.values().forEach(existingShardsAllocator ->
-            existingShardsAllocator.applyFailedShards(allocation, failedShards));
+        for (final ExistingShardsAllocator allocator : existingShardsAllocators.values()) {
+            allocator.applyFailedShards(allocation, failedShards);
+        }
 
         reroute(allocation);
         String failedShardsAsString

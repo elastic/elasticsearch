@@ -120,7 +120,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         Setting.affixKeySetting(CONTEXT_PREFIX,
             "cache_expire",
             key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMillis(0),
-                new ContextCacheSettingsValidator<>("cache_expire"),q
+                new ContextCacheSettingsValidator<>("cache_expire"),
                 Property.NodeScope, Property.Dynamic));
     public static final Setting.AffixSetting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
         Setting.affixKeySetting(CONTEXT_PREFIX,
@@ -132,13 +132,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         final ScriptCache general;
         final Map<String, ScriptCache> contextCache;
         public Cache(Settings settings, Set<String> contexts, boolean compilationLimitsEnabled) {
-            Map<String, Integer> cacheSize = SCRIPT_CACHE_SIZE_SETTING.getAsMap(settings);
-            Map<String, TimeValue> cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.getAsMap(settings);
-            Map<String, Tuple<Integer, TimeValue>> compileRate = SCRIPT_MAX_COMPILATIONS_RATE.getAsMap(settings);
-
             Map<String, ScriptCache> caches = new HashMap<>(contexts.size());
 
-            if (cacheSize.isEmpty() && cacheExpire.isEmpty() && compileRate.isEmpty()) {
+            if (useGeneralCache(settings)) {
                 general = new ScriptCache(
                     SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings),
                     SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
@@ -152,6 +148,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 logger.warn("Using general script cache");
             } else {
                 general = null;
+                Map<String, Integer> cacheSize = SCRIPT_CACHE_SIZE_SETTING.getAsMap(settings);
+                Map<String, TimeValue> cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.getAsMap(settings);
+                Map<String, Tuple<Integer, TimeValue>> compileRate = SCRIPT_MAX_COMPILATIONS_RATE.getAsMap(settings);
+
                 for (String context : contexts) {
                     caches.put(context, new ScriptCache(
                         cacheSize.getOrDefault(context, SCRIPT_CACHE_SIZE_SETTING.getDefault(settings)),
@@ -225,6 +225,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE);
             return conflicts.iterator();
         }
+    }
+
+    static boolean useGeneralCache(Settings settings) {
+        return (SCRIPT_CACHE_SIZE_SETTING.exists(settings) ||
+                SCRIPT_CACHE_EXPIRE_SETTING.exists(settings) ||
+                SCRIPT_MAX_COMPILATIONS_RATE.exists(settings)) == false;
     }
 
     public static final String ALLOW_NONE = "none";

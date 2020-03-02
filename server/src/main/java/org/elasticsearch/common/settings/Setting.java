@@ -911,6 +911,11 @@ public class Setting<T> implements ToXContentObject {
             });
             return Collections.unmodifiableMap(map);
         }
+
+        @Override
+        public boolean exists(Settings settings) {
+            return matchStream(settings).findAny().isPresent();
+        }
     }
 
     /**

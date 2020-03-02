@@ -96,6 +96,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 
+    /*
     public void testGeneralCacheSettings() {
         // Mixed settings
         Exception e = expectThrows(
@@ -153,6 +154,7 @@ public class ScriptServiceTests extends ESTestCase {
         // default is use general.  TODO(stu): change when default changes
         assertTrue(ScriptService.useGeneralCacheSettings(Settings.EMPTY));
     }
+     */
 
     public void testMaxCompilationRateSetting() throws Exception {
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));

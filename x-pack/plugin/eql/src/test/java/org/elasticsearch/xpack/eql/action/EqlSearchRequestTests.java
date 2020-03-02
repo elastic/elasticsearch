@@ -32,7 +32,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearchRequest> {
 
     // TODO: possibly add mutations
-    static String defaultTestQuery = "{\n" +
+    static String defaultTestFilter = "{\n" +
         "   \"match\" : {\n" +
         "       \"foo\": \"bar\"\n" +
         "   }" +
@@ -59,15 +59,15 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
     @Override
     protected EqlSearchRequest createTestInstance() {
         try {
-            QueryBuilder query = parseQuery(defaultTestQuery);
+            QueryBuilder filter = parseFilter(defaultTestFilter);
             EqlSearchRequest request = new EqlSearchRequest()
                 .indices(new String[]{defaultTestIndex})
-                .query(query)
+                .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventTypeField(randomAlphaOfLength(10))
                 .implicitJoinKeyField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
-                .rule(randomAlphaOfLength(10));
+                .query(randomAlphaOfLength(10));
 
             if (randomBoolean()) {
                 request.searchAfter(randomJsonSearchFromBuilder());
@@ -79,12 +79,12 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         return null;
     }
 
-    protected QueryBuilder parseQuery(String queryAsString) throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString);
-        return parseQuery(parser);
+    protected QueryBuilder parseFilter(String filter) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, filter);
+        return parseFilter(parser);
     }
 
-    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+    protected QueryBuilder parseFilter(XContentParser parser) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;

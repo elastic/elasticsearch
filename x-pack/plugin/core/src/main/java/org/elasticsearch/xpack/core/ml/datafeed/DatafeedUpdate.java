@@ -156,7 +156,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             maxEmptySearches = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
         } else {
             indicesOptions = null;
@@ -207,7 +207,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalInt(maxEmptySearches);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             if (indicesOptions != null) {
                 out.writeBoolean(true);
                 indicesOptions.writeIndicesOptions(out);

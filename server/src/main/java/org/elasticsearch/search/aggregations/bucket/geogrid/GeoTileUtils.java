@@ -44,22 +44,9 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  */
 public final class GeoTileUtils {
 
-    /**
-     * The geo-tile map is clipped at 85.05112878 to 90 and -85.05112878 to -90
-     */
-    public static final double LATITUDE_MASK = 85.0511287798066;
-
-    /**
-     * Since shapes are encoded, their boundaries are to be compared to against the encoded/decoded values of <code>LATITUDE_MASK</code>
-     */
-    static final double NORMALIZED_LATITUDE_MASK = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(LATITUDE_MASK));
-    static final double NORMALIZED_NEGATIVE_LATITUDE_MASK =
-        GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-LATITUDE_MASK));
+    private GeoTileUtils() {}
 
     private static final double PI_DIV_2 = Math.PI / 2;
-
-
-    private GeoTileUtils() {}
 
     /**
      * Largest number of tiles (precision) to use.
@@ -72,6 +59,18 @@ public final class GeoTileUtils {
     public static final int MAX_ZOOM = 29;
 
     /**
+     * The geo-tile map is clipped at 85.05112878 to 90 and -85.05112878 to -90
+     */
+    public static final double LATITUDE_MASK = 85.0511287798066;
+
+    /**
+     * Since shapes are encoded, their boundaries are to be compared to against the encoded/decoded values of <code>LATITUDE_MASK</code>
+     */
+    static final double NORMALIZED_LATITUDE_MASK = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(LATITUDE_MASK));
+    static final double NORMALIZED_NEGATIVE_LATITUDE_MASK =
+        GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-LATITUDE_MASK));
+
+    /**
      * Bit position of the zoom value within hash - zoom is stored in the most significant 6 bits of a long number.
      */
     private static final int ZOOM_SHIFT = MAX_ZOOM * 2;
@@ -80,6 +79,7 @@ public final class GeoTileUtils {
      * Bit mask to extract just the lowest 29 bits of a long
      */
     private static final long X_Y_VALUE_MASK = (1L << MAX_ZOOM) - 1;
+
 
     /**
      * Parse an integer precision (zoom level). The {@link ValueType#INT} allows it to be a number or a string.
@@ -244,6 +244,11 @@ public final class GeoTileUtils {
     static GeoPoint keyToGeoPoint(String hashAsString) {
         int[] hashAsInts = parseHash(hashAsString);
         return zxyToGeoPoint(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
+    }
+
+    static Rectangle toBoundingBox(long hash) {
+        int[] hashAsInts = parseHash(hash);
+        return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
     }
 
     static Rectangle toBoundingBox(int xTile, int yTile, int precision) {

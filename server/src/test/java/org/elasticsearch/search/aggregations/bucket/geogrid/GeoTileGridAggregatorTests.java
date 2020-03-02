@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+
 public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoTileGridBucket> {
 
     @Override
@@ -29,6 +33,17 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     @Override
     protected String hashAsString(double lng, double lat, int precision) {
         return GeoTileUtils.stringEncode(GeoTileUtils.longEncode(lng, lat, precision));
+    }
+
+    @Override
+    protected Point randomPoint() {
+        return new Point(randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
+            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false));
+    }
+
+    @Override
+    protected Rectangle getTile(double lng, double lat, int precision) {
+        return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
     }
 
     @Override

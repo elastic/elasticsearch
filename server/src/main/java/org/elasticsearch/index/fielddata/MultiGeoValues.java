@@ -316,6 +316,5 @@ public abstract class MultiGeoValues {
         public double maxX() {
             return Math.max(negRight, posRight);
         }
-
     }
 }

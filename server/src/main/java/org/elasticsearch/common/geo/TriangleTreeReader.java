@@ -322,7 +322,6 @@ public class TriangleTreeReader {
             int tMinY = StrictMath.min(StrictMath.min(aY, bY), cY);
             int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
 
-
             // 1. check bounding boxes are disjoint, where north and east boundaries are not considered as crossing
             if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
                 return GeoRelation.QUERY_DISJOINT;

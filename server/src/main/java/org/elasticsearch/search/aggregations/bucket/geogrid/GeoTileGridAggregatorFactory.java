@@ -80,7 +80,13 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, GeoGridTiler.GeoTileGridTiler.INSTANCE);
+        final GeoGridTiler tiler;
+        if (geoBoundingBox.isUnbounded()) {
+            tiler = new GeoTileGridTiler();
+        } else {
+            tiler = new BoundedGeoTileGridTiler(geoBoundingBox);
+        }
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, tiler);
         return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
             searchContext, parent, pipelineAggregators, metaData);
     }

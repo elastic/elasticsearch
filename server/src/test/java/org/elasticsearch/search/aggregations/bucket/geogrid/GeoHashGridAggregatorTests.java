@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.Geohash;
+
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
 public class GeoHashGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoHashGridBucket> {
@@ -31,6 +36,16 @@ public class GeoHashGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     @Override
     protected String hashAsString(double lng, double lat, int precision) {
         return stringEncode(lng, lat, precision);
+    }
+
+    @Override
+    protected Point randomPoint() {
+        return GeometryTestUtils.randomPoint(false);
+    }
+
+    @Override
+    protected Rectangle getTile(double lng, double lat, int precision) {
+        return Geohash.toBoundingBox(Geohash.stringEncode(lng, lat, precision));
     }
 
     @Override

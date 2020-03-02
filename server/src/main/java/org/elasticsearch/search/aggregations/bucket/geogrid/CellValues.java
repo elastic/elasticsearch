@@ -56,6 +56,19 @@ abstract class CellValues extends AbstractSortingNumericDocValues {
         }
     }
 
+    // for testing
+    protected long[] getValues() {
+        return values;
+    }
+
+    protected void add(int idx, long value) {
+        values[idx] = value;
+    }
+
+    void resizeCell(int newSize) {
+        resize(newSize);
+    }
+
     /**
      * Sets the appropriate long-encoded value for <code>target</code>
      * in <code>values</code>.

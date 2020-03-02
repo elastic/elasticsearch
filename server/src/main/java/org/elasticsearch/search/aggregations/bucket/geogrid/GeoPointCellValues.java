@@ -18,22 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
 /**
- * Class representing {@link CellValues} that are unbounded by any
- * {@link GeoBoundingBox}.
+ * Class representing geo_point {@link CellValues}
  */
-class UnboundedGeoPointCellValues extends CellValues {
+class GeoPointCellValues extends CellValues {
 
-    protected UnboundedGeoPointCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
+    protected GeoPointCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
         super(geoValues, precision, tiler);
     }
 
     @Override
     int advanceValue(MultiGeoValues.GeoValue target, int valuesIdx) {
-        values[valuesIdx] = tiler.encode(target.lon(), target.lat(), precision);
-        return valuesIdx + 1;
+        return tiler.advancePointValue(values, target.lon(), target.lat(), precision, valuesIdx);
     }
 }

@@ -48,7 +48,7 @@ public final class SIf extends AStatement {
         condition.analyze(scriptRoot, scope);
         condition = condition.cast(scriptRoot, scope);
 
-        if (condition.constant != null) {
+        if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 

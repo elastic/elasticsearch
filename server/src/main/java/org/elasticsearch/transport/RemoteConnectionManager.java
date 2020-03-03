@@ -110,7 +110,11 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     @Override
     public int size() {
-        return delegate.size();
+        // Although we use a delegate instance, we report the connection manager size based on the
+        // RemoteConnectionManager's knowledge of the connections. This is because there is a brief window
+        // in between the time when the connection is added to the delegate map, and the time when
+        // nodeConnected is called.
+        return this.connections.size();
     }
 
     @Override

@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
@@ -149,10 +150,11 @@ task integTest(type: Test) {
 check.dependsOn integTest
 
 void addBuildDockerImage(final boolean oss) {
-  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
-    ext.requiresDocker = true // mark this task as requiring docker to execute
-    inputs.files(tasks.named(taskName("copy", oss, "DockerContext")))
-    List<String> tags
+  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: DockerBuildTask) {
+    TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", oss, "DockerContext"))
+    dependsOn(copyContextTask)
+    dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
+
     if (oss) {
       tags = [
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
@@ -165,18 +167,6 @@ void addBuildDockerImage(final boolean oss) {
         "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
         "elasticsearch:test",
       ]
-    }
-    executable 'docker'
-    final List<String> dockerArgs = ['build', buildPath(oss), '--pull', '--no-cache']
-    for (final String tag : tags) {
-      dockerArgs.add('--tag')
-      dockerArgs.add(tag)
-    }
-    args dockerArgs.toArray()
-    File markerFile = file("build/markers/${it.name}.marker")
-    outputs.file(markerFile)
-    doLast {
-      markerFile.setText('', 'UTF-8')
     }
   }
   assemble.dependsOn(buildDockerImageTask)

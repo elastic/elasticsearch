@@ -408,3 +408,78 @@ setup:
         datafeed_id: test-datafeed-1
         force: true
   - match: { acknowledged: true }
+---
+"Test put and update datafeed with indices options":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-indices-options-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "indices_options": {
+               "expand_wildcards": ["closed", "open"],
+               "ignore_throttled": false
+            }
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-1" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+  - length: { datafeeds.0.indices_options.expand_wildcards: 2 }
+  - match: { datafeeds.0.indices_options.expand_wildcards.0: open }
+  - match: { datafeeds.0.indices_options.expand_wildcards.1: closed }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-indices-options-1
+        body: >
+          {
+             "indices_options": {
+                "ignore_throttled": true
+             }
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-1" }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: true }
+---
+"Test put and update datafeed with indices options in params":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-indices-options-params-1
+        ignore_throttled: false
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-params-1" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-params-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-indices-options-params-1
+        ignore_throttled: false
+        allow_no_indices: false
+        body: >
+          {
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-params-1" }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-params-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+  - match: { datafeeds.0.indices_options.allow_no_indices: false }

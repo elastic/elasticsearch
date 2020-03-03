@@ -142,16 +142,16 @@ public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Re
             out.writeOptionalWriteable(reindexResponse);
         }
 
+        public String getPersistentTaskId() {
+            return persistentTaskId;
+        }
+
         public String getEphemeralTaskId() {
             return ephemeralTaskId;
         }
 
         public BulkByScrollResponse getReindexResponse() {
             return reindexResponse;
-        }
-
-        public String getPersistentTaskId() {
-            return persistentTaskId;
         }
 
         public static Response fromXContent(final XContentParser parser) throws IOException {

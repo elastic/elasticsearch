@@ -68,7 +68,7 @@ class BulkByScrollParallelizationHelper {
         Client client,
         DiscoveryNode node,
         Runnable workerAction) {
-        initTaskState(task, request, client, new ActionListener<>() {
+        initTaskState(task, request, null, client, new ActionListener<>() {
             @Override
             public void onResponse(Void aVoid) {
                 executeSlicedAction(task, request, action, listener, client, node, workerAction);
@@ -119,6 +119,7 @@ class BulkByScrollParallelizationHelper {
     static <Request extends AbstractBulkByScrollRequest<Request>> void initTaskState(
         BulkByScrollTask task,
         Request request,
+        BulkByScrollTask.Status checkpointStatus,
         Client client,
         ActionListener<Void> listener) {
         int configuredSlices = request.getSlices();
@@ -128,7 +129,7 @@ class BulkByScrollParallelizationHelper {
             client.admin().cluster().searchShards(shardsRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(ClusterSearchShardsResponse response) {
-                    setWorkerCount(request, task, countSlicesBasedOnShards(response));
+                    setWorkerCount(request, task, countSlicesBasedOnShards(response), checkpointStatus);
                     listener.onResponse(null);
                 }
 
@@ -138,7 +139,7 @@ class BulkByScrollParallelizationHelper {
                 }
             });
         } else {
-            setWorkerCount(request, task, configuredSlices);
+            setWorkerCount(request, task, configuredSlices, checkpointStatus);
             listener.onResponse(null);
         }
     }
@@ -146,13 +147,15 @@ class BulkByScrollParallelizationHelper {
     private static <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
         Request request,
         BulkByScrollTask task,
-        int slices) {
+        int slices,
+        BulkByScrollTask.Status checkpointStatus) {
         if (slices > 1) {
+            assert checkpointStatus == null : "slices are not resilient";
             task.setWorkerCount(slices);
         } else {
             SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
             Integer sliceId = sliceBuilder == null ? null : sliceBuilder.getId();
-            task.setWorker(request.getRequestsPerSecond(), sliceId);
+            task.setWorker(request.getRequestsPerSecond(), sliceId, checkpointStatus);
         }
     }
 

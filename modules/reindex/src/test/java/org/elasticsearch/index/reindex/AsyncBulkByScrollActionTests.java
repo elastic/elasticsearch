@@ -153,7 +153,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
-        testTask.setWorker(testRequest.getRequestsPerSecond(), null);
+        testTask.setWorker(testRequest.getRequestsPerSecond(), null, null);
         worker = testTask.getWorkerState();
 
         localNode = new DiscoveryNode("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);

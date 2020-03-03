@@ -41,8 +41,6 @@ public final class ENull extends AExpression {
             throw createError(new IllegalArgumentException("Must read from null constant."));
         }
 
-        isNull = true;
-
         if (expected != null) {
             if (expected.isPrimitive()) {
                 throw createError(new IllegalArgumentException(

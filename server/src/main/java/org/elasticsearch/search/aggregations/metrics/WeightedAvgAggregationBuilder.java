@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -48,16 +47,12 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
 
-    private static final ObjectParser<WeightedAvgAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<WeightedAvgAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, WeightedAvgAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(WeightedAvgAggregationBuilder.NAME);
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false);
         MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new WeightedAvgAggregationBuilder(aggregationName), null);
     }
 
     public WeightedAvgAggregationBuilder(String name) {

@@ -62,6 +62,7 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53025")
     public void testHandlesWatcherHistory() throws Exception {
         internalCluster().startNode();
 

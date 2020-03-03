@@ -17,25 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.tasksplugin;
+esplugin {
+  description 'Plugin exposing APIs for Kibana system indices'
+  classname 'org.elasticsearch.kibana.KibanaPlugin'
+}
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
+dependencies {
+  compile project(path: ':modules:reindex', configuration: 'runtime')
+}
 
-import java.util.Collection;
-import java.util.Collections;
-
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
-
-/**
- * This plugin currently only exists to register `.tasks` as a system index.
- */
-public class TasksPlugin extends Plugin implements SystemIndexPlugin {
-
-    @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
-    }
+testClusters.integTest {
+  module file(project(':modules:reindex').tasks.bundlePlugin.archiveFile)
 }

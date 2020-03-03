@@ -416,7 +416,8 @@ public class ActionModule extends AbstractModule {
             restController = null;
         } else {
             final boolean restrictSystemIndices = RestController.RESTRICT_SYSTEM_INDICES.get(settings);
-            restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restrictSystemIndices);
+            restController =
+                new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restrictSystemIndices);
         }
     }
 

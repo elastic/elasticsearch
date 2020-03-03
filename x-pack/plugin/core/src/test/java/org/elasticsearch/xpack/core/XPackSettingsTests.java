@@ -56,7 +56,12 @@ public class XPackSettingsTests extends ESTestCase {
     }
 
     public void testDefaultSupportedProtocols() {
-        assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.3", "TLSv1.2", "TLSv1.1"));
+        if (inFipsJvm()) {
+            assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.2", "TLSv1.1"));
+        } else {
+            assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.3", "TLSv1.2", "TLSv1.1"));
+
+        }
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

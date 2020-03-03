@@ -9,8 +9,8 @@ dependencies {
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.p12'
+  exclude '**/*.key'
+  exclude '**/*.p12'
 }
 
 

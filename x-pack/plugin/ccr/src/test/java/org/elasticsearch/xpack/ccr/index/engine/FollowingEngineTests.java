@@ -131,7 +131,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -157,7 +156,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -192,7 +190,6 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
-                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -201,7 +198,6 @@ public class FollowingEngineTests extends ESTestCase {
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
-                        "type",
                         id,
                         new Term("_id", id),
                         seqNo,
@@ -224,7 +220,6 @@ public class FollowingEngineTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
                 .put("index.xpack.ccr.following_index", true)
-                .put("index.soft_deletes.enabled", true)
                 .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -310,7 +305,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Delete deleteForPrimary(String id) {
         final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
-        return new Engine.Delete(parsedDoc.type(), parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
+        return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
     }
 
     private Engine.Result applyOperation(Engine engine, Engine.Operation op,
@@ -324,7 +319,7 @@ public class FollowingEngineTests extends ESTestCase {
                 index.getIfSeqNo(), index.getIfPrimaryTerm()));
         } else if (op instanceof Engine.Delete) {
             Engine.Delete delete = (Engine.Delete) op;
-            result = engine.delete(new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(), primaryTerm,
+            result = engine.delete(new Engine.Delete(delete.id(), delete.uid(), delete.seqNo(), primaryTerm,
                 delete.version(), versionType, origin, delete.startTime(), delete.getIfSeqNo(), delete.getIfPrimaryTerm()));
         } else {
             Engine.NoOp noOp = (Engine.NoOp) op;
@@ -486,14 +481,14 @@ public class FollowingEngineTests extends ESTestCase {
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
-                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService("test"));
+                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService());
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
         };
 
         Settings leaderSettings = Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.soft_deletes.enabled", true).build();
+            .put("index.version.created", Version.CURRENT).build();
         IndexMetaData leaderIndexMetaData = IndexMetaData.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetaData, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
@@ -521,7 +516,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo,
                                  InternalEngine leader, FollowingEngine follower) throws IOException {
-        final MapperService mapperService = EngineTestCase.createMapperService("test");
+        final MapperService mapperService = EngineTestCase.createMapperService();
         final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), follower.config().getIndexSettings());
         while (stopped.get() == false) {
             final long checkpoint = leader.getProcessedLocalCheckpoint();
@@ -579,8 +574,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
@@ -594,7 +588,7 @@ public class FollowingEngineTests extends ESTestCase {
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), -1, true,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             } else if (randomBoolean()) {
-                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
+                operations.add(new Engine.Delete(doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             } else {
@@ -674,8 +668,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testMaxSeqNoInCommitUserData() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {

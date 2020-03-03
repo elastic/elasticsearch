@@ -1,0 +1,13 @@
+{
+    "properties" : {
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "timestamp" : {
+            "type" : "date"
+        },
+        "boolean_field" : {
+            "type" : "boolean"
+        }
+    }
+}

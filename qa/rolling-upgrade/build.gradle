@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -28,21 +29,6 @@ apply plugin: 'elasticsearch.standalone-test'
 task bwcTest {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  from ({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  dependsOn configurations.restSpec
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
@@ -63,13 +49,12 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 
   testClusters {
     "${baseName}" {
-      versions = [ bwcVersion.toString(), project.version ]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 3
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
-      javaHome = project.file(project.ext.runtimeJavaHome)
     }
   }
 
@@ -81,8 +66,8 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       project.delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
     systemProperty 'tests.rest.suite', 'old_cluster'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
@@ -93,8 +78,8 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
@@ -105,8 +90,8 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -116,15 +101,15 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     }
     useCluster testClusters."${baseName}"
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(
-            tasks.register("${baseName}#bwcTest") {
-              dependsOn tasks.named("${baseName}#upgradedClusterTest")
-            }
+      tasks.register("${baseName}#bwcTest") {
+        dependsOn tasks.named("${baseName}#upgradedClusterTest")
+      }
     )
   }
 }

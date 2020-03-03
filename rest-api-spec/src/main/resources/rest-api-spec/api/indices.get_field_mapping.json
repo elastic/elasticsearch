@@ -38,10 +38,6 @@
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether a type should be returned in the body of the mappings."
-      },
       "include_defaults":{
         "type":"boolean",
         "description":"Whether the default mapping values should be returned as well"

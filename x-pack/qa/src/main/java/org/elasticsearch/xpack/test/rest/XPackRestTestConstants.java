@@ -33,11 +33,12 @@ public final class XPackRestTestConstants {
             RESULTS_INDEX_PREFIX,
             CONFIG_INDEX);
 
-    // Data Frame constants:
-    public static final String DATA_FRAME_INTERNAL_INDEX = ".data-frame-internal-2";
-    public static final String DATA_FRAME_NOTIFICATIONS_INDEX = ".data-frame-notifications-1";
-
-    public static final List<String> DATA_FRAME_TEMPLATES = List.of(DATA_FRAME_INTERNAL_INDEX, DATA_FRAME_NOTIFICATIONS_INDEX);
+    // Transform constants:
+    public static final String TRANSFORM_TASK_NAME = "data_frame/transforms";
+    public static final String TRANSFORM_INTERNAL_INDEX_PREFIX = ".transform-internal-";
+    public static final String TRANSFORM_NOTIFICATIONS_INDEX_PREFIX = ".transform-notifications-";
+    public static final String TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED = ".data-frame-internal-";
+    public static final String TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED = ".data-frame-notifications-";
 
     private XPackRestTestConstants() {
     }

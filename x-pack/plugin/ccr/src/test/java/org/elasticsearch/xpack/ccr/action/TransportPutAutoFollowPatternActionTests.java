@@ -103,7 +103,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         List<String> existingPatterns = new ArrayList<>();
         existingPatterns.add("transactions-*");
         existingAutoFollowPatterns.put("name1",
-            new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            new AutoFollowPattern("eu_cluster", existingPatterns, null, true, null, null, null, null, null, null, null, null, null, null));
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         List<String> existingUUIDS = new ArrayList<>();
         existingUUIDS.add("_val");

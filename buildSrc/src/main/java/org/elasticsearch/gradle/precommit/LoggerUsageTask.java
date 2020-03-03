@@ -67,10 +67,15 @@ public class LoggerUsageTask extends PrecommitTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getClassDirectories() {
-        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().stream()
+        return getProject().getConvention()
+            .getPlugin(JavaPluginConvention.class)
+            .getSourceSets()
+            .stream()
             // Don't pick up all source sets like the java9 ones as logger-check doesn't support the class format
-            .filter(sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
-                || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME))
+            .filter(
+                sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
+                    || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
+            )
             .map(sourceSet -> sourceSet.getOutput().getClassesDirs())
             .reduce(FileCollection::plus)
             .orElse(getProject().files())

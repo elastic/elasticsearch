@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -37,12 +40,14 @@ import java.util.function.Supplier;
 public class TransportDeleteExpiredDataAction extends HandledTransportAction<DeleteExpiredDataAction.Request,
         DeleteExpiredDataAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportDeleteExpiredDataAction.class);
+
     // TODO: make configurable in the request
     static final Duration MAX_DURATION = Duration.ofHours(8);
 
     private final ThreadPool threadPool;
     private final String executor;
-    private final Client client;
+    private final OriginSettingClient client;
     private final ClusterService clusterService;
     private final Clock clock;
 
@@ -58,7 +63,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new, executor);
         this.threadPool = threadPool;
         this.executor = executor;
-        this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
+        this.client = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
         this.clock = clock;
     }
@@ -76,7 +81,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                    Supplier<Boolean> isTimedOutSupplier) {
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
         List<MlDataRemover> dataRemovers = Arrays.asList(
-                new ExpiredResultsRemover(client, auditor),
+                new ExpiredResultsRemover(client, auditor, threadPool),
                 new ExpiredForecastsRemover(client, threadPool),
                 new ExpiredModelSnapshotsRemover(client, threadPool),
                 new UnusedStateRemover(client, clusterService)

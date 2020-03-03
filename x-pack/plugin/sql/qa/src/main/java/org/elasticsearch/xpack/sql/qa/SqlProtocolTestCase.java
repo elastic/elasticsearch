@@ -95,26 +95,80 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     public void testDateTimeIntervals() throws IOException {
         assertQuery("SELECT INTERVAL '326' YEAR", "INTERVAL '326' YEAR", "interval_year", "P326Y", "+326-0", 7);
         assertQuery("SELECT INTERVAL '50' MONTH", "INTERVAL '50' MONTH", "interval_month", "P50M", "+0-50", 7);
-        assertQuery("SELECT INTERVAL '520' DAY", "INTERVAL '520' DAY", "interval_day", "PT12480H", "+520 00:00:00.0", 23);
-        assertQuery("SELECT INTERVAL '163' HOUR", "INTERVAL '163' HOUR", "interval_hour", "PT163H", "+6 19:00:00.0", 23);
-        assertQuery("SELECT INTERVAL '163' MINUTE", "INTERVAL '163' MINUTE", "interval_minute", "PT2H43M", "+0 02:43:00.0", 23);
-        assertQuery("SELECT INTERVAL '223.16' SECOND", "INTERVAL '223.16' SECOND", "interval_second", "PT3M43.016S", "+0 00:03:43.16", 23);
+        assertQuery("SELECT INTERVAL '520' DAY", "INTERVAL '520' DAY", "interval_day", "PT12480H", "+520 00:00:00", 23);
+        assertQuery("SELECT INTERVAL '163' HOUR", "INTERVAL '163' HOUR", "interval_hour", "PT163H", "+6 19:00:00", 23);
+        assertQuery("SELECT INTERVAL '163' MINUTE", "INTERVAL '163' MINUTE", "interval_minute", "PT2H43M", "+0 02:43:00", 23);
+        assertQuery("SELECT INTERVAL '223.16' SECOND", "INTERVAL '223.16' SECOND", "interval_second", "PT3M43.16S", "+0 00:03:43.16", 23);
         assertQuery("SELECT INTERVAL '163-11' YEAR TO MONTH", "INTERVAL '163-11' YEAR TO MONTH", "interval_year_to_month", "P163Y11M",
                 "+163-11", 7);
         assertQuery("SELECT INTERVAL '163 12' DAY TO HOUR", "INTERVAL '163 12' DAY TO HOUR", "interval_day_to_hour", "PT3924H",
-                "+163 12:00:00.0", 23);
+                "+163 12:00:00", 23);
         assertQuery("SELECT INTERVAL '163 12:39' DAY TO MINUTE", "INTERVAL '163 12:39' DAY TO MINUTE", "interval_day_to_minute",
-                "PT3924H39M", "+163 12:39:00.0", 23);
+                "PT3924H39M", "+163 12:39:00", 23);
         assertQuery("SELECT INTERVAL '163 12:39:59.163' DAY TO SECOND", "INTERVAL '163 12:39:59.163' DAY TO SECOND",
                 "interval_day_to_second", "PT3924H39M59.163S", "+163 12:39:59.163", 23);
         assertQuery("SELECT INTERVAL -'163 23:39:56.23' DAY TO SECOND", "INTERVAL -'163 23:39:56.23' DAY TO SECOND",
-                "interval_day_to_second", "PT-3935H-39M-56.023S", "-163 23:39:56.23", 23);
+                "interval_day_to_second", "PT-3935H-39M-56.23S", "-163 23:39:56.23", 23);
         assertQuery("SELECT INTERVAL '163:39' HOUR TO MINUTE", "INTERVAL '163:39' HOUR TO MINUTE", "interval_hour_to_minute",
-                "PT163H39M", "+6 19:39:00.0", 23);
+                "PT163H39M", "+6 19:39:00", 23);
         assertQuery("SELECT INTERVAL '163:39:59.163' HOUR TO SECOND", "INTERVAL '163:39:59.163' HOUR TO SECOND", "interval_hour_to_second",
                 "PT163H39M59.163S", "+6 19:39:59.163", 23);
         assertQuery("SELECT INTERVAL '163:59.163' MINUTE TO SECOND", "INTERVAL '163:59.163' MINUTE TO SECOND", "interval_minute_to_second",
                 "PT2H43M59.163S", "+0 02:43:59.163", 23);
+    }
+    
+    /**
+     * Method that tests that a binary response (CBOR) will return either Float or Double, depending on the SQL data type, for floating
+     * point numbers, while JSON will always return Double for floating point numbers.
+     */
+    public void testFloatingPointNumbersReturnTypes() throws IOException {
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        for (Mode mode : Mode.values()) {
+            assertFloatingPointNumbersReturnTypes(request, mode);
+        }
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void assertFloatingPointNumbersReturnTypes(Request request, Mode mode) throws IOException {
+        String requestContent = "{\"query\":\"SELECT "
+                + "CAST(1234.34 AS REAL) AS float_positive,"
+                + "CAST(-1234.34 AS REAL) AS float_negative,"
+                + "1234567890123.34 AS double_positive,"
+                + "-1234567890123.34 AS double_negative\""
+                + mode(mode.toString()) + "}";
+        request.setEntity(new StringEntity(requestContent, ContentType.APPLICATION_JSON));
+        
+        Map<String, Object> map;
+        boolean isBinaryResponse = mode != Mode.PLAIN;
+        Response response = client().performRequest(request);
+        if (isBinaryResponse) {
+            map = XContentHelper.convertToMap(CborXContent.cborXContent, response.getEntity().getContent(), false);
+        } else {
+            map = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+        }
+
+        List<Object> columns = (ArrayList<Object>) map.get("columns");
+        assertEquals(4, columns.size());            
+        List<Object> rows = (ArrayList<Object>) map.get("rows");
+        assertEquals(1, rows.size());
+        List<Object> row = (ArrayList<Object>) rows.get(0);
+        assertEquals(4, row.size());
+        
+        if (isBinaryResponse) {
+            assertTrue(row.get(0) instanceof Float);
+            assertEquals(row.get(0), 1234.34f);
+            assertTrue(row.get(1) instanceof Float);
+            assertEquals(row.get(1), -1234.34f);
+        } else {
+            assertTrue(row.get(0) instanceof Double);
+            assertEquals(row.get(0), 1234.34d);
+            assertTrue(row.get(1) instanceof Double);
+            assertEquals(row.get(1), -1234.34d);
+        }
+        assertTrue(row.get(2) instanceof Double);
+        assertEquals(row.get(2), 1234567890123.34d);
+        assertTrue(row.get(3) instanceof Double);
+        assertEquals(row.get(3), -1234567890123.34d);
     }
 
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize)
@@ -148,7 +202,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(2, column.size());
         }
         
-        List<Object> rows = (ArrayList<Object>) response.get(columnar == true ? "values" : "rows");
+        List<Object> rows = (ArrayList<Object>) response.get(columnar ? "values" : "rows");
         assertEquals(1, rows.size());
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(1, row.size());
@@ -195,6 +249,18 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"columnar\":" + columnar).toString();
         }
+
+        // randomize binary response enforcement for drivers (ODBC/JDBC) and CLI
+        boolean binaryCommunication = randomBoolean();
+        Mode m = Mode.fromString(mode);
+        if (randomBoolean()) {
+            // set it explicitly or leave the default (null) as is
+            requestContent = new StringBuilder(requestContent)
+                    .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
+            binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication);
+        } else {
+            binaryCommunication = Mode.isDriver(m) || m == Mode.CLI;
+        }
         
         // send the query either as body or as request parameter
         if (randomBoolean()) {
@@ -210,6 +276,9 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
+            if (binaryCommunication) {
+                return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);
+            }
             switch(format) {
                 case "cbor": {
                     return XContentHelper.convertToMap(CborXContent.cborXContent, content, false);

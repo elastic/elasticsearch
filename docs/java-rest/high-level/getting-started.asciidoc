@@ -154,6 +154,8 @@ executes the request. For example, this is the place where you'd specify a
 `NodeSelector` to control which node receives the request. See the
 <<java-rest-low-usage-request-options,low level client documentation>> for
 more examples of customizing the options.
+
+[[java-rest-high-getting-started-asynchronous-usage]]
 === Asynchronous usage
 
 All of the the methods across the different clients exist in a traditional synchronous and 

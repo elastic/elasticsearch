@@ -33,20 +33,34 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.HDRPercentilesAggregator;
-import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new PercentilesAggregationBuilder("hdr_percentiles")
+            .field(fieldName)
+            .percentilesConfig(new PercentilesConfig.Hdr());
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC);
+    }
 
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -121,6 +135,18 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testHdrThenTdigestSettings() throws Exception {
+        int sigDigits = randomIntBetween(1, 5);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            percentiles("percentiles")
+                .numberOfSignificantValueDigits(sigDigits)
+                .method(PercentilesMethod.HDR)
+                .compression(100.0) // <-- this should trigger an exception
+                .field("value");
+        });
+        assertThat(e.getMessage(), equalTo("Cannot set [compression] because the method has already been configured for HDRHistogram"));
+    }
+
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalHDRPercentiles> verify) throws IOException {
         try (Directory directory = newDirectory()) {
@@ -131,8 +157,14 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                PercentilesAggregationBuilder builder =
-                        new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
+                PercentilesAggregationBuilder builder;
+                // TODO this randomization path should be removed when the old settings are removed
+                if (randomBoolean()) {
+                    builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
+                } else {
+                    PercentilesConfig hdr = new PercentilesConfig.Hdr();
+                    builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
+                }
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setName("number");

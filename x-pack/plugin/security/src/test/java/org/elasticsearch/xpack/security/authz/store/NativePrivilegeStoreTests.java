@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -268,7 +267,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
             IndexRequest request = indexRequests.get(i);
             assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
-            assertThat(request.type(), equalTo(MapperService.SINGLE_MAPPING_NAME));
             assertThat(request.id(), equalTo(
                 "application-privilege_" + privilege.getApplication() + ":" + privilege.getName()
             ));
@@ -277,7 +275,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             final boolean created = privilege.getName().equals("user") == false;
             indexListener.onResponse(new IndexResponse(
                 new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i),
-                request.type(), request.id(), 1, 1, 1, created
+                request.id(), 1, 1, 1, created
             ));
         }
 
@@ -313,12 +311,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             String name = privilegeNames.get(i);
             DeleteRequest request = deletes.get(i);
             assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
-            assertThat(request.type(), equalTo(MapperService.SINGLE_MAPPING_NAME));
             assertThat(request.id(), equalTo("application-privilege_app1:" + name));
             final boolean found = name.equals("p2") == false;
             deleteListener.onResponse(new DeleteResponse(
                 new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i),
-                request.type(), request.id(), 1, 1, 1, found
+                request.id(), 1, 1, 1, found
             ));
         }
 

@@ -103,7 +103,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (pointConverter != null) {
             Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
             if (segMin != null) {
-                /**
+                /*
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
@@ -181,7 +181,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (parent != null) {
             return null;
         }
-        if (config.fieldContext() != null && config.script() == null) {
+        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldContext().fieldType();
             if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
                 return null;
@@ -190,7 +190,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
                 converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
             } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                converter = (in) -> LongPoint.decodeDimension(in, 0);
+                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
+                /*
+                 * Makes sure that nanoseconds decode to milliseconds, just
+                 * like they do when you run the agg without the optimization.
+                 */
+                converter = (in) -> dft.resolution().toInstant(LongPoint.decodeDimension(in, 0)).toEpochMilli();
             }
             return converter;
         }

@@ -110,13 +110,23 @@ public class ClusterBlockException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         RestStatus status = null;
+        boolean onlyRetryableBlocks = true;
         for (ClusterBlock block : blocks) {
-            if (status == null) {
-                status = block.status();
-            } else if (status.getStatus() < block.status().getStatus()) {
-                status = block.status();
+            boolean isRetryableBlock = block.status() == RestStatus.TOO_MANY_REQUESTS;
+            if (isRetryableBlock == false) {
+                if (status == null) {
+                    status = block.status();
+                } else if (status.getStatus() < block.status().getStatus()) {
+                    status = block.status();
+                }
             }
+            onlyRetryableBlocks = onlyRetryableBlocks && isRetryableBlock;
         }
+        // return retryable status if there are only retryable blocks
+        if (onlyRetryableBlocks) {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
+        // return status which has the maximum code of all status except the retryable blocks'
         return status;
     }
 }

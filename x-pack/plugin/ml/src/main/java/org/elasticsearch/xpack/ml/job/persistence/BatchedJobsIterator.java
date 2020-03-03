@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,13 +16,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.utils.persistence.BatchedDocumentsIterator;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 public class BatchedJobsIterator extends BatchedDocumentsIterator<Job.Builder> {
 
-    public BatchedJobsIterator(Client client, String index) {
+    public BatchedJobsIterator(OriginSettingClient client, String index) {
         super(client, index);
     }
 

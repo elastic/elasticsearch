@@ -8,19 +8,19 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
 
@@ -29,7 +29,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
     public static DateTruncProcessor randomDateTruncProcessor() {
         return new DateTruncProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomZone());
     }
 
@@ -52,13 +52,13 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
     protected DateTruncProcessor mutateInstance(DateTruncProcessor instance) {
         return new DateTruncProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
     public void testInvalidInputs() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+            () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A string is required; received [5]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
@@ -68,13 +68,13 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A value of [MILLENNIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, " +
-            "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
+                "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
             siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("dacede"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dacede] is not valid date part for truncation; did you mean [decade, decades]?",
-             siae.getMessage());
+            siae.getMessage());
     }
 
     public void testWithNulls() {

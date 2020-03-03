@@ -6,7 +6,7 @@ teardown:
         ignore: 404
 
 ---
-"Test index with required pipeline":
+"Test index with final pipeline":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -23,14 +23,14 @@ teardown:
             ]
           }
   - match: { acknowledged: true }
-  # required pipeline via index
+  # final pipeline via index
   - do:
       indices.create:
         index: test
         body:
           settings:
             index:
-              required_pipeline: "my_pipeline"
+              final_pipeline: "my_pipeline"
           aliases:
             test_alias: {}
 
@@ -46,7 +46,7 @@ teardown:
         id: 1
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
-  # required pipeline via alias
+  # final pipeline via alias
   - do:
       index:
         index: test_alias
@@ -59,7 +59,7 @@ teardown:
         id: 2
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
-  # required pipeline via upsert
+  # final pipeline via upsert
   - do:
       update:
         index: test
@@ -75,7 +75,7 @@ teardown:
         id: 3
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
-  # required pipeline via scripted upsert
+  # final pipeline via scripted upsert
   - do:
       update:
         index: test
@@ -92,7 +92,7 @@ teardown:
         id: 4
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
-  # required pipeline via doc_as_upsert
+  # final pipeline via doc_as_upsert
   - do:
       update:
         index: test
@@ -106,7 +106,7 @@ teardown:
         id: 5
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
-  # required pipeline via bulk upsert
+  # final pipeline via bulk upsert
   # note - bulk scripted upsert's execute the pipeline before the script, so any data referenced by the pipeline
   # needs to be in the upsert, not the script
   - do:
@@ -164,12 +164,3 @@ teardown:
   - match: { docs.5._source.bytes_source_field: "3kb" }
   - match: { docs.5._source.bytes_target_field: 3072 }
   - match: { docs.5._source.ran_script: true }
-
-  # bad request, request pipeline can not be specified
-  - do:
-      catch: /illegal_argument_exception.*request pipeline \[pipeline\] can not override required pipeline \[my_pipeline\]/
-      index:
-        index: test
-        id: 9
-        pipeline: "pipeline"
-        body: {bytes_source_field: "1kb"}

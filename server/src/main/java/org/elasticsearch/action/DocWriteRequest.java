@@ -52,19 +52,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     String index();
 
-
-    /**
-     * Set the type for this request
-     * @return the Request
-     */
-    T type(String type);
-
-    /**
-     * Get the type that this request operates on
-     * @return the type
-     */
-    String type();
-
     /**
      * Get the id of the document for this request
      * @return the id

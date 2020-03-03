@@ -320,8 +320,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         {
             final CountDownLatch latch = new CountDownLatch(1);
             BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
-            //Check that untyped document additions inherit the global type
-            String localType = null;
             try (BulkProcessor processor = initBulkProcessorBuilder(listener)
                     //let's make sure that the bulk action limit trips, one single execution will index all the documents
                     .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
@@ -331,7 +329,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                     .setGlobalPipeline("pipeline_id")
                     .build()) {
 
-                indexDocs(processor, numDocs, null, localType, "test", "pipeline_id");
+                indexDocs(processor, numDocs, null, "test", "pipeline_id");
                 latch.await();
 
                 assertThat(listener.beforeCounts.get(), equalTo(1));
@@ -356,15 +354,15 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             .<Matcher<SearchHit>>toArray(Matcher[]::new);
     }
 
-    private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs, String localIndex, String localType,
+    private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs, String localIndex,
                                       String globalIndex, String globalPipeline) throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
             if (randomBoolean()) {
-                processor.add(new IndexRequest(localIndex, localType, Integer.toString(i))
+                processor.add(new IndexRequest(localIndex).id(Integer.toString(i))
                     .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             } else {
-                BytesArray data = bytesBulkRequest(localIndex, localType, i);
+                BytesArray data = bytesBulkRequest(localIndex, i);
                 processor.add(data, globalIndex, globalPipeline, XContentType.JSON);
             }
             multiGetRequest.add(localIndex, Integer.toString(i));
@@ -372,15 +370,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         return multiGetRequest;
     }
 
-    private static BytesArray bytesBulkRequest(String localIndex, String localType, int id) throws IOException {
+    private static BytesArray bytesBulkRequest(String localIndex, int id) throws IOException {
         XContentBuilder action = jsonBuilder().startObject().startObject("index");
 
         if (localIndex != null) {
             action.field("_index", localIndex);
-        }
-
-        if (localType != null) {
-            action.field("_type", localType);
         }
 
         action.field("_id", Integer.toString(id));
@@ -396,7 +390,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     }
 
     private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {
-        return indexDocs(processor, numDocs, "test", null, null, null);
+        return indexDocs(processor, numDocs, "test", null, null);
     }
 
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {

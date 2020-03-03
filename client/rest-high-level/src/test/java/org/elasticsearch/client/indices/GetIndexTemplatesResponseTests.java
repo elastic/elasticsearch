@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -55,12 +54,8 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetIndexTemplatesResponseTests extends ESTestCase {
-    
-    static final String mappingString = "{\"properties\":{"
-            + "\"f1\": {\"type\":\"text\"},"
-            + "\"f2\": {\"type\":\"keyword\"}"
-            + "}}";
-    
+
+    static final String mappingString = "{\"properties\":{\"f1\": {\"type\":\"text\"},\"f2\": {\"type\":\"keyword\"}}}";
 
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser,
@@ -115,8 +110,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                     assertThat(result.order(), equalTo(esIMD.order()));
                     assertThat(result.version(), equalTo(esIMD.version()));
 
-                    assertThat(esIMD.mappings().size(), equalTo(1));
-                    BytesArray mappingSource = new BytesArray(esIMD.mappings().valuesIt().next().uncompressed());
+                    BytesArray mappingSource = new BytesArray(esIMD.mappings().uncompressed());
                     Map<String, Object> expectedMapping =
                         XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
@@ -147,7 +141,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
         ;
     }
 
-    private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {        
+    private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {
         assertEquals(expectedInstance, newInstance);
         // Check there's no doc types at the root of the mapping
         Map<String, Object> expectedMap = XContentHelper.convertToMap(
@@ -157,10 +151,10 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             if(mappingMD != null) {
                 Map<String, Object> mappingAsMap = mappingMD.sourceAsMap();
                 assertEquals(expectedMap, mappingAsMap);
-            }            
+            }
         }
-    }    
-    
+    }
+
     static GetIndexTemplatesResponse createTestInstance() {
         List<IndexTemplateMetaData> templates = new ArrayList<>();
         int numTemplates = between(0, 10);
@@ -181,13 +175,9 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                 templateBuilder.version(between(0, 100));
             }
             if (randomBoolean()) {
-                try {
-                    Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
-                    MappingMetaData mapping = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map);
-                    templateBuilder.mapping(mapping);
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
+                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+                MappingMetaData mapping = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map);
+                templateBuilder.mapping(mapping);
             }
             templates.add(templateBuilder.build());
         }
@@ -196,30 +186,33 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
     // As the client class GetIndexTemplatesResponse doesn't have toXContent method, adding this method here only for the test
     static void toXContent(GetIndexTemplatesResponse response, XContentBuilder builder) throws IOException {
-        
+
         //Create a server-side counterpart for the client-side class and call toXContent on it
-        
+
         List<org.elasticsearch.cluster.metadata.IndexTemplateMetaData> serverIndexTemplates = new ArrayList<>();
         List<IndexTemplateMetaData> clientIndexTemplates = response.getIndexTemplates();
         for (IndexTemplateMetaData clientITMD : clientIndexTemplates) {
-            org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder serverTemplateBuilder = 
+            org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder serverTemplateBuilder =
                     org.elasticsearch.cluster.metadata.IndexTemplateMetaData.builder(clientITMD.name());
 
             serverTemplateBuilder.patterns(clientITMD.patterns());
 
             Iterator<AliasMetaData> aliases = clientITMD.aliases().valuesIt();
             aliases.forEachRemaining((a)->serverTemplateBuilder.putAlias(a));
-            
+
             serverTemplateBuilder.settings(clientITMD.settings());
             serverTemplateBuilder.order(clientITMD.order());
             serverTemplateBuilder.version(clientITMD.version());
             if (clientITMD.mappings() != null) {
-                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, clientITMD.mappings().source());
+                // The client-side mappings never include a wrapping type, but server-side mappings
+                // for index templates still do so we need to wrap things here
+                String mappings = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\": " + clientITMD.mappings().source().string() + "}";
+                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
             }
             serverIndexTemplates.add(serverTemplateBuilder.build());
 
         }
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new        
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new
                 org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
         serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }

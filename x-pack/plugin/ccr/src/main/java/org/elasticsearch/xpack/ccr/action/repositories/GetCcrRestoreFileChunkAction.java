@@ -12,7 +12,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.bytes.PagedBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +60,8 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             String sessionUUID = request.getSessionUUID();
             // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
             // structure on the same thread. So the bytes will be copied before the reference is released.
-            try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
+            PagedBytesReference pagedBytesReference = new PagedBytesReference(array, bytesRequested);
+            try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
                     long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
                     long offsetBeforeRead = offsetAfterRead - reference.length();

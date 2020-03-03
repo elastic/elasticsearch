@@ -9,10 +9,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
+
+import static java.util.stream.Collectors.toMap;
 
 public class AnalyticsProcessConfig implements ToXContentObject {
 
@@ -33,9 +37,10 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private final String resultsField;
     private final Set<String> categoricalFields;
     private final DataFrameAnalysis analysis;
+    private final ExtractedFields extractedFields;
 
     public AnalyticsProcessConfig(String jobId, long rows, int cols, ByteSizeValue memoryLimit, int threads, String resultsField,
-                                  Set<String> categoricalFields, DataFrameAnalysis analysis) {
+                                  Set<String> categoricalFields, DataFrameAnalysis analysis, ExtractedFields extractedFields) {
         this.jobId = Objects.requireNonNull(jobId);
         this.rows = rows;
         this.cols = cols;
@@ -44,6 +49,7 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         this.resultsField = Objects.requireNonNull(resultsField);
         this.categoricalFields = Objects.requireNonNull(categoricalFields);
         this.analysis = Objects.requireNonNull(analysis);
+        this.extractedFields = Objects.requireNonNull(extractedFields);
     }
 
     public String jobId() {
@@ -68,7 +74,7 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         builder.field(THREADS, threads);
         builder.field(RESULTS_FIELD, resultsField);
         builder.field(CATEGORICAL_FIELDS, categoricalFields);
-        builder.field(ANALYSIS, new DataFrameAnalysisWrapper(analysis));
+        builder.field(ANALYSIS, new DataFrameAnalysisWrapper(analysis, extractedFields));
         builder.endObject();
         return builder;
     }
@@ -76,16 +82,21 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private static class DataFrameAnalysisWrapper implements ToXContentObject {
 
         private final DataFrameAnalysis analysis;
+        private final ExtractedFields extractedFields;
 
-        private DataFrameAnalysisWrapper(DataFrameAnalysis analysis) {
+        private DataFrameAnalysisWrapper(DataFrameAnalysis analysis, ExtractedFields extractedFields) {
             this.analysis = analysis;
+            this.extractedFields = extractedFields;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("name", analysis.getWriteableName());
-            builder.field("parameters", analysis.getParams());
+            builder.field(
+                "parameters",
+                analysis.getParams(
+                    extractedFields.getAllFields().stream().collect(toMap(ExtractedField::getName, ExtractedField::getTypes))));
             builder.endObject();
             return builder;
         }

@@ -21,12 +21,10 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 
 import java.util.Objects;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
-
     private final Client client;
     private final DatafeedConfig datafeedConfig;
     private final Job job;
@@ -55,7 +53,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getScrollSize(),
                 start,
                 end,
-                datafeedConfig.getHeaders());
+                datafeedConfig.getHeaders(),
+                datafeedConfig.getIndicesOptions()
+        );
         return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 
@@ -74,9 +74,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                     new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry, timingStatsReporter));
             },
             e -> {
-                if (e instanceof IndexNotFoundException) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
-                            + "] cannot retrieve data because index " + ((IndexNotFoundException) e).getIndex() + " does not exist"));
+                            + "] cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
                 } else if (e instanceof IllegalArgumentException) {
                     listener.onFailure(ExceptionsHelper.badRequestException("[" + datafeed.getId() + "] " + e.getMessage()));
                 } else {
@@ -87,11 +88,13 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
         // We need capabilities for all fields matching the requested fields' parents so that we can work around
         // multi-fields that are not in source.
-        String[] requestFields = job.allInputFields().stream().map(f -> MlStrings.getParentField(f) + "*")
-                .toArray(size -> new String[size]);
+        String[] requestFields = job.allInputFields()
+            .stream()
+            .map(f -> MlStrings.getParentField(f) + "*")
+            .toArray(String[]::new);
         fieldCapabilitiesRequest.fields(requestFields);
         ClientHelper.<FieldCapabilitiesResponse> executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);

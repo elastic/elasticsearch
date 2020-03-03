@@ -3,6 +3,18 @@
 [[es-monitoring-collectors]]
 == Collectors
 
+[IMPORTANT]
+=========================
+{metricbeat} is the recommended method for collecting and shipping monitoring
+data to a monitoring cluster.
+
+If you have previously configured internal collection, you should migrate to
+using {metricbeat} collection. Use either {metricbeat} collection or
+internal collection; do not use both.
+
+Learn more about <<configuring-metricbeat>>.
+=========================
+
 Collectors, as their name implies, collect things. Each collector runs once for
 each collection interval to obtain data from the public APIs in {es} and {xpack}
 that it chooses to monitor. When the data collection is finished, the data is
@@ -12,9 +24,9 @@ runs once per collection interval.
 
 There is only one collector per data type gathered. In other words, for any
 monitoring document that is created, it comes from a single collector rather
-than being merged from multiple collectors. {monitoring} for {es} currently has
-a few collectors because the goal is to minimize overlap between them for
-optimal performance.
+than being merged from multiple collectors. The {es} {monitor-features}
+currently have a few collectors because the goal is to minimize overlap between
+them for optimal performance.
 
 Each collector can create zero or more monitoring documents. For example,
 the `index_stats` collector collects all index statistics at the same time to
@@ -70,7 +82,7 @@ node to be able to perform the collection, the master node must have
 | Node Stats      | `node_stats`
 | Gathers details about the running node, such as memory utilization and CPU
 usage (for example, `GET /_nodes/_local/stats`). This runs on _every_ node with
-{monitoring} enabled. One common failure results in the timeout of the node
+{monitor-features} enabled. One common failure results in the timeout of the node
 stats request due to too many segment files. As a result, the collector spends
 too much time waiting for the file system stats to be calculated until it
 finally times out. A single `node_stats` document is created per collection.
@@ -79,19 +91,19 @@ with each other, but not with the monitoring cluster (for example, intermittent
 network issues or memory pressure).
 |=======================
 
-{monitoring} uses a single threaded scheduler to run the collection of {es} 
-monitoring data by all of the appropriate collectors on each node. This 
-scheduler is managed locally by each node and its interval is controlled by 
-specifying the `xpack.monitoring.collection.interval`, which defaults to 10 
-seconds (`10s`), at either the node or cluster level.
+The {es} {monitor-features} use a single threaded scheduler to run the
+collection of {es} monitoring data by all of the appropriate collectors on each
+node. This scheduler is managed locally by each node and its interval is
+controlled by specifying the `xpack.monitoring.collection.interval`, which
+defaults to 10 seconds (`10s`), at either the node or cluster level.
 
 Fundamentally, each collector works on the same principle. Per collection
-interval, each collector is checked to see whether it should run and then the 
-appropriate collectors run. The failure of an individual collector does not 
+interval, each collector is checked to see whether it should run and then the
+appropriate collectors run. The failure of an individual collector does not
 impact any other collector.
 
 Once collection has completed, all of the monitoring data is passed to the
-exporters to route the monitoring data to the monitoring clusters. 
+exporters to route the monitoring data to the monitoring clusters.
 
 If gaps exist in the monitoring charts in {kib}, it is typically because either
 a collector failed or the monitoring cluster did not receive the data (for
@@ -112,7 +124,7 @@ For more information about the configuration options for the collectors, see
 [[es-monitoring-stack]]
 ==== Collecting data from across the Elastic Stack
 
-{monitoring} in {es} also receives monitoring data from other parts of the
+{es} {monitor-features} also receive monitoring data from other parts of the
 Elastic Stack. In this way, it serves as an unscheduled monitoring data
 collector for the stack.
 
@@ -125,7 +137,7 @@ Once data is received, it is forwarded to the exporters
 to be routed to the monitoring cluster like all monitoring data.
 
 WARNING: Because this stack-level "collector" lives outside of the collection
-interval of {monitoring} for {es}, it is not impacted by the
+interval of {es} {monitor-features}, it is not impacted by the
 `xpack.monitoring.collection.interval` setting. Therefore, data is passed to the
 exporters whenever it is received. This behavior can result in indices for {kib},
 Logstash, or Beats being created somewhat unexpectedly.

@@ -13,6 +13,8 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 
 `GET /_cat/snapshots/<repository>`
 
+`GET /_cat/snapshots`
+
 
 [[cat-snapshots-path-params]]
 ==== {api-path-parms-title}
@@ -93,8 +95,6 @@ Reason for any snapshot failures.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
 `ignore_unavailable`::
 (Optional, boolean) If `true`, the response does not include information from
 unavailable snapshots. Defaults to `false`.
@@ -102,6 +102,8 @@ unavailable snapshots. Defaults to `false`.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

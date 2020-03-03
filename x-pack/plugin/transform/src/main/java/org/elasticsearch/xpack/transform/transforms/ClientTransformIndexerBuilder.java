@@ -8,17 +8,19 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
@@ -34,27 +36,40 @@ class ClientTransformIndexerBuilder {
     private TransformProgress progress;
     private TransformCheckpoint lastCheckpoint;
     private TransformCheckpoint nextCheckpoint;
+    private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
+    private boolean shouldStopAtCheckpoint;
 
     ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientTransformIndexer build(TransformTask parentTask) {
+    ClientTransformIndexer build(Executor executor, TransformContext context) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
 
-        return new ClientTransformIndexer(this.transformsConfigManager,
+        return new ClientTransformIndexer(
+            executor,
+            transformsConfigManager,
             checkpointProvider,
+            new TransformProgressGatherer(client),
             new AtomicReference<>(this.indexerState),
-            this.initialPosition,
-            this.client,
-            this.auditor,
-            this.initialStats,
-            this.transformConfig,
-            this.fieldMappings,
-            this.progress,
-            this.lastCheckpoint,
-            this.nextCheckpoint,
-            parentTask);
+            initialPosition,
+            client,
+            auditor,
+            initialStats,
+            transformConfig,
+            fieldMappings,
+            progress,
+            TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
+            TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
+            seqNoPrimaryTermAndIndex,
+            context,
+            shouldStopAtCheckpoint
+        );
+    }
+
+    ClientTransformIndexerBuilder setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        return this;
     }
 
     ClientTransformIndexerBuilder setClient(Client client) {
@@ -120,4 +135,10 @@ class ClientTransformIndexerBuilder {
         this.nextCheckpoint = nextCheckpoint;
         return this;
     }
+
+    ClientTransformIndexerBuilder setSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex) {
+        this.seqNoPrimaryTermAndIndex = seqNoPrimaryTermAndIndex;
+        return this;
+    }
+
 }

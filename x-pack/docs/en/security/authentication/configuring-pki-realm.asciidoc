@@ -1,30 +1,13 @@
-[role="xpack"]
-[[configuring-pki-realm]]
-=== Configuring a PKI realm
-
-You can configure {es} to use Public Key Infrastructure (PKI) certificates to
-authenticate users. This requires clients connecting directly to {es} to
-present X.509 certificates. The certificates must first be accepted for
-authentication on the SSL/TLS layer on {es}. Only then they are optionally
-further validated by a PKI realm.
-
-Users may also use PKI certificates to authenticate to {kib}, however this
-requires some <<pki-realm-for-proxied-clients,additional configuration>>. On
-{es}, this configuration enables {kib} to act as a proxy for SSL/TLS
-authentication and to submit the client certificates to {es} for further
-validation by a PKI realm.
-
-For more general information, see <<pki-realm>>.
-
-[float]
-[role="xpack"]
 [[pki-realm-for-direct-clients]]
 ==== PKI authentication for clients connecting directly to {es}
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
-the desired network layers (transport or http), and map the Distinguished Name
-(DN) from the Subject field in the user certificate to roles by using the
-<<security-api-role-mapping,role-mapping API>> or the role-mapping file.
+the desired network layers (transport or http), and map the Distinguished Names
+(DNs) from the Subject field in the user certificates to roles. You create the mappings in a role mapping file or use the role mappings API.
+
+If you want the same users to also be authenticated using certificates when they connect to {kib}, you must configure the {es} PKI realm to
+<<pki-realm-for-proxied-clients,allow delegation>> and to
+{kibana-ref}/kibana-authentication.html#pki-authentication[enable PKI authentication in {kib}].
 
 You can also use a combination of PKI and username/password authentication. For
 example, you can enable SSL/TLS on the transport layer and define a PKI realm to
@@ -38,9 +21,8 @@ clients connect directly to {es}.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace.
-If you are configuring multiple realms, you should 
-explicitly set the `order` attribute. See <<ref-pki-settings>> for all of the 
-options you can set for a `pki` realm.
+You must explicitly set the `order` attribute. See <<ref-pki-settings>> for all
+of the options you can set for a `pki` realm.
 +
 --
 For example, the following snippet shows the most basic `pki` realm configuration:
@@ -78,6 +60,7 @@ xpack:
       realms:
         pki:
           pki1:
+            order: 1
             username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
 ------------------------------------------------------------
 
@@ -135,6 +118,7 @@ xpack:
       realms:
         pki:
           pki1:
+            order: 1
             truststore:
               path: "pki1_truststore.jks"
 ------------------------------------------------------------
@@ -216,8 +200,6 @@ alternative to role mapping.
 
 --
 
-[float]
-[role="xpack"]
 [[pki-realm-for-proxied-clients]]
 ==== PKI authentication for clients connecting to {kib}
 
@@ -288,4 +270,3 @@ PUT /_security/role_mapping/direct_pki_only
 
 <1> only when this metadata field is set (it is *not* `null`) the user has been
 authenticated in the delegation scenario.
-

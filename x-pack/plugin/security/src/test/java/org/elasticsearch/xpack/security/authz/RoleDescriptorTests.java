@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -296,4 +299,30 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(true, parsed.getTransientMetadata().get("enabled"));
     }
 
+    public void testParseIndicesPrivilegesSucceedsWhenExceptFieldsIsSubsetOfGrantedFields() throws IOException {
+        final boolean grantAll = randomBoolean();
+        final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
+        final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
+
+        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
+            "\"grant\" : [" + grant + "], \"except\" : [" + except + "] } }] }";
+        final RoleDescriptor rd = RoleDescriptor.parse("test",
+            new BytesArray(json), false, XContentType.JSON);
+        assertEquals("test", rd.getName());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[]{"idx1", "idx2"}, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals((grantAll) ? new String[]{"*"} : new String[]{"f1", "f2"}, rd.getIndicesPrivileges()[0].getGrantedFields());
+        assertArrayEquals((grantAll) ? new String[]{"_fx", "f8"} : new String[]{"f1"}, rd.getIndicesPrivileges()[0].getDeniedFields());
+    }
+
+    public void testParseIndicesPrivilegesFailsWhenExceptFieldsAreNotSubsetOfGrantedFields() {
+        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
+            "\"grant\" : [\"f1\",\"f2\"], \"except\" : [\"f3\"] } }] }";
+        final ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test",
+            new BytesArray(json), false, XContentType.JSON));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("must be a subset of the granted fields ")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
+    }
 }

@@ -20,6 +20,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -27,7 +28,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-final class ByteBufBytesReference extends BytesReference {
+final class ByteBufBytesReference extends AbstractBytesReference {
 
     private final ByteBuf buffer;
     private final int length;

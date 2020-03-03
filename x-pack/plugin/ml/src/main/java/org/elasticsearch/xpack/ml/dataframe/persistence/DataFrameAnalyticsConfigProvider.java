@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,14 +58,7 @@ public class DataFrameAnalyticsConfigProvider {
 
     private static final int MAX_CONFIGS_SIZE = 10000;
 
-    private static final Map<String, String> TO_XCONTENT_PARAMS;
-
-    static {
-        Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
-        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
-        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
-    }
+    private static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -99,7 +91,7 @@ public class DataFrameAnalyticsConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                 listener::onResponse,
                 e -> {
-                    if (e instanceof VersionConflictEngineException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(id));
                     } else {
                         listener.onFailure(e);

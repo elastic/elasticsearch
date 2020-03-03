@@ -181,7 +181,6 @@ The API returns the following result:
         "successful" : 2
     },
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "1",
     "_version" : 2,
     "_primary_term": 1,

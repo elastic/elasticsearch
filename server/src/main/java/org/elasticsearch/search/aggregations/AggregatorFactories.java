@@ -119,8 +119,7 @@ public class AggregatorFactories {
                                     + aggregationName + "]: [" + aggBuilder.getType() + "] and [" + fieldName + "]");
                         }
 
-                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
-                                new AggParseContext(aggregationName));
+                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["
@@ -149,17 +148,6 @@ public class AggregatorFactories {
         }
 
         return factories;
-    }
-
-    /**
-     * Context to parse and aggregation. This should eventually be removed and replaced with a String.
-     */
-    public static final class AggParseContext {
-        public final String name;
-
-        public AggParseContext(String name) {
-            this.name = name;
-        }
     }
 
     public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0], new ArrayList<>());

@@ -22,14 +22,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
+
+import static org.elasticsearch.transport.InboundMessage.Reader.assertRemoteVersion;
 
 public final class TransportLogger {
 
@@ -78,27 +77,32 @@ public final class TransportLogger {
                 final byte status = streamInput.readByte();
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
-                final String version = Version.fromId(streamInput.readInt()).toString();
+                final Version version = Version.fromId(streamInput.readInt());
+                streamInput.setVersion(version);
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
 
-                if (isRequest) {
-                    if (TransportStatus.isCompress(status)) {
-                        Compressor compressor;
-                        compressor = InboundMessage.getCompressor(message);
-                        if (compressor == null) {
-                            throw new IllegalStateException(new NotCompressedException());
-                        }
-                        streamInput = compressor.streamInput(streamInput);
-                    }
+                if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                    sb.append(", header size: ").append(streamInput.readInt()).append('B');
+                } else {
+                    streamInput = InboundMessage.Reader.decompressingStream(status, streamInput);
+                    assertRemoteVersion(streamInput, version);
+                }
 
-                    try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                        context.readHeaders(streamInput);
-                    }
-                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
-                        // discard the features
+                // TODO (jaymode) Need a better way to deal with this. In one aspect,
+                // changes were made to ThreadContext to allocate less internally, yet we have this
+                // ugliness needed to move past the threadcontext data in the stream and discard it
+                // Could we have an alternative that essentially just seeks through the stream with
+                // minimal allocation?
+                // read and discard thread context data
+                ThreadContext.readHeadersFromStream(streamInput);
+                ThreadContext.readAllowedSystemIndices(streamInput);
+
+                if (isRequest) {
+                    if (version.before(Version.V_8_0_0)) {
+                        // discard features
                         streamInput.readStringArray();
                     }
                     sb.append(", action: ").append(streamInput.readString());

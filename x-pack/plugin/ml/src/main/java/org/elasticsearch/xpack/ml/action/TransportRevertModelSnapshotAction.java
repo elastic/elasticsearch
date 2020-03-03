@@ -118,7 +118,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         );
 
         // 1. Verify/Create the state index and its alias exists
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, createStateIndexListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, createStateIndexListener);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,
@@ -171,7 +171,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         return ActionListener.wrap(response -> {
             jobResultsProvider.dataCounts(jobId, counts -> {
                 counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
+                jobDataCountsPersister.persistDataCountsAsync(jobId, counts, new ActionListener<Boolean>() {
                     @Override
                     public void onResponse(Boolean aBoolean) {
                         listener.onResponse(response);

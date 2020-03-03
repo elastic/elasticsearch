@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -27,6 +29,7 @@ dependencies {
   compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
   compile 'com.google.guava:guava:20.0'
   compile 'org.apache.commons:commons-lang3:3.4'
+  testCompile project(':test:fixtures:azure-fixture')
 }
 
 dependencyLicenses {
@@ -38,26 +41,26 @@ dependencyLicenses {
 }
 
 thirdPartyAudit {
-    ignoreMissingClasses (
-      // Optional and not enabled by Elasticsearch
-      'org.slf4j.Logger',
-      'org.slf4j.LoggerFactory'
-    )
+  ignoreMissingClasses(
+    // Optional and not enabled by Elasticsearch
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory'
+  )
 
-    ignoreViolations (
-      // uses internal java api: sun.misc.Unsafe
-      'com.google.common.cache.Striped64',
-      'com.google.common.cache.Striped64$1',
-      'com.google.common.cache.Striped64$Cell',
-      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
-   )
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+  )
 }
 
 check {
@@ -66,10 +69,10 @@ check {
 }
 
 testClusters {
-    integTest {
-        keystore 'azure.client.integration_test.account', 'azure_account'
-        keystore 'azure.client.integration_test.key', 'azure_key'
-    }
+  integTest {
+    keystore 'azure.client.integration_test.account', 'azure_account'
+    keystore 'azure.client.integration_test.key', 'azure_key'
+  }
 }
 
 String azureAccount = System.getenv("azure_storage_account")
@@ -88,7 +91,7 @@ task thirdPartyTest(type: Test) {
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
   systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
   systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
-  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + project.testSeed
+  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + BuildParams.testSeed
 }
 
 if (azureAccount || azureKey || azureContainer || azureBasePath || azureSasToken) {

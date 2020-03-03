@@ -18,6 +18,13 @@ PUT _template/template_1
 }
 --------------------------------------------------
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _template/template_1
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 [source,console]
@@ -45,8 +52,6 @@ or use a value of `_all` or `*`.
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 

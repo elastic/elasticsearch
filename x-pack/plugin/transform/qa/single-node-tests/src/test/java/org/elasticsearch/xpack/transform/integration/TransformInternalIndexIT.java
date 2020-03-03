@@ -43,7 +43,7 @@ public class TransformInternalIndexIT extends ESRestTestCase {
 
 
     private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
-    private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "1";
+    private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "001";
 
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {

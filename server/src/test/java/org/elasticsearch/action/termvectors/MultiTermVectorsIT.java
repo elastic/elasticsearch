@@ -89,7 +89,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
@@ -140,7 +140,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog

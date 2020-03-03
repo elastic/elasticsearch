@@ -118,7 +118,6 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 return new IndexResponse(
                     new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(100)),
                     randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),
@@ -157,7 +156,6 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 // The content of this IndexResponse doesn't matter, so just make it 100% random
                 return new IndexResponse(
                     new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(100)),
-                    randomAlphaOfLength(5),
                     randomAlphaOfLength(5),
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),

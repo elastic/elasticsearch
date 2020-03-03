@@ -31,15 +31,12 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-@TestMethodProviders({
-        JUnit3MethodProvider.class
-})
-@SeedDecorators({MixWithSuiteName.class})
+@TestMethodProviders({ JUnit3MethodProvider.class })
+@SeedDecorators({ MixWithSuiteName.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)
 @ThreadLeakGroup(ThreadLeakGroup.Group.MAIN)
-@ThreadLeakAction({ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT})
+@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 @ThreadLeakZombies(ThreadLeakZombies.Consequence.IGNORE_REMAINING_TESTS)
 @ThreadLeakLingering(linger = 5000)
 @TimeoutSuite(millis = 2 * 60 * 60 * 1000)
-abstract class LaunchersTestCase extends RandomizedTest {
-}
+abstract class LaunchersTestCase extends RandomizedTest {}

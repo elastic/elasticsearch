@@ -117,6 +117,10 @@ teardown:
 ---
 "Test empty request while single authorized closed index":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/47875"
+
   - do:
       indices.create:
         index: index_to_monitor

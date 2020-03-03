@@ -15,6 +15,8 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
@@ -37,6 +39,11 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "test_xpack_security_base_action";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
 
             @Override

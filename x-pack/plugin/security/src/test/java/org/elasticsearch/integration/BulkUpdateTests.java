@@ -41,7 +41,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
     public void testThatBulkUpdateDoesNotLoseFields() {
         assertEquals(DocWriteResponse.Result.CREATED,
-                client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult());
+                client().prepareIndex("index1").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult());
         GetResponse getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
 
@@ -50,7 +50,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with a new field
-        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "type", "1")
+        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "1")
                 .setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult());
         getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
@@ -61,7 +61,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         flushAndRefresh();
 
         // do it in a bulk
-        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "type", "1")
+        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "1")
                 .setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)).get();
         assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
         getResponse = client().prepareGet("index1", "1").get();
@@ -91,7 +91,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         //update with new field
-        Request updateRequest = new Request("POST", path + "/_update");
+        Request updateRequest = new Request("POST", "/index1/_update/1");
         updateRequest.setOptions(options);
         updateRequest.setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
         getRestClient().performRequest(updateRequest);

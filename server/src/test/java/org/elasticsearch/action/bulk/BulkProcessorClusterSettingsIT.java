@@ -39,9 +39,9 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("willwork", "type1", "1").setSource("{\"foo\":1}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("wontwork", "type1", "2").setSource("{\"foo\":2}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("willwork", "type1", "3").setSource("{\"foo\":3}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
         BulkResponse br = bulkRequestBuilder.get();
         BulkItemResponse[] responses = br.getItems();
         assertEquals(3, responses.length);

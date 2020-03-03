@@ -40,7 +40,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
                         // adding an action that throws an error and is associated with a 60 minute throttle period
                         // with such a period, on successful execution we other executions of the watch will be
                         // throttled within the hour... but on failed execution there should be no throttling
-                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo", "bar")))
+                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));

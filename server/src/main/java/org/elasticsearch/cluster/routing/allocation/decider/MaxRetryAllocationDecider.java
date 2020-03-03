@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.Setting;
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
     public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
 
     public static final String NAME = "max_retry";
 

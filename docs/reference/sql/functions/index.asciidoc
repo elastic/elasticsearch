@@ -51,6 +51,8 @@
 ** <<sql-functions-current-date>>
 ** <<sql-functions-current-time>>
 ** <<sql-functions-current-timestamp>>
+** <<sql-functions-datetime-add>>
+** <<sql-functions-datetime-diff>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>
 ** <<sql-functions-datetime-day>>

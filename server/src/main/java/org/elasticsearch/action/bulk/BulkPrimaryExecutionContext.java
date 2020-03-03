@@ -253,11 +253,11 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
-                    response = new IndexResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
+                    response = new IndexResponse(primary.shardId(), requestToExecute.id(),
                         result.getSeqNo(), result.getTerm(), indexResult.getVersion(), indexResult.isCreated());
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
-                    response = new DeleteResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
+                    response = new DeleteResponse(primary.shardId(), requestToExecute.id(),
                         deleteResult.getSeqNo(), result.getTerm(), deleteResult.getVersion(), deleteResult.isFound());
 
                 } else {
@@ -274,7 +274,7 @@ class BulkPrimaryExecutionContext {
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!
                     new BulkItemResponse.Failure(request.index(), docWriteRequest.id(),
-                        result.getFailure(), result.getSeqNo()));
+                        result.getFailure(), result.getSeqNo(), result.getTerm()));
                 break;
             default:
                 throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());

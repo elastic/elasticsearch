@@ -21,6 +21,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
@@ -499,7 +500,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(params.getRemoteCluster(), e)) {
+        if (shouldRetry(e)) {
             if (isStopped() == false) {
                 // Only retry is the shard follow task is not stopped.
                 int currentRetry = retryCounter.incrementAndGet();
@@ -528,7 +529,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    static boolean shouldRetry(String remoteCluster, Exception e) {
+    static boolean shouldRetry(final Exception e) {
         if (NetworkExceptionHelper.isConnectException(e)) {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
@@ -547,7 +548,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
             actual instanceof NoSuchRemoteClusterException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
+            actual instanceof EsRejectedExecutionException;
     }
 
     // These methods are protected for testing purposes:

@@ -22,7 +22,6 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -205,7 +204,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      *
      * @param context Additional information needed to build the query
      */
-    public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context, Version minNodeVersion) {
+    @SuppressWarnings("rawtypes")
+    public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context) {
         final MappedFieldType type = context.fieldMapper(field);
         if (type == null) {
             throw new IllegalArgumentException("field " + field + " not found");

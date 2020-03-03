@@ -218,11 +218,11 @@ public class SamlRequestHandler {
 
     protected void checkIssuer(Issuer issuer, XMLObject parent) {
         if (issuer == null) {
-            throw samlException("Element {} ({}) has no issuer, but expected {}",
+            throw samlException("Element {} ({}) has no issuer, but expected [{}]",
                     parent.getElementQName(), text(parent, 16), idp.getEntityId());
         }
         if (idp.getEntityId().equals(issuer.getValue()) == false) {
-            throw samlException("SAML Issuer {} does not match expected value {}", issuer.getValue(), idp.getEntityId());
+            throw samlException("SAML Issuer [{}] does not match expected value [{}]", issuer.getValue(), idp.getEntityId());
         }
     }
 
@@ -259,7 +259,7 @@ public class SamlRequestHandler {
             Object[] args = new Object[] { element.getTagName(), type.getName(), object == null ? "<null>" : object.getClass().getName() };
             throw samlException("SAML object [{}] is incorrect type. Expected [{}] but was [{}]", args);
         } catch (UnmarshallingException e) {
-            throw samlException("Failed to unmarshall SAML content [{}", e, element.getTagName());
+            throw samlException("Failed to unmarshall SAML content [{}]", e, element.getTagName());
         }
     }
 

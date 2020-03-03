@@ -30,7 +30,7 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerial
         for (int i = 0; i < phaseCount; i++) {
             progressOnStart.add(new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100)));
         }
-        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), Version.CURRENT, progressOnStart);
+        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), Version.CURRENT, progressOnStart, randomBoolean());
     }
 
     @Override

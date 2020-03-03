@@ -39,9 +39,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 
@@ -73,7 +73,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -121,7 +121,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -187,7 +187,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -228,7 +228,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }

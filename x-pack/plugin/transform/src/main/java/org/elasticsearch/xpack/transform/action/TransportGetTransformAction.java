@@ -63,7 +63,8 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected String[] getIndices() {
-        return new String[]{TransformInternalIndexConstants.INDEX_NAME_PATTERN};
+        return new String[] { TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED };
     }
 
     @Override

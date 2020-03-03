@@ -327,7 +327,7 @@ gcloud compute instances delete myesnode1 myesnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
+gcloud compute disks delete boot-myesnode1 boot-myesnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 

@@ -275,7 +275,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         }
     }
 
-    public Rounding createRounding(ZoneId timeZone) {
+    public Rounding createRounding(ZoneId timeZone, long offset) {
         Rounding.Builder tzRoundingBuilder;
         if (isEmpty()) {
             throw new IllegalArgumentException("Invalid interval specified, must be non-null and non-empty");
@@ -302,6 +302,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);
         }
+        tzRoundingBuilder.offset(offset);
         return tzRoundingBuilder.build();
     }
 

@@ -35,7 +35,7 @@ POST /_refresh
 
 The following example demonstrates the use of matrix stats to describe the relationship between income and poverty.
 
-[source,console]
+[source,console,id=stats-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -118,7 +118,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they had a value.
 This is done by adding a set of fieldname : value mappings to specify default values per field.
 
-[source,console]
+[source,console,id=stats-aggregation-missing-example]
 --------------------------------------------------
 GET /_search
 {

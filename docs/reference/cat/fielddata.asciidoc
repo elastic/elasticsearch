@@ -13,6 +13,8 @@ in the cluster.
 
 `GET /_cat/fielddata/<field>`
 
+`GET /_cat/fielddata`
+
 
 [[cat-fielddata-api-path-params]]
 ==== {api-path-parms-title}
@@ -29,10 +31,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
@@ -48,7 +46,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ////
 Hidden setup snippet to build an index with fielddata so our results are real:
 
-[source,console]
+[source,console,id=cat-fielddata-example]
 --------------------------------------------------
 PUT test
 {

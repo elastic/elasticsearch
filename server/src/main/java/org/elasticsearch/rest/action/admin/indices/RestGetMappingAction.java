@@ -19,36 +19,33 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetMappingAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
-            + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetMappingAction(final RestController controller) {
-        controller.registerHandler(GET, "/_mapping", this);
-        controller.registerHandler(GET, "/_mappings", this);
-        controller.registerHandler(GET, "/{index}/_mappings", this);
-        controller.registerHandler(GET, "/{index}/_mapping", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_mapping"),
+            new Route(GET, "/_mappings"),
+            new Route(GET, "/{index}/_mapping"),
+            new Route(GET, "/{index}/_mappings"));
     }
 
     @Override
@@ -59,11 +56,6 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            deprecationLogger.deprecatedAndMaybeLog("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices);

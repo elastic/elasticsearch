@@ -140,6 +140,7 @@ public class TransportStopDataFrameAnalyticsAction
                                                  Set<String> failedAnalytics) {
         for (String analyticsId : analyticsIds) {
             switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                case STARTING:
                 case STARTED:
                 case REINDEXING:
                 case ANALYZING:
@@ -192,6 +193,7 @@ public class TransportStopDataFrameAnalyticsAction
                 // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
+                logger.debug("[{}] sending remove request", task.getId());
                 persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.wrap(r -> {}, e -> {}));
             }
         }
@@ -201,7 +203,7 @@ public class TransportStopDataFrameAnalyticsAction
     private void redirectToMasterNode(DiscoveryNode masterNode, StopDataFrameAnalyticsAction.Request request,
                                       ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+            listener.onFailure(new MasterNotDiscoveredException());
         } else {
             transportService.sendRequest(masterNode, actionName, request,
                 new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new));
@@ -249,7 +251,7 @@ public class TransportStopDataFrameAnalyticsAction
                 });
             },
             e -> {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     // the task has disappeared so must have stopped
                     listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 } else {
@@ -265,6 +267,7 @@ public class TransportStopDataFrameAnalyticsAction
                 filterPersistentTasks(persistentTasks, analyticsIds).isEmpty(),
             request.getTimeout(), ActionListener.wrap(
                 booleanResponse -> {
+                    logger.debug("[{}] analytics is stopped.", request.getId());
                     auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
                     listener.onResponse(response);
                 },

@@ -11,32 +11,20 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     public ShrinkStep createRandomInstance() {
@@ -97,37 +85,26 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             .putAlias(AliasMetaData.builder("my_alias"))
             .build();
 
-
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                ResizeRequest request = (ResizeRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
-                assertThat(request.getSourceIndex(), equalTo(sourceIndexMetaData.getIndex().getName()));
-                assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
-                assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
-                    .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                    .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null)
-                    .build()));
-                assertThat(request.getTargetIndexRequest().settings()
-                        .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
-                listener.onResponse(new ResizeResponse(true, true, sourceIndexMetaData.getIndex().getName()));
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            ResizeRequest request = (ResizeRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
+            assertThat(request.getSourceIndex(), equalTo(sourceIndexMetaData.getIndex().getName()));
+            assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
+            assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
+                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null)
+                .build()));
+            assertThat(request.getTargetIndexRequest().settings()
+                    .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
+            listener.onResponse(new ResizeResponse(true, true, sourceIndexMetaData.getIndex().getName()));
+            return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(sourceIndexMetaData, null, null, new Listener() {
+        step.performAction(sourceIndexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -155,25 +132,15 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ShrinkStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                @SuppressWarnings("unchecked")
-                ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
-                listener.onResponse(new ResizeResponse(false, false, indexMetaData.getIndex().getName()));
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
+            listener.onResponse(new ResizeResponse(false, false, indexMetaData.getIndex().getName()));
+            return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -202,25 +169,15 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         Exception exception = new RuntimeException();
         ShrinkStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                @SuppressWarnings("unchecked")
-                ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                listener.onFailure(exception);
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

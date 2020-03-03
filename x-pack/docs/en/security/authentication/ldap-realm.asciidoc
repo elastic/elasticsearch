@@ -3,9 +3,8 @@
 === LDAP user authentication
 
 You can configure the {stack} {security-features} to communicate with a
-Lightweight Directory Access Protocol (LDAP) server to authenticate users. To
-integrate with LDAP, you configure an `ldap` realm and map LDAP groups to user
-roles in the <<mapping-roles, role mapping file>>.
+Lightweight Directory Access Protocol (LDAP) server to authenticate users. See
+<<ldap-realm-configuration>>.
 
 LDAP stores users and groups hierarchically, similar to the way folders are
 grouped in a file system. An LDAP directory's hierarchy is built from containers
@@ -20,25 +19,6 @@ for example  `"cn=admin,dc=example,dc=com"` (white spaces are ignored).
 The `ldap` realm supports two modes of operation, a user search mode
 and a mode with specific templates for user DNs. 
 
-[[ldap-user-search]]
-==== User search mode and user DN templates mode
-
-See {ref}/configuring-ldap-realm.html[Configuring an LDAP Realm].
-
-[[ldap-load-balancing]]
-==== Load balancing and failover
-The `load_balance.type` setting can be used at the realm level to configure how
-the {security-features} should interact with multiple LDAP servers. The
-{security-features} support both failover and load balancing modes of operation.
-
-See
-{ref}/security-settings.html#load-balancing[Load balancing and failover settings].
-
-[[ldap-settings]]
-==== LDAP realm settings
-
-See {ref}/security-settings.html#ref-ldap-settings[LDAP realm settings].
-
 [[mapping-roles-ldap]]
 ==== Mapping LDAP groups to roles
 
@@ -52,12 +32,16 @@ supports the notion of groups, which often represent user roles for different
 systems in the organization.
 
 The `ldap` realm enables you to map LDAP users to roles via their LDAP
-groups, or other metadata. This role mapping can be configured via the
-{ref}/security-api-put-role-mapping.html[add role mapping API] or by using a
+groups or other metadata. This role mapping can be configured via the
+<<security-api-put-role-mapping,add role mapping API>> or by using a
 file stored on each node. When a user authenticates with LDAP, the privileges
 for that user are the union of all privileges defined by the roles to which
-the user is mapped. For more information, see 
-{ref}/configuring-ldap-realm.html[Configuring an LDAP realm].
+the user is mapped.
+
+[[ldap-realm-configuration]]
+==== Configuring an LDAP realm
+
+include::configuring-ldap-realm.asciidoc[]
 
 [[ldap-user-metadata]]
 ==== User metadata in LDAP realms
@@ -73,7 +57,7 @@ populated in the user's _metadata_:
 |=======================
 
 This metadata is returned in the
-{ref}/security-api-authenticate.html[authenticate API], and can be used with
+<<security-api-authenticate,authenticate API>>, and can be used with
 <<templating-role-query, templated queries>> in roles.
 
 Additional fields can be included in the user's metadata by  configuring
@@ -81,8 +65,10 @@ the `metadata` setting on the LDAP realm. This metadata is available for use
 with the <<mapping-roles-api, role mapping API>> or in
 <<templating-role-query, templated role queries>>.
 
-[[ldap-ssl]]
-==== Setting up SSL between Elasticsearch and LDAP
+[[ldap-load-balancing]]
+==== Load balancing and failover
+The `load_balance.type` setting can be used at the realm level to configure how
+the {security-features} should interact with multiple LDAP servers. The
+{security-features} support both failover and load balancing modes of operation.
 
-See
-{ref}/configuring-tls.html#tls-ldap[Encrypting communications between {es} and LDAP]. 
+See <<load-balancing>>.

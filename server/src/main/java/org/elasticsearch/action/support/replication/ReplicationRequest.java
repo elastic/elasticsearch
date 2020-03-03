@@ -169,7 +169,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
      */
     @SuppressWarnings("unchecked")
-    Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+    protected Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
         this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
         return (Request) this;
     }

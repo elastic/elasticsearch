@@ -111,7 +111,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
+            IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
             IndexResponse r = builder.execute().actionGet();
             assertThat(r, notNullValue());
@@ -122,7 +122,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canNotIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
+            IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
             builder.execute().actionGet();
             fail();

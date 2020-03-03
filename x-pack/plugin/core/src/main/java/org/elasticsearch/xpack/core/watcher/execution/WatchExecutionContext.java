@@ -10,6 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
@@ -262,7 +263,7 @@ public abstract class WatchExecutionContext {
         if (watch != null && watch.status() != null && watch.status().getHeaders() != null) {
             String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
             if (header != null) {
-                Authentication auth = Authentication.decode(header);
+                Authentication auth = AuthenticationContextSerializer.decode(header);
                 return auth.getUser().principal();
             }
         }

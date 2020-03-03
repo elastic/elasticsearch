@@ -9,9 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;
@@ -29,7 +26,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestCase<UnfollowFollowIndexStep> {
 
     @Override
-    protected UnfollowFollowIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey, Client client) {
+    protected UnfollowFollowIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey) {
         return new UnfollowFollowIndexStep(key, nextKey, client);
     }
 
@@ -40,12 +37,6 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer(invocation -> {
             UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
@@ -82,12 +73,6 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
             .numberOfReplicas(0)
             .build();
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
         // Mock unfollow api call:
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {
@@ -123,12 +108,6 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         // Mock unfollow api call:
         ElasticsearchException error = new ElasticsearchException("text exception");

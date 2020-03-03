@@ -18,19 +18,35 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Metadata about registered repository
  */
 public class RepositoryMetaData {
+
+    public static final Version REPO_GEN_IN_CS_VERSION = Version.V_7_6_0;
+
     private final String name;
     private final String type;
     private final Settings settings;
+
+    /**
+     * Safe repository generation.
+     */
+    private final long generation;
+
+    /**
+     * Pending repository generation.
+     */
+    private final long pendingGeneration;
 
     /**
      * Constructs new repository metadata
@@ -40,9 +56,21 @@ public class RepositoryMetaData {
      * @param settings repository settings
      */
     public RepositoryMetaData(String name, String type, Settings settings) {
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+    }
+
+    public RepositoryMetaData(RepositoryMetaData metaData, long generation, long pendingGeneration) {
+        this(metaData.name, metaData.type, metaData.settings, generation, pendingGeneration);
+    }
+
+    public RepositoryMetaData(String name, String type, Settings settings, long generation, long pendingGeneration) {
         this.name = name;
         this.type = type;
         this.settings = settings;
+        this.generation = generation;
+        this.pendingGeneration = pendingGeneration;
+        assert generation <= pendingGeneration :
+            "Pending generation [" + pendingGeneration + "] must be greater or equal to generation [" + generation + "]";
     }
 
     /**
@@ -72,11 +100,41 @@ public class RepositoryMetaData {
         return this.settings;
     }
 
+    /**
+     * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
+     * All operations on the repository must be based on the {@link RepositoryData} at this generation.
+     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
+     * on how this value is used during snapshots.
+     * @return safe repository generation
+     */
+    public long generation() {
+        return generation;
+    }
+
+    /**
+     * Returns the pending repository generation. {@link RepositoryData} for this generation and all generations down to the safe
+     * generation {@link #generation} may exist in the repository and should not be reused for writing new {@link RepositoryData} to the
+     * repository.
+     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
+     * on how this value is used during snapshots.
+     *
+     * @return highest pending repository generation
+     */
+    public long pendingGeneration() {
+        return pendingGeneration;
+    }
 
     public RepositoryMetaData(StreamInput in) throws IOException {
         name = in.readString();
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
+        if (in.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
+            generation = in.readLong();
+            pendingGeneration = in.readLong();
+        } else {
+            generation = RepositoryData.UNKNOWN_REPO_GEN;
+            pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
+        }
     }
 
     /**
@@ -88,6 +146,20 @@ public class RepositoryMetaData {
         out.writeString(name);
         out.writeString(type);
         Settings.writeSettingsToStream(settings, out);
+        if (out.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
+            out.writeLong(generation);
+            out.writeLong(pendingGeneration);
+        }
+    }
+
+    /**
+     * Checks if this instance is equal to the other instance in all fields other than {@link #generation} and {@link #pendingGeneration}.
+     *
+     * @param other other repository metadata
+     * @return {@code true} if both instances equal in all fields but the generation fields
+     */
+    public boolean equalsIgnoreGenerations(RepositoryMetaData other) {
+        return name.equals(other.name) && type.equals(other.type()) && settings.equals(other.settings());
     }
 
     @Override
@@ -99,15 +171,18 @@ public class RepositoryMetaData {
 
         if (!name.equals(that.name)) return false;
         if (!type.equals(that.type)) return false;
+        if (generation != that.generation) return false;
+        if (pendingGeneration != that.pendingGeneration) return false;
         return settings.equals(that.settings);
-
     }
 
     @Override
     public int hashCode() {
-        int result = name.hashCode();
-        result = 31 * result + type.hashCode();
-        result = 31 * result + settings.hashCode();
-        return result;
+        return Objects.hash(name, type, settings, generation, pendingGeneration);
+    }
+
+    @Override
+    public String toString() {
+        return "RepositoryMetaData{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
     }
 }

@@ -149,7 +149,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
+            // no checkindex - we corrupt shards on purpose
+            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
             // no translog based flush - it might change the .liv / segments.N files
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
@@ -157,7 +158,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -263,7 +264,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -417,7 +418,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -503,7 +504,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -563,7 +564,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();

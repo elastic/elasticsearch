@@ -194,6 +194,9 @@
             },
             "realm" : {
               "type" : "keyword"
+            },
+            "realm_type" : {
+              "type" : "keyword"
             }
           }
         },

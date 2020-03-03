@@ -124,7 +124,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
             Settings.builder().put(indexSettings()).put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)).build());
         final int nbDocs =  scaledRandomIntBetween(1, 100);
         for (int i = 0; i < nbDocs; i++) {
-            index(indexName, "_doc", String.valueOf(i), "num", i);
+            indexDoc(indexName, String.valueOf(i), "num", i);
         }
         assertIndexIsOpened(indexName);
     }

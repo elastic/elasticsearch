@@ -24,17 +24,15 @@ Deletes {anomaly-jobs} from a calendar.
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (Required, string) Identifier for the calendar.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `<job_id>`::
-  (Required, string) An identifier for the {anomaly-jobs}. It can be a job
-  identifier, a group name, or a comma-separated list of jobs or groups.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-list]
 
 [[ml-delete-calendar-job-example]]
 ==== {api-examples-title}
-
-The following example removes the association between the `planned-outages`
-calendar and `total-requests` job:
 
 [source,console]
 --------------------------------------------------

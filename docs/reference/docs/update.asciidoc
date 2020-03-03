@@ -14,7 +14,7 @@ Updates a document using the specified script.
 [[update-api-desc]]
 ==== {api-description-title}
 
-Enables you script document updates. The script can update, delete, or skip
+Enables you to script document updates. The script can update, delete, or skip
 modifying the document. The update API also supports passing a partial document,
 which is merged into the existing document. To fully replace an existing
 document, use the <<docs-index_,`index` API>>.
@@ -237,7 +237,6 @@ request is ignored and the `result` element in the response returns `noop`:
         "failed": 0
    },
    "_index": "test",
-   "_type": "_doc",
    "_id": "1",
    "_version": 7,
    "_primary_term": 1,

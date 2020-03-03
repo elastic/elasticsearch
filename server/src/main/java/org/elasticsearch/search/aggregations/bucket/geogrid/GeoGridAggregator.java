@@ -48,8 +48,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     protected final LongHash bucketOrds;
 
     GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
-                      int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                      int requiredSize, int shardSize, SearchContext aggregationContext,
+                      Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;

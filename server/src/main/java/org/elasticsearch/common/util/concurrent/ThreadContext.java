@@ -20,9 +20,11 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -42,7 +43,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -50,6 +50,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
 
@@ -64,7 +65,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARN
  * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by
  * a thread pool or executor being responsible for stashing and restoring the threads context. For instance if a network request is
  * received, all headers are deserialized from the network and directly added as the headers of the threads {@link ThreadContext}
- * (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently active on this thread the network code
+ * (see {@link #readFrom(StreamInput)}. In order to not modify the context that is currently active on this thread the network code
  * uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
  * is forked (which in turn inherits the context) it restores the previous context. For instance:
  * </p>
@@ -82,7 +83,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARN
  * </pre>
  *
  */
-public final class ThreadContext implements Closeable, Writeable {
+public final class ThreadContext implements Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -95,7 +96,7 @@ public final class ThreadContext implements Closeable, Writeable {
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
-    private final ContextThreadLocal threadLocal;
+    private final ThreadLocal<ThreadContextStruct> threadLocal;
     private final int maxWarningHeaderCount;
     private final long maxWarningHeaderSize;
 
@@ -104,24 +105,10 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param settings the settings to read the default request headers from
      */
     public ThreadContext(Settings settings) {
-        Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
-        if (headers == null) {
-            this.defaultHeader = Collections.emptyMap();
-        } else {
-            Map<String, String> defaultHeader = new HashMap<>();
-            for (String key : headers.names()) {
-                defaultHeader.put(key, headers.get(key));
-            }
-            this.defaultHeader = Collections.unmodifiableMap(defaultHeader);
-        }
-        threadLocal = new ContextThreadLocal();
+        this.defaultHeader = buildDefaultHeaders(settings);
+        this.threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
         this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
-    }
-
-    @Override
-    public void close() {
-        threadLocal.close();
     }
 
     /**
@@ -140,19 +127,13 @@ public final class ThreadContext implements Closeable, Writeable {
                 DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
             threadLocal.set(threadContextStruct);
         } else {
-            threadLocal.set(null);
+            threadLocal.set(DEFAULT_CONTEXT);
         }
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
             // uncaught exception
-            try {
-                threadLocal.set(context);
-            } catch (IllegalStateException e) {
-                if (isClosed() == false) {
-                    throw e;
-                }
-            }
+            threadLocal.set(context);
         };
     }
 
@@ -252,10 +233,24 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
-     * Reads the headers from the stream into the current context
+     * Reads the values from the stream into the current context
      */
-    public void readHeaders(StreamInput in) throws IOException {
-        final Map<String, String>  requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
+    public void readFrom(StreamInput in) throws IOException {
+        final Tuple<Map<String, String>, Map<String, Set<String>>> streamTuple = readHeadersFromStream(in);
+        final Map<String, String>  requestHeaders = streamTuple.v1();
+        final Map<String, Set<String>> responseHeaders = streamTuple.v2();
+        final List<String> allowedSystemIndices = readAllowedSystemIndices(in);
+        final ThreadContextStruct struct;
+        if (requestHeaders.isEmpty() && responseHeaders.isEmpty() && allowedSystemIndices.isEmpty()) {
+            struct = ThreadContextStruct.EMPTY;
+        } else {
+            struct = new ThreadContextStruct(requestHeaders, responseHeaders, Collections.emptyMap(), allowedSystemIndices, false, 0L);
+        }
+        threadLocal.set(struct);
+    }
+
+    public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStream(StreamInput in) throws IOException {
+        final Map<String, String> requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
         final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
             final int size = input.readVInt();
             if (size == 0) {
@@ -273,13 +268,15 @@ public final class ThreadContext implements Closeable, Writeable {
                 return values;
             }
         });
-        final ThreadContextStruct struct;
-        if (requestHeaders.isEmpty() && responseHeaders.isEmpty()) {
-            struct = ThreadContextStruct.EMPTY;
+        return new Tuple<>(requestHeaders, responseHeaders);
+    }
+
+    public static List<String> readAllowedSystemIndices(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO update version on backport
+            return in.readOptionalStringList();
         } else {
-            struct = new ThreadContextStruct(requestHeaders, responseHeaders, Collections.emptyMap(), false);
+            return emptyList();
         }
-        threadLocal.set(struct);
     }
 
     /**
@@ -373,17 +370,7 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        /*
-         * Updating the thread local is expensive due to a shared reference that we synchronize on, so we should only do it if the thread
-         * context struct changed. It will not change if we de-duplicate this value to an existing one, or if we don't add a new one because
-         * we have reached capacity.
-         */
-        final ThreadContextStruct current = threadLocal.get();
-        final ThreadContextStruct maybeNext =
-                current.putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize);
-        if (current != maybeNext) {
-            threadLocal.set(maybeNext);
-        }
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
     }
 
     /**
@@ -436,10 +423,33 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
-     * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
+     * Returns <code>true</code> if a request made within this context can access system indices
      */
-    public boolean isClosed() {
-        return threadLocal.closed.get();
+    public boolean isSystemIndexAccessAllowed() {
+        return threadLocal.get().allowedSystemIndexPatterns != null;
+    }
+
+    /**
+     * Sets the context to disallow access to system indices
+     */
+    public void disallowSystemIndexAccess() {
+        threadLocal.set(threadLocal.get().setAllowSystemIndices(null));
+    }
+
+    /**
+     * Sets the context to allow access to system indices
+     */
+    public void allowSystemIndexAccess(List<String> patterns) {
+        threadLocal.set(threadLocal.get().setAllowSystemIndices(patterns));
+    }
+
+    /**
+     * Returns the list of allowed system index patterns or {@code null} if none are allowed. An
+     * empty list indicates that all system indices are allowed to be accessed.
+     */
+    @Nullable
+    public List<String> allowedSystemIndexPatterns() {
+        return threadLocal.get().allowedSystemIndexPatterns;
     }
 
     @FunctionalInterface
@@ -452,6 +462,19 @@ public final class ThreadContext implements Closeable, Writeable {
         }
     }
 
+    public static Map<String, String> buildDefaultHeaders(Settings settings) {
+        Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
+        if (headers == null) {
+            return Collections.emptyMap();
+        } else {
+            Map<String, String> defaultHeader = new HashMap<>();
+            for (String key : headers.names()) {
+                defaultHeader.put(key, headers.get(key));
+            }
+            return Collections.unmodifiableMap(defaultHeader);
+        }
+    }
+
     private static final class ThreadContextStruct {
 
         private static final ThreadContextStruct EMPTY =
@@ -460,6 +483,7 @@ public final class ThreadContext implements Closeable, Writeable {
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
         private final Map<String, Set<String>> responseHeaders;
+        private final List<String> allowedSystemIndexPatterns;
         private final boolean isSystemContext;
         //saving current warning headers' size not to recalculate the size with every new warning header
         private final long warningHeadersSize;
@@ -474,29 +498,40 @@ public final class ThreadContext implements Closeable, Writeable {
         private ThreadContextStruct(Map<String, String> requestHeaders,
                                     Map<String, Set<String>> responseHeaders,
                                     Map<String, Object> transientHeaders, boolean isSystemContext) {
-            this.requestHeaders = requestHeaders;
-            this.responseHeaders = responseHeaders;
-            this.transientHeaders = transientHeaders;
-            this.isSystemContext = isSystemContext;
-            this.warningHeadersSize = 0L;
+            this(requestHeaders, responseHeaders, transientHeaders, emptyList(), isSystemContext, 0L);
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
                                     Map<String, Set<String>> responseHeaders,
                                     Map<String, Object> transientHeaders, boolean isSystemContext,
                                     long warningHeadersSize) {
+            this(requestHeaders, responseHeaders, transientHeaders, emptyList(), isSystemContext, warningHeadersSize);
+        }
+
+        private ThreadContextStruct(Map<String, String> requestHeaders,
+                                    Map<String, Set<String>> responseHeaders,
+                                    Map<String, Object> transientHeaders,
+                                    List<String> allowedSystemIndexPatterns,
+                                    boolean isSystemContext,
+                                    long warningHeadersSize) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
             this.isSystemContext = isSystemContext;
             this.warningHeadersSize = warningHeadersSize;
+            this.allowedSystemIndexPatterns = allowedSystemIndexPatterns;
         }
 
         /**
          * This represents the default context and it should only ever be called by {@link #DEFAULT_CONTEXT}.
          */
         private ThreadContextStruct() {
-            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
+            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), emptyList(), false, 0L);
+        }
+
+        private ThreadContextStruct setAllowSystemIndices(List<String> allowedSystemIndexPatterns) {
+            final List<String> copy = allowedSystemIndexPatterns == null ? null : List.copyOf(allowedSystemIndexPatterns);
+            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, copy, isSystemContext, warningHeadersSize);
         }
 
         private ThreadContextStruct putRequest(String key, String value) {
@@ -540,7 +575,8 @@ public final class ThreadContext implements Closeable, Writeable {
                     newResponseHeaders.put(key, entry.getValue());
                 }
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, allowedSystemIndexPatterns,
+                isSystemContext, 0L);
         }
 
         private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue,
@@ -590,7 +626,8 @@ public final class ThreadContext implements Closeable, Writeable {
                     return this;
                 }
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, allowedSystemIndexPatterns,
+                isSystemContext, newWarningHeaderSize);
         }
 
 
@@ -626,54 +663,8 @@ public final class ThreadContext implements Closeable, Writeable {
             }
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
-        }
-    }
-
-    private static class ContextThreadLocal extends CloseableThreadLocal<ThreadContextStruct> {
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-
-        @Override
-        public void set(ThreadContextStruct object) {
-            try {
-                if (object == DEFAULT_CONTEXT) {
-                    super.set(null);
-                } else {
-                    super.set(object);
-                }
-            } catch (NullPointerException ex) {
-                /* This is odd but CloseableThreadLocal throws a NPE if it was closed but still accessed.
-                   to get a real exception we call ensureOpen() to tell the user we are already closed.*/
-                ensureOpen();
-                throw ex;
-            }
-        }
-
-        @Override
-        public ThreadContextStruct get() {
-            try {
-                ThreadContextStruct threadContextStruct = super.get();
-                if (threadContextStruct != null) {
-                    return threadContextStruct;
-                }
-                return DEFAULT_CONTEXT;
-            } catch (NullPointerException ex) {
-                /* This is odd but CloseableThreadLocal throws a NPE if it was closed but still accessed.
-                   to get a real exception we call ensureOpen() to tell the user we are already closed.*/
-                ensureOpen();
-                throw ex;
-            }
-        }
-
-        private void ensureOpen() {
-            if (closed.get()) {
-                throw new IllegalStateException("threadcontext is already closed");
-            }
-        }
-
-        @Override
-        public void close() {
-            if (closed.compareAndSet(false, true)) {
-                super.close();
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO update version on backport
+                out.writeOptionalStringCollection(allowedSystemIndexPatterns);
             }
         }
     }
@@ -692,19 +683,9 @@ public final class ThreadContext implements Closeable, Writeable {
 
         @Override
         public void run() {
-            boolean whileRunning = false;
-            try (ThreadContext.StoredContext ignore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()) {
                 ctx.restore();
-                whileRunning = true;
                 in.run();
-                whileRunning = false;
-            } catch (IllegalStateException ex) {
-                if (whileRunning || threadLocal.closed.get() == false) {
-                    throw ex;
-                }
-                // if we hit an ISE here we have been shutting down
-                // this comes from the threadcontext and barfs if
-                // our threadpool has been shutting down
             }
         }
 
@@ -761,21 +742,9 @@ public final class ThreadContext implements Closeable, Writeable {
 
         @Override
         protected void doRun() throws Exception {
-            boolean whileRunning = false;
             threadsOriginalContext = stashContext();
-            try {
-                creatorsContext.restore();
-                whileRunning = true;
-                in.doRun();
-                whileRunning = false;
-            } catch (IllegalStateException ex) {
-                if (whileRunning || threadLocal.closed.get() == false) {
-                    throw ex;
-                }
-                // if we hit an ISE here we have been shutting down
-                // this comes from the threadcontext and barfs if
-                // our threadpool has been shutting down
-            }
+            creatorsContext.restore();
+            in.doRun();
         }
 
         @Override

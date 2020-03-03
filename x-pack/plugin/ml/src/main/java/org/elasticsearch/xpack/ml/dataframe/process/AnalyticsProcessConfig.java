@@ -9,6 +9,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
@@ -28,6 +29,7 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private static final String ANALYSIS = "analysis";
     private static final String RESULTS_FIELD = "results_field";
     private static final String CATEGORICAL_FIELDS = "categorical_fields";
+    private static final String MISSING_FIELD_VALUE = "missing_field_value";
 
     private final String jobId;
     private final long rows;
@@ -75,6 +77,7 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         builder.field(RESULTS_FIELD, resultsField);
         builder.field(CATEGORICAL_FIELDS, categoricalFields);
         builder.field(ANALYSIS, new DataFrameAnalysisWrapper(analysis, extractedFields));
+        builder.field(MISSING_FIELD_VALUE, DataFrameDataExtractor.NULL_VALUE);
         builder.endObject();
         return builder;
     }

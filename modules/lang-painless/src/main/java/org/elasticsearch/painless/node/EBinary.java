@@ -114,8 +114,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeDiv(ScriptRoot scriptRoot, Scope variables) {
@@ -144,8 +144,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeRem(ScriptRoot scriptRoot, Scope variables) {
@@ -174,8 +174,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeAdd(ScriptRoot scriptRoot, Scope variables) {
@@ -216,8 +216,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeSub(ScriptRoot scriptRoot, Scope variables) {
@@ -246,8 +246,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeRegexOp(ScriptRoot scriptRoot, Scope variables) {
@@ -257,8 +257,8 @@ public final class EBinary extends AExpression {
         left.expected = String.class;
         right.expected = Pattern.class;
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
 
         promote = boolean.class;
         actual = boolean.class;
@@ -298,8 +298,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeRSH(ScriptRoot scriptRoot, Scope variables) {
@@ -336,8 +336,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeUSH(ScriptRoot scriptRoot, Scope variables) {
@@ -374,8 +374,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeBWAnd(ScriptRoot scriptRoot, Scope variables) {
@@ -404,8 +404,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeXor(ScriptRoot scriptRoot, Scope variables) {
@@ -433,8 +433,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     private void analyzeBWOr(ScriptRoot scriptRoot, Scope variables) {
@@ -462,16 +462,16 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
     }
 
     @Override
     BinaryMathNode write(ClassNode classNode) {
         BinaryMathNode binaryMathNode = new BinaryMathNode();
 
-        binaryMathNode.setLeftNode(left.write(classNode));
-        binaryMathNode.setRightNode(right.write(classNode));
+        binaryMathNode.setLeftNode(left.cast(left.write(classNode)));
+        binaryMathNode.setRightNode(right.cast(right.write(classNode)));
 
         binaryMathNode.setLocation(location);
         binaryMathNode.setExpressionType(actual);

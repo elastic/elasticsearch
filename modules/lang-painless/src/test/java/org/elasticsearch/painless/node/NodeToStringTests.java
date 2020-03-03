@@ -28,7 +28,6 @@ import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -162,19 +161,6 @@ public class NodeToStringTests extends ESTestCase {
                 + "  (SReturn (PCallInvoke (PCallInvoke (EStatic Optional) empty) orElseGet (Args (ECapturingFunctionRef x toString)))))",
                   "Integer x = Integer.valueOf(5);\n"
                 + "return Optional.empty().orElseGet(x::toString)");
-    }
-
-    public void testECast() {
-        Location l = new Location(getTestName(), 0);
-        AExpression child = new EConstant(l, "test");
-        PainlessCast cast = PainlessCast.originalTypetoTargetType(String.class, Integer.class, true);
-        assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
-
-        l = new Location(getTestName(), 1);
-        child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = PainlessCast.originalTypetoTargetType(Integer.class, Boolean.class, true);
-        assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
-            new ECast(l, child, cast).toString());
     }
 
     public void testEComp() {

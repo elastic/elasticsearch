@@ -192,12 +192,12 @@ public class ILMHistoryStore implements Closeable {
             // Template below should be already defined as real index template but it can be deleted. To avoid race condition with its
             // recreation we apply settings and mappings ourselves
             byte[] templateBytes = TEMPLATE_ILM_HISTORY.loadBytes();
-            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(templateBytes, 0, templateBytes.length),
+            Map<String, Object> templateAsMap = XContentHelper.convertToMap(new BytesArray(templateBytes, 0, templateBytes.length),
                 false, XContentType.JSON).v2();
 
             client.admin().indices().prepareCreate(initialHistoryIndexName)
-                .setSettings((Map<String, ?>) map.get("settings"))
-                .setMapping((Map<String, Object>) map.get("mappings"))
+                .setSettings((Map<String, ?>) templateAsMap.get("settings"))
+                .setMapping((Map<String, Object>) templateAsMap.get("mappings"))
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true))
                 .execute(new ActionListener<>() {

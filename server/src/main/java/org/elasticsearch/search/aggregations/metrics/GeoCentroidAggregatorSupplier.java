@@ -29,8 +29,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@FunctionalInterface
 public interface GeoCentroidAggregatorSupplier extends AggregatorSupplier {
+
     GeoCentroidAggregator build(String name, SearchContext context, Aggregator parent,
-                          ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
+                          ValuesSource valuesSource, List<PipelineAggregator> pipelineAggregators,
                           Map<String, Object> metaData) throws IOException;
 }

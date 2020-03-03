@@ -70,12 +70,13 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoCentroidAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, (ValuesSource.GeoPoint) valuesSource,
+        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource,
             pipelineAggregators, metaData);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoCentroidAggregatorSupplier) GeoCentroidAggregator::new);
+            (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, pipelineAggregators, metaData) ->
+                new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metaData));
     }
 }

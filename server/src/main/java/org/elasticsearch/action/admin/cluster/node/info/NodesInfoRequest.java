@@ -24,35 +24,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * A request to get node (cluster) level information.
  */
 public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private boolean settings = true;
-    private boolean os = true;
-    private boolean process = true;
-    private boolean jvm = true;
-    private boolean threadPool = true;
-    private boolean transport = true;
-    private boolean http = true;
-    private boolean plugins = true;
-    private boolean ingest = true;
-    private boolean indices = true;
+    private Set<String> infoSections = new TreeSet<>();
 
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
-        settings = in.readBoolean();
-        os = in.readBoolean();
-        process = in.readBoolean();
-        jvm = in.readBoolean();
-        threadPool = in.readBoolean();
-        transport = in.readBoolean();
-        http = in.readBoolean();
-        plugins = in.readBoolean();
-        ingest = in.readBoolean();
-        indices = in.readBoolean();
+        infoSections.addAll(Arrays.asList(in.readStringArray()));
     }
 
     /**
@@ -67,16 +53,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Clears all info flags.
      */
     public NodesInfoRequest clear() {
-        settings = false;
-        os = false;
-        process = false;
-        jvm = false;
-        threadPool = false;
-        transport = false;
-        http = false;
-        plugins = false;
-        ingest = false;
-        indices = false;
+        infoSections.clear();
         return this;
     }
 
@@ -84,16 +61,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Sets to return all the data.
      */
     public NodesInfoRequest all() {
-        settings = true;
-        os = true;
-        process = true;
-        jvm = true;
-        threadPool = true;
-        transport = true;
-        http = true;
-        plugins = true;
-        ingest = true;
-        indices = true;
+        infoSections.addAll(Arrays.stream(Metrics.values()).map(Metrics::metricName).collect(Collectors.toSet()));
         return this;
     }
 
@@ -101,14 +69,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node settings be returned.
      */
     public boolean settings() {
-        return this.settings;
+        return infoSections.contains(Metrics.SETTINGS.metricName());
     }
 
     /**
      * Should the node settings be returned.
      */
     public NodesInfoRequest settings(boolean settings) {
-        this.settings = settings;
+        setSection(settings, Metrics.SETTINGS.metricName());
         return this;
     }
 
@@ -116,14 +84,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node OS be returned.
      */
     public boolean os() {
-        return this.os;
+        return infoSections.contains(Metrics.OS.metricName());
     }
 
     /**
      * Should the node OS be returned.
      */
     public NodesInfoRequest os(boolean os) {
-        this.os = os;
+        setSection(os, Metrics.OS.metricName());
         return this;
     }
 
@@ -131,14 +99,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node Process be returned.
      */
     public boolean process() {
-        return this.process;
+        return infoSections.contains(Metrics.PROCESS.metricName());
     }
 
     /**
      * Should the node Process be returned.
      */
     public NodesInfoRequest process(boolean process) {
-        this.process = process;
+        setSection(process, Metrics.PROCESS.metricName());
         return this;
     }
 
@@ -146,14 +114,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node JVM be returned.
      */
     public boolean jvm() {
-        return this.jvm;
+        return infoSections.contains(Metrics.JVM.metricName());
     }
 
     /**
      * Should the node JVM be returned.
      */
     public NodesInfoRequest jvm(boolean jvm) {
-        this.jvm = jvm;
+        setSection(jvm, Metrics.JVM.metricName());
         return this;
     }
 
@@ -161,14 +129,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node Thread Pool info be returned.
      */
     public boolean threadPool() {
-        return this.threadPool;
+        return infoSections.contains(Metrics.THREAD_POOL.metricName());
     }
 
     /**
      * Should the node Thread Pool info be returned.
      */
     public NodesInfoRequest threadPool(boolean threadPool) {
-        this.threadPool = threadPool;
+        setSection(threadPool, Metrics.THREAD_POOL.metricName());
         return this;
     }
 
@@ -176,14 +144,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node Transport be returned.
      */
     public boolean transport() {
-        return this.transport;
+        return infoSections.contains(Metrics.TRANSPORT.metricName());
     }
 
     /**
      * Should the node Transport be returned.
      */
     public NodesInfoRequest transport(boolean transport) {
-        this.transport = transport;
+        setSection(transport, Metrics.TRANSPORT.metricName());
         return this;
     }
 
@@ -191,14 +159,14 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Should the node HTTP be returned.
      */
     public boolean http() {
-        return this.http;
+        return infoSections.contains(Metrics.HTTP.metricName());
     }
 
     /**
      * Should the node HTTP be returned.
      */
     public NodesInfoRequest http(boolean http) {
-        this.http = http;
+        setSection(http, Metrics.HTTP.metricName());
         return this;
     }
 
@@ -208,7 +176,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @return The request
      */
     public NodesInfoRequest plugins(boolean plugins) {
-        this.plugins = plugins;
+        setSection(plugins, Metrics.PLUGINS.metricName());
         return this;
     }
 
@@ -216,7 +184,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @return true if information about plugins is requested
      */
     public boolean plugins() {
-        return plugins;
+        return infoSections.contains(Metrics.PLUGINS.metricName());
     }
 
     /**
@@ -224,7 +192,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @param ingest true if you want info
      */
     public NodesInfoRequest ingest(boolean ingest) {
-        this.ingest = ingest;
+        setSection(ingest, Metrics.INGEST.metricName());
         return this;
     }
 
@@ -232,7 +200,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @return true if information about ingest is requested
      */
     public boolean ingest() {
-        return ingest;
+        return infoSections.contains(Metrics.INGEST.metricName());
     }
 
     /**
@@ -240,7 +208,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @param indices true if you want info
      */
     public NodesInfoRequest indices(boolean indices) {
-        this.indices = indices;
+        setSection(indices, Metrics.INDICES.metricName());
         return this;
     }
 
@@ -248,21 +216,43 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * @return true if information about indices (currently just indexing buffers)
      */
     public boolean indices() {
-        return indices;
+        return infoSections.contains(Metrics.INDICES.metricName());
+    }
+
+    private void setSection(boolean includeSection, String sectionName) {
+        if (includeSection) {
+            infoSections.add(sectionName);
+        } else {
+            infoSections.remove(sectionName);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(settings);
-        out.writeBoolean(os);
-        out.writeBoolean(process);
-        out.writeBoolean(jvm);
-        out.writeBoolean(threadPool);
-        out.writeBoolean(transport);
-        out.writeBoolean(http);
-        out.writeBoolean(plugins);
-        out.writeBoolean(ingest);
-        out.writeBoolean(indices);
+        out.writeStringArray(infoSections.toArray(String[]::new));
+    }
+
+    enum Metrics {
+        SETTINGS("settings"),
+        OS("os"),
+        PROCESS("process"),
+        JVM("jvm"),
+        THREAD_POOL("threadPool"),
+        TRANSPORT("transport"),
+        HTTP("http"),
+        PLUGINS("plugins"),
+        INGEST("ingest"),
+        INDICES("indices");
+
+        private String metricName;
+
+        Metrics(String name) {
+            this.metricName = name;
+        }
+
+        String metricName() {
+            return this.metricName;
+        }
     }
 }

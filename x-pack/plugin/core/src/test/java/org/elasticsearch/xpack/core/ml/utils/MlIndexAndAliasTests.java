@@ -47,6 +47,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -123,10 +124,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         verify(finalListener).onResponse(false);
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtLegacyIndex() {
-        assertNoClientInteractionsWhenWriteAliasAlreadyExists(LEGACY_INDEX_WITHOUT_SUFFIX);
-    }
-
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtInitialStateIndex() {
         assertNoClientInteractionsWhenWriteAliasAlreadyExists(FIRST_CONCRETE_INDEX);
     }
@@ -137,6 +134,31 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtDummyIndex() {
         assertNoClientInteractionsWhenWriteAliasAlreadyExists("dummy-index");
+    }
+
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtLegacyStateIndex() {
+        ClusterState clusterState =
+            createClusterState(
+                Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetaDataWithAlias(LEGACY_INDEX_WITHOUT_SUFFIX)));
+        createIndexAndAliasIfNecessary(clusterState);
+
+        InOrder inOrder = inOrder(indicesAdminClient, finalListener);
+        inOrder.verify(indicesAdminClient).prepareCreate(FIRST_CONCRETE_INDEX);
+        inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
+        inOrder.verify(indicesAdminClient).prepareAliases();
+        inOrder.verify(indicesAdminClient).aliases(aliasesRequestCaptor.capture(), any());
+        inOrder.verify(finalListener).onResponse(true);
+
+        CreateIndexRequest createRequest = createRequestCaptor.getValue();
+        assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
+        assertThat(createRequest.aliases(), empty());
+
+        IndicesAliasesRequest indicesAliasesRequest = aliasesRequestCaptor.getValue();
+        assertThat(
+            indicesAliasesRequest.getAliasActions(),
+            contains(
+                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX),
+                AliasActions.remove().alias(TEST_INDEX_ALIAS).index(LEGACY_INDEX_WITHOUT_SUFFIX)));
     }
 
     private void assertMlStateWriteAliasAddedToMostRecentMlStateIndex(List<String> existingIndexNames, String expectedWriteIndexName) {
@@ -156,11 +178,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
             contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName)));
     }
 
-    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButLegacyIndexExists() {
-        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
-            Arrays.asList(LEGACY_INDEX_WITHOUT_SUFFIX), LEGACY_INDEX_WITHOUT_SUFFIX);
-    }
-
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
             Arrays.asList(FIRST_CONCRETE_INDEX), FIRST_CONCRETE_INDEX);
@@ -174,6 +191,21 @@ public class MlIndexAndAliasTests extends ESTestCase {
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButBothLegacyAndNewIndicesExist() {
         assertMlStateWriteAliasAddedToMostRecentMlStateIndex(
             Arrays.asList(LEGACY_INDEX_WITHOUT_SUFFIX, "test-000003", "test-000040", "test-000500"), "test-000500");
+    }
+
+    public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButLegacyStateIndexExists() {
+        ClusterState clusterState =
+            createClusterState(Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetaData(LEGACY_INDEX_WITHOUT_SUFFIX)));
+        createIndexAndAliasIfNecessary(clusterState);
+
+        InOrder inOrder = inOrder(indicesAdminClient, finalListener);
+        inOrder.verify(indicesAdminClient).prepareCreate(FIRST_CONCRETE_INDEX);
+        inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
+        inOrder.verify(finalListener).onResponse(true);
+
+        CreateIndexRequest createRequest = createRequestCaptor.getValue();
+        assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
+        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS))));
     }
 
     public void testIndexNameComparator() {
@@ -202,8 +234,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
-        MlIndexAndAlias.createIndexAndAliasIfNecessary(client, clusterState, new IndexNameExpressionResolver(),
-            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, finalListener);
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(
+            client, clusterState, new IndexNameExpressionResolver(), TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, finalListener);
     }
 
     @SuppressWarnings("unchecked")

@@ -7,7 +7,11 @@
   "settings" : {
     "index" : {
       "auto_expand_replicas" : "0-1",
-      "hidden": true
+      "hidden": true,
+      "lifecycle": {
+        "name": "state_index_ilm_policy",
+        "rollover_alias": ".ml-state-write"
+      }
     }
   },
   "mappings" : {

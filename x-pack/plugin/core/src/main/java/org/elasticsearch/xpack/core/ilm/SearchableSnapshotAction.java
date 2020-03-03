@@ -124,7 +124,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
      * Creates a consumer of parameters needed to evaluate the ILM generated snapshot status in the provided snapshotRepository in an
      * async way, akin to an equivalent {@link AsyncWaitStep} implementation.
      */
-    private TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
+    private static TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
         return (client, indexMetaData, branchingStepListener) -> {
 
             LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);

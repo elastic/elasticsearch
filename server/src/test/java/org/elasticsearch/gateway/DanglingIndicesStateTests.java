@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -195,9 +194,9 @@ public class DanglingIndicesStateTests extends ESTestCase {
     }
 
     /**
-     * Check that when auto-imports are disabled, then dangling indices are still detected.
+     * Check that when auto-imports are disabled, then no change listener is registered with the cluster state.
      */
-    public void testDanglingIndicesAreDetectedButNotAllocatedWhenDisabled() throws Exception {
+    public void testClusterStateListenerNotRegisterWhenSettingDisabled() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
@@ -206,34 +205,15 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             final ClusterService clusterServiceMock = mock(ClusterService.class);
             when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
-            when(clusterServiceMock.state()).thenReturn(ClusterState.EMPTY_STATE);
 
-            final DanglingIndicesState danglingIndicesState = new DanglingIndicesState(
+            new DanglingIndicesState(
                 env,
                 metaStateService,
                 localAllocateDangledIndices,
                 clusterServiceMock
             );
 
-            assertFalse("Expected dangling imports to be disabled", danglingIndicesState.isAutoImportDanglingIndicesEnabled());
-
-            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
-            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
-            metaStateService.writeIndex("test_write", dangledIndex);
-
-            danglingIndicesState.findNewAndAddDanglingIndices(MetaData.builder().build());
-
-            danglingIndicesState.allocateDanglingIndices();
-
-            verify(localAllocateDangledIndices, never()).allocateDangled(any(), any());
-
-            final Map<Index, IndexMetaData> foundIndices = danglingIndicesState.getDanglingIndices();
-            assertThat(foundIndices.size(), equalTo(1));
-
-            final Index index = foundIndices.keySet().iterator().next();
-
-            assertThat(index.getName(), equalTo("test1"));
-            assertThat(index.getUUID(), equalTo("test1UUID"));
+            verify(clusterServiceMock, never()).addListener(any());
         }
     }
 

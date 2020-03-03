@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
@@ -90,9 +89,6 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
 
         client.admin().indices().aliases(aliasesRequest,
             ActionListener.wrap(openIndexResponse -> {
-                if (openIndexResponse.isAcknowledged() == false) {
-                    throw new ElasticsearchException("alias update request failed to be acknowledged");
-                }
                 listener.onResponse(true);
             }, listener::onFailure));
     }

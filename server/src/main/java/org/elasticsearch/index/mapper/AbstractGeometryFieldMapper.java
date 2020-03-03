@@ -284,7 +284,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         private static void parseCRS(Map<String, Object> crsNode, ParserContext parserContext, Map<String, Object> params) {
             Object typeNode = crsNode.get("type");
             if (typeNode != null) {
-                if (typeNode.toString().equalsIgnoreCase("name") == false) {
+                if (typeNode.toString().equals("name") == false) {
                     throw new ElasticsearchParseException("only type [{}] is supported for [{]}", "name", Names.CRS.getPreferredName());
                 }
             } else {

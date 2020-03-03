@@ -38,10 +38,9 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 2
       // some tests rely on the translog not being flushed
-      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'indices.memory.shard_inactive_time', '60m'
       setting 'http.content_type.required', 'true'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

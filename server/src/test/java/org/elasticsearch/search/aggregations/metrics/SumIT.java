@@ -71,13 +71,13 @@ public class SumIT extends AbstractNumericTestCase {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
         prepareCreate("old_index")
-            .addMapping("_doc",
+            .setMapping(
                 "transit_mode", "type=keyword",
                 "distance", "type=double",
                 "route_length_miles", "type=alias,path=distance")
             .get();
         prepareCreate("new_index")
-            .addMapping("_doc",
+            .setMapping(
                 "transit_mode", "type=keyword",
                 "route_length_miles", "type=double")
             .get();
@@ -379,7 +379,7 @@ public class SumIT extends AbstractNumericTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),

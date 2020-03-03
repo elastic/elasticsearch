@@ -57,12 +57,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -121,6 +123,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     @Before
     public void setup() throws Exception {
+        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -131,6 +134,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
@@ -206,7 +210,9 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
+            clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -215,7 +221,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
         final RealmConfig realmConfig = new RealmConfig(
                 realmId,
             settings,

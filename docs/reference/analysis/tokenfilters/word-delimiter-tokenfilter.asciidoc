@@ -1,5 +1,8 @@
 [[analysis-word-delimiter-tokenfilter]]
-=== Word Delimiter Token Filter
+=== Word delimiter token filter
+++++
+<titleabbrev>Word delimiter</titleabbrev>
+++++
 
 Named `word_delimiter`, it Splits words into subwords and performs
 optional transformations on subword groups. Words are split into

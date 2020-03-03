@@ -120,8 +120,20 @@ public class CertParsingUtils {
      *                    return the password for that key. If it returns {@code null}, then the key-pair for that alias is not read.
      */
     public static Map<Certificate, Key> readPkcs12KeyPairs(Path path, char[] password, Function<String, char[]> keyPassword)
-        throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, UnrecoverableKeyException {
-        final KeyStore store = readKeyStore(path, "PKCS12", password);
+            throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, UnrecoverableKeyException {
+        return readKeyPairsFromKeystore(path, "PKCS12", password, keyPassword);
+    }
+
+    public static Map<Certificate, Key> readKeyPairsFromKeystore(Path path, String storeType, char[] password,
+                                                                  Function<String, char[]> keyPassword)
+        throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+
+        final KeyStore store = readKeyStore(path, storeType, password);
+        return readKeyPairsFromKeystore(store, keyPassword);
+    }
+
+    static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
+        throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
         final Map<Certificate, Key> map = new HashMap<>(store.size());
         while (enumeration.hasMoreElements()) {

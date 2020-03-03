@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -51,9 +53,19 @@ public class HasAttributeNodeSelectorTests extends RestClientTestCase {
     }
 
     private static Node dummyNode(Map<String, List<String>> attributes) {
+        final Set<String> roles = new TreeSet<>();
+        if (randomBoolean()) {
+            roles.add("master");
+        }
+        if (randomBoolean()) {
+            roles.add("data");
+        }
+        if (randomBoolean()) {
+            roles.add("ingest");
+        }
         return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
                 randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(randomBoolean(), randomBoolean(), randomBoolean()),
+                new Roles(roles),
                 attributes);
     }
 }

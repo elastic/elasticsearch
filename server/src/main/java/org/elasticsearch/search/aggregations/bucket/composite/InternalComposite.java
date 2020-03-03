@@ -80,7 +80,7 @@ public class InternalComposite
         this.reverseMuls = in.readIntArray();
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
-        this.earlyTerminated = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
+        this.earlyTerminated = in.getVersion().onOrAfter(Version.V_7_6_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -93,7 +93,7 @@ public class InternalComposite
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);
         out.writeOptionalWriteable(afterKey);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeBoolean(earlyTerminated);
         }
     }
@@ -132,6 +132,13 @@ public class InternalComposite
     @Override
     public List<InternalBucket> getBuckets() {
         return buckets;
+    }
+
+    /**
+     * The formats used when writing the keys. Package private for testing.
+     */
+    List<DocValueFormat> getFormats() {
+        return formats;
     }
 
     @Override
@@ -189,8 +196,17 @@ public class InternalComposite
             reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
-        final CompositeKey lastKey = result.size() > 0 ? result.get(result.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls,
+
+        List<DocValueFormat> reducedFormats = formats;
+        CompositeKey lastKey = null;
+        if (result.size() > 0) {
+            lastBucket = result.get(result.size() - 1);
+            /* Attach the formats from the last bucket to the reduced composite
+             * so that we can properly format the after key. */
+            reducedFormats = lastBucket.formats;
+            lastKey = lastBucket.getRawKey();
+        }
+        return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
             earlyTerminated, pipelineAggregators(), metaData);
     }
 
@@ -204,7 +220,12 @@ public class InternalComposite
             aggregations.add(bucket.aggregations);
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return new InternalBucket(sourceNames, formats, buckets.get(0).key, reverseMuls, docCount, aggs);
+        /* Use the formats from the bucket because they'll be right to format
+         * the key. The formats on the InternalComposite doing the reducing are
+         * just whatever formats make sense for *its* index. This can be real
+         * trouble when the index doing the reducing is unmapped. */
+        var reducedFormats = buckets.get(0).formats;
+        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, docCount, aggs);
     }
 
     @Override
@@ -332,6 +353,13 @@ public class InternalComposite
         @Override
         public Aggregations getAggregations() {
             return aggregations;
+        }
+
+        /**
+         * The formats used when writing the keys. Package private for testing.
+         */
+        List<DocValueFormat> getFormats() {
+            return formats;
         }
 
         @Override

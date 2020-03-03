@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -382,5 +384,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             jobNode.set(jobStats.getNode().getName());
         });
         return jobNode.get();
+    }
+
+    /**
+     * Sets delayed allocation to 0 to make sure we have tests are not delayed
+      */
+    protected void setMlIndicesDelayedNodeLeftTimeoutToZero() {
+        client().admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
+            .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
+            .actionGet();
     }
 }

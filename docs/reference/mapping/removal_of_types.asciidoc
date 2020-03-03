@@ -42,7 +42,7 @@ field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-<<mapping-parent-field,parent-child relationship>>
+<<parent-join,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 
@@ -644,6 +644,16 @@ PUT index-2-01
   }
 }
 --------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template1
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 In case of implicit index creation, because of documents that get indexed in
 an index that doesn't exist yet, the template is always honored. This is

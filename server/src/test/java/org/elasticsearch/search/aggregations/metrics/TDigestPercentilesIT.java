@@ -26,19 +26,21 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -66,21 +68,21 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
 
     private static double[] randomPercentiles() {
         final int length = randomIntBetween(1, 20);
-        final double[] percentiles = new double[length];
-        for (int i = 0; i < percentiles.length; ++i) {
+        final Set<Double> uniquedPercentiles = new HashSet<>();
+        for (int i = 0; i < length; ++i) {
             switch (randomInt(20)) {
             case 0:
-                percentiles[i] = 0;
+                uniquedPercentiles.add(0.0);
                 break;
             case 1:
-                percentiles[i] = 100;
+                uniquedPercentiles.add(100.0);
                 break;
             default:
-                percentiles[i] = randomDouble() * 100;
+                uniquedPercentiles.add(randomDouble() * 100);
                 break;
             }
         }
-        Arrays.sort(percentiles);
+        double[] percentiles= uniquedPercentiles.stream().mapToDouble(Double::doubleValue).sorted().toArray();
         LogManager.getLogger(TDigestPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
         return percentiles;
     }
@@ -471,7 +473,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),

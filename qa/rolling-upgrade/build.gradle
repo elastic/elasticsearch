@@ -31,21 +31,6 @@ task bwcTest {
   group = 'verification'
 }
 
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  dependsOn configurations.restSpec
-}
-
 for (Version bwcVersion : bwcVersions.wireCompatible) {
   /*
    * The goal here is to:
@@ -70,7 +55,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

@@ -49,7 +49,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
 
-    private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
+    private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
         new ObjectParser<>(NAME, FieldCapabilitiesRequest::new);
 
     static {

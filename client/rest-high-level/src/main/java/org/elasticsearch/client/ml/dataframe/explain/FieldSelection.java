@@ -57,7 +57,7 @@ public class FieldSelection implements ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<FieldSelection, Void> PARSER = new ConstructingObjectParser<>("field_selection", true,
+    public static final ConstructingObjectParser<FieldSelection, Void> PARSER = new ConstructingObjectParser<>("field_selection", true,
         a -> new FieldSelection((String) a[0], new HashSet<>((List<String>) a[1]), (boolean) a[2], (boolean) a[3], (FeatureType) a[4],
             (String) a[5]));
 

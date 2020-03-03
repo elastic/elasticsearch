@@ -480,12 +480,12 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fullName("field");
+        RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fieldType("field");
         assertThat(rootFieldType.searchAnalyzer().name(), equalTo("whitespace"));
         assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
-        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fullName("field.key");
+        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fieldType("field.key");
         assertThat(keyedFieldType.searchAnalyzer().name(), equalTo("whitespace"));
         assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});

@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluste
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -57,14 +56,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
@@ -320,10 +320,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         void runRandomly() {
-            runRandomly(true);
+            runRandomly(true, true, EXTREME_DELAY_VARIABILITY);
         }
 
-        void runRandomly(boolean allowReboots) {
+        /**
+         * @param allowReboots whether to randomly reboot the nodes during the process, losing all transient state. Usually true.
+         * @param coolDown whether to set the delay variability back to {@link Cluster#DEFAULT_DELAY_VARIABILITY} and drain all
+         *                 disrupted events from the queue before returning. Usually true.
+         * @param delayVariability the delay variability to use while running randomly. Usually {@link Cluster#EXTREME_DELAY_VARIABILITY}.
+         */
+        void runRandomly(boolean allowReboots, boolean coolDown, long delayVariability) {
 
             // TODO supporting (preserving?) existing disruptions needs implementing if needed, for now we just forbid it
             assertThat("may reconnect disconnected nodes, probably unexpected", disconnectedNodes, empty());
@@ -336,9 +342,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             final int randomSteps = scaledRandomIntBetween(10, 10000);
             final int keyRange = randomSteps / 50; // for randomized writes and reads
-            logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
+            logger.info("--> start of safety phase of at least [{}] steps with delay variability of [{}ms]", randomSteps, delayVariability);
 
-            deterministicTaskQueue.setExecutionDelayVariabilityMillis(EXTREME_DELAY_VARIABILITY);
+            deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariability);
             disruptStorage = true;
             int step = 0;
             long finishTime = -1;
@@ -349,8 +355,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 if (randomSteps <= step && finishTime == -1) {
                     finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
-                    deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-                    logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
+                    if (coolDown) {
+                        deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
+                        logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
+                    } else {
+                        logger.debug("----> [runRandomly {}] running until [{}ms] with delay variability of [{}ms]", step, finishTime,
+                            deterministicTaskQueue.getExecutionDelayVariabilityMillis());
+                    }
                 }
 
                 try {
@@ -741,17 +752,17 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
-                        final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
                         final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
-                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
-                            metaStateService.writeGlobalStateAndUpdateManifest("update global state", updatedMetaData);
-                        }
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
-                        if (updatedTerm != oldState.getCurrentTerm()) {
-                            final Manifest manifest = metaStateService.loadManifestOrEmpty();
-                            metaStateService.writeManifestAndCleanup("update term",
-                                new Manifest(updatedTerm, manifest.getClusterStateVersion(), manifest.getGlobalGeneration(),
-                                    manifest.getIndexGenerations()));
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData() || updatedTerm != oldState.getCurrentTerm()) {
+                            try (PersistedClusterStateService.Writer writer =
+                                     new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                                         deterministicTaskQueue::getCurrentTimeMillis)
+                                         .createWriter()) {
+                                writer.writeFullStateAndCommit(updatedTerm,
+                                    ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build());
+                            }
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
@@ -854,6 +865,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             @Override
             public void close() {
                 assertTrue(openPersistedStates.remove(this));
+                try {
+                    delegate.close();
+                } catch (IOException e) {
+                    throw new AssertionError("unexpected", e);
+                }
             }
         }
 

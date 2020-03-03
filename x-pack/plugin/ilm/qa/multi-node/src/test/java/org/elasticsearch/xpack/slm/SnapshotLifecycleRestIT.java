@@ -41,8 +41,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -65,11 +67,18 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         return true;
     }
 
+    // as we are testing the SLM history entries we'll preserve the "slm-history-ilm-policy" policy as it'll be associated with the
+    // .slm-history-* indices and we won't be able to delete it when we wipe out the cluster
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
     public void testMissingRepo() throws Exception {
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("missing-repo-policy", "snap",
             "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        Request putLifecycle = new Request("PUT", "/_slm/policy/test-policy");
+        Request putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
@@ -82,11 +91,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50358")
     public void testFullPolicySnapshot() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
+        final String policyName = "full-policy";
+        final String repoId = "full-policy-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
@@ -98,6 +106,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
+        // A test for whether the repository's snapshots have any snapshots starting with "snap-"
+        Predicate<Map<String, Object>> repoHasSnapshot = snapMap -> Optional.ofNullable((String) snapMap.get("snapshot"))
+            .map(snapName -> snapName.startsWith("snap-"))
+            .orElse(false);
+
         // Check that the snapshot was actually taken
         assertBusy(() -> {
             Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/_all"));
@@ -107,18 +120,23 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
             List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
-                .findFirst()
+                .peek(m -> logger.info("--> responses: {}", m))
                 .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
+                .peek(allReposSnapshots -> logger.info("--> all repository's snapshots: {}", allReposSnapshots))
+                .filter(allReposSnapshots -> allReposSnapshots.stream().anyMatch(repoHasSnapshot))
+                .peek(allRepos -> logger.info("--> snapshots with 'snap-' snapshot: {}", allRepos))
+                .findFirst()
                 .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-            assertThat(snapResponse.size(), greaterThan(0));
-            assertThat(snapResponse.get(0).get("snapshot").toString(), startsWith("snap-"));
             assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
             Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
-            assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
+        });
 
-            // Check that the last success date was written to the cluster state
+        assertBusy(() -> assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION));
+
+        // Check that the last success date was written to the cluster state
+        assertBusy(() -> {
             Request getReq = new Request("GET", "/_slm/policy/" + policyName);
             Response policyMetadata = client().performRequest(getReq);
             Map<String, Object> policyResponseMap;
@@ -136,9 +154,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
             String lastSnapshotName = (String) lastSuccessObject.get("snapshot_name");
             assertThat(lastSnapshotName, startsWith("snap-"));
+        });
 
-            assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
-
+        // Check that the stats are written
+        assertBusy(() -> {
             Map<String, Object> stats = getSLMStats();
             Map<String, Object> policyStats = policyStatsAsMap(stats);
             Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
@@ -154,8 +173,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPolicyFailure() throws Exception {
-        final String policyName = "test-policy";
-        final String repoName = "test-repo";
+        final String policyName = "failure-policy";
+        final String repoName = "policy-failure-repo";
         final String indexPattern = "index-doesnt-exist";
         initializeRepo(repoName);
 
@@ -203,8 +222,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/48531")
     public void testPolicyManualExecution() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
+        final String policyName = "manual-policy";
+        final String repoId = "manual-execution-repo";
         int docCount = randomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
             index(client(), indexName, "" + i, "foo", "bar");
@@ -348,10 +367,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE,org.elasticsearch.snapshots:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/48017")
-    public void testBasicTimeBasedRetenion() throws Exception {
+    public void testBasicTimeBasedRetention() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
+        final String policyName = "basic-time-policy";
+        final String repoId = "time-based-retention-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
@@ -421,8 +440,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 int retentionRun = (int) stats.get(SnapshotLifecycleStats.RETENTION_RUNS.getPreferredName());
                 int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
                 int totalDeleted = (int) stats.get(SnapshotLifecycleStats.TOTAL_DELETIONS.getPreferredName());
-                assertThat(snapsTaken, equalTo(1));
-                assertThat(totalTaken, equalTo(1));
+                assertThat(snapsTaken, greaterThanOrEqualTo(1));
+                assertThat(totalTaken, greaterThanOrEqualTo(1));
                 assertThat(retentionRun, greaterThanOrEqualTo(1));
                 assertThat(snapsDeleted, greaterThanOrEqualTo(1));
                 assertThat(totalDeleted, greaterThanOrEqualTo(1));

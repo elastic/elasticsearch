@@ -1,5 +1,8 @@
 [[analysis-word-delimiter-graph-tokenfilter]]
-=== Word Delimiter Graph Token Filter
+=== Word delimiter graph token filter
+++++
+<titleabbrev>Word delimiter graph</titleabbrev>
+++++
 
 experimental[This functionality is marked as experimental in Lucene]
 

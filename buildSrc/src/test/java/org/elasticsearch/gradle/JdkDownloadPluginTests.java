@@ -32,7 +32,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
 
     @BeforeClass
     public static void setupRoot() {
-         rootProject = ProjectBuilder.builder().build();
+        rootProject = ProjectBuilder.builder().build();
     }
 
     public void testMissingVendor() {
@@ -46,7 +46,8 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "unknown",
             "11.0.2+33",
             "linux",
-            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptopenjdk, openjdk]");
+            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptopenjdk, openjdk]"
+        );
     }
 
     public void testMissingVersion() {
@@ -62,13 +63,21 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testUnknownPlatform() {
-        assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", "unknown",
-            "unknown platform [unknown] for jdk [testjdk], must be one of [darwin, linux, windows, mac]");
+        assertJdkError(
+            createProject(),
+            "testjdk",
+            "openjdk",
+            "11.0.2+33",
+            "unknown",
+            "unknown platform [unknown] for jdk [testjdk], must be one of [darwin, linux, windows, mac]"
+        );
     }
 
     private void assertJdkError(Project project, String name, String vendor, String version, String platform, String message) {
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> createJdk(project, name, vendor, version, platform));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createJdk(project, name, vendor, version, platform)
+        );
         assertThat(e.getMessage(), equalTo(message));
     }
 

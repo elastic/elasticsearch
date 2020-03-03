@@ -350,7 +350,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
 
-        if (shouldReplace || expected == true) {
+        if (shouldReplace || expected) {
             verify(response).getStatusLine();
             verify(response).getEntity();
         } else if (expected == false) {

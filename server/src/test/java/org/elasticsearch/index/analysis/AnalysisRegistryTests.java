@@ -20,12 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -108,8 +109,8 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultAnalyzerWithoutAnalysisModeAll() throws IOException {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory(IndexSettingsModule.newIndexSettings("index", settings),
-                "my_filter", Settings.EMPTY) {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory(indexSettings, "my_filter", Settings.EMPTY) {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
@@ -117,10 +118,16 @@ public class AnalysisRegistryTests extends ESTestCase {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return null;
+                return tokenStream;
             }
         };
-        Analyzer analyzer = new CustomAnalyzer(null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
+        TokenizerFactory tokenizer = new AbstractTokenizerFactory(indexSettings, Settings.EMPTY, "my_tokenizer") {
+            @Override
+            public Tokenizer create() {
+                return new StandardTokenizer();
+            }
+        };
+        Analyzer analyzer = new CustomAnalyzer(tokenizer, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
         MapperException ex = expectThrows(MapperException.class,
                 () -> emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
                         singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)), emptyMap(),
@@ -263,5 +270,123 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         registry.close();
         verify(mock).close();
+    }
+
+    public void testDeprecationsAndExceptions() throws IOException {
+
+        AnalysisPlugin plugin = new AnalysisPlugin() {
+
+            class MockFactory extends AbstractTokenFilterFactory {
+                MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
+                        deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                    }
+                    return tokenStream;
+                }
+            }
+
+            class ExceptionFactory extends AbstractTokenFilterFactory {
+
+                ExceptionFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
+                        throw new IllegalArgumentException("Cannot use token filter [exception]");
+                    }
+                    return tokenStream;
+                }
+            }
+
+            class UnusedMockFactory extends AbstractTokenFilterFactory {
+                UnusedMockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    deprecationLogger.deprecated("Using deprecated token filter [unused]");
+                    return tokenStream;
+                }
+            }
+
+            class NormalizerFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
+
+                NormalizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    deprecationLogger.deprecated("Using deprecated token filter [deprecated_normalizer]");
+                    return tokenStream;
+                }
+
+            }
+
+            @Override
+            public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+                return Map.of("deprecated", MockFactory::new, "unused", UnusedMockFactory::new,
+                    "deprecated_normalizer", NormalizerFactory::new, "exception", ExceptionFactory::new);
+            }
+        };
+
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.filter.deprecated.type", "deprecated")
+            .put("index.analysis.analyzer.custom.tokenizer", "standard")
+            .putList("index.analysis.analyzer.custom.filter", "lowercase", "deprecated")
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        new AnalysisModule(TestEnvironment.newEnvironment(settings),
+            singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
+
+        // We should only get a warning from the token filter that is referenced in settings
+        assertWarnings("Using deprecated token filter [deprecated]");
+
+        indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion())
+            .put("index.analysis.filter.deprecated.type", "deprecated_normalizer")
+            .putList("index.analysis.normalizer.custom.filter", "lowercase", "deprecated_normalizer")
+            .put("index.analysis.filter.deprecated.type", "deprecated")
+            .put("index.analysis.filter.exception.type", "exception")
+            .put("index.analysis.analyzer.custom.tokenizer", "standard")
+            // exception will not throw because we're not on Version.CURRENT
+            .putList("index.analysis.analyzer.custom.filter", "lowercase", "deprecated", "exception")
+            .build();
+        idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        new AnalysisModule(TestEnvironment.newEnvironment(settings),
+            singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
+
+        // We should only get a warning from the normalizer, because we're on a version where 'deprecated'
+        // works fine
+        assertWarnings("Using deprecated token filter [deprecated_normalizer]");
+
+        indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.filter.exception.type", "exception")
+            .put("index.analysis.analyzer.custom.tokenizer", "standard")
+            // exception will not throw because we're not on Version.LATEST
+            .putList("index.analysis.analyzer.custom.filter", "lowercase", "exception")
+            .build();
+        IndexSettings exceptionSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new AnalysisModule(TestEnvironment.newEnvironment(settings),
+                singletonList(plugin)).getAnalysisRegistry().build(exceptionSettings);
+        });
+        assertEquals("Cannot use token filter [exception]", e.getMessage());
+
     }
 }

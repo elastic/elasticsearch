@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +48,6 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     private static String INDEX = "test";
     private static String IGNORE_MALFORMED_INDEX = INDEX + "_ignore_malformed";
-    private static String FIELD_TYPE = "geometry";
     private static String FIELD = "shape";
     private static Geometry queryGeometry = null;
 
@@ -59,10 +59,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // create test index
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=shape", "alias", "type=alias,path=" + FIELD).get());
+            .setMapping(FIELD, "type=shape", "alias", "type=alias,path=" + FIELD).get());
         // create index that ignores malformed geometry
         assertAcked(client().admin().indices().prepareCreate(IGNORE_MALFORMED_INDEX)
-            .addMapping(FIELD_TYPE, FIELD, "type=shape,ignore_malformed=true", "_source", "enabled=false").get());
+            .setMapping(FIELD, "type=shape,ignore_malformed=true", "_source", "enabled=false").get());
         ensureGreen();
 
         // index random shapes
@@ -109,7 +109,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         String indexName = "shapes_index";
         String searchIndex = "search_index";
         createIndex(indexName);
-        client().admin().indices().prepareCreate(searchIndex).addMapping("type", "location", "type=shape").get();
+        client().admin().indices().prepareCreate(searchIndex).setMapping("location", "type=shape").get();
 
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
@@ -247,7 +247,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testContainsShapeQuery() {
 
-        client().admin().indices().prepareCreate("test_contains").addMapping("type", "location", "type=shape")
+        client().admin().indices().prepareCreate("test_contains").setMapping("location", "type=shape")
             .execute().actionGet();
 
         String doc = "{\"location\" : {\"type\":\"envelope\", \"coordinates\":[ [-100.0, 100.0], [100.0, -100.0]]}}";
@@ -264,14 +264,14 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testGeometryCollectionRelations() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("doc")
+            .startObject("_doc")
             .startObject("properties")
             .startObject("geometry").field("type", "shape").endObject()
             .endObject()
             .endObject()
             .endObject();
 
-        createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build(), mapping);
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
 
@@ -298,10 +298,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             assertEquals(0, response.getHits().getTotalHits().value);
         }
         {
-            // A geometry collection that is partially within the indexed shape
-            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
-            builder.shape(new PointBuilder(1, 2));
-            builder.shape(new PointBuilder(20, 30));
+            // A geometry collection (as multi point) that is partially within the indexed shape
+            MultiPointBuilder builder = new MultiPointBuilder();
+            builder.coordinate(1, 2);
+            builder.coordinate(20, 30);
             SearchResponse response = client().prepareSearch("test_collections")
                 .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();
@@ -318,8 +318,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         {
             // A geometry collection that is disjoint with the indexed shape
             GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
-            builder.shape(new PointBuilder(-20, -30));
-            builder.shape(new PointBuilder(20, 30));
+            MultiPointBuilder innerBuilder = new MultiPointBuilder();
+            innerBuilder.coordinate(-20, -30);
+            innerBuilder.coordinate(20, 30);
+            builder.shape(innerBuilder);
             SearchResponse response = client().prepareSearch("test_collections")
                 .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();

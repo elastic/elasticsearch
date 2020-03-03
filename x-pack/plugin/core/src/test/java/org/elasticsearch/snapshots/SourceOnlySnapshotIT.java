@@ -227,7 +227,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", numShards).put("number_of_replicas", 0));
-        List<Object> mappings = new ArrayList<>();
+        List<String> mappings = new ArrayList<>();
         if (requireRouting) {
             mappings.addAll(Arrays.asList("_routing", "required=true"));
         }
@@ -236,7 +236,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             mappings.addAll(Arrays.asList("nested", "type=nested", "incorrect", "type=object"));
         }
         if (mappings.isEmpty() == false) {
-            createIndexRequestBuilder.addMapping("_doc", mappings.toArray());
+            createIndexRequestBuilder.setMapping(mappings.toArray(new String[0]));
         }
         assertAcked(createIndexRequestBuilder);
         ensureGreen();

@@ -68,7 +68,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService);
+        historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);
     }
 
     @After
@@ -81,7 +81,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
     public void testNoActionIfDisabled() throws Exception {
         Settings settings = Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, null)) {
+        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, null, threadPool)) {
             String policyId = randomAlphaOfLength(5);
             final long timestamp = randomNonNegativeLong();
             ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);

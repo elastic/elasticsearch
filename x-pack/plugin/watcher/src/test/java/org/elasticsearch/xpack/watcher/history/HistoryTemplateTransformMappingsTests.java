@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTransformFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("doc",
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(
                 jsonBuilder().startObject()
                         .startObject("properties")
                         .startObject("foo")

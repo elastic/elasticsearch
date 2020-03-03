@@ -188,6 +188,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        SqlQueryRequest request = PARSER.apply(parser,  null);
+        validateParams(request.params(), request.mode());
+        return request;
     }
 }

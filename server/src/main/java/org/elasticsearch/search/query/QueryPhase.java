@@ -51,7 +51,8 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -301,14 +302,13 @@ public class QueryPhase implements SearchPhase {
             }
 
             ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
-                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+            assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
+                (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
+                "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+            if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
+                EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                 queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
-            }
-            if (searchContext.getProfilers() != null) {
-                ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());
-                queryResult.profileResults(shardResults);
             }
             return shouldRescore;
         } catch (Exception e) {
@@ -424,7 +424,7 @@ public class QueryPhase implements SearchPhase {
         String fieldName = sortField.getField();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
         if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fullName(fieldName);
+        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
@@ -439,7 +439,7 @@ public class QueryPhase implements SearchPhase {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fullName(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchContext.mapperService().fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
             }
         }
 

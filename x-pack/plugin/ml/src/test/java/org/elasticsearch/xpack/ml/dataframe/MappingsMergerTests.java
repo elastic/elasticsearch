@@ -35,11 +35,9 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
+        MappingMetaData mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
-        assertThat(mergedMappings.size(), equalTo(1));
-        assertThat(mergedMappings.containsKey("_doc"), is(true));
-        assertThat(mergedMappings.valuesIt().next().getSourceAsMap(), equalTo(index1Mappings));
+        assertThat(mergedMappings.getSourceAsMap(), equalTo(index1Mappings));
     }
 
     public void testMergeMappings_GivenFieldWithDifferentMapping() {
@@ -76,11 +74,9 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
+        MappingMetaData mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
-        assertThat(mergedMappings.size(), equalTo(1));
-        assertThat(mergedMappings.containsKey("_doc"), is(true));
-        Map<String, Object> mappingsAsMap = mergedMappings.valuesIt().next().getSourceAsMap();
+        Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
         assertThat(mappingsAsMap.size(), equalTo(1));
         assertThat(mappingsAsMap.containsKey("properties"), is(true));
 
@@ -103,12 +99,10 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ImmutableOpenMap<String, MappingMetaData> mergedMappings = MappingsMerger.mergeMappings(
+        MappingMetaData mergedMappings = MappingsMerger.mergeMappings(
             newSourceWithExcludes("field_1"), getMappingsResponse);
 
-        assertThat(mergedMappings.size(), equalTo(1));
-        assertThat(mergedMappings.containsKey("_doc"), is(true));
-        Map<String, Object> mappingsAsMap = mergedMappings.valuesIt().next().getSourceAsMap();
+        Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
         @SuppressWarnings("unchecked")
         Map<String, Object> fieldMappings = (Map<String, Object>) mappingsAsMap.get("properties");
 

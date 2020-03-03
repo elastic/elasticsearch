@@ -3,17 +3,13 @@
 [[sql-client-apps-powerbi]]
 === Microsoft Power BI Desktop
 
-[quote, https://powerbi.microsoft.com/en-us/what-is-power-bi/]
-____
-https://powerbi.microsoft.com/en-us/desktop/[Power BI] is a business analytics solution that lets you visualize your data and share
-insights across your organization, or embed them in your app or website.
-____
+You can use the {es} ODBC driver to access {es} data from Microsoft Power BI Desktop.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* Microsoft Power BI Desktop 2.63 or higher
+* https://powerbi.microsoft.com/en-us/desktop/[Microsoft Power BI Desktop] 2.63 or higher
 * {es-sql} <<sql-odbc, ODBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 

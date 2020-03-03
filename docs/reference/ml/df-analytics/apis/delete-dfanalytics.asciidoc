@@ -21,8 +21,13 @@ experimental[]
 [[ml-delete-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-* You must have `machine_learning_admin` built-in role to use this API. For more 
-information, see <<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles or equivalent privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-delete-dfanalytics-path-params]]
@@ -31,6 +36,13 @@ information, see <<security-privileges>> and <<built-in-roles>>.
 `<data_frame_analytics_id>`::
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+
+[[ml-delete-dfanalytics-query-params]]
+==== {api-query-parms-title}
+
+`force`::
+  (Optional, boolean) If `true`, it deletes a job that is not stopped; this method is
+  quicker than stopping and deleting the job.
 
 
 [[ml-delete-dfanalytics-example]]

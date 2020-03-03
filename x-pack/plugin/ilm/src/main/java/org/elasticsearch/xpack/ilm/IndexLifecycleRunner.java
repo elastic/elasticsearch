@@ -143,6 +143,11 @@ class IndexLifecycleRunner {
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
         // Only phase changing and async wait steps should be run through periodic polling
         if (currentStep instanceof PhaseCompleteStep) {
+            if (currentStep.getNextStepKey() == null) {
+                logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
+                    index, currentStep.getKey().getPhase());
+                return;
+            }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
@@ -165,7 +170,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                 }
-            });
+            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -202,6 +207,20 @@ class IndexLifecycleRunner {
                 public void onFailure(String source, Exception e) {
                     logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
                         failedStep.getKey().getName(), index), e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (oldState.equals(newState) == false) {
+                        IndexMetaData newIndexMeta = newState.metaData().index(index);
+                        Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
+                        StepKey stepKey = indexMetaCurrentStep.getKey();
+                        if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
+                            logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
+                                "retry. Attempting to execute the failed step [{}] if it's an async action", policy, index, stepKey);
+                            maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
+                        }
+                    }
                 }
             });
         } else {
@@ -300,6 +319,11 @@ class IndexLifecycleRunner {
         logger.trace("[{}] maybe running step ({}) after state change: {}",
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
         if (currentStep instanceof PhaseCompleteStep) {
+            if (currentStep.getNextStepKey() == null) {
+                logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
+                    index, currentStep.getKey().getPhase());
+                return;
+            }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());

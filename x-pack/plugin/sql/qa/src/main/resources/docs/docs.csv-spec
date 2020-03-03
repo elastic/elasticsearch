@@ -876,9 +876,9 @@ dtIntervalPlusInterval
 // tag::dtIntervalPlusInterval
 SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
 
-    result     
+    result
 ---------------
-+1 00:53:00.0                       
++1 00:53:00
 
 // end::dtIntervalPlusInterval
 ;
@@ -909,9 +909,9 @@ dtIntervalMinusInterval
 // tag::dtIntervalMinusInterval
 SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 
-    result     
+    result
 ---------------
-+0 22:00:00.0  
++0 22:00:00
 // end::dtIntervalMinusInterval
 ;
 
@@ -939,7 +939,7 @@ SELECT -2 * INTERVAL '3' YEARS AS result;
 
 ///////////////////////////////
 //
-// Order by
+// Order By
 //
 ///////////////////////////////
 

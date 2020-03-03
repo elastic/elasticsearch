@@ -100,7 +100,8 @@ on disk.
 Authentication will still work, but in order to ensure FIPS 140-2 compliance,
 you would need to recreate users or change their password using the
 <<users-command, elasticsearch-user>> CLI tool for the file realm and the
-<<security-api-users,User Management APIs>> for the native realm.
+<<security-api-put-user,create users>> and <<security-api-change-password,change
+password>> APIs for the native realm.
 
 The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created

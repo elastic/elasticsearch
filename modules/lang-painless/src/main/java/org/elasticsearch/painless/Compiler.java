@@ -21,9 +21,11 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
@@ -34,9 +36,7 @@ import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -206,23 +206,21 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The ScriptRoot used to compile
      */
-    ScriptRoot compile(Loader loader, Set<String> extractedVariables, String name, String source,
-            CompilerSettings settings) {
+    ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        root.extractVariables(extractedVariables);
-        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
-        Map<String, Object> statics = root.write();
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
+        root.analyze(scriptRoot);
+        ClassNode classNode = root.writeClass();
+        DefBootstrapInjectionPhase.phase(classNode);
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
+        byte[] bytes = classNode.write();
 
         try {
-            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, root.getBytes());
-            clazz.getField("$NAME").set(null, name);
-            clazz.getField("$SOURCE").set(null, source);
-            clazz.getField("$STATEMENTS").set(null, root.getStatements());
-            clazz.getField("$DEFINITION").set(null, painlessLookup);
+            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, bytes);
 
-            for (Map.Entry<String, Object> statik : statics.entrySet()) {
-                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            for (Map.Entry<String, Object> staticConstant : scriptRoot.getStaticConstants().entrySet()) {
+                clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
 
             return scriptRoot;
@@ -240,12 +238,13 @@ final class Compiler {
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
-                debugStream);
-        root.extractVariables(new HashSet<>());
-        root.analyze(painlessLookup, settings);
-        root.write();
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
+        root.analyze(scriptRoot);
+        ClassNode classNode = root.writeClass();
+        DefBootstrapInjectionPhase.phase(classNode);
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
 
-        return root.getBytes();
+        return classNode.write();
     }
 }

@@ -141,7 +141,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new SourceFieldMapper(indexSettings);
         }
@@ -236,7 +236,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (originalSource != null && adaptedSource != originalSource && context.indexSettings().isSoftDeleteEnabled()) {
+        if (originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
             fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));

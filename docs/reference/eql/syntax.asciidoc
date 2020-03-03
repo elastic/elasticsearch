@@ -1,0 +1,240 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-syntax]]
+== EQL syntax reference
+
+experimental::[]
+
+[IMPORTANT]
+====
+{es} supports a subset of EQL syntax.
+====
+
+[discrete]
+[[eql-basic-syntax]]
+=== Basic syntax
+
+EQL queries require an event type and a matching condition. The `where` keyword connects them.
+
+[source,eql]
+----
+event_type where condition
+----
+
+For example, the following EQL query matches `process` events with a `process.name`
+field value of `svchost.exe`:
+
+[source,eql]
+----
+process where process.name == "svchost.exe"
+----
+
+[discrete]
+[[eql-syntax-conditions]]
+==== Conditions
+
+A condition consists of one or more criteria an event must match.
+You can specify and combine these criteria using the following operators:
+
+[discrete]
+[[eql-syntax-comparison-operators]]
+===== Comparison operators
+
+[source,eql]
+----
+<   <=   ==   !=   >=   >
+----
+
+.*Definitions*
+[%collapsible]
+====
+`<` (less than)::
+Returns `true` if the value to the left of the operator is less than the value
+to the right. Otherwise returns `false`.
+
+`<=` (less than or equal) ::
+Returns `true` if the value to the left of the operator is less than or equal to
+the value to the right. Otherwise returns `false`.
+
+`==` (equal)::
+Returns `true` if the values to the left and right of the operator are equal.
+Otherwise returns `false`.
+
+`!=` (not equal)::
+Returns `true` if the values to the left and right of the operator are not
+equal. Otherwise returns `false`.
+
+`>=` (greater than or equal) ::
+Returns `true` if the value to the left of the operator is greater than or equal
+to the value to the right. Otherwise returns `false`.
+
+`>` (greater than)::
+Returns `true` if the value to the left of the operator is greater than the
+value to the right. Otherwise returns `false`.
+====
+
+[discrete]
+[[eql-syntax-logical-operators]]
+===== Logical operators
+
+[source,eql]
+----
+and  or  not
+----
+
+.*Definitions*
+[%collapsible]
+====
+`and`::
+Returns `true` only if the condition to the left and right _both_ return `true`.
+Otherwise returns `false.
+
+`or`::
+Returns `true` if one of the conditions to the left or right `true`.
+Otherwise returns `false.
+
+`not`::
+Returns `true` if the condition to the right is `false`.
+====
+
+[discrete]
+[[eql-syntax-lookup-operators]]
+===== Lookup operators
+
+[source,eql]
+----
+user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+----
+
+.*Definitions*
+[%collapsible]
+====
+`in`::
+Returns `true` if the value is contained in the provided list.
+
+`not in`::
+Returns `true` if the value is not contained in the provided list.
+====
+
+[discrete]
+[[eql-syntax-math-operators]]
+===== Math operators
+
+[source,eql]
+----
++  -  *  /  %
+----
+
+.*Definitions*
+[%collapsible]
+====
+`+` (add)::
+Adds the values to the left and right of the operator.
+
+`-` (Subtract)::
+Subtracts the value to the right of the operator from the value to the left.
+
+`*` (Subtract)::
+Multiplies the values to the left and right of the operator.
+
+`/` (Divide)::
+Divides the value to the left of the operator by the value to the right.
+
+`%` (modulo)::
+Divides the value to the left of the operator by the value to the right. Returns only the remainder.
+====
+
+[discrete]
+[[eql-syntax-strings]]
+==== Strings
+
+Strings are enclosed with double quotes (`"`) or single quotes (`'`).
+
+[source,eql]
+----
+"hello world"
+"hello world with 'substring'"
+----
+
+[discrete]
+[[eql-syntax-wildcards]]
+===== Wildcards 
+
+You can use the wildcard operator (`*`) within a string to match specific
+patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
+operators:
+
+[source,eql]
+----
+field == "example*wildcard"
+field != "example*wildcard"
+----
+
+[discrete]
+[[eql-syntax-escaped-characters]]
+===== Escaped characters 
+
+When used within a string, special characters, such as a carriage return or
+double quote (`"`), must be escaped with a preceding backslash (`\`).
+
+[source,eql]
+----
+"example \t of \n escaped \r characters"
+----
+
+.*Escape sequences*
+[%collapsible]
+====
+[options="header"]
+|====
+| Escape sequence | Literal character
+|`\n`             | A newline (linefeed) character
+|`\r`             | A carriage return character
+|`\t`             | A tab character
+|`\\`             | A backslash (`\`) character
+|`\"`             | A double quote (`"`) character
+|`\'`             | A single quote (`'`) character
+|====
+====
+
+[discrete]
+[[eql-syntax-raw-strings]]
+===== Raw strings
+
+Raw strings are preceded by a question mark (`?`) and treat backslashes (`\`) as
+literal characters.
+
+[source,eql]
+----
+?"String with a literal 'blackslash' \ character included"
+----
+
+You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
+the backslash remains in the resulting string.
+
+[source,eql]
+----
+?"\""
+----
+
+[NOTE]
+====
+Raw strings cannot contain only a single backslash. Additionally, raw strings
+cannot end in an odd number of backslashes.
+====
+
+[discrete]
+[[eql-syntax-non-alpha-field-names]]
+==== Non-alphanumeric field names
+
+Field names containing non-alphanumeric characters, such as underscores (`_`),
+dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
+
+[source,eql]
+----
+`my_field`
+`my.field`
+`my-field`
+`my field`
+----

@@ -67,16 +67,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-flush-job-example]]
 ==== {api-examples-title}
 
-The following example flushes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_flush
+POST _ml/anomaly_detectors/low_request_rate/_flush
 {
   "calc_interim": true
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_openjob]
+// TEST[skip:Kibana sample data]
 
 When the operation succeeds, you receive the following results:
 

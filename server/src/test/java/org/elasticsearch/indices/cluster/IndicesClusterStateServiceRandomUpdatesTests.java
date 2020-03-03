@@ -256,6 +256,40 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     }
 
+    public void testRecoveryFailures() {
+        disableRandomFailures();
+        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        ClusterState state = ClusterStateCreationUtils.state(index, randomBoolean(),
+            ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+
+        // the initial state which is derived from the newly created cluster state but doesn't contain the index
+        ClusterState previousState = ClusterState.builder(state)
+            .metaData(MetaData.builder(state.metaData()).remove(index))
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
+        final ShardRouting shardRouting = state.routingTable().index(index).shard(0).replicaShards().get(0);
+        final ShardId shardId = shardRouting.shardId();
+        DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
+
+        // simulate the cluster state change on the node
+        ClusterState localState = adaptClusterStateToLocalNode(state, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
+
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        // check that failing unrelated allocation does not remove shard
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, new Exception("dummy"));
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        indicesCSSvc.handleRecoveryFailure(shardRouting, false, new Exception("dummy"));
+        assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+    }
+
     public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                   Supplier<MockIndicesService> indicesServiceSupplier) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
@@ -477,7 +511,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 shardStateAction,
                 null,
                 repositoriesService,
-                null,
                 null,
                 null,
                 null,

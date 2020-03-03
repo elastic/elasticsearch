@@ -29,6 +29,7 @@ import org.hamcrest.Matchers;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.mock;
 public class ForEachProcessorFactoryTests extends ESTestCase {
 
     private final ScriptService scriptService = mock(ScriptService.class);
+    private final Consumer<Runnable> genericExecutor = Runnable::run;
 
     public void testCreate() throws Exception {
         Processor processor = new TestProcessor(ingestDocument -> { });

@@ -101,11 +101,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 (Optional, unsigned integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
+`indices_options`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices-options]
+
 [[ml-update-datafeed-example]]
 ==== {api-examples-title}
-
-The following example updates the query for the `datafeed-total-requests`
-{dfeed} so that only log entries of error level are analyzed:
 
 [source,console]
 --------------------------------------------------
@@ -119,7 +120,6 @@ POST _ml/datafeeds/datafeed-total-requests/_update
 }
 --------------------------------------------------
 // TEST[skip:setup:server_metrics_datafeed]
-
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
 with the updated values:

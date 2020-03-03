@@ -42,6 +42,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -68,7 +69,7 @@ public class ReadOnlyEngine extends Engine {
      * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
      * ID field if we are reading form memory maps.
      */
-    public static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
+    private static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
         BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
@@ -78,6 +79,7 @@ public class ReadOnlyEngine extends Engine {
     private final DocsStats docsStats;
     private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
+    private final CompletionStatsCache completionStatsCache;
 
     protected volatile TranslogStats translogStats;
 
@@ -122,6 +124,10 @@ public class ReadOnlyEngine extends Engine {
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
+
+                completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+                // no need to register a refresh listener to invalidate completionStatsCache since this engine is readonly
+
                 success = true;
             } finally {
                 if (success == false) {
@@ -168,15 +174,12 @@ public class ReadOnlyEngine extends Engine {
 
     protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-        }
         reader = readerWrapperFunction.apply(reader);
         return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
-        return DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES);
+        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES), Lucene.SOFT_DELETES_FIELD);
     }
 
     private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
@@ -223,15 +226,10 @@ public class ReadOnlyEngine extends Engine {
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");
         }
-        final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         final TranslogConfig translogConfig = config.getTranslogConfig();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
-            config.getIndexSettings().getTranslogRetentionAge().getMillis(),
-            config.getIndexSettings().getTranslogRetentionTotalFiles()
-        );
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
-
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(), seqNo -> {})
         ) {
@@ -307,34 +305,18 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireHistoryRetentionLock(HistorySource historySource) {
+    public Closeable acquireHistoryRetentionLock() {
         return () -> {};
     }
 
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
-            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
-        }
+                                                boolean requiredFullRange)  {
         return newEmptySnapshot();
     }
 
     @Override
-    public Translog.Snapshot readHistoryOperations(String reason, HistorySource historySource,
-                                                   MapperService mapperService, long startingSeqNo) {
-        return newEmptySnapshot();
-    }
-
-    @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) {
-        return 0;
-    }
-
-    @Override
-    public boolean hasCompleteOperationHistory(String reason, HistorySource historySource,
-                                               MapperService mapperService, long startingSeqNo) {
+    public boolean hasCompleteOperationHistory(String reason, long startingSeqNo) {
         // we can do operation-based recovery if we don't have to replay any operation.
         return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
@@ -400,14 +382,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
-        // we can't do synced flushes this would require an indexWriter which we don't have
-        throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
-    }
-
-    @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        // noop
     }
 
     @Override
@@ -533,5 +509,19 @@ public class ReadOnlyEngine extends Engine {
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
         assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
             maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
+    }
+
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
+        final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
+        if (wrapSoftDeletes) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fieldNamePatterns) {
+        return completionStatsCache.get(fieldNamePatterns);
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -63,10 +64,15 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
                 // the index exists, do not clean this persistent task
                 continue;
             }
-            IndexNotFoundException e = new IndexNotFoundException(followerIndex);
+            IndexNotFoundException infe = new IndexNotFoundException(followerIndex);
             CompletionPersistentTaskAction.Request request =
-                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), e);
+                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), infe);
             threadPool.generic().submit(() -> {
+                /*
+                 * We are executing under the system context, on behalf of the user to clean up the shard follow task after the follower
+                 * index was deleted. This is why the system role includes the privilege for persistent task completion.
+                 */
+                assert threadPool.getThreadContext().isSystemContext();
                 client.execute(CompletionPersistentTaskAction.INSTANCE, request, new ActionListener<>() {
 
                     @Override
@@ -76,7 +82,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("failed to clean up task [{}]", persistentTask.getId());
+                        logger.warn(new ParameterizedMessage("failed to clean up task [{}]", persistentTask.getId()), e);
                     }
                 });
             });

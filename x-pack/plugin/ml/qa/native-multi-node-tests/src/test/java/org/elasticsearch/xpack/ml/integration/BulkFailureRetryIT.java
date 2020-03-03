@@ -48,7 +48,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void putPastDataIntoIndex() {
         client().admin().indices().prepareCreate(index)
-            .addMapping("type", "time", "type=date", "value", "type=long")
+            .setMapping("time", "type=date", "value", "type=long")
             .get();
         long twoDaysAgo = now - DAY * 2;
         long threeDaysAgo = now - DAY * 3;

@@ -100,6 +100,7 @@ public class SSLService {
     private static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
         "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
 
+    private final Environment env;
     private final Settings settings;
     private final boolean diagnoseTrustExceptions;
 
@@ -120,33 +121,33 @@ public class SSLService {
      */
     private final Map<SSLConfiguration, SSLContextHolder> sslContexts;
     private final SetOnce<SSLConfiguration> transportSSLConfiguration = new SetOnce<>();
-    private final Environment env;
-
-    /**
-     * Create a new SSLService using the {@code Settings} from {@link Environment#settings()}.
-     * @see #SSLService(Settings, Environment)
-     */
-    public SSLService(Environment environment) {
-        this(environment.settings(), environment);
-    }
 
     /**
      * Create a new SSLService that parses the settings for the ssl contexts that need to be created, creates them, and then caches them
      * for use later
      */
-    public SSLService(Settings settings, Environment environment) {
-        this.settings = settings;
+    public SSLService(Environment environment) {
         this.env = environment;
+        this.settings = env.settings();
+        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
+        this.sslConfigurations = new HashMap<>();
+        this.sslContexts = loadSSLConfigurations();
+    }
+
+    @Deprecated
+    public SSLService(Settings settings, Environment environment) {
+        this.env = environment;
+        this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
         this.sslConfigurations = new HashMap<>();
         this.sslContexts = loadSSLConfigurations();
     }
 
-    private SSLService(Settings settings, Environment environment, Map<String, SSLConfiguration> sslConfigurations,
+    private SSLService(Environment environment, Map<String, SSLConfiguration> sslConfigurations,
                        Map<SSLConfiguration, SSLContextHolder> sslContexts) {
-        this.settings = settings;
         this.env = environment;
-        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        this.settings = env.settings();
+        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = sslContexts;
     }
@@ -157,7 +158,7 @@ public class SSLService {
      * have been created during initialization
      */
     public SSLService createDynamicSSLService() {
-        return new SSLService(settings, env, sslConfigurations, sslContexts) {
+        return new SSLService(env, sslConfigurations, sslContexts) {
 
             @Override
             Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
@@ -489,9 +490,9 @@ public class SSLService {
      * Parses the settings to load all SSLConfiguration objects that will be used.
      */
     Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
-        Map<SSLConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>();
+        final Map<SSLConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>();
 
-        Map<String, Settings> sslSettingsMap = new HashMap<>();
+        final Map<String, Settings> sslSettingsMap = new HashMap<>();
         sslSettingsMap.put(XPackSettings.HTTP_SSL_PREFIX, getHttpTransportSSLSettings(settings));
         sslSettingsMap.put("xpack.http.ssl", settings.getByPrefix("xpack.http.ssl."));
         sslSettingsMap.putAll(getRealmsSSLSettings(settings));
@@ -533,7 +534,7 @@ public class SSLService {
         assert prefix.endsWith(".ssl");
         SSLConfiguration configuration = getSSLConfiguration(prefix);
         final String enabledSetting = prefix + ".enabled";
-        if (settings.getAsBoolean(enabledSetting, false) == true) {
+        if (settings.getAsBoolean(enabledSetting, false)) {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
             if (isConfigurationValidForServerUsage(configuration) == false) {

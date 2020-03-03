@@ -19,22 +19,18 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.CapturingFuncRefNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a capturing function reference.  For member functions that require a this reference, ie not static.
@@ -55,51 +51,40 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(variable);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        captured = locals.getVariable(location, variable);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        captured = scope.getVariable(location, variable);
         if (expected == null) {
-            if (captured.clazz == def.class) {
+            if (captured.getType() == def.class) {
                 // dynamic implementation
                 defPointer = "D" + variable + "." + call + ",1";
             } else {
                 // typed implementation
-                defPointer = "S" + PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz) + "." + call + ",1";
+                defPointer = "S" + captured.getCanonicalTypeName() + "." + call + ",1";
             }
             actual = String.class;
         } else {
             defPointer = null;
             // static case
-            if (captured.clazz != def.class) {
+            if (captured.getType() != def.class) {
                 ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
-                        expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
+                        expected, captured.getCanonicalTypeName(), call, 1);
             }
             actual = expected;
         }
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        if (defPointer != null) {
-            // dynamic interface: push captured parameter on stack
-            // TODO: don't do this: its just to cutover :)
-            methodWriter.push((String)null);
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-        } else if (ref == null) {
-            // typed interface, dynamic implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
-            methodWriter.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.typeToCanonicalTypeName(expected));
-        } else {
-            // typed interface, typed implementation
-            methodWriter.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            methodWriter.invokeLambdaCall(ref);
-        }
+    CapturingFuncRefNode write(ClassNode classNode) {
+        CapturingFuncRefNode capturingFuncRefNode = new CapturingFuncRefNode();
+
+        capturingFuncRefNode.setLocation(location);
+        capturingFuncRefNode.setExpressionType(actual);
+        capturingFuncRefNode.setCapturedName(captured.getName());
+        capturingFuncRefNode.setName(call);
+        capturingFuncRefNode.setPointer(defPointer);
+        capturingFuncRefNode.setFuncRef(ref);;
+
+        return capturingFuncRefNode;
     }
 
     @Override
@@ -108,8 +93,8 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[] { MethodWriter.getType(captured.clazz) };
+    public List<Class<?>> getCaptures() {
+        return Collections.singletonList(captured.getType());
     }
 
     @Override

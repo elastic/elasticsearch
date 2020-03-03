@@ -20,7 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -53,6 +56,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     protected int precision;
     protected int requiredSize;
     protected int shardSize;
+    private GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
+
 
     @FunctionalInterface
     protected interface PrecisionParser {
@@ -66,6 +71,10 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
             org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);
         parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);
+        parser.declareField((p, builder, context) -> {
+                builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p));
+            },
+            GeoBoundingBox.BOUNDS_FIELD, org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT);
         return parser;
     }
 
@@ -78,7 +87,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         this.precision = clone.precision;
         this.requiredSize = clone.requiredSize;
         this.shardSize = clone.shardSize;
-
+        this.geoBoundingBox = clone.geoBoundingBox;
     }
 
     /**
@@ -89,6 +98,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            geoBoundingBox = new GeoBoundingBox(in);
+        }
     }
 
     @Override
@@ -96,6 +108,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            geoBoundingBox.writeTo(out);
+        }
     }
 
     /**
@@ -110,7 +125,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
      */
     protected abstract ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
         String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
-        QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder, Map<String, Object> metaData
+        GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext, AggregatorFactory parent,
+        Builder subFactoriesBuilder, Map<String, Object> metaData
     ) throws IOException;
 
     public int precision() {
@@ -143,6 +159,16 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         return shardSize;
     }
 
+    public GeoGridAggregationBuilder setGeoBoundingBox(GeoBoundingBox geoBoundingBox) {
+        this.geoBoundingBox = geoBoundingBox;
+        // no validation done here, similar to geo_bounding_box query behavior.
+        return this;
+    }
+
+    public GeoBoundingBox geoBoundingBox() {
+        return geoBoundingBox;
+    }
+
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(QueryShardContext queryShardContext,
                                                                                 ValuesSourceConfig<ValuesSource.GeoPoint> config,
@@ -166,7 +192,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return createFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,
+        return createFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -176,6 +202,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         builder.field(FIELD_SIZE.getPreferredName(), requiredSize);
         if (shardSize > -1) {
             builder.field(FIELD_SHARD_SIZE.getPreferredName(), shardSize);
+        }
+        if (geoBoundingBox.isUnbounded() == false) {
+            geoBoundingBox.toXContent(builder, params);
         }
         return builder;
     }
@@ -188,11 +217,12 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;
         return precision == other.precision
             && requiredSize == other.requiredSize
-            && shardSize == other.shardSize;
+            && shardSize == other.shardSize
+            && Objects.equals(geoBoundingBox, other.geoBoundingBox);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precision, requiredSize, shardSize);
+        return Objects.hash(super.hashCode(), precision, requiredSize, shardSize, geoBoundingBox);
     }
 }

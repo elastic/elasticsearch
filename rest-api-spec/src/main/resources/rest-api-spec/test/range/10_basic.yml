@@ -391,3 +391,59 @@ setup:
         body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2017-09-03", "lte" : "2017-09-04", "relation": "within" } } } }
 
   - match: { hits.total: 0 }
+
+---
+"Date range rounding":
+  - skip:
+      version: " - 7.6.99"
+      reason:  "This part tests rounding behaviour changed in 7.7"
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "date_range" : { "gte": "2019-12-14T12:00:00.000Z", "lte": "2019-12-14T13:00:00.000Z" } }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "date_range" : { "gte": "2019-12-15T12:00:00.000Z", "lte": "2019-12-15T13:00:00.000Z" } }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "date_range" : { "gte": "2019-12-16T12:00:00.000Z", "lte": "2019-12-16T13:00:00.000Z" } }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gt": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "gte": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "lt": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "date_range" : { "lte": "2019-12-15||/d", "relation": "within" } } } }
+
+  - match: { hits.total: 2 }

@@ -1,8 +1,7 @@
 ---
 "Merge metadata across multiple indices":
-
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.5.99"
       reason: Metadata support was added in 7.6
 
   - do:

@@ -66,8 +66,9 @@ The following tables lists all the defaults ISO formats supported:
 
 [[strict-date-time]]`date_optional_time` or `strict_date_optional_time`::
 
-    A generic ISO datetime parser where the date is mandatory and the time is
-    optional.
+    A generic ISO datetime parser where the date, in `year_month_day` format, is
+    mandatory and the time, separated by `T`, is optional.
+    Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSZ` or  `yyyy-MM-dd`.
 
 `basic_date`::
 
@@ -281,4 +282,3 @@ The following tables lists all the defaults ISO formats supported:
 
     A formatter for a four digit year, two digit month of year, and two digit
     day of month: `yyyy-MM-dd`.
-

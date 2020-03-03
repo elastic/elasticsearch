@@ -30,13 +30,14 @@ For more information, see
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (Required, string) Identifier for the calendar.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-put-calendar-request-body]]
 ==== {api-request-body-title}
 
 `description`::
-  (Optional, string) A description of the calendar.
+(Optional, string) A description of the calendar.
 
 [[ml-put-calendar-example]]
 ==== {api-examples-title}

@@ -63,10 +63,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 `expand`::
 (Optional, boolean) If true, the output includes anomaly records.
 
-`page`::
-`page`.`from`:::
+`page`.`from`::
 (Optional, integer) Skips the specified number of buckets.
-`page`.`size`:::
+`page`.`size`::
 (Optional, integer) Specifies the maximum number of buckets to obtain.
 
 `sort`::
@@ -171,50 +170,47 @@ the results for the bucket.
 [[ml-get-bucket-example]]
 ==== {api-examples-title}
 
-The following example gets bucket information for the `it-ops-kpi` job:
-
 [source,console]
 --------------------------------------------------
-GET _ml/anomaly_detectors/it-ops-kpi/results/buckets
+GET _ml/anomaly_detectors/low_request_rate/results/buckets
 {
   "anomaly_score": 80,
   "start": "1454530200001"
 }
 --------------------------------------------------
-// TEST[skip:todo]
+// TEST[skip:Kibana sample data]
 
 In this example, the API returns a single result that matches the specified
 score and time constraints:
 [source,js]
 ----
 {
-  "count": 1,
-  "buckets": [
+  "count" : 1,
+  "buckets" : [
     {
-      "job_id": "it-ops-kpi",
-      "timestamp": 1454943900000,
-      "anomaly_score": 94.1706,
-      "bucket_span": 300,
-      "initial_anomaly_score": 94.1706,
-      "event_count": 153,
-      "is_interim": false,
-      "bucket_influencers": [
+      "job_id" : "low_request_rate",
+      "timestamp" : 1578398400000,
+      "anomaly_score" : 91.58505459594764,
+      "bucket_span" : 3600,
+      "initial_anomaly_score" : 91.58505459594764,
+      "event_count" : 0,
+      "is_interim" : false,
+      "bucket_influencers" : [
         {
-          "job_id": "it-ops-kpi",
-          "result_type": "bucket_influencer",
-          "influencer_field_name": "bucket_time",
-          "initial_anomaly_score": 94.1706,
-          "anomaly_score": 94.1706,
-          "raw_anomaly_score": 2.32119,
-          "probability": 0.00000575042,
-          "timestamp": 1454943900000,
-          "bucket_span": 300,
-          "is_interim": false
+          "job_id" : "low_request_rate",
+          "result_type" : "bucket_influencer",
+          "influencer_field_name" : "bucket_time",
+          "initial_anomaly_score" : 91.58505459594764,
+          "anomaly_score" : 91.58505459594764,
+          "raw_anomaly_score" : 0.5758246639716365,
+          "probability" : 1.7340849573442696E-4,
+          "timestamp" : 1578398400000,
+          "bucket_span" : 3600,
+          "is_interim" : false
         }
       ],
-      "processing_time_ms": 2,
-      "partition_scores": [],
-      "result_type": "bucket"
+      "processing_time_ms" : 0,
+      "result_type" : "bucket"
     }
   ]
 }

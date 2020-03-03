@@ -31,7 +31,8 @@ the `custom_rules` property of detector configuration objects.
 ==== {api-path-parms-title}
 
 `<filter_id>`::
-  (Required, string) Identifier for the filter.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-put-filter-request-body]]
 ==== {api-request-body-title}
@@ -46,8 +47,6 @@ the `custom_rules` property of detector configuration objects.
 
 [[ml-put-filter-example]]
 ==== {api-examples-title}
-
-The following example creates the `safe_domains` filter:
 
 [source,console]
 --------------------------------------------------

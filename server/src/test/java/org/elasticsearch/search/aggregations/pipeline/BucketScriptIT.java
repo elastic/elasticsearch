@@ -645,7 +645,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.parse("seriesArithmetic", createParser(content));
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
 
         SearchResponse response = client()
             .prepareSearch("idx", "idx_unmapped")
@@ -690,7 +690,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.parse("seriesArithmetic", createParser(content));
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
 
         SearchResponse response = client()
             .prepareSearch("idx", "idx_unmapped")
@@ -747,7 +747,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder bucketScriptAgg =
-            BucketScriptPipelineAggregationBuilder.parse("seriesArithmetic", createParser(content));
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
 
         SearchResponse response = client()
             .prepareSearch("idx", "idx_unmapped")

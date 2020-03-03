@@ -59,6 +59,20 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             testSeed = testSeedProperty;
         }
 
+        final String buildSnapshotSystemProperty = System.getProperty("build.snapshot", "true");
+        final boolean isSnapshotBuild;
+        switch (buildSnapshotSystemProperty) {
+            case "true":
+                isSnapshotBuild = true;
+                break;
+            case "false":
+                isSnapshotBuild = false;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                    "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]"
+                );
+        }
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
             if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
@@ -66,8 +80,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
 
-        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo",
-            GenerateGlobalBuildInfoTask.class, task -> {
+        GenerateGlobalBuildInfoTask generateTask = project.getTasks()
+            .create("generateGlobalBuildInfo", GenerateGlobalBuildInfoTask.class, task -> {
                 task.setJavaVersions(javaVersions);
                 task.setMinimumCompilerVersion(minimumCompilerVersion);
                 task.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -102,16 +116,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(isInFipsJvm());
+            params.setIsSnapshotBuild(isSnapshotBuild);
         });
 
-        project.allprojects(p -> {
-            // Make sure than any task execution generates and prints build info
-            p.getTasks().configureEach(task -> {
-                if (task != generateTask && task != printTask) {
-                    task.dependsOn(printTask);
-                }
-            });
-        });
+        project.allprojects(
+            p -> {
+                // Make sure than any task execution generates and prints build info
+                p.getTasks().configureEach(task -> {
+                    if (task != generateTask && task != printTask) {
+                        task.dependsOn(printTask);
+                    }
+                });
+            }
+        );
     }
 
     private static File findCompilerJavaHome() {
@@ -139,11 +156,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static String findJavaHome(String version) {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
-            throw new GradleException(
-                "$" + getJavaHomeEnvVarName(version) + " must be set to build Elasticsearch. " +
-                    "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                    "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+            final String exceptionMessage = String.format(
+                Locale.ROOT,
+                "$%s must be set to build Elasticsearch. "
+                    + "Note that if the variable was just set you "
+                    + "might have to run `./gradlew --stop` for "
+                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
+                getJavaHomeEnvVarName(version)
             );
+
+            throw new GradleException(exceptionMessage);
         }
         return versionedJavaHome;
     }
@@ -157,9 +179,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static String getResourceContents(String resourcePath) {
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath))
-        )) {
+        try (
+            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
+        ) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                 if (b.length() != 0) {
@@ -194,7 +216,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             if (name.equals("physical id")) {
                                 currentID = value;
                             }
-                            // Number  of cores not including hyper-threading
+                            // Number of cores not including hyper-threading
                             if (name.equals("cpu cores")) {
                                 assert currentID.isEmpty() == false;
                                 socketToCore.put("currentID", Integer.valueOf(value));
@@ -256,6 +278,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             } else {
                 // this is a git worktree, follow the pointer to the repository
                 final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                if (Files.exists(workTree) == false) {
+                    return "unknown";
+                }
                 head = workTree.resolve("HEAD");
                 final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
                 if (commonDir.isAbsolute()) {
@@ -271,10 +296,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 Path refFile = gitDir.resolve(refName);
                 if (Files.exists(refFile)) {
                     revision = readFirstLine(refFile);
-                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                } else if (Files.exists(gitDir.resolve("packed-refs"))) {
                     // Check packed references for commit ID
                     Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
-                    try (Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"))) {
+                    try (Stream<String> lines = Files.lines(gitDir.resolve("packed-refs"))) {
                         revision = lines.map(p::matcher)
                             .filter(Matcher::matches)
                             .map(m -> m.group(1))
@@ -298,9 +323,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static String readFirstLine(final Path path) throws IOException {
         String firstLine;
         try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
-            firstLine = lines
-                .findFirst()
-                .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+            firstLine = lines.findFirst().orElseThrow(() -> new IOException("file [" + path + "] is empty"));
         }
         return firstLine;
     }

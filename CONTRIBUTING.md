@@ -119,6 +119,10 @@ For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij]
 
     ./gradlew :run
 
+You can access Elasticsearch with:
+
+    curl -u elastic:password localhost:9200
+
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
@@ -161,6 +165,22 @@ Some tests related to locale testing also require the flag
 `-Djava.locale.providers` to be set. Set the VM options/VM arguments for
 IntelliJ or Eclipse like describe above to use
 `-Djava.locale.providers=SPI,COMPAT`.
+
+### REST Endpoint Conventions
+
+Elasticsearch typically uses singular nouns rather than plurals in URLs.
+For example:
+
+    /_ingest/pipline
+    /_ingest/pipline/{id}
+
+but not:
+
+    /_ingest/piplines
+    /_ingest/piplines/{id}
+
+You may find counterexamples, but new endpoints should use the singular
+form.
 
 ### Java Language Formatting Guidelines
 
@@ -214,7 +234,7 @@ Please follow these formatting guidelines:
 
 #### Editor / IDE Support
 
-Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
+Eclipse IDEs can import the file [.eclipseformat.xml]
 directly.
 
 IntelliJ IDEs can

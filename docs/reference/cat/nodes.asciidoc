@@ -87,7 +87,7 @@ Used disk space, such as `259.8gb`.
 Available disk space, such as `198.4gb`.
 
 `disk.used_percent`, `dup`, `diskUsedPercent`::
-Used disk space percentage, such as `198.4gb`.
+Used disk space percentage, such as `47`.
 
 `heap.current`, `hc`, `heapCurrent`::
 Used heap, such as `311.2mb`.
@@ -284,8 +284,6 @@ Number of suggest operations, such as `0`.
 --
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

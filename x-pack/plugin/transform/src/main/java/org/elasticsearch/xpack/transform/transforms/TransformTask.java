@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -159,9 +160,22 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         TransformCheckpointService transformsCheckpointService,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
+            if (context.getChangesLastDetectedAt() != null) {
+                infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
+            }
+            listener.onResponse(infoBuilder.build());
+        }, listener::onFailure);
+
         ClientTransformIndexer indexer = getIndexer();
         if (indexer == null) {
-            transformsCheckpointService.getCheckpointingInfo(transform.getId(), context.getCheckpoint(), initialPosition, null, listener);
+            transformsCheckpointService.getCheckpointingInfo(
+                transform.getId(),
+                context.getCheckpoint(),
+                initialPosition,
+                null,
+                checkPointInfoListener
+            );
             return;
         }
         indexer.getCheckpointProvider()
@@ -170,13 +184,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 indexer.getNextCheckpoint(),
                 indexer.getPosition(),
                 indexer.getProgress(),
-                ActionListener.wrap(info -> {
-                    if (context.getChangesLastDetectedAt() == null) {
-                        listener.onResponse(info);
-                    } else {
-                        listener.onResponse(info.setChangesLastDetectedAt(context.getChangesLastDetectedAt()));
-                    }
-                }, listener::onFailure)
+                checkPointInfoListener
             );
     }
 
@@ -447,6 +455,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             listener.onResponse(null);
             return;
         }
+
+        logger.error("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.

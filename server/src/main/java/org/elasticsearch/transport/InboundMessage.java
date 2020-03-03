@@ -100,6 +100,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                         assertRemoteVersion(streamInput, remoteVersion);
                     }
                     streamInput = namedWriteableStream(streamInput);
+                    assertRemoteVersion(streamInput, remoteVersion);
                     message = new Request(threadContext, remoteVersion, status, requestId, action, features, streamInput);
                 } else {
                     if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {

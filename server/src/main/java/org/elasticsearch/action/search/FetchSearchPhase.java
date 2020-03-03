@@ -25,11 +25,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
@@ -50,16 +53,19 @@ final class FetchSearchPhase extends SearchPhase {
     private final Logger logger;
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchProgressListener progressListener;
+    private final AggregatedDfs aggregatedDfs;
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
+                     AggregatedDfs aggregatedDfs,
                      SearchPhaseContext context) {
-        this(resultConsumer, searchPhaseController, context,
+        this(resultConsumer, searchPhaseController, aggregatedDfs, context,
             (response, scrollId) -> new ExpandSearchPhase(context, response, scrollId));
     }
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
+                     AggregatedDfs aggregatedDfs,
                      SearchPhaseContext context, BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
@@ -69,6 +75,7 @@ final class FetchSearchPhase extends SearchPhase {
         this.fetchResults = new AtomicArray<>(resultConsumer.getNumShards());
         this.searchPhaseController = searchPhaseController;
         this.queryResults = resultConsumer.getAtomicArray();
+        this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory =  nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
@@ -144,7 +151,8 @@ final class FetchSearchPhase extends SearchPhase {
                         Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
                             searchShardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getRequestId(), i, entry,
-                            lastEmittedDocPerShard, searchShardTarget.getOriginalIndices());
+                            lastEmittedDocPerShard, searchShardTarget.getOriginalIndices(), queryResult.getShardSearchRequest(),
+                            queryResult.getRescoreDocIds());
                         executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
                             connection);
                     }
@@ -153,10 +161,12 @@ final class FetchSearchPhase extends SearchPhase {
         }
     }
 
-    protected ShardFetchSearchRequest createFetchRequest(long queryId, int index, IntArrayList entry,
-                                                               ScoreDoc[] lastEmittedDocPerShard, OriginalIndices originalIndices) {
+    protected ShardFetchSearchRequest createFetchRequest(long queryId, int index, IntArrayList entry, ScoreDoc[] lastEmittedDocPerShard,
+                                                         OriginalIndices originalIndices, ShardSearchRequest shardSearchRequest,
+                                                         RescoreDocIds rescoreDocIds) {
         final ScoreDoc lastEmittedDoc = (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[index] : null;
-        return new ShardFetchSearchRequest(originalIndices, queryId, entry, lastEmittedDoc);
+        return new ShardFetchSearchRequest(originalIndices, queryId, shardSearchRequest, entry, lastEmittedDoc,
+            rescoreDocIds, aggregatedDfs);
     }
 
     private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget,

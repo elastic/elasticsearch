@@ -523,4 +523,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public CollapseContext collapse() {
         return in.collapse();
     }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+        in.addRescore(rescore);
+    }
 }

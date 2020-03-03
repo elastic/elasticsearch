@@ -59,7 +59,7 @@ public class CountedCollectorTests extends ESTestCase {
                 case 1:
                     state.add(1);
                     executor.execute(() -> {
-                        DfsSearchResult dfsSearchResult = new DfsSearchResult(shardID, null);
+                        DfsSearchResult dfsSearchResult = new DfsSearchResult(shardID, null, null);
                         dfsSearchResult.setShardIndex(shardID);
                         dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
                             new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));

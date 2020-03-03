@@ -24,12 +24,11 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.rescore.RescoreContext;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -51,25 +50,13 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
     private volatile long keepAlive;
     private volatile long lastAccessTime = -1L;
 
-    // BWC
-    private final ShardSearchRequest request;
-    private final ScrollContext scrollContext;
-    private AggregatedDfs aggregatedDfs;
-    private List<RescoreContext> rescore;
-
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher, ShardSearchRequest request) {
+    public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher) {
         super("reader_context");
         this.id = id;
         this.indexShard = indexShard;
         this.engineSearcher = engineSearcher;
-        this.request = request;
-        if (request.scroll() != null) {
-            this.scrollContext = new ScrollContext();
-        } else {
-            this.scrollContext = null;
-        }
     }
 
     @Override
@@ -106,22 +93,6 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
         return engineSearcher.source();
     }
 
-    public ShardSearchRequest request() {
-        return request;
-    }
-
-    public ScrollContext scrollContext() {
-        return scrollContext;
-    }
-
-    public AggregatedDfs aggregatedDfs() {
-        return aggregatedDfs;
-    }
-
-    public void aggregatedDfs(AggregatedDfs aggregatedDfs) {
-        this.aggregatedDfs = aggregatedDfs;
-    }
-
     public void accessed(long accessTime) {
         this.lastAccessTime = accessTime;
     }
@@ -138,18 +109,28 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
         this.keepAlive = keepAlive;
     }
 
-    public List<RescoreContext> rescore() {
-        if (rescore == null) {
-            return Collections.emptyList();
-        } else {
-            return Collections.unmodifiableList(rescore);
-        }
+    // BWC
+    public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
+        return Objects.requireNonNull(other);
     }
 
-    public void addRescore(RescoreContext rescore) {
-        if (this.rescore == null) {
-            this.rescore = new ArrayList<>();
-        }
-        this.rescore.add(rescore);
+    public ScrollContext scrollContext() {
+        return null;
+    }
+
+    public AggregatedDfs getAggregatedDfs(AggregatedDfs other) {
+        return other;
+    }
+
+    public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
+
+    }
+
+    public RescoreDocIds getRescoreDocIds(RescoreDocIds other) {
+        return Objects.requireNonNull(other);
+    }
+
+    public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
+
     }
 }

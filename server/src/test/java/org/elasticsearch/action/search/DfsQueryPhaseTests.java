@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DfsQueryPhaseTests extends ESTestCase {
 
     private static DfsSearchResult newSearchResult(int shardIndex, long requestId, SearchShardTarget target) {
-        DfsSearchResult result = new DfsSearchResult(requestId, target);
+        DfsSearchResult result = new DfsSearchResult(requestId, target, null);
         result.setShardIndex(shardIndex);
         return result;
     }
@@ -67,7 +67,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-                        null, OriginalIndices.NONE));
+                        null, OriginalIndices.NONE), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -75,7 +75,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                     listener.onResponse(queryResult);
                 } else if (request.id() == 2) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new ShardId("test", "na", 0),
-                        null, OriginalIndices.NONE));
+                        null, OriginalIndices.NONE), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F),
                             new DocValueFormat[0]);
@@ -88,7 +88,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results, controller,
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, controller,
             (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
@@ -127,7 +127,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-                        null, OriginalIndices.NONE));
+                        null, OriginalIndices.NONE), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -142,7 +142,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results, controller,
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, controller,
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -184,7 +184,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-                        null, OriginalIndices.NONE));
+                        null, OriginalIndices.NONE), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -199,7 +199,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results, controller,
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, controller,
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {

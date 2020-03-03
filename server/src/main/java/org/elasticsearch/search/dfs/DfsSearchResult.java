@@ -25,11 +25,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
@@ -58,11 +60,15 @@ public class DfsSearchResult extends SearchPhaseResult {
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
     }
 
-    public DfsSearchResult(long id, SearchShardTarget shardTarget) {
+    public DfsSearchResult(long id, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
         this.requestId = id;
+        setShardSearchRequest(shardSearchRequest);
     }
 
     public DfsSearchResult maxDoc(int maxDoc) {
@@ -97,7 +103,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
-  @Override
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(requestId);
         out.writeVInt(terms.length);
@@ -108,6 +114,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(getShardSearchRequest());
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,

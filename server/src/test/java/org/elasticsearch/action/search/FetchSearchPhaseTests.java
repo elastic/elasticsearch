@@ -70,7 +70,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             numHits = 0;
         }
 
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
             @Override
             public void run() {
@@ -96,14 +96,15 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-            null, OriginalIndices.NONE));
+            null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE));
+        queryResult = new QuerySearchResult(
+            321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
@@ -126,7 +127,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() {
@@ -154,14 +155,15 @@ public class FetchSearchPhaseTests extends ESTestCase {
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-            null, OriginalIndices.NONE));
+            null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE));
+        queryResult = new QuerySearchResult(
+            321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
@@ -183,7 +185,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() {
@@ -216,7 +218,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.getRequest(), numHits);
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-                null, OriginalIndices.NONE));
+                null, OriginalIndices.NONE), null);
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(i+1, i)}), i), new DocValueFormat[0]);
             queryResult.size(resultSetSize); // the size of the result set
@@ -236,7 +238,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() {
@@ -273,14 +275,15 @@ public class FetchSearchPhaseTests extends ESTestCase {
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-            null, OriginalIndices.NONE));
+            null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE));
+        queryResult = new QuerySearchResult(
+            321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
@@ -306,7 +309,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() {
@@ -329,14 +332,15 @@ public class FetchSearchPhaseTests extends ESTestCase {
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = 1;
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
-            null, OriginalIndices.NONE));
+            null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE));
+        queryResult = new QuerySearchResult(
+            321, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
@@ -357,7 +361,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
+        FetchSearchPhase phase = new FetchSearchPhase(results, controller, null, mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() {

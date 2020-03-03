@@ -317,6 +317,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             new ShardSearchRequest(OriginalIndices.NONE, useScroll ? scrollSearchRequest : searchRequest,
                                 indexShard.shardId(), 1,
                                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
+                            true,
                             new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), result);
                         SearchPhaseResult searchPhaseResult = result.get();
                         IntArrayList intCursors = new IntArrayList(1);
@@ -369,7 +370,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new AliasFilter(null, Strings.EMPTY_ARRAY),
             1.0f, -1, null, null);
 
-        try (ReaderContext reader = createReaderContext(indexShard, requestWithDefaultTimeout);
+        try (ReaderContext reader = createReaderContext(indexShard);
              SearchContext contextWithDefaultTimeout = service.createContext(reader, requestWithDefaultTimeout, null, randomBoolean())) {
             // the search context should inherit the default timeout
             assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -384,7 +385,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             1,
             new AliasFilter(null, Strings.EMPTY_ARRAY),
             1.0f, -1, null, null);
-        try (ReaderContext reader = createReaderContext(indexShard, requestWithCustomTimeout);
+        try (ReaderContext reader = createReaderContext(indexShard);
              SearchContext context = service.createContext(reader, requestWithCustomTimeout, null, randomBoolean())) {
             // the search context should inherit the query timeout
             assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
@@ -410,12 +411,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
         final ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
-        try (ReaderContext reader = createReaderContext(indexShard, request);
+        try (ReaderContext reader = createReaderContext(indexShard);
              SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
             assertNotNull(context);
         }
         searchSourceBuilder.docValueField("one_field_too_much");
-        try (ReaderContext reader = createReaderContext(indexShard, request)) {
+        try (ReaderContext reader = createReaderContext(indexShard)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> service.createContext(reader, request, null, randomBoolean()));
             assertEquals(
@@ -447,7 +448,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
             indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
 
-        try(ReaderContext reader = createReaderContext(indexShard, request)) {
+        try(ReaderContext reader = createReaderContext(indexShard)) {
             try (SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
                 assertNotNull(context);
             }
@@ -479,7 +480,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE,
             searchRequest, indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY),
             1.0f, -1, null, null);
-        try (ReaderContext reader = createReaderContext(indexShard, request);
+        try (ReaderContext reader = createReaderContext(indexShard);
              SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
             assertEquals(0, context.scriptFields().fields().size());
         }
@@ -517,7 +518,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService.SearchRewriteContext rewriteContext =
             service.acquireSearcherAndRewrite(new ShardScrollRequestTest(indexShard.shardId()), indexShard);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> service.createAndPutReaderContext(rewriteContext));
+            () -> service.createAndPutReaderContext(rewriteContext, randomBoolean()));
         assertEquals(
             "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                 SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
@@ -633,7 +634,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        service.executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {
+        service.executeQueryPhase(request, randomBoolean(), task, new ActionListener<SearchPhaseResult>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
                 try {
@@ -775,7 +776,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 throw new NullPointerException("expected");
             }
         };
-        try (ReaderContext reader = createReaderContext(indexService.getShard(shardId.id()), request)) {
+        try (ReaderContext reader = createReaderContext(indexService.getShard(shardId.id()))) {
             NullPointerException e = expectThrows(NullPointerException.class,
                 () -> service.createContext(reader, request, null, randomBoolean()));
             assertEquals("expected", e.getMessage());
@@ -801,7 +802,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         {
             CountDownLatch latch = new CountDownLatch(1);
             shardRequest.source().query(new MatchAllQueryBuilder());
-            service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            service.executeQueryPhase(shardRequest, randomBoolean(), task, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchPhaseResult result) {
                     try {
@@ -831,7 +832,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         {
             CountDownLatch latch = new CountDownLatch(1);
             shardRequest.source().query(new MatchNoneQueryBuilder());
-            service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            service.executeQueryPhase(shardRequest, randomBoolean(), task, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchPhaseResult result) {
                     try {
@@ -861,7 +862,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         {
             CountDownLatch latch = new CountDownLatch(1);
             shardRequest.canReturnNullResponseIfMatchNoDocs(true);
-            service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            service.executeQueryPhase(shardRequest, randomBoolean(), task, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchPhaseResult result) {
                     try {
@@ -918,8 +919,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    private ReaderContext createReaderContext(IndexShard shard, ShardSearchRequest request) {
+    private ReaderContext createReaderContext(IndexShard shard) {
         Engine.Searcher searcher = shard.acquireSearcher("test");
-        return new ReaderContext(randomNonNegativeLong(), shard, searcher, request);
+        return new ReaderContext(randomNonNegativeLong(), shard, searcher);
     }
 }

@@ -599,4 +599,9 @@ public class TestSearchContext extends SearchContext {
     public boolean isCancelled() {
         return task.isCancelled();
     }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+
+    }
 }

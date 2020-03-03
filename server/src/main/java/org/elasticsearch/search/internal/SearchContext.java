@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -58,8 +59,10 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -155,6 +158,38 @@ public abstract class SearchContext implements Releasable {
      * @return list of all rescore contexts.  empty if there aren't any.
      */
     public abstract List<RescoreContext> rescore();
+
+    public abstract void addRescore(RescoreContext rescore);
+
+    public final RescoreDocIds rescoreDocIds() {
+        final List<RescoreContext> rescore = rescore();
+        if (rescore == null) {
+            return RescoreDocIds.EMPTY;
+        }
+        Map<Integer, Set<Integer>> rescoreDocIds = null;
+        for (int i = 0; i < rescore.size(); i++) {
+            final Set<Integer> docIds = rescore.get(i).getRescoredDocs();
+            if (docIds != null && docIds.isEmpty() == false) {
+                if (rescoreDocIds == null) {
+                    rescoreDocIds = new HashMap<>();
+                }
+                rescoreDocIds.put(i, docIds);
+            }
+        }
+        return rescoreDocIds == null ? RescoreDocIds.EMPTY : new RescoreDocIds(rescoreDocIds);
+    }
+
+    public final void assignRescoreDocIds(RescoreDocIds rescoreDocIds) {
+        final List<RescoreContext> rescore = rescore();
+        if (rescore != null) {
+            for (int i = 0; i < rescore.size(); i++) {
+                final Set<Integer> docIds = rescoreDocIds.getId(i);
+                if (docIds != null) {
+                    rescore.get(i).setRescoredDocs(docIds);
+                }
+            }
+        }
+    }
 
     public abstract boolean hasScriptFields();
 

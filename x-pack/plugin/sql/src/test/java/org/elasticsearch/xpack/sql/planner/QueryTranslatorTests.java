@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
+import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -645,6 +646,24 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(params.a0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
+    }
+
+    public void testTranslateCoalesceExpression_GroupByAndWhere_Painless() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, max(date) FROM test WHERE c > 10 GROUP BY c");
+        assertTrue(p instanceof EsQueryExec);
+        EsQueryExec esQExec = (EsQueryExec) p;
+        assertEquals(2, esQExec.output().size());
+        QueryContainer queryContainer = esQExec.queryContainer();
+        assertEquals(1, queryContainer.aggs().groups().size());
+        assertEquals("InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])",
+                queryContainer.aggs().groups().get(0).script().toString());
+        assertEquals("[{v=int}]", queryContainer.aggs().groups().get(0).script().params().toString());
+        assertTrue(queryContainer.query() instanceof ScriptQuery);
+        ScriptQuery sq = (ScriptQuery) queryContainer.query();
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+                sq.script().toString());
+        assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
     }
 
     public void testTranslateInExpression_WhereClause() {

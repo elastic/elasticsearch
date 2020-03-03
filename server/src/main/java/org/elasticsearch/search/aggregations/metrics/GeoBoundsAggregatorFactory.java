@@ -75,12 +75,14 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 + GeoBoundsAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, (ValuesSource.GeoPoint) valuesSource,
-            wrapLongitude, pipelineAggregators, metaData);
+        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, wrapLongitude,
+            pipelineAggregators, metaData);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoBoundsAggregatorSupplier) GeoBoundsAggregator::new);
+            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData)
+                -> new GeoBoundsAggregator(name, aggregationContext, parent, (ValuesSource.GeoPoint) valuesSource,
+                    wrapLongitude, pipelineAggregators, metaData));
     }
 }

@@ -29,9 +29,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@FunctionalInterface
 public interface GeoBoundsAggregatorSupplier extends AggregatorSupplier {
 
     GeoBoundsAggregator build(String name, SearchContext aggregationContext, Aggregator parent,
-                        ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
+                        ValuesSource valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
                         Map<String, Object> metaData) throws IOException;
 }

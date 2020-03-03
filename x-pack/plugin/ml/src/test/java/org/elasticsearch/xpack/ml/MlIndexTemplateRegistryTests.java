@@ -92,7 +92,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client.admin().indices(), times(6)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(7)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
 
         PutIndexTemplateRequest req = putIndexTemplateRequestCaptor.getAllValues().stream()
             .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
@@ -112,7 +112,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client.admin().indices(), times(6)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(7)).putTemplate(putIndexTemplateRequestCaptor.capture(), anyObject());
 
         PutIndexTemplateRequest req = putIndexTemplateRequestCaptor.getAllValues().stream()
             .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))

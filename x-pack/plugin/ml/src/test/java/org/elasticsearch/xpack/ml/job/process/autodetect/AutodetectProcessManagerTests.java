@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -165,8 +166,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
             .indices(ImmutableOpenMap.<String, IndexMetaData>builder()
                 .fPut(
-                    AnomalyDetectorsIndex.initialJobStateIndex(),
-                    IndexMetaData.builder(AnomalyDetectorsIndex.initialJobStateIndex())
+                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
+                    IndexMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
                         .settings(
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)

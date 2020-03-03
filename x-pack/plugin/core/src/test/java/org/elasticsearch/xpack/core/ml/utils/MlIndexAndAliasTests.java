@@ -64,13 +64,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private static final String LEGACY_INDEX_WITHOUT_SUFFIX = TEST_INDEX_PREFIX;
     private static final String FIRST_CONCRETE_INDEX = "test-000001";
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-
     private ThreadPool threadPool;
     private IndicesAdminClient indicesAdminClient;
     private AdminClient adminClient;
     private Client client;
-    private ActionListener<Boolean> finalListener;
+    private ActionListener<Boolean> listener;
 
     private ArgumentCaptor<CreateIndexRequest> createRequestCaptor;
     private ArgumentCaptor<IndicesAliasesRequest> aliasesRequestCaptor;
@@ -94,7 +92,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(adminClient);
 
-        finalListener = mock(ActionListener.class);
+        listener = mock(ActionListener.class);
 
         createRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         aliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
@@ -102,17 +100,17 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     @After
     public void verifyNoMoreInteractionsWithMocks() {
-        verifyNoMoreInteractions(indicesAdminClient, finalListener);
+        verifyNoMoreInteractions(indicesAdminClient, listener);
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_CleanState() {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
         createIndexAndAliasIfNecessary(clusterState);
 
-        InOrder inOrder = inOrder(indicesAdminClient, finalListener);
+        InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).prepareCreate(FIRST_CONCRETE_INDEX);
         inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
-        inOrder.verify(finalListener).onResponse(true);
+        inOrder.verify(listener).onResponse(true);
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
@@ -123,7 +121,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         ClusterState clusterState = createClusterState(Collections.singletonMap(indexName, createIndexMetaDataWithAlias(indexName)));
         createIndexAndAliasIfNecessary(clusterState);
 
-        verify(finalListener).onResponse(false);
+        verify(listener).onResponse(false);
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtInitialStateIndex() {
@@ -131,7 +129,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtSubsequentStateIndex() {
-        assertNoClientInteractionsWhenWriteAliasAlreadyExists(".ml-state-000007");
+        assertNoClientInteractionsWhenWriteAliasAlreadyExists("test-000007");
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtDummyIndex() {
@@ -144,12 +142,12 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetaDataWithAlias(LEGACY_INDEX_WITHOUT_SUFFIX)));
         createIndexAndAliasIfNecessary(clusterState);
 
-        InOrder inOrder = inOrder(indicesAdminClient, finalListener);
+        InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).prepareCreate(FIRST_CONCRETE_INDEX);
         inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
         inOrder.verify(indicesAdminClient).prepareAliases();
         inOrder.verify(indicesAdminClient).aliases(aliasesRequestCaptor.capture(), any());
-        inOrder.verify(finalListener).onResponse(true);
+        inOrder.verify(listener).onResponse(true);
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
@@ -169,10 +167,10 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 existingIndexNames.stream().collect(toMap(Function.identity(), MlIndexAndAliasTests::createIndexMetaData)));
         createIndexAndAliasIfNecessary(clusterState);
 
-        InOrder inOrder = inOrder(indicesAdminClient, finalListener);
+        InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).prepareAliases();
         inOrder.verify(indicesAdminClient).aliases(aliasesRequestCaptor.capture(), any());
-        inOrder.verify(finalListener).onResponse(true);
+        inOrder.verify(listener).onResponse(true);
 
         IndicesAliasesRequest indicesAliasesRequest = aliasesRequestCaptor.getValue();
         assertThat(
@@ -200,10 +198,10 @@ public class MlIndexAndAliasTests extends ESTestCase {
             createClusterState(Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetaData(LEGACY_INDEX_WITHOUT_SUFFIX)));
         createIndexAndAliasIfNecessary(clusterState);
 
-        InOrder inOrder = inOrder(indicesAdminClient, finalListener);
+        InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).prepareCreate(FIRST_CONCRETE_INDEX);
         inOrder.verify(indicesAdminClient).create(createRequestCaptor.capture(), any());
-        inOrder.verify(finalListener).onResponse(true);
+        inOrder.verify(listener).onResponse(true);
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
@@ -237,7 +235,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
-            client, clusterState, new IndexNameExpressionResolver(), TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, finalListener);
+            client, clusterState, new IndexNameExpressionResolver(), TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
     }
 
     @SuppressWarnings("unchecked")

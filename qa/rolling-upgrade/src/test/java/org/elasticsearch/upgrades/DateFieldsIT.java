@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -25,7 +26,10 @@ import org.elasticsearch.client.Response;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
 /**
  * This is test is meant to verify that when upgrading from 6.x version to 7.7 or newer it is able to parse date fields with joda pattern.
@@ -94,7 +98,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
                 search.setOptions(expectWarnings(V_7_0_0_PLUS_WARNING));
                 searchResp = client().performRequest(search);
-                assertEquals(200, searchResp.getStatusLine().getStatusCode());
+                assertSearchResponse(searchResp, 3);
                 break;
         }
     }
@@ -121,13 +125,21 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
                 search = dateRangeSearch("java_time/_search");
                 searchResp = client().performRequest(search);
-                assertEquals(200, searchResp.getStatusLine().getStatusCode());
+                assertSearchResponse(searchResp, 3);
                 break;
         }
     }
 
+    private void assertSearchResponse(Response searchResp, int count) throws IOException {
+        assertEquals(200, searchResp.getStatusLine().getStatusCode());
+        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+        EntityUtils.toString(searchResp.getEntity(), StandardCharsets.UTF_8));
+    }
+
     private Request dateRangeSearch(String endpoint) {
         Request search = new Request("GET", endpoint);
+        search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        search.addParameter("filter_path", "hits.total");
         search.setJsonEntity("" +
                 "{\n" +
                 "  \"sort\": \"datetime\",\n" +
@@ -146,6 +158,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
     private Request indexWithDateField(String indexName, String format) {
         Request createTestIndex = new Request("PUT", indexName);
+        createTestIndex.addParameter("include_type_name", "false");
         createTestIndex.setJsonEntity("{\n" +
             "  \"settings\": {\n" +
             "    \"index.number_of_shards\": 3\n" +

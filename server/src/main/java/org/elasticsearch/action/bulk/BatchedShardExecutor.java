@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,7 +48,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 public class BatchedShardExecutor implements IndexEventListener {
@@ -109,20 +107,20 @@ public class BatchedShardExecutor implements IndexEventListener {
     public void primary(BulkShardRequest request, IndexShard primary, ActionListener<WriteResult> writeListener,
                         ActionListener<FlushResult> flushListener) {
         PrimaryOp shardOp = new PrimaryOp(request, primary, writeListener, flushListener);
-        enqueueAndScheduleWrite(shardOp, true);
+        enqueueAndScheduleWrite(shardOp);
     }
 
     public void replica(BulkShardRequest request, IndexShard replica, ActionListener<Void> writeListener,
                         ActionListener<FlushResult> flushListener) {
         ReplicaOp shardOp = new ReplicaOp(request, replica, writeListener, flushListener);
-        enqueueAndScheduleWrite(shardOp, true);
+        enqueueAndScheduleWrite(shardOp);
     }
 
     ShardState getShardState(IndexShard indexShard) {
         return shardStateMap.get(indexShard);
     }
 
-    private void enqueueAndScheduleWrite(ShardOp shardOp, boolean allowReject) {
+    private void enqueueAndScheduleWrite(ShardOp shardOp) {
         IndexShard indexShard = shardOp.getIndexShard();
         ShardState shardState = shardStateMap.get(indexShard);
 
@@ -130,17 +128,14 @@ public class BatchedShardExecutor implements IndexEventListener {
             onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
             return;
         }
+        shardState.preIndexedEnqueue(shardOp);
 
-        if (shardState.attemptPreIndexedEnqueue(shardOp, allowReject)) {
-            // If the ShardState was closed after we enqueued, attempt to remove our operation and finish it
-            // to ensure that it does not get lost.
-            if (shardState.isClosed() && shardState.removePreIndexed(shardOp)) {
-                onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
-            } else {
-                maybeSchedule(shardState);
-            }
+        // If the ShardState was closed after we enqueued, attempt to remove our operation and finish it
+        // to ensure that it does not get lost.
+        if (shardState.isClosed() && shardState.removePreIndexed(shardOp)) {
+            onFailure(Stream.of(shardOp.getWriteListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
         } else {
-            throw new EsRejectedExecutionException("rejected execution of shard operation", false);
+            maybeSchedule(shardState);
         }
     }
 
@@ -204,7 +199,7 @@ public class BatchedShardExecutor implements IndexEventListener {
                 try {
                     if (shardOp instanceof PrimaryOp) {
                         PrimaryOp primaryOp = (PrimaryOp) shardOp;
-                        Runnable rescheduler = () -> enqueueAndScheduleWrite(primaryOp, false);
+                        Runnable rescheduler = () -> enqueueAndScheduleWrite(primaryOp);
                         opCompleted = primaryOpHandler.apply(primaryOp, rescheduler);
                     } else {
                         opCompleted = replicaOpHandler.apply((ReplicaOp) shardOp);
@@ -449,9 +444,6 @@ public class BatchedShardExecutor implements IndexEventListener {
 
     static class ShardState {
 
-        private static final int MAX_QUEUED = 1000;
-
-        private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
         private final ConcurrentLinkedQueue<ShardOp> postIndexedQueue = new ConcurrentLinkedQueue<>();
         private final IndexShard indexShard;
@@ -466,39 +458,16 @@ public class BatchedShardExecutor implements IndexEventListener {
             this.indexShard = indexShard;
         }
 
-        private boolean attemptPreIndexedEnqueue(ShardOp shardOp, boolean allowReject) {
-            if (allowReject && operationRejected(shardOp)) {
-                return false;
-            } else {
-                pendingOps.incrementAndGet();
-                preIndexedQueue.add(shardOp);
-                return true;
-            }
-        }
-
-        private boolean operationRejected(ShardOp shardOp) {
-            int pending = pendingOps.get();
-            if (shardOp instanceof PrimaryOp) {
-                return pending >= MAX_QUEUED;
-            } else {
-                return pending >= (MAX_QUEUED * 10);
-            }
+        private void preIndexedEnqueue(ShardOp shardOp) {
+            preIndexedQueue.add(shardOp);
         }
 
         private boolean removePreIndexed(ShardOp shardOp) {
-            if (preIndexedQueue.remove(shardOp)) {
-                pendingOps.getAndDecrement();
-                return true;
-            }
-            return false;
+            return preIndexedQueue.remove(shardOp);
         }
 
         private ShardOp pollPreIndexed() {
-            ShardOp operation = preIndexedQueue.poll();
-            if (operation != null) {
-                pendingOps.getAndDecrement();
-            }
-            return operation;
+            return preIndexedQueue.poll();
         }
 
         private void postIndexedEnqueue(ShardOp shardOp) {
@@ -528,10 +497,6 @@ public class BatchedShardExecutor implements IndexEventListener {
 
         private void markTaskStarted() {
             scheduleTaskSemaphore.release();
-        }
-
-        int pendingOperations() {
-            return pendingOps.get();
         }
 
         int scheduledTasks() {

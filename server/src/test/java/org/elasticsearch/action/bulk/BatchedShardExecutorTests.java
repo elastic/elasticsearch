@@ -89,7 +89,6 @@ public class BatchedShardExecutorTests extends IndexShardTestCase {
                 assertBusy(() -> {
                     BatchedShardExecutor.ShardState shardState = batchedShardExecutor.getShardState(shard);
                     assertEquals(WRITE_THREADS, shardState.scheduledTasks());
-                    assertEquals(numberOfOps, shardState.pendingOperations());
                 });
             }
             flushedLatch.await();

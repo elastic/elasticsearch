@@ -269,7 +269,7 @@ For {ccs}, we recommend you use gateway nodes that are capable of serving as
 wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
 
 [discrete]
-[[ccs-gateway-seed-nodes]]
+[[ccs-proxy-mode]]
 == {ccs} in proxy mode
 
 <<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote

@@ -339,7 +339,8 @@ public class SearchModule {
 
     private void registerAggregations(List<SearchPlugin> plugins) {
         registerAggregation(new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder::parse)
-                .addResultReader(InternalAvg::new));
+            .addResultReader(InternalAvg::new)
+            .setAggregatorRegistrar(AvgAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
             WeightedAvgAggregationBuilder::parse).addResultReader(InternalWeightedAvg::new));
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder::parse)
@@ -368,7 +369,8 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(PercentileRanksAggregationBuilder.NAME, PercentileRanksAggregationBuilder::new,
                 PercentileRanksAggregationBuilder::parse)
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
-                        .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
+                        .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new)
+                        .setAggregatorRegistrar(PercentileRanksAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
             MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
                 .addResultReader(InternalMedianAbsoluteDeviation::new)

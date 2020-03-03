@@ -10,7 +10,7 @@ public final class RequestDefaults {
 
     private RequestDefaults() {}
 
-    public static final String FIELD_TIMESTAMP = "@timestamp";
+    public static final String FIELD_TIMESTAMP = "timestamp";
     public static final String FIELD_EVENT_TYPE = "event_type";
     public static final String IMPLICIT_JOIN_KEY = "agent.id";
 

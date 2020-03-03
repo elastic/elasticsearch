@@ -65,7 +65,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
     private final Boolean isHidden;
 
     private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
-                          Boolean isHidden) {
+                          @Nullable Boolean isHidden) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -128,6 +128,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         return writeIndex;
     }
 
+    @Nullable
     public Boolean isHidden() {
         return isHidden;
     }

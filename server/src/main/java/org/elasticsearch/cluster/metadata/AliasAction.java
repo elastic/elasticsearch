@@ -91,7 +91,7 @@ public abstract class AliasAction {
          * Build the operation.
          */
         public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting,
-                   @Nullable Boolean writeIndex, Boolean isHidden) {
+                   @Nullable Boolean writeIndex, @Nullable Boolean isHidden) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
@@ -115,6 +115,7 @@ public abstract class AliasAction {
             return writeIndex;
         }
 
+        @Nullable
         public Boolean isHidden() {
             return isHidden;
         }

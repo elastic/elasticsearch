@@ -101,7 +101,7 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> PercentilesAggregationBuilder.parse("myPercentiles", parser));
+                () -> PercentilesAggregationBuilder.PARSER.parse(parser, "myPercentiles"));
         assertThat(e.getMessage(), containsString("[percentiles] failed to parse field [hdr]"));
     }
 }

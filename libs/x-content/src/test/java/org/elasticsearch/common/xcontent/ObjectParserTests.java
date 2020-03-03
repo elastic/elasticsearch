@@ -850,29 +850,30 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(obj.b, equalTo(456L));
     }
 
-    public void testMultipleRequiredFieldSet() throws IOException {
-        class TestStruct {
-            private Long a;
-            private Long b;
-            private Long c;
-            private Long d;
+    private static class TestStruct {
+        private Long a;
+        private Long b;
+        private Long c;
+        private Long d;
 
-            private void setA(long value) {
-                this.a = value;
-            }
-
-            private void setB(long value) {
-                this.b = value;
-            }
-
-            private void setC(long value) {
-                this.c = value;
-            }
-
-            private void setD(long value) {
-                this.d = value;
-            }
+        private void setA(long value) {
+            this.a = value;
         }
+
+        private void setB(long value) {
+            this.b = value;
+        }
+
+        private void setC(long value) {
+            this.c = value;
+        }
+
+        private void setD(long value) {
+            this.d = value;
+        }
+    }
+
+    public void testMultipleRequiredFieldSet() throws IOException {
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
@@ -886,6 +887,32 @@ public class ObjectParserTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
         assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
             "Required one of fields [c, d], but none were specified. "));
+    }
+
+    public void testExclusiveFieldSet() throws IOException {
+
+        XContentParser goodA = createParser(JsonXContent.jsonXContent, "{\"a\" : 1, \"c\" : 4}");
+        XContentParser bad = createParser(JsonXContent.jsonXContent, "{\"a\" : 1, \"b\" : 2}");
+        XContentParser badmulti = createParser(JsonXContent.jsonXContent, "{\"a\" : 1, \"b\" : 2, \"c\" : 3, \"d\" : 4 }");
+
+        ObjectParser<TestStruct, Void> parser = new ObjectParser<>("foo", TestStruct::new);
+        parser.declareLong(TestStruct::setA, new ParseField("a"));
+        parser.declareLong(TestStruct::setB, new ParseField("b"));
+        parser.declareLong(TestStruct::setC, new ParseField("c"));
+        parser.declareLong(TestStruct::setD, new ParseField("d"));
+        parser.declareExclusiveFieldSet("a", "b");
+        parser.declareExclusiveFieldSet("c", "d");
+
+        TestStruct actualA = parser.parse(goodA, null);
+        assertThat(actualA.a, equalTo(1L));
+        assertThat(actualA.c, equalTo(4L));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(bad, null));
+        assertThat(e.getMessage(), containsString("The following fields are not allowed together: [a, b]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> parser.parse(badmulti, null));
+        assertThat(e.getMessage(),
+            containsString("allowed together: [a, b] The following fields are not allowed together: [c, d]"));
     }
 
     @Override

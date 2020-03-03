@@ -105,8 +105,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 + "   SELECT text, number, SQRT(number) AS s, SCORE()"
                 + "     FROM test"
                 + " ORDER BY number, SCORE()\", "
-                + "\"mode\":\"" + mode + "\", "
-            + "\"fetch_size\":2" + columnarParameter(columnar) + "}";
+                + "\"mode\":\"" + mode + "\""
+                + version(mode)
+                + ", \"fetch_size\":2" + columnarParameter(columnar) + "}";
 
         Number value = xContentDependentFloatingNumberValue(mode, 1f);
         String cursor = null;

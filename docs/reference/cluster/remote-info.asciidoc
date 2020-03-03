@@ -25,7 +25,7 @@ by the configured remote cluster alias.
 ==== {api-response-body-title}
 
 `mode`::
-    The configured connection mode for the remote cluster. Will be `sniff` or
+    Connection mode for the remote cluster. Returned values are `sniff` and
     `proxy`.
 
 `connected`::

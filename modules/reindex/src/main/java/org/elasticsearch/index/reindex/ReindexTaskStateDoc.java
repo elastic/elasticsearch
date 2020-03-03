@@ -234,7 +234,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     public ReindexTaskStateDoc withFinishedState(long endTimeMillis, @Nullable BulkByScrollResponse reindexResponse,
                                                  @Nullable ElasticsearchException exception) {
         return new ReindexTaskStateDoc(reindexRequest, resilient, startTimeMillis, allocationId, ephemeralTaskId, endTimeMillis,
-            reindexResponse, exception, failureStatusCode, checkpoint, checkpointStatus, requestsPerSecond);
+            reindexResponse, exception,  exception != null ? exception.status() : null, checkpoint, checkpointStatus, requestsPerSecond);
     }
 
     public ReindexTaskStateDoc withRequestsPerSecond(float requestsPerSecond) {

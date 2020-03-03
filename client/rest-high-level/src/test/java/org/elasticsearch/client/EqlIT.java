@@ -79,6 +79,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
             sb.append(",");
         }
         sb.append("\"event_type\": \"process\",");
+        sb.append("\"timestamp\": \"2020-02-03T12:34:56Z\",");
         sb.append("\"serial_event_id\": 1");
         sb.append("}");
         doc1.setJsonEntity(sb.toString());

@@ -24,11 +24,17 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -39,7 +45,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.apache.lucene.util.TestUtil.nextInt;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchCancellationTests extends ESTestCase {
@@ -57,10 +62,10 @@ public class SearchCancellationTests extends ESTestCase {
         // we need at least 2 segments - so no merges should be allowed
         w.w.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
         w.setDoRandomForceMerge(false);
-        int numDocs = nextInt(random(), 2, 20);
+        int numDocs = TestUtil.nextInt(random(), 2, 20);
         indexRandomDocuments(w, numDocs, 0);
         w.flush();
-        indexRandomDocuments(w, nextInt(random(), 1, 20), numDocs);
+        indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20), numDocs);
         reader = w.getReader();
         w.close();
     }
@@ -99,7 +104,7 @@ public class SearchCancellationTests extends ESTestCase {
     }
 
     public void testCancellableDirectoryReader() throws IOException {
-        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicBoolean cancelled = new AtomicBoolean(true);
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
         searcher.setCancellable(() -> {
@@ -107,13 +112,40 @@ public class SearchCancellationTests extends ESTestCase {
                 throw new TaskCancelledException("cancelled");
             }
         });
-        searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).iterator();
-        searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME).getDocCount();
+        CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
 
-        cancelled.set(true);
         expectThrows(TaskCancelledException.class,
                 () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).iterator());
         expectThrows(TaskCancelledException.class,
-                () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME).getDocCount());
+                () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).intersect(automaton, null));
+        expectThrows(TaskCancelledException.class,
+                () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME));
+        expectThrows(TaskCancelledException.class,
+                () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME));
+
+        cancelled.set(false); // Avoid exception during construction of the wrapper objects
+        Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME);
+        TermsEnum termsIterator = terms.iterator();
+        TermsEnum termsIntersect = terms.intersect(automaton, null);
+        PointValues pointValues = searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME);
+        cancelled.set(true);
+        expectThrows(TaskCancelledException.class, termsIterator::next);
+        expectThrows(TaskCancelledException.class, termsIntersect::next);
+        expectThrows(TaskCancelledException.class, pointValues::getDocCount);
+        expectThrows(TaskCancelledException.class, pointValues::getNumDimensions);
+        expectThrows(TaskCancelledException.class, () -> pointValues.intersect(new PointValues.IntersectVisitor() {
+            @Override
+            public void visit(int docID) {
+            }
+
+            @Override
+            public void visit(int docID, byte[] packedValue) {
+            }
+
+            @Override
+            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                return null;
+            }
+        }));
     }
 }

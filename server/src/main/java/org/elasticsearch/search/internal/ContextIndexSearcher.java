@@ -235,7 +235,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (scorer != null) {
                 try {
                     intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                            this.cancellable == null ? () -> {} : this::checkCancelled);
+                            this.cancellable == null ? () -> {} : cancellable::checkCancelled);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -496,16 +496,16 @@ public class ContextIndexSearcher extends IndexSearcher {
             this.cancellable.checkCancelled();
         }
 
-        @Override
-        public BytesRef next() throws IOException {
-            checkAndThrowWithSampling();
-            return in.next();
-        }
-
         private void checkAndThrowWithSampling() {
             if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                 cancellable.checkCancelled();
             }
+        }
+
+        @Override
+        public BytesRef next() throws IOException {
+            checkAndThrowWithSampling();
+            return in.next();
         }
     }
 

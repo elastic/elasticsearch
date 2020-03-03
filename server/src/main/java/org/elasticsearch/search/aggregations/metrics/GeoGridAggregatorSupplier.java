@@ -21,18 +21,20 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@FunctionalInterface
 public interface GeoGridAggregatorSupplier extends AggregatorSupplier {
-    GeoGridAggregator build(String name, AggregatorFactories factories, CellIdSource valuesSource,
+
+    GeoGridAggregator build(String name, AggregatorFactories factories, ValuesSource valuesSource,
                             int requiredSize, int shardSize, SearchContext aggregationContext,
                             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                             Map<String, Object> metaData) throws IOException;

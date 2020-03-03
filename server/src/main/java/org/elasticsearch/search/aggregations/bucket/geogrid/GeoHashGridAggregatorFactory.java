@@ -100,6 +100,9 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoHashGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoGridAggregatorSupplier) GeoHashGridAggregator::new);
+            (GeoGridAggregatorSupplier) (name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent,
+                                         pipelineAggregators, metaData) -> new GeoHashGridAggregator(name, factories,
+                (CellIdSource) valuesSource, requiredSize, shardSize, aggregationContext,
+                parent, pipelineAggregators, metaData));
     }
 }

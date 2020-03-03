@@ -99,6 +99,9 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoGridAggregatorSupplier) GeoTileGridAggregator::new);
+            (GeoGridAggregatorSupplier) (name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent,
+                                         pipelineAggregators, metaData) -> new GeoTileGridAggregator(name, factories,
+                (CellIdSource) valuesSource, requiredSize, shardSize, aggregationContext,
+                parent, pipelineAggregators, metaData));
     }
 }

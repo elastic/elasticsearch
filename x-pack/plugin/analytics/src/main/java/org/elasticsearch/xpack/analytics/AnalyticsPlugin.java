@@ -133,7 +133,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isDataScienceAllowed() == false) {
+            if (getLicenseState().isAnalyticsAllowed() == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

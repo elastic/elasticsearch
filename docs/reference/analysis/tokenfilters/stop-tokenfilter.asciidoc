@@ -126,7 +126,7 @@ PUT /my_index
 +
 --
 (Optional, string or array of strings)
-Language value, such as `_arabic_` or `thai`. Defaults to
+Language value, such as `_arabic_` or `_thai_`. Defaults to
 <<english-stop-words,`_english_`>>.
 
 Each language value corresponds to a predefined list of stop words in Lucene.

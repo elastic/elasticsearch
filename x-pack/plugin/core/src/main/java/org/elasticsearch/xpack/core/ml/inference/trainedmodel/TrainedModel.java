@@ -9,6 +9,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -67,4 +68,9 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
     default Version getMinimalCompatibilityVersion() {
         return Version.V_7_6_0;
     }
+
+    /**
+     * @return The expected {@link ModelFieldType} value for the given `fieldName`
+     */
+    ModelFieldType inputType(String fieldName);
 }

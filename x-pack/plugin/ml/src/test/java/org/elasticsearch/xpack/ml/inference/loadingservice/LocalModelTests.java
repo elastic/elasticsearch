@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
@@ -41,7 +42,10 @@ public class LocalModelTests extends ESTestCase {
 
     public void testClassificationInfer() throws Exception {
         String modelId = "classification_model";
-        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("field.foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("field.bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("categorical", ModelFieldType.CATEGORICAL.toString()));
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
@@ -85,7 +89,10 @@ public class LocalModelTests extends ESTestCase {
     }
 
     public void testRegression() throws Exception {
-        List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("categorical", ModelFieldType.CATEGORICAL.toString()));
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
@@ -109,7 +116,10 @@ public class LocalModelTests extends ESTestCase {
     }
 
     public void testAllFieldsMissing() throws Exception {
-        List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("categorical", ModelFieldType.CATEGORICAL.toString()));
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())

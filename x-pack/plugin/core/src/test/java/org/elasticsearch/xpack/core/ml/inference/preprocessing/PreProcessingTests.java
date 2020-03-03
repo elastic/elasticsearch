@@ -13,7 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class PreProcessingTests<T extends PreProcessor> extends AbstractSerializingTestCase<T> {
 
@@ -47,6 +49,11 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
         Map<String, Object> fieldsCopy = new HashMap<>(fields);
         preProcessor.process(fields);
         assertThat(fieldsCopy, equalTo(fields));
+    }
+
+    public void testInputTypeWithMissingField() {
+        PreProcessor preProcessor = this.createTestInstance();
+        assertThat(preProcessor.inputType("random_field"), is(nullValue()));
     }
 
     Map<String, Object> randomFieldValues() {

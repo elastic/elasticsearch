@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -49,6 +50,7 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
@@ -306,11 +308,15 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) throws IOException {
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("baz", ModelFieldType.CATEGORICAL.toString()));
         TrainedModelDefinition definition = mock(TrainedModelDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelDefinition()).thenReturn(definition);
-        when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
+        when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(inputFields));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];

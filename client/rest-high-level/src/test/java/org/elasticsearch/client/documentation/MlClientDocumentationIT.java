@@ -4171,7 +4171,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
             .setDescription("test model")
             .build();
         highLevelClient().machineLearning().putTrainedModel(new PutTrainedModelRequest(trainedModelConfig), RequestOptions.DEFAULT);

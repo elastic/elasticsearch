@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class TrainedModelInputTests extends AbstractSerializingTestCase<TrainedModelInput> {
+public class TrainedModelInputTests extends AbstractBWCSerializationTestCase<TrainedModelInput> {
 
     private boolean lenient;
 
@@ -41,7 +42,8 @@ public class TrainedModelInputTests extends AbstractSerializingTestCase<TrainedM
     }
 
     public static TrainedModelInput createRandomInput() {
-        return new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
+        return new TrainedModelInput(Stream.generate(
+            () -> new TrainedModelInput.InputObject(randomAlphaOfLength(10), randomFrom(ModelFieldType.values()).toString()))
             .limit(randomInt(10))
             .collect(Collectors.toList()));
     }
@@ -56,4 +58,14 @@ public class TrainedModelInputTests extends AbstractSerializingTestCase<TrainedM
         return TrainedModelInput::new;
     }
 
+    @Override
+    protected TrainedModelInput mutateInstanceForVersion(TrainedModelInput instance, Version version) {
+        if (version.before(Version.V_7_7_0)) {
+            return new TrainedModelInput(instance.getFieldNames()
+                .stream()
+                .map(inputObject -> new TrainedModelInput.InputObject(inputObject.getFieldName(), null))
+                .collect(Collectors.toList()));
+        }
+        return instance;
+    }
 }

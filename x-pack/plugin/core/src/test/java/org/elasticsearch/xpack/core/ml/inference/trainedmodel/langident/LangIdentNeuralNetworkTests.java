@@ -12,12 +12,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 
 public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<LangIdentNeuralNetwork> {
@@ -63,4 +68,9 @@ public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<Lan
         return new NamedXContentRegistry(namedXContent);
     }
 
+    public void testInputFieldValue() {
+        LangIdentNeuralNetwork model = createRandom();
+        assertThat(model.inputType(model.getEmbeddedVectorFeatureName()), equalTo(ModelFieldType.VECTOR));
+        assertThat(model.inputType(randomAlphaOfLength(10)), is(nullValue()));
+    }
 }

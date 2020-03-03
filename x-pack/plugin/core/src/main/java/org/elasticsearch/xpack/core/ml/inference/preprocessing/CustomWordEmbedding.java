@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureUtils;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureValue;
@@ -220,6 +221,10 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         return data[row * colDim + col];
     }
 
+    public String getFieldName() {
+        return fieldName;
+    }
+
     @Override
     public void process(Map<String, Object> fields) {
         Object field = fields.get(fieldName);
@@ -239,6 +244,14 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public Map<String, String> reverseLookup() {
         return Collections.singletonMap(destField, fieldName);
+    }
+
+    @Override
+    public ModelFieldType inputType(String fieldName) {
+        if (this.fieldName.equals(fieldName)) {
+            return ModelFieldType.TEXT;
+        }
+        return null;
     }
 
     @Override

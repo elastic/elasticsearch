@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -37,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -159,7 +161,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
         List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
-        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder(Arrays.asList("bar", "baz"));
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
 
@@ -177,7 +179,10 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
-        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar", "baz")));
+        assertThat(
+            storedModel.getInput().getFieldNames().stream().map(TrainedModelInput.InputObject::getFieldName).collect(Collectors.toList()),
+            equalTo(Arrays.asList("bar", "baz"))
+        );
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
         Map<String, Object> metadata = storedModel.getMetadata();

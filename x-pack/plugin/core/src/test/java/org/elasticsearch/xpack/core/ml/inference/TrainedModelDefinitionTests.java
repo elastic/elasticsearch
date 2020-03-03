@@ -61,7 +61,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return false;
     }
 
-    public static TrainedModelDefinition.Builder createRandomBuilder() {
+    public static TrainedModelDefinition.Builder createRandomBuilder(List<String> featureNames) {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()
             .setPreProcessors(
@@ -71,7 +71,13 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.createRandom(), EnsembleTests.createRandom()));
+            .setTrainedModel(randomFrom(TreeTests.buildRandomTree(featureNames, 6), EnsembleTests.createRandom(featureNames)));
+    }
+
+    public static TrainedModelDefinition.Builder createRandomBuilder() {
+        int numberOfFeatures = randomIntBetween(1, 10);
+        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
+        return createRandomBuilder(featureNames);
     }
 
     private static final String ENSEMBLE_MODEL = "" +

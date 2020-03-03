@@ -202,7 +202,7 @@ public class AnalyticsResultProcessor {
             .setEstimatedHeapMemory(definition.ramBytesUsed())
             .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
             .setParsedDefinition(inferenceModel)
-            .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
+            .setInput(TrainedModelInput.fromFieldsAndDefinition(fieldNamesWithoutDependentVariable, definition))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .build();
     }

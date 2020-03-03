@@ -194,7 +194,7 @@ public class TrainedModelIT extends ESRestTestCase {
             TrainedModelConfig.builder()
                 .setDefinition(definition)
                 .setModelId(modelId)
-                .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
+                .setInput(new TrainedModelInput("col1", "col2", "col3"))
                 .build().toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request model = new Request("PUT", "_ml/inference/" + modelId);
             model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));

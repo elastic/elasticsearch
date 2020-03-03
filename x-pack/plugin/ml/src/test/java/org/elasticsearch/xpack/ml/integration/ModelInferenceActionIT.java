@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -66,13 +67,17 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     }
 
     public void testInferModels() throws Exception {
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("field.foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("field.bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("other.categorical", ModelFieldType.CATEGORICAL.toString()));
         String modelId1 = "test-load-models-regression";
         String modelId2 = "test-load-models-classification";
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
+            .setInput(new TrainedModelInput(inputFields))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
                 .setTrainedModel(buildClassification(true)))
@@ -83,7 +88,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setEstimatedHeapMemory(0)
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
+            .setInput(new TrainedModelInput(inputFields))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
                 .setTrainedModel(buildRegression()))
@@ -198,10 +203,14 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     public void testInferModelMultiClassModel() throws Exception {
         String modelId = "test-load-models-classification-multi";
         Map<String, String> oneHotEncoding = new HashMap<>();
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("field.foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("field.bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("other.categorical", ModelFieldType.CATEGORICAL.toString()));
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
+            .setInput(new TrainedModelInput(inputFields))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
                 .setTrainedModel(buildMultiClassClassification()))
@@ -313,12 +322,16 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     }
 
     public void testInferMissingFields() throws Exception {
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("field1", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("categorical", ModelFieldType.CATEGORICAL.toString()),
+            new TrainedModelInput.InputObject("field2", ModelFieldType.SCALAR.toString()));
         String modelId = "test-load-models-regression-missing-fields";
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
+            .setInput(new TrainedModelInput(inputFields))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setTrainedModel(buildRegression()))

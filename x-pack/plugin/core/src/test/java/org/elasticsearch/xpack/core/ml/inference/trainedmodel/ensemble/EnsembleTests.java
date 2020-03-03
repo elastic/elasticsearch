@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,8 +38,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
     private final double eps = 1.0E-8;
@@ -64,9 +68,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         return lenient ? Ensemble.fromXContentLenient(parser) : Ensemble.fromXContentStrict(parser);
     }
 
-    public static Ensemble createRandom() {
-        int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
+    public static Ensemble createRandom(List<String> featureNames) {
         int numberOfModels = randomIntBetween(1, 10);
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
             .limit(numberOfModels)
@@ -100,6 +102,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             targetType,
             categoryLabels,
             thresholds);
+    }
+
+    public static Ensemble createRandom() {
+        int numberOfFeatures = randomIntBetween(1, 10);
+        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
+        return createRandom(featureNames);
     }
 
     @Override
@@ -725,6 +733,14 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         assertThat(featureImportance.get("bar"), closeTo(0.1451914, eps));
     }
 
+    public void testInputFieldValue() {
+        List<String> featureNames = Arrays.asList("foo", "bar", "baz");
+        Ensemble model = createRandom(featureNames);
+        for (String featureName : featureNames) {
+            assertThat(model.inputType(featureName), equalTo(ModelFieldType.SCALAR));
+        }
+        assertThat(model.inputType(randomAlphaOfLength(10)), is(nullValue()));
+    }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));

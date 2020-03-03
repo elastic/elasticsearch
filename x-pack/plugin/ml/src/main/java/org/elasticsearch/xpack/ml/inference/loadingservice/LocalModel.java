@@ -27,7 +27,7 @@ public class LocalModel implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
-    private final Set<String> fieldNames;
+    private final Set<TrainedModelInput.InputObject> fieldNames;
 
     public LocalModel(String modelId, TrainedModelDefinition trainedModelDefinition, TrainedModelInput input) {
         this.trainedModelDefinition = trainedModelDefinition;
@@ -61,7 +61,7 @@ public class LocalModel implements Model {
     @Override
     public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
         try {
-            if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
+            if (fieldNames.stream().allMatch(f -> MapHelper.dig(f.getFieldName(), fields) == null)) {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }

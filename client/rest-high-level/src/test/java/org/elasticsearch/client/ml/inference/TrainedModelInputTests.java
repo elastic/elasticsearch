@@ -45,9 +45,14 @@ public class TrainedModelInputTests extends AbstractXContentTestCase<TrainedMode
     }
 
     public static TrainedModelInput createRandomInput() {
-        return new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(randomLongBetween(1, 10))
-            .collect(Collectors.toList()));
+        return randomBoolean() ?
+            new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
+                .limit(randomLongBetween(1, 10))
+                .toArray(String[]::new)) :
+            new TrainedModelInput(
+                Stream.generate(
+                    () -> new TrainedModelInput.InputObject(randomAlphaOfLength(10), randomAlphaOfLength(10))
+                ).limit(10).collect(Collectors.toList()));
     }
 
     @Override

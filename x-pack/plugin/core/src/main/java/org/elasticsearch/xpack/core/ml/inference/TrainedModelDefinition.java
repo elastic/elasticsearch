@@ -148,6 +148,16 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         }
     }
 
+    public ModelFieldType inputType(String fieldName) {
+        for (PreProcessor preProcessor : preProcessors) {
+            ModelFieldType fieldType = preProcessor.inputType(fieldName);
+            if (fieldType != null) {
+                return fieldType;
+            }
+        }
+        return trainedModel.inputType(fieldName);
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);

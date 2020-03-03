@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
@@ -100,6 +101,14 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     @Override
     public Map<String, String> reverseLookup() {
         return Collections.singletonMap(featureName, field);
+    }
+
+    @Override
+    public ModelFieldType inputType(String fieldName) {
+        if (field.equals(fieldName)) {
+            return ModelFieldType.CATEGORICAL;
+        }
+        return null;
     }
 
     @Override

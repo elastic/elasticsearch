@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -86,6 +88,11 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         encoding.process(fieldValues);
 
         assertThat(fieldValues.get("encoded"), equalTo(valueMap.get("farequote")));
+    }
+
+    public void testInputFieldValue() {
+        TargetMeanEncoding processor = createRandom();
+        assertThat(processor.inputType(processor.getField()), CoreMatchers.equalTo(ModelFieldType.CATEGORICAL));
     }
 
 }

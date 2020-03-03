@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 
 import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 
 public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbedding> {
@@ -41,6 +44,11 @@ public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbed
             }
         }
         return new CustomWordEmbedding(quantiles, weights, randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    public void testInputFieldValue() {
+        CustomWordEmbedding processor = createRandom();
+        assertThat(processor.inputType(processor.getFieldName()), equalTo(ModelFieldType.TEXT));
     }
 
     @Override

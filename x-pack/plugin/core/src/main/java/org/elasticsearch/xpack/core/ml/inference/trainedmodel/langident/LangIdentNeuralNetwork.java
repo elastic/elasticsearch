@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -103,6 +104,11 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         this.softmaxLayer = new LangNetLayer(in);
     }
 
+
+    public String getEmbeddedVectorFeatureName() {
+        return embeddedVectorFeatureName;
+    }
+
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
         if (config.requestingImportance()) {
@@ -172,6 +178,14 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     @Override
     public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
         throw new UnsupportedOperationException("[lang_ident] does not support feature importance");
+    }
+
+    @Override
+    public ModelFieldType inputType(String fieldName) {
+        if (embeddedVectorFeatureName.equals(fieldName)) {
+            return ModelFieldType.VECTOR;
+        }
+        return null;
     }
 
     @Override

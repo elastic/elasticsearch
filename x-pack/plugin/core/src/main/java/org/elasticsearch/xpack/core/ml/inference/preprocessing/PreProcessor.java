@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.util.Map;
@@ -29,4 +30,10 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accou
      * @return Reverse lookup map to match resulting features to their original feature name
      */
     Map<String, String> reverseLookup();
+
+    /**
+     * @return The {@link ModelFieldType} that is expected for the given fieldName.
+     *         Returns `null` if `fieldName` is not expected by the processor.
+     */
+    ModelFieldType inputType(String fieldName);
 }

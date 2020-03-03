@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -29,9 +30,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 
 public class TreeTests extends AbstractSerializingTestCase<Tree> {
@@ -478,6 +481,15 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 .setFeatureNames(Collections.emptyList())
                 .build()
                 .validate();
+    }
+
+    public void testInputFieldValue() {
+        List<String> featureNames = Arrays.asList("foo", "bar", "baz");
+        Tree model = buildRandomTree(featureNames, 6);
+        for (String featureName : featureNames) {
+            assertThat(model.inputType(featureName), equalTo(ModelFieldType.SCALAR));
+        }
+        assertThat(model.inputType(randomAlphaOfLength(10)), is(nullValue()));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {

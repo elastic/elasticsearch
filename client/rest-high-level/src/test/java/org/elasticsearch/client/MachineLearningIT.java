@@ -2215,7 +2215,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
             .setDescription("test model")
             .build();
         PutTrainedModelResponse putTrainedModelResponse = execute(new PutTrainedModelRequest(trainedModelConfig),
@@ -2228,7 +2228,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         trainedModelConfig = TrainedModelConfig.builder()
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition))
             .setModelId(modelIdCompressed)
-            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
             .setDescription("test model")
             .build();
         putTrainedModelResponse = execute(new PutTrainedModelRequest(trainedModelConfig),
@@ -2534,7 +2534,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
             .setDescription("test model")
             .build();
         highLevelClient().machineLearning().putTrainedModel(new PutTrainedModelRequest(trainedModelConfig), RequestOptions.DEFAULT);

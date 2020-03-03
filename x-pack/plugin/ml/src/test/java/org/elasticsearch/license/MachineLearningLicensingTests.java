@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -50,6 +51,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -667,6 +669,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     private void putInferenceModel(String modelId) {
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("feature1", ModelFieldType.SCALAR.toString()));
         TrainedModelConfig config = TrainedModelConfig.builder()
             .setParsedDefinition(
             new TrainedModelDefinition.Builder()
@@ -679,7 +683,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             .setPreProcessors(Collections.emptyList()))
             .setModelId(modelId)
             .setDescription("test model for classification")
-            .setInput(new TrainedModelInput(Arrays.asList("feature1")))
+            .setInput(new TrainedModelInput(inputFields))
             .build();
         client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();
     }

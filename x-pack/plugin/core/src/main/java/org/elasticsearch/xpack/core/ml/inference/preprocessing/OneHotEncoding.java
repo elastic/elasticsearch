@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
@@ -85,6 +86,14 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     @Override
     public Map<String, String> reverseLookup() {
         return hotMap.entrySet().stream().collect(Collectors.toMap(HashMap.Entry::getValue, (entry) -> field));
+    }
+
+    @Override
+    public ModelFieldType inputType(String fieldName) {
+        if (this.field.equals(fieldName)) {
+            return ModelFieldType.CATEGORICAL;
+        }
+        return null;
     }
 
     @Override

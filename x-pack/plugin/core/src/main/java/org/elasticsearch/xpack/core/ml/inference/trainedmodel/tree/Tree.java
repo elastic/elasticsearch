@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.ModelFieldType;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
@@ -540,6 +541,14 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             return Version.V_7_7_0;
         }
         return Version.V_7_6_0;
+    }
+
+    @Override
+    public ModelFieldType inputType(String fieldName) {
+        if (this.featureNames.contains(fieldName)) {
+            return ModelFieldType.SCALAR;
+        }
+        return null;
     }
 
     public static class Builder {

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -116,6 +118,14 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
             .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())
+            .setInput(TrainedModelInput.fromFieldsAndDefinition(
+                request.getTrainedModelConfig()
+                    .getInput()
+                    .getFieldNames()
+                    .stream()
+                    .map(TrainedModelInput.InputObject::getFieldName)
+                    .collect(Collectors.toList()),
+                request.getTrainedModelConfig().getModelDefinition()))
             .build();
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(

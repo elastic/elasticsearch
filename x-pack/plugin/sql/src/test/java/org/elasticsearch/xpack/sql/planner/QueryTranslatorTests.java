@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
-import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -654,20 +653,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof EsQueryExec);
         EsQueryExec esQExec = (EsQueryExec) p;
         assertEquals(2, esQExec.output().size());
-        QueryContainer queryContainer = esQExec.queryContainer();
-        assertEquals(1, queryContainer.aggs().groups().size());
-        assertEquals("InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])",
-                queryContainer.aggs().groups().get(0).script().toString());
-        assertEquals("[{v=int}]", queryContainer.aggs().groups().get(0).script().params().toString());
-        assertEquals(1, queryContainer.aggs().pipelineAggs().size());
-        assertTrue(queryContainer.aggs().pipelineAggs().get(0) instanceof AggFilter);
-        AggFilter aggFilter = (AggFilter) queryContainer.aggs().pipelineAggs().get(0);
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
-                "InternalSqlScriptUtils.coalesce([params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))",
-                aggFilter.scriptTemplate().toString());
-        assertEquals("[{a=max(date)}, {v=2020-01-01T00:00:00.000Z}]", aggFilter.scriptTemplate().params().toString());
-        assertTrue(queryContainer.query() instanceof ScriptQuery);
-        ScriptQuery sq = (ScriptQuery) queryContainer.query();
+        AggregationBuilder aggBuilder = esQExec.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
+                ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
+                "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
+                "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
+                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
+                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+        assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
+        ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
                 "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)]),params.v1))",
                 sq.script().toString());

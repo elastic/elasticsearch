@@ -70,11 +70,6 @@ public class Aggs {
         return groups;
     }
 
-    // For testing
-    public List<PipelineAgg> pipelineAggs() {
-        return pipelineAggs;
-    }
-
     public AggregationBuilder asAggBuilder() {
         AggregationBuilder rootGroup = null;
 

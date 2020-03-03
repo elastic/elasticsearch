@@ -163,6 +163,7 @@ public class TransportStartDataFrameAnalyticsAction
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
+                    logger.debug("[{}] waiting for task to start", task.getParams().getId());
                     waitForAnalyticsStarted(task, request.getTimeout(), listener);
                 }
 
@@ -397,6 +398,7 @@ public class TransportStartDataFrameAnalyticsAction
                         // what would have happened if the error had been detected in the "fast fail" validation
                         cancelAnalyticsStart(task, predicate.exception, listener);
                     } else {
+                        logger.debug("[{}] task is now started", task.getParams().getId());
                         auditor.info(task.getParams().getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED);
                         listener.onResponse(new AcknowledgedResponse(true));
                     }

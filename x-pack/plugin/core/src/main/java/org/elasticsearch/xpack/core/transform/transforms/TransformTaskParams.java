@@ -68,7 +68,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         } else {
             this.frequency = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.requiresRemote = in.readBoolean();
         } else {
             this.requiresRemote = false;
@@ -94,7 +94,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalTimeValue(frequency);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(requiresRemote);
         }
     }

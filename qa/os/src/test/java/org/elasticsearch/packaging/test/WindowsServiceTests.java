@@ -82,12 +82,16 @@ public class WindowsServiceTests extends PackagingTestCase {
             logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
-            Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
-                "Write-Output $files; " +
-                "foreach ($file in $files) {" +
-                    "Write-Output \"$file\"; " +
-                    "Get-Content \"$file\" " +
-                "}");
+            Result logs = sh.run(
+                "$files = Get-ChildItem \""
+                    + installation.logs
+                    + "\\elasticsearch.log\"; "
+                    + "Write-Output $files; "
+                    + "foreach ($file in $files) {"
+                    + "    Write-Output \"$file\"; "
+                    + "    Get-Content \"$file\" "
+                    + "}"
+            );
             logger.error(logs.stdout);
             fail();
         } else {
@@ -105,7 +109,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         Path serviceExe = installation.bin("elasticsearch-service-x64.exe");
         Path tmpServiceExe = serviceExe.getParent().resolve(serviceExe.getFileName() + ".tmp");
         Files.move(serviceExe, tmpServiceExe);
-        Result result =  sh.runIgnoreExitCode(serviceScript + " install");
+        Result result = sh.runIgnoreExitCode(serviceScript + " install");
         assertThat(result.exitCode, equalTo(1));
         assertThat(result.stdout, containsString("elasticsearch-service-x64.exe was not found..."));
         Files.move(tmpServiceExe, serviceExe);
@@ -167,28 +171,32 @@ public class WindowsServiceTests extends PackagingTestCase {
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
         // the process is stopped async, and can become a zombie process, so we poll for the process actually being gone
-        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-            "$i = 0;" +
-            "do {" +
-              "$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-              "echo \"$p\";" +
-              "if ($p -eq $Null) {" +
-              "  Write-Host \"exited after $i seconds\";" +
-              "  exit 0;" +
-              "}" +
-              "Start-Sleep -Seconds 1;" +
-              "$i += 1;" +
-            "} while ($i -lt 300);" +
-            "exit 9;");
+        assertCommand(
+            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+                + "$i = 0;"
+                + "do {"
+                + "  $p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+                + "  echo \"$p\";"
+                + "  if ($p -eq $Null) {"
+                + "    Write-Host \"exited after $i seconds\";"
+                + "    exit 0;"
+                + "  }"
+                + "  Start-Sleep -Seconds 1;"
+                + "  $i += 1;"
+                + "} while ($i -lt 300);"
+                + "exit 9;"
+        );
 
         assertCommand(serviceScript + " remove");
-        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-            "echo \"$p\";" +
-            "if ($p -eq $Null) {" +
-            "  exit 0;" +
-            "} else {" +
-            "  exit 1;" +
-            "}");
+        assertCommand(
+            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+                + "echo \"$p\";"
+                + "if ($p -eq $Null) {"
+                + "  exit 0;"
+                + "} else {"
+                + "  exit 1;"
+                + "}"
+        );
     }
 
     public void test30StartStop() throws Exception {
@@ -231,12 +239,12 @@ public class WindowsServiceTests extends PackagingTestCase {
         Path fakeServiceMgr = serviceMgr.getParent().resolve("elasticsearch-service-mgr.bat");
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI\""));
         Shell sh = new Shell();
-        Result result =  sh.run(serviceScript + " manager");
+        Result result = sh.run(serviceScript + " manager");
         assertThat(result.stdout, containsString("Fake Service Manager GUI"));
 
         // check failure too
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI Failure\"", "exit 1"));
-        result =  sh.runIgnoreExitCode(serviceScript + " manager");
+        result = sh.runIgnoreExitCode(serviceScript + " manager");
         TestCase.assertEquals(1, result.exitCode);
         TestCase.assertTrue(result.stdout, result.stdout.contains("Fake Service Manager GUI Failure"));
         Files.move(tmpServiceMgr, serviceMgr);

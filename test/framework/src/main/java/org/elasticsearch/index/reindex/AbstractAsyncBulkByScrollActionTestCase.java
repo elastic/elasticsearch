@@ -40,7 +40,7 @@ public abstract class AbstractAsyncBulkByScrollActionTestCase<
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
         task = new BulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.setWorker(Float.POSITIVE_INFINITY, null, null);
 
     }
 

@@ -1,7 +1,7 @@
 {
   "cat.ml_trained_models":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-trained-model.html"
     },
     "stability":"stable",
     "url":{

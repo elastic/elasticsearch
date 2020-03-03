@@ -37,7 +37,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (boolean) a[1],
             (long) a[2], (Long) a[3], toTaskId((String) a[4]), (Long) a[5], (BulkByScrollResponse) a[6], (ElasticsearchException) a[7],
-            toRestStatus((Integer) a[8]), (ScrollableHitSource.Checkpoint) a[9], (float) a[10]));
+            toRestStatus((Integer) a[8]), (ScrollableHitSource.Checkpoint) a[9], (BulkByScrollTask.Status) a[10], (float) a[11]));
 
     private static final String START_TIME_MILLIS = "start_time_epoch_millis";
     private static final String END_TIME_MILLIS = "end_time_epoch_millis";
@@ -49,6 +49,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     private static final String REINDEX_EXCEPTION = "exception";
     private static final String FAILURE_REST_STATUS = "failure_rest_status";
     private static final String REINDEX_CHECKPOINT = "checkpoint";
+    private static final String REINDEX_CHECKPOINT_STATUS = "checkpoint_status";
     private static final String REQUESTS_PER_SECOND = "requests_per_second";
 
     static {
@@ -66,6 +67,8 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(FAILURE_REST_STATUS));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ScrollableHitSource.Checkpoint.fromXContent(p),
             new ParseField(REINDEX_CHECKPOINT));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollTask.Status.fromXContent(p),
+            new ParseField(REINDEX_CHECKPOINT_STATUS));
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField(REQUESTS_PER_SECOND));
     }
 
@@ -79,26 +82,19 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     private final ElasticsearchException exception;
     private final RestStatus failureStatusCode;
     private final ScrollableHitSource.Checkpoint checkpoint;
+    private final BulkByScrollTask.Status checkpointStatus;
     private final float requestsPerSecond;
 
     public ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startTimeMillis) {
-        this(reindexRequest, resilient, startTimeMillis, null, null, null, null, null, null, null,
+        this(reindexRequest, resilient, startTimeMillis, null, null, null, null, null, null, null, null,
             reindexRequest.getRequestsPerSecond());
-    }
-
-    private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startMillis, @Nullable Long allocationId,
-                                @Nullable TaskId ephemeralTaskId, @Nullable Long endTimeMillis,
-                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                                @Nullable ScrollableHitSource.Checkpoint checkpoint, float requestsPerSecond) {
-        this(reindexRequest, resilient, startMillis, allocationId, ephemeralTaskId, endTimeMillis,
-            reindexResponse, exception, exception != null ? exception.status() : null,
-            checkpoint, requestsPerSecond);
     }
 
     private ReindexTaskStateDoc(ReindexRequest reindexRequest, boolean resilient, long startTimeMillis, @Nullable Long allocationId,
                                 @Nullable TaskId ephemeralTaskId, @Nullable Long endTimeMillis,
                                 @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
                                 @Nullable RestStatus failureStatusCode, @Nullable ScrollableHitSource.Checkpoint checkpoint,
+                                @Nullable BulkByScrollTask.Status checkpointStatus,
                                 float requestsPerSecond) {
         this.reindexRequest = reindexRequest;
         this.resilient = resilient;
@@ -110,10 +106,12 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
         assert endTimeMillis == null ? reindexResponse == null && exception == null : reindexResponse != null || exception != null;
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
+        assert checkpoint != null || checkpointStatus == null : "Can only have checkpointStatus if checkpoint is set";
         this.reindexResponse = reindexResponse;
         this.exception = exception;
         this.failureStatusCode = failureStatusCode;
         this.checkpoint = checkpoint;
+        this.checkpointStatus = checkpointStatus;
         assert Float.isNaN(requestsPerSecond) == false && requestsPerSecond >= 0;
         this.requestsPerSecond = requestsPerSecond;
     }
@@ -150,6 +148,10 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         if (checkpoint != null) {
             builder.field(REINDEX_CHECKPOINT);
             checkpoint.toXContent(builder, params);
+            if (checkpointStatus != null) {
+                builder.field(REINDEX_CHECKPOINT_STATUS);
+                checkpointStatus.toXContent(builder, params);
+            }
         }
         builder.field(REQUESTS_PER_SECOND, requestsPerSecond);
         return builder.endObject();
@@ -207,6 +209,10 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         return checkpoint;
     }
 
+    public BulkByScrollTask.Status getCheckpointStatus() {
+        return checkpointStatus;
+    }
+
     public Long getAllocationId() {
         return allocationId;
     }
@@ -215,25 +221,24 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         return ephemeralTaskId;
     }
 
-    public ReindexTaskStateDoc withCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
-        // todo: also store and resume from status.
+    public ReindexTaskStateDoc withCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status checkpointStatus) {
         return new ReindexTaskStateDoc(reindexRequest, resilient, startTimeMillis, allocationId, ephemeralTaskId, endTimeMillis,
-            reindexResponse, exception, failureStatusCode, checkpoint, requestsPerSecond);
+            reindexResponse, exception, failureStatusCode, checkpoint, checkpointStatus, requestsPerSecond);
     }
 
     public ReindexTaskStateDoc withNewAllocation(long newAllocationId, TaskId ephemeralTaskId) {
         return new ReindexTaskStateDoc(reindexRequest, resilient, startTimeMillis, newAllocationId, ephemeralTaskId, endTimeMillis,
-            reindexResponse, exception, failureStatusCode, checkpoint, requestsPerSecond);
+            reindexResponse, exception, failureStatusCode, checkpoint, checkpointStatus, requestsPerSecond);
     }
 
     public ReindexTaskStateDoc withFinishedState(long endTimeMillis, @Nullable BulkByScrollResponse reindexResponse,
                                                  @Nullable ElasticsearchException exception) {
         return new ReindexTaskStateDoc(reindexRequest, resilient, startTimeMillis, allocationId, ephemeralTaskId, endTimeMillis,
-            reindexResponse, exception, checkpoint, requestsPerSecond);
+            reindexResponse, exception, failureStatusCode, checkpoint, checkpointStatus, requestsPerSecond);
     }
 
     public ReindexTaskStateDoc withRequestsPerSecond(float requestsPerSecond) {
         return new ReindexTaskStateDoc(reindexRequest, resilient, startTimeMillis, allocationId, ephemeralTaskId, endTimeMillis,
-            reindexResponse, exception, checkpoint, requestsPerSecond);
+            reindexResponse, exception, failureStatusCode, checkpoint, checkpointStatus, requestsPerSecond);
     }
 }

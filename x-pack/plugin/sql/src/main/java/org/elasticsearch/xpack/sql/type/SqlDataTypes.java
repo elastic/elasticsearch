@@ -462,7 +462,7 @@ public class SqlDataTypes {
             return 3;
         }
         if (dataType == IP) {
-            return 39;
+            return 45;
         }
         if (dataType == BINARY) {
             return Integer.MAX_VALUE;
@@ -582,7 +582,7 @@ public class SqlDataTypes {
             return 29;
         }
         if (dataType == IP) {
-            return 0;
+            return 45;
         }
         if (dataType == BINARY) {
             return Integer.MAX_VALUE;

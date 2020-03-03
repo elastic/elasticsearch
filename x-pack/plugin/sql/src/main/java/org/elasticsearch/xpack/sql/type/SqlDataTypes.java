@@ -540,13 +540,13 @@ public class SqlDataTypes {
 
     public static int displaySize(DataType dataType) {
         if (dataType == UNSUPPORTED) {
-            return 0;
+            return defaultPrecision(dataType);
         }
         if (dataType == NULL) {
-            return 0;
+            return defaultPrecision(dataType);
         }
         if (dataType == BOOLEAN) {
-            return 1;
+            return defaultPrecision(dataType);
         }
         if (dataType == BYTE) {
             return 5;
@@ -582,16 +582,16 @@ public class SqlDataTypes {
             return 29;
         }
         if (dataType == IP) {
-            return 45;
+            return defaultPrecision(dataType);
         }
         if (dataType == BINARY) {
-            return Integer.MAX_VALUE;
+            return defaultPrecision(dataType);
         }
         if (dataType == OBJECT) {
-            return 0;
+            return defaultPrecision(dataType);
         }
         if (dataType == NESTED) {
-            return 0;
+            return defaultPrecision(dataType);
         }
         //
         // SQL specific
@@ -603,53 +603,17 @@ public class SqlDataTypes {
             return 18;
         }
         if (dataType == GEO_SHAPE) {
-            return Integer.MAX_VALUE;
+            return defaultPrecision(dataType);
         }
         if (dataType == GEO_POINT) {
             //2 doubles + len("POINT( )")
             return 25 * 2 + 8;
         }
         if (dataType == SHAPE) {
-            return Integer.MAX_VALUE;
+            return defaultPrecision(dataType);
         }
-        if (dataType == INTERVAL_YEAR) {
-            return 7;
-        }
-        if (dataType == INTERVAL_MONTH) {
-            return 7;
-        }
-        if (dataType == INTERVAL_DAY) {
-            return 23;
-        }
-        if (dataType == INTERVAL_HOUR) {
-            return 23;
-        }
-        if (dataType == INTERVAL_MINUTE) {
-            return 23;
-        }
-        if (dataType == INTERVAL_SECOND) {
-            return 23;
-        }
-        if (dataType == INTERVAL_YEAR_TO_MONTH) {
-            return 7;
-        }
-        if (dataType == INTERVAL_DAY_TO_HOUR) {
-            return 23;
-        }
-        if (dataType == INTERVAL_DAY_TO_MINUTE) {
-            return 23;
-        }
-        if (dataType == INTERVAL_DAY_TO_SECOND) {
-            return 23;
-        }
-        if (dataType == INTERVAL_HOUR_TO_MINUTE) {
-            return 23;
-        }
-        if (dataType == INTERVAL_HOUR_TO_SECOND) {
-            return 23;
-        }
-        if (dataType == INTERVAL_MINUTE_TO_SECOND) {
-            return 23;
+        if (SqlDataTypes.isInterval(dataType)) {
+            return defaultPrecision(dataType);
         }
 
         return 0;

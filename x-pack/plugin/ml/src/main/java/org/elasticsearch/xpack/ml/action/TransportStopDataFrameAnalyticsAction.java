@@ -193,6 +193,7 @@ public class TransportStopDataFrameAnalyticsAction
                 // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
+                logger.debug("[{}] sending remove request", task.getId());
                 persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.wrap(r -> {}, e -> {}));
             }
         }
@@ -266,6 +267,7 @@ public class TransportStopDataFrameAnalyticsAction
                 filterPersistentTasks(persistentTasks, analyticsIds).isEmpty(),
             request.getTimeout(), ActionListener.wrap(
                 booleanResponse -> {
+                    logger.debug("[{}] analytics is stopped.", request.getId());
                     auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
                     listener.onResponse(response);
                 },

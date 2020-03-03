@@ -7,12 +7,15 @@ package org.elasticsearch.xpack.ml.dataframe.process.results;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,12 +45,17 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         }
-        return new AnalyticsResult(rowResults, progressPercent, inferenceModel);
+        return new AnalyticsResult(rowResults, progressPercent, inferenceModel, MemoryUsageTests.createRandom());
     }
 
     @Override
     protected AnalyticsResult doParseInstance(XContentParser parser) {
         return AnalyticsResult.PARSER.apply(parser, null);
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
     }
 
     @Override

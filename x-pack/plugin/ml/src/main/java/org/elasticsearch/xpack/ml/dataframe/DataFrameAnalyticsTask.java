@@ -130,7 +130,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void stop(String reason, TimeValue timeout) {
-        LOGGER.debug("[{}] stop called with reason [{}]", taskParams.getId(), reason);
         isStopping = true;
 
         ActionListener<Void> reindexProgressListener = ActionListener.wrap(
@@ -147,7 +146,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     private void doStop(String reason, TimeValue timeout) {
-        LOGGER.debug("[{}] doStop called with reason [{}] and reindexTaskId [{}]", taskParams.getId(), reason, reindexingTaskId);
         if (reindexingTaskId != null) {
             cancelReindexingTask(reason, timeout);
         }

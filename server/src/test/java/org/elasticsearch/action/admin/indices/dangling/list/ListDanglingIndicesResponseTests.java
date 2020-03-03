@@ -1,9 +1,28 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.action.admin.indices.dangling.list;
 
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,18 +33,16 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ListDanglingIndicesResponseTests {
+public class ListDanglingIndicesResponseTests extends ESTestCase {
 
     /**
      * Checks that {@link ListDanglingIndicesResponse#resultsByIndexUUID(List)} handles the
      * basic base of empty input.
      */
-    @Test
-    public void resultsByIndexUUIDWithEmptyListReturnsEmptyMap() {
+    public void testResultsByIndexUUIDWithEmptyListReturnsEmptyMap() {
         assertThat(resultsByIndexUUID(emptyList()), empty());
     }
 
@@ -33,8 +50,7 @@ public class ListDanglingIndicesResponseTests {
      * Checks that <code>resultsByIndexUUID(List)</code> can aggregate a single dangling index
      * on a single node.
      */
-    @Test
-    public void resultsByIndexUUIDCanAggregateASingleResponse() {
+    public void testResultsByIndexUUIDCanAggregateASingleResponse() {
         final DiscoveryNode node = mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("some-node-id");
 
@@ -53,8 +69,7 @@ public class ListDanglingIndicesResponseTests {
      * Checks that <code>resultsByIndexUUID(List)</code> can aggregate a single dangling index
      * across multiple nodes.
      */
-    @Test
-    public void resultsByIndexUUIDCanAggregateAcrossMultipleNodes() {
+    public void testResultsByIndexUUIDCanAggregateAcrossMultipleNodes() {
         final DiscoveryNode node1 = mock(DiscoveryNode.class);
         final DiscoveryNode node2 = mock(DiscoveryNode.class);
         when(node1.getId()).thenReturn("node-id-1");
@@ -80,8 +95,7 @@ public class ListDanglingIndicesResponseTests {
      * Checks that <code>resultsByIndexUUID(List)</code> can aggregate multiple dangling indices
      * on a single node.
      */
-    @Test
-    public void resultsByIndexUUIDCanAggregateMultipleIndicesOnOneNode() {
+    public void testResultsByIndexUUIDCanAggregateMultipleIndicesOnOneNode() {
         final DiscoveryNode node1 = mock(DiscoveryNode.class);
         when(node1.getId()).thenReturn("node-id-1");
 
@@ -107,8 +121,7 @@ public class ListDanglingIndicesResponseTests {
      * Checks that <code>resultsByIndexUUID(List)</code> can aggregate multiple dangling indices
      * across multiple nodes.
      */
-    @Test
-    public void resultsByIndexUUIDCanAggregateMultipleIndicesAcrossMultipleNodes() {
+    public void testResultsByIndexUUIDCanAggregateMultipleIndicesAcrossMultipleNodes() {
         final DiscoveryNode node1 = mock(DiscoveryNode.class);
         final DiscoveryNode node2 = mock(DiscoveryNode.class);
         when(node1.getId()).thenReturn("node-id-1");

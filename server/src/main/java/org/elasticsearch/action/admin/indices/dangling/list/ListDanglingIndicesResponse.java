@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -155,6 +156,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         @Override
         public String toString() {
             return String.format(
+                Locale.ROOT,
                 "AggregatedDanglingIndexInfo{indexUUID='%s', indexName='%s', creationDateMillis=%d, nodeIds=%s}",
                 indexUUID,
                 indexName,

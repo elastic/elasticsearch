@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
 import org.elasticsearch.test.rest.yaml.section.TeardownSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
+
+import java.util.Objects;
 
 /**
  * Wraps {@link ClientYamlTestSection}s ready to be run. Each test section is associated to its {@link ClientYamlTestSuite}.
@@ -67,5 +69,18 @@ public class ClientYamlTestCandidate {
     @Override
     public String toString() {
         return getTestPath();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClientYamlTestCandidate that = (ClientYamlTestCandidate) o;
+        return Objects.equals(getTestPath(), that.getTestPath());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getTestPath());
     }
 }

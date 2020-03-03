@@ -182,15 +182,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * defined in {@link ExecutableSection}.
      */
     public static Iterable<Object[]> createParameters() throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY);
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, TESTS_PATH);
     }
 
     /**
      * Create parameters for this parameterized test.
      */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String testsPath) throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
-        Map<String, Set<Path>> yamlSuites = loadSuites(paths);
+        Map<String, Set<Path>> yamlSuites = loadSuites(testsPath, paths);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -235,9 +235,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
-    static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
+    static Map<String, Set<Path>> loadSuites(String testsPath, String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
+        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(testsPath).toURI());
         for (String strPath : paths) {
             Path path = root.resolve(strPath);
             if (Files.isDirectory(path)) {

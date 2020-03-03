@@ -1,0 +1,22 @@
+/**
+ * WARNING : This is a temporary test fixture and will be replaced with a less hacky implementation.
+ **/
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.rest-test'
+
+// just hard code the paths for now. This is not a long term solution !
+System.out.println("Copying compat REST resources from: " + new File(project(':distribution:bwc:minor').projectDir, 'build/bwc/checkout-7.x/rest-api-spec/src/main/resources/'));
+task copyRestTestsResources(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  new File(project(':server').projectDir, 'licenses')
+  from new File(project(':distribution:bwc:minor').projectDir, 'build/bwc/checkout-7.x/rest-api-spec/src/main/resources/')
+  include 'rest-api-spec/**'
+  dependsOn ':distribution:bwc:minor:checkoutBwcBranch'
+}
+
+integTest.dependsOn(copyRestTestsResources)
+
+dependencies {
+  compile project(':test:framework')
+}

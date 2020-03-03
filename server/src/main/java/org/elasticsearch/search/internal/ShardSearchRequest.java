@@ -374,14 +374,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
 
             QueryShardContext shardContext = ctx.convertToShardContext();
+
             FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
-            // checks if the bottom sort values are guaranteed to be more competitive than all the documents
-            // contained in the shard
             if (shardContext != null
                     && primarySort != null
-                    && primarySort.isBottomSortWithinShard(shardContext, request.getRawBottomSortValues()) == false) {
+                    && primarySort.isBottomSortShardDisjoint(shardContext, request.getRawBottomSortValues())) {
+                assert newSource != null : "source should contain a primary sort field";
                 newSource = newSource.shallowCopy();
-                if (newSource.trackTotalHitsUpTo() == TRACK_TOTAL_HITS_DISABLED
+                int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
+                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
+                        && newSource.suggest() == null
                         && newSource.aggregations() == null) {
                     newSource.query(new MatchNoneQueryBuilder());
                 } else {

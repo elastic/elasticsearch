@@ -569,7 +569,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
     }
 
-    public void testIsBottomSortWithinShard() throws Exception {
+    public void testIsBottomSortShardDisjoint() throws Exception {
         try (Directory dir = newDirectory()) {
             int numDocs = randomIntBetween(5, 10);
             long maxValue = -1;
@@ -578,7 +578,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 FieldSortBuilder fieldSort = SortBuilders.fieldSort("custom-date");
                 try (DirectoryReader reader = writer.getReader()) {
                     QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
-                    assertFalse(fieldSort.isBottomSortWithinShard(context, new Object[] { 0L }));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context, new Object[] { 0L }));
                 }
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
@@ -591,19 +591,19 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 }
                 try (DirectoryReader reader = writer.getReader()) {
                     QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, null));
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue }));
-                    assertFalse(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue-1 }));
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue+1 }));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, new Object[] { minValue }));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context, new Object[] { minValue-1 }));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, new Object[] { minValue+1 }));
                     fieldSort.order(SortOrder.DESC);
-                    assertFalse(fieldSort.isBottomSortWithinShard(context, new Object[] { maxValue+1 }));
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { maxValue }));
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue }));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context, new Object[] { maxValue+1 }));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, new Object[] { maxValue }));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, new Object[] { minValue }));
                     fieldSort.setNestedSort(new NestedSortBuilder("empty"));
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { minValue-1 }));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, new Object[] { minValue-1 }));
                     fieldSort.setNestedSort(null);
                     fieldSort.missing("100");
-                    assertTrue(fieldSort.isBottomSortWithinShard(context, new Object[] { maxValue+1 }));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, new Object[] { maxValue+1 }));
                 }
             }
         }

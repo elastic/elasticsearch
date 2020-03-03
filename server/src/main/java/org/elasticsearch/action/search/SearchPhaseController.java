@@ -611,9 +611,9 @@ public final class SearchPhaseController {
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
-        QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
-                                 int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
-                                 int trackTotalHitsUpTo, int topNSize, boolean performFinalReduce) {
+        private QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
+                                         int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
+                                         int trackTotalHitsUpTo, int topNSize, boolean performFinalReduce) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -687,13 +687,8 @@ public final class SearchPhaseController {
             return hasAggs ? Arrays.asList(aggsBuffer).subList(0, index) : null;
         }
 
-        public List<TopDocs> getRemainingTopDocs() {
-            if (hasTopDocs) {
-                synchronized (this) {
-                    return index == 0 ? Collections.emptyList() : Arrays.asList(topDocsBuffer).subList(0, index);
-                }
-            }
-            return null;
+        private synchronized List<TopDocs> getRemainingTopDocs() {
+            return hasTopDocs ? Arrays.asList(topDocsBuffer).subList(0, index) : null;
         }
 
         @Override
@@ -715,15 +710,6 @@ public final class SearchPhaseController {
         int getNumReducePhases() { return numReducePhases; }
     }
 
-    private int resolveTrackTotalHits(SearchRequest request) {
-        if (request.scroll() != null) {
-            // no matter what the value of track_total_hits is
-            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-        }
-        return request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo() == null ?
-                SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo();
-    }
-
     /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
@@ -734,7 +720,7 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
+        final int trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {

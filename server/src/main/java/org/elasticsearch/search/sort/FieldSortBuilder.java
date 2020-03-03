@@ -357,16 +357,16 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Returns whether all values of the given {@link QueryShardContext#getIndexReader()} are within the
+     * Returns whether some values of the given {@link QueryShardContext#getIndexReader()} are within the
      * primary sort value provided in the <code>rawBottomSortValues</code>.
      */
-    public boolean isBottomSortWithinShard(QueryShardContext context, Object[] rawBottomSortValues) {
+    public boolean isBottomSortShardDisjoint(QueryShardContext context, Object[] rawBottomSortValues) {
         if (rawBottomSortValues == null || rawBottomSortValues.length == 0) {
-            return true;
+            return false;
         }
 
         if (canRewriteToMatchNone() == false) {
-            return true;
+            return false;
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
@@ -374,16 +374,16 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return false;
         }
         if (fieldType.indexOptions() == IndexOptions.NONE) {
-            return true;
+            return false;
         }
         Object minValue = order() == SortOrder.DESC ? rawBottomSortValues[0] : null;
         Object maxValue = order() == SortOrder.DESC ? null : rawBottomSortValues[0];
         try {
             MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.getIndexReader(), minValue, maxValue,
                 true, true, null, DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(), context);
-            return relation != MappedFieldType.Relation.DISJOINT;
+            return relation == MappedFieldType.Relation.DISJOINT;
         } catch (Exception exc) {
-            return true;
+            return false;
         }
     }
 

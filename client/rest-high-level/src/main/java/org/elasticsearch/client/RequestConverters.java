@@ -557,8 +557,13 @@ final class RequestConverters {
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
-            .withSlices(reindexRequest.getSlices());
+            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond());
+        if (reindexRequest.getSlices() == 0) {
+            // translate to "auto" value
+            params.withAutoSlices();
+        } else {
+            params.withSlices(reindexRequest.getSlices());
+        }
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
@@ -579,8 +584,13 @@ final class RequestConverters {
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(deleteByQueryRequest.indicesOptions())
-            .withWaitForCompletion(waitForCompletion)
-            .withSlices(deleteByQueryRequest.getSlices());
+            .withWaitForCompletion(waitForCompletion);
+        if (deleteByQueryRequest.getSlices() == 0) {
+            // translate to "auto" value
+            params.withAutoSlices();
+        } else {
+            params.withSlices(deleteByQueryRequest.getSlices());
+        }
         if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }
@@ -608,8 +618,13 @@ final class RequestConverters {
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(updateByQueryRequest.indicesOptions())
-            .withSlices(updateByQueryRequest.getSlices());
+            .withIndicesOptions(updateByQueryRequest.indicesOptions());
+        if (updateByQueryRequest.getSlices() == 0) {
+            // translate to "auto" value
+            params.withAutoSlices();
+        } else {
+            params.withSlices(updateByQueryRequest.getSlices());
+        }
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }
@@ -914,6 +929,10 @@ final class RequestConverters {
 
         Params withSlices(int slices) {
             return putParam("slices", String.valueOf(slices));
+        }
+
+        Params withAutoSlices() {
+            return putParam("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
         }
 
         Params withStoredFields(String[] storedFields) {

@@ -7,14 +7,18 @@ package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+
+import static java.util.Collections.singletonList;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -40,6 +44,11 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             condition = new And(source, eventMatch, condition);
         }
 
-        return new Filter(source(ctx), new UnresolvedRelation(Source.EMPTY, null, "", false, ""), condition);
+        Filter filter = new Filter(source, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), condition);
+        // add implicit sorting - when pipes are added, this would better seat there (as a default pipe)
+        Order order = new Order(source, new UnresolvedAttribute(source, params.fieldTimestamp()), Order.OrderDirection.ASC,
+                Order.NullsPosition.FIRST);
+        OrderBy orderBy = new OrderBy(source, filter, singletonList(order));
+        return orderBy;
     }
 }

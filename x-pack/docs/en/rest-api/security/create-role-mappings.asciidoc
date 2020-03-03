@@ -37,7 +37,7 @@ roles API>> or <<roles-management-file,roles files>>.
 
 For more information, see <<mapping-roles>>.
 
-[[security-api-put-role-mapping-desc-templates]]
+[[_role_templates]]
 ===== Role templates
 
 The most common use for role mappings is to create a mapping from a known value

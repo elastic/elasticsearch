@@ -20,8 +20,8 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
-    public EqlSearchRequestBuilder query(QueryBuilder query) {
-        request.query(query);
+    public EqlSearchRequestBuilder filter(QueryBuilder filter) {
+        request.filter(filter);
         return this;
     }
 
@@ -50,8 +50,8 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
-    public EqlSearchRequestBuilder rule(String rule) {
-        request.rule(rule);
+    public EqlSearchRequestBuilder query(String query) {
+        request.query(query);
         return this;
     }
 

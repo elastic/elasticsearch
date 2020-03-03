@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -22,32 +22,34 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapshotStep> {
+public class RestoreSnapshotStepTests extends AbstractStepTestCase<RestoreSnapshotStep> {
 
     @Override
-    public CleanupSnapshotStep createRandomInstance() {
+    public RestoreSnapshotStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String repository = randomAlphaOfLength(10);
-        return new CleanupSnapshotStep(stepKey, nextStepKey, client, repository);
+        String restoredIndexPrefix = randomAlphaOfLength(10);
+        return new RestoreSnapshotStep(stepKey, nextStepKey, client, repository, restoredIndexPrefix);
     }
 
     @Override
-    protected CleanupSnapshotStep copyInstance(CleanupSnapshotStep instance) {
-        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getSnapshotRepository());
+    protected RestoreSnapshotStep copyInstance(RestoreSnapshotStep instance) {
+        return new RestoreSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
+            instance.getSnapshotRepository(), instance.getRestoredIndexPrefix());
     }
 
     @Override
-    public CleanupSnapshotStep mutateInstance(CleanupSnapshotStep instance) {
+    public RestoreSnapshotStep mutateInstance(RestoreSnapshotStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         String snapshotRepository = instance.getSnapshotRepository();
-        switch (between(0, 2)) {
+        String restoredIndexPrefix = instance.getRestoredIndexPrefix();
+        switch (between(0, 3)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
@@ -57,10 +59,13 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             case 2:
                 snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(1, 10));
                 break;
+            case 3:
+                restoredIndexPrefix = randomValueOtherThan(restoredIndexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupSnapshotStep(key, nextKey, instance.getClient(), snapshotRepository);
+        return new RestoreSnapshotStep(key, nextKey, instance.getClient(), snapshotRepository, restoredIndexPrefix);
     }
 
     public void testPerformActionFailure() {
@@ -74,8 +79,8 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
-        CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-        cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+        RestoreSnapshotStep restoreSnapshotStep = createRandomInstance();
+        restoreSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
@@ -106,9 +111,10 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
-        try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
-            CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client,
-                randomAlphaOfLengthBetween(1, 10));
+        String repository = "repository";
+        String restoredIndexPrefix = "restored-";
+        try (NoOpClient client = getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, restoredIndexPrefix)) {
+            RestoreSnapshotStep step = new RestoreSnapshotStep(randomStepKey(), randomStepKey(), client, repository, restoredIndexPrefix);
             step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
@@ -121,15 +127,26 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         }
     }
 
-    private NoOpClient getDeleteSnapshotRequestAssertingClient(String expectedSnapshotName) {
+    private NoOpClient getRestoreSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName,
+                                                                String restoredIndexPrefix) {
         return new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                       Request request,
                                                                                                       ActionListener<Response> listener) {
-                assertThat(action.name(), is(DeleteSnapshotAction.NAME));
-                assertTrue(request instanceof DeleteSnapshotRequest);
-                assertThat(((DeleteSnapshotRequest) request).snapshot(), equalTo(expectedSnapshotName));
+                assertThat(action.name(), is(RestoreSnapshotAction.NAME));
+                assertTrue(request instanceof RestoreSnapshotRequest);
+                RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) request;
+                assertThat(restoreSnapshotRequest.repository(), is(expectedRepoName));
+                assertThat(restoreSnapshotRequest.snapshot(), is(expectedSnapshotName));
+                assertThat("another ILM step will wait for the restore to complete. the " + RestoreSnapshotStep.NAME + " step should not",
+                    restoreSnapshotRequest.waitForCompletion(), is(false));
+                assertThat("another ILM step will transfer the aliases to the restored index", restoreSnapshotRequest.includeAliases(),
+                    is(false));
+                assertThat(restoreSnapshotRequest.ignoreIndexSettings(), is(notNullValue()));
+                assertThat(restoreSnapshotRequest.ignoreIndexSettings()[0], is(LifecycleSettings.LIFECYCLE_NAME));
+                assertThat(restoreSnapshotRequest.renameReplacement(), is(restoredIndexPrefix + indexName));
+                assertThat(restoreSnapshotRequest.renamePattern(), is(indexName));
             }
         };
     }

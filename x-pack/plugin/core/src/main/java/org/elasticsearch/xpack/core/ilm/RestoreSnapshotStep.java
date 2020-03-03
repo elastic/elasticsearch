@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
@@ -33,6 +35,14 @@ public class RestoreSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     public boolean isRetryable() {
         return true;
+    }
+
+    public String getSnapshotRepository() {
+        return snapshotRepository;
+    }
+
+    public String getRestoredIndexPrefix() {
+        return restoredIndexPrefix;
     }
 
     @Override
@@ -64,5 +74,23 @@ public class RestoreSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         getClient().admin().cluster().restoreSnapshot(restoreSnapshotRequest,
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), snapshotRepository, restoredIndexPrefix);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        RestoreSnapshotStep other = (RestoreSnapshotStep) obj;
+        return super.equals(obj) &&
+            Objects.equals(snapshotRepository, other.snapshotRepository) && Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix);
     }
 }

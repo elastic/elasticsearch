@@ -44,6 +44,14 @@ public class CopySettingsStep extends ClusterStateActionStep {
         return true;
     }
 
+    public String[] getSettingsKeys() {
+        return settingsKeys;
+    }
+
+    public String getIndexPrefix() {
+        return indexPrefix;
+    }
+
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         String sourceIndexName = index.getName();

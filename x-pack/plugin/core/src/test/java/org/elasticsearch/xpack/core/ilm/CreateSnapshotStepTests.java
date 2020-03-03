@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -22,28 +22,27 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapshotStep> {
+public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshotStep> {
 
     @Override
-    public CleanupSnapshotStep createRandomInstance() {
+    public CreateSnapshotStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String repository = randomAlphaOfLength(10);
-        return new CleanupSnapshotStep(stepKey, nextStepKey, client, repository);
+        return new CreateSnapshotStep(stepKey, nextStepKey, client, repository);
     }
 
     @Override
-    protected CleanupSnapshotStep copyInstance(CleanupSnapshotStep instance) {
-        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
+    protected CreateSnapshotStep copyInstance(CreateSnapshotStep instance) {
+        return new CreateSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
             instance.getSnapshotRepository());
     }
 
     @Override
-    public CleanupSnapshotStep mutateInstance(CleanupSnapshotStep instance) {
+    public CreateSnapshotStep mutateInstance(CreateSnapshotStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         String snapshotRepository = instance.getSnapshotRepository();
@@ -60,7 +59,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupSnapshotStep(key, nextKey, instance.getClient(), snapshotRepository);
+        return new CreateSnapshotStep(key, nextKey, instance.getClient(), snapshotRepository);
     }
 
     public void testPerformActionFailure() {
@@ -74,8 +73,8 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
-        CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-        cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+        CreateSnapshotStep createSnapshotStep = createRandomInstance();
+        createSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
@@ -106,9 +105,9 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
-        try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
-            CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client,
-                randomAlphaOfLengthBetween(1, 10));
+        String repository = "repository";
+        try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName)) {
+            CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), client, repository);
             step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
@@ -121,15 +120,21 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         }
     }
 
-    private NoOpClient getDeleteSnapshotRequestAssertingClient(String expectedSnapshotName) {
+    private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName) {
         return new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                       Request request,
                                                                                                       ActionListener<Response> listener) {
-                assertThat(action.name(), is(DeleteSnapshotAction.NAME));
-                assertTrue(request instanceof DeleteSnapshotRequest);
-                assertThat(((DeleteSnapshotRequest) request).snapshot(), equalTo(expectedSnapshotName));
+                assertThat(action.name(), is(CreateSnapshotAction.NAME));
+                assertTrue(request instanceof CreateSnapshotRequest);
+                CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
+                assertThat(createSnapshotRequest.repository(), is(expectedRepoName));
+                assertThat(createSnapshotRequest.snapshot(), is(expectedSnapshotName));
+                assertThat("another ILM step will wait for completion. the " + CreateSnapshotStep.NAME + " step should not",
+                    createSnapshotRequest.waitForCompletion(), is(false));
+                assertThat("ILM generated snapshots should not include global state", createSnapshotRequest.includeGlobalState(),
+                    is(false));
             }
         };
     }

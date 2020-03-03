@@ -14,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotException;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
@@ -31,14 +33,18 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         return true;
     }
 
+    public String getSnapshotRepository() {
+        return snapshotRepository;
+    }
+
     @Override
     void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
         final String indexName = indexMetaData.getIndex().getName();
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
 
         final String snapshotName = lifecycleState.getSnapshotName();
-        String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         if (Strings.hasText(snapshotName) == false) {
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
@@ -60,5 +66,23 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.onResponse(true);
                 }
             }, listener::onFailure));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), snapshotRepository);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        CreateSnapshotStep other = (CreateSnapshotStep) obj;
+        return super.equals(obj) &&
+            Objects.equals(snapshotRepository, other.snapshotRepository);
     }
 }

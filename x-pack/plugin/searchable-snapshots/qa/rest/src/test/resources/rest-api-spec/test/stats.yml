@@ -33,6 +33,14 @@ setup:
           settings:
             location: "repository-fs"
 
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
   - do:
       snapshot.create:
         repository: repository-fs
@@ -132,6 +140,9 @@ teardown:
   - do:
       searchable_snapshots.stats:
         index: "d*"
+
+  - match:  { _shards.total: 1 }
+  - match:  { _shards.failed: 0 }
 
   - length:  { indices: 1 }
   - length:  { indices.docs.shards: 1 }

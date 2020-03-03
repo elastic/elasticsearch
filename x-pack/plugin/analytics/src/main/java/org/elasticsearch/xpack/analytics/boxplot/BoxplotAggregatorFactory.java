@@ -20,12 +20,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double compression;
 
     BoxplotAggregatorFactory(String name,
-                             ValuesSourceConfig<ValuesSource.Numeric> config,
+                             ValuesSourceConfig<ValuesSource> config,
                              double compression,
                              QueryShardContext queryShardContext,
                              AggregatorFactory parent,
@@ -46,7 +46,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,

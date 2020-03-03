@@ -25,8 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.CREATED;
@@ -36,9 +34,9 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_watcher/watch/{id}"),
-            new Route(PUT, "/_watcher/watch/{id}")));
+            new Route(PUT, "/_watcher/watch/{id}"));
     }
 
     @Override

@@ -30,20 +30,18 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_settings"),
             new Route(GET, "/_settings/{name}"),
             new Route(GET, "/{index}/_settings"),
             new Route(GET, "/{index}/_settings/{name}"),
-            new Route(GET, "/{index}/_setting/{name}")));
+            new Route(GET, "/{index}/_setting/{name}"));
     }
 
     @Override

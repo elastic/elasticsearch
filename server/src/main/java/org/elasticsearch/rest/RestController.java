@@ -31,6 +31,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -62,6 +64,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
+    // TODO once we are ready, this should default to true
+    public static final Setting<Boolean> RESTRICT_SYSTEM_INDICES =
+        Setting.boolSetting("rest.restrict_system_indices", false, Property.NodeScope);
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
@@ -74,9 +81,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private final boolean restrictSystemIndices;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, boolean restrictSystemIndices) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -85,6 +93,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        this.restrictSystemIndices = restrictSystemIndices;
     }
 
     /**
@@ -94,13 +103,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
-     * @param logger The existing deprecation logger to use
      */
-    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                            String deprecationMessage, DeprecationLogger logger) {
+    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
-        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, logger));
+        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
     }
 
     /**
@@ -126,17 +133,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param deprecatedMethod GET, POST, etc.
      * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
-     * @param logger The existing deprecation logger to use
      */
     protected void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                              RestRequest.Method deprecatedMethod, String deprecatedPath,
-                                              DeprecationLogger logger) {
+                                              RestRequest.Method deprecatedMethod, String deprecatedPath) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String deprecationMessage =
             "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
         registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
+        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
     }
 
     /**
@@ -162,9 +167,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void registerHandler(final RestHandler restHandler) {
         restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
         restHandler.deprecatedRoutes().forEach(route ->
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage(), route.getLogger()));
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
         restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route.getMethod(), route.getPath(),
-            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath(), route.getLogger()));
+            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath()));
     }
 
     @Override
@@ -173,6 +178,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             handleFavicon(request.method(), request.uri(), channel);
             return;
         }
+
+        if (restrictSystemIndices) {
+            threadContext.disallowSystemIndexAccess();
+        } else {
+            assert threadContext.isSystemIndexAccessAllowed();
+        }
+
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {

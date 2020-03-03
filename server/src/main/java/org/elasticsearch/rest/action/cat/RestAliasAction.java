@@ -31,17 +31,15 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAliasAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/aliases"),
-            new Route(GET, "/_cat/aliases/{alias}")));
+            new Route(GET, "/_cat/aliases/{alias}"));
     }
 
     @Override

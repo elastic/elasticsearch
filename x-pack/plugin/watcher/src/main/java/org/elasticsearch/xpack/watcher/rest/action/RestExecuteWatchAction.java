@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
@@ -50,11 +49,11 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_watcher/watch/{id}/_execute"),
             new Route(PUT, "/_watcher/watch/{id}/_execute"),
             new Route(POST, "/_watcher/watch/_execute"),
-            new Route(PUT, "/_watcher/watch/_execute")));
+            new Route(PUT, "/_watcher/watch/_execute"));
     }
 
     @Override

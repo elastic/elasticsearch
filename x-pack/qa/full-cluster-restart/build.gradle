@@ -1,7 +1,5 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
-
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -37,24 +35,6 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
       'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
     )
   into outputDir
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  dependsOn configurations.restSpec
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  from(project(xpackModule('core')).sourceSets.test.resources) {
-    include 'rest-api-spec/api/**'
-  }
 }
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {

@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -23,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +33,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest endpoint to add one or more {@link ApplicationPrivilege} objects to the security index
  */
 public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutPrivilegesAction.class));
 
     public RestPutPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -50,10 +46,10 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
-            new ReplacedRoute(PUT, "/_security/privilege/", PUT, "/_xpack/security/privilege/", deprecationLogger),
-            new ReplacedRoute(POST, "/_security/privilege/", POST, "/_xpack/security/privilege/", deprecationLogger)
-        ));
+        return List.of(
+            new ReplacedRoute(PUT, "/_security/privilege/", PUT, "/_xpack/security/privilege/"),
+            new ReplacedRoute(POST, "/_security/privilege/", POST, "/_xpack/security/privilege/")
+        );
     }
 
     @Override

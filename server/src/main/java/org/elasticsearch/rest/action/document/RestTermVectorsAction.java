@@ -34,8 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -47,11 +45,11 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/{index}/_termvectors"),
             new Route(POST, "/{index}/_termvectors"),
             new Route(GET, "/{index}/_termvectors/{id}"),
-            new Route(POST, "/{index}/_termvectors/{id}")));
+            new Route(POST, "/{index}/_termvectors/{id}"));
     }
 
     @Override

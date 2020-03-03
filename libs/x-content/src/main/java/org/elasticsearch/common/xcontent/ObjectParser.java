@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -272,6 +273,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         FieldParser fieldParser = null;
         String currentFieldName = null;
         XContentLocation currentPosition = null;
+        List<String[]> requiredFields = new ArrayList<>(this.requiredFieldSets);
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -285,10 +288,31 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     unknownFieldParser.acceptUnknownField(this, currentFieldName, currentPosition, parser, value, context);
                 } else {
                     fieldParser.assertSupports(name, parser, currentFieldName);
+
+                    // Check to see if this field is a required field, if it is we can
+                    // remove the entry as the requirement is satisfied
+                    Iterator<String[]> iter = requiredFields.iterator();
+                    while (iter.hasNext()) {
+                        String[] requriedFields = iter.next();
+                        for (String field : requriedFields) {
+                            if (field.equals(currentFieldName)) {
+                                iter.remove();
+                                break;
+                            }
+                        }
+                    }
+
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
             }
+        }
+        if (requiredFields.isEmpty() == false) {
+            StringBuilder message = new StringBuilder();
+            for (String[] fields : requiredFields) {
+                message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
+            }
+            throw new IllegalArgumentException(message.toString());
         }
         return value;
     }

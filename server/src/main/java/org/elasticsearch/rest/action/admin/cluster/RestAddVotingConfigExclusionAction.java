@@ -31,7 +31,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
@@ -45,7 +44,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_cluster/voting_config_exclusions/{node_name}"));
+        return List.of(new Route(POST, "/_cluster/voting_config_exclusions/{node_name}"));
     }
 
     @Override

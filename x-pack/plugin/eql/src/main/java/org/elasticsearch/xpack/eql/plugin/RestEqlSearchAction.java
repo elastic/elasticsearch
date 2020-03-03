@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,8 +24,6 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -33,9 +32,9 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, SEARCH_PATH),
-            new Route(POST, SEARCH_PATH)));
+            new Route(POST, SEARCH_PATH));
     }
 
     @Override
@@ -46,6 +45,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             eqlRequest = EqlSearchRequest.fromXContent(parser);
             eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+            eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
         }
 
         return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {

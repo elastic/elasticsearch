@@ -16,17 +16,15 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Request;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_migration/deprecations"),
-            new Route(GET, "/{index}/_migration/deprecations")));
+            new Route(GET, "/{index}/_migration/deprecations"));
     }
 
     @Override

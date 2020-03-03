@@ -37,8 +37,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
@@ -46,9 +44,9 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "_cat/ml/trained_models"),
-            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}")));
+            new Route(GET, "_cat/ml/trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }
 
     @Override
@@ -130,17 +128,15 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Trained Model Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the trained model id").build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the trained model id").build());
         table.addCell("created_by", TableColumnAttributeBuilder.builder("who created the model", false)
             .setAliases("c", "createdBy")
             .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
             .build());
-        table.addCell("heap_size", TableColumnAttributeBuilder.builder()
-            .setDescription("the estimated heap size to keep the model in memory")
+        table.addCell("heap_size", TableColumnAttributeBuilder.builder("the estimated heap size to keep the model in memory")
             .setAliases("hs","modelHeapSize")
             .build());
-        table.addCell("operations", TableColumnAttributeBuilder.builder()
-            .setDescription("the estimated number of operations to use the model")
+        table.addCell("operations", TableColumnAttributeBuilder.builder("the estimated number of operations to use the model")
             .setAliases("o", "modelOperations")
             .build());
         table.addCell("license", TableColumnAttributeBuilder.builder("The license level of the model", false)

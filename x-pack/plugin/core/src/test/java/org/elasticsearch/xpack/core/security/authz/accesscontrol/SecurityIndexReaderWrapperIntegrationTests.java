@@ -29,12 +29,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
@@ -69,6 +71,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(mapperService.documentMapper()).thenReturn(null);
         when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
+        when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
+            final String fieldName = (String) invocation.getArguments()[0];
+            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
+            ft.setName(fieldName);
+            ft.freeze();
+            return ft;
+        });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
@@ -84,7 +93,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null);
+                client, null, () -> nowInMillis, null, null, () -> true);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -177,6 +186,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(mapperService.documentMapper()).thenReturn(null);
         when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
+        when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
+            final String fieldName = (String) invocation.getArguments()[0];
+            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
+            ft.setName(fieldName);
+            ft.freeze();
+            return ft;
+        });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
@@ -203,13 +219,14 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(queries));
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(),
+                Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null);
+                client, null, () -> nowInMillis, null, null, () -> true);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 

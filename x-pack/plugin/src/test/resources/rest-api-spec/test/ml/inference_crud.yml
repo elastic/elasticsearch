@@ -333,6 +333,40 @@ setup:
   - match: { count: 1 }
   - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
 ---
+"Test put ensemble with single node and empty feature_names":
+
+  - do:
+      ml.put_trained_model:
+        model_id: "ensemble_tree_empty_feature_names"
+        body: >
+          {
+            "input": {
+              "field_names": "fieldy_mc_fieldname"
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "trained_models": [
+                     {
+                        "tree": {
+                           "feature_names": [],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "decision_type": "lte",
+                               "leaf_value": 12.0,
+                               "default_left": true
+                             }]
+                        }
+                     }
+                  ]
+                }
+              }
+            }
+          }
+
+---
 "Test put ensemble with empty models":
   - do:
       catch: /\[trained_models\] must not be empty/
@@ -353,11 +387,11 @@ setup:
             }
           }
 ---
-"Test put ensemble with tree where tree has empty feature-names":
+"Test put ensemble with tree where tree has out of bounds feature_names index":
   - do:
-      catch: /\[feature_names\] must not be empty/
+      catch: /feature index \[1\] is out of bounds for the \[feature_names\] array/
       ml.put_trained_model:
-        model_id: "ensemble_tree_missing_feature_names"
+        model_id: "ensemble_tree_out_of_bounds_feature_names_index"
         body: >
           {
             "input": {
@@ -374,7 +408,7 @@ setup:
                            "tree_structure": [
                              {
                                "node_index": 0,
-                               "split_feature": 0,
+                               "split_feature": 1,
                                "split_gain": 12.0,
                                "threshold": 10.0,
                                "decision_type": "lte",
@@ -426,3 +460,53 @@ setup:
               }
             }
           }
+---
+"Test put model":
+  - do:
+      ml.put_trained_model:
+        model_id: my-regression-model
+        body: >
+          {
+            "description": "model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "ensemble": {
+                    "target_type": "regression",
+                    "trained_models": [
+                      {
+                        "tree": {
+                          "feature_names": ["field1", "field2"],
+                          "tree_structure": [
+                             {"node_index": 0, "threshold": 2, "left_child": 1, "right_child": 2},
+                             {"node_index": 1, "leaf_value": 0},
+                             {"node_index": 2, "leaf_value": 1}
+                          ],
+                          "target_type": "regression"
+                        }
+                      },
+                      {
+                        "tree": {
+                          "feature_names": ["field1", "field2"],
+                          "tree_structure": [
+                             {"node_index": 0, "threshold": 2, "left_child": 1, "right_child": 2},
+                             {"node_index": 1, "leaf_value": 0},
+                             {"node_index": 2, "leaf_value": 1}
+                          ],
+                          "target_type": "regression"
+                        }
+                      }
+                    ]
+                  }
+               }
+            }
+          }
+  - match: { model_id: my-regression-model }
+  - match: { estimated_operations: 6 }
+  - is_false: definition
+  - is_false: compressed_definition
+  - is_true: license_level
+  - is_true: create_time
+  - is_true: version
+  - is_true: estimated_heap_memory_usage_bytes

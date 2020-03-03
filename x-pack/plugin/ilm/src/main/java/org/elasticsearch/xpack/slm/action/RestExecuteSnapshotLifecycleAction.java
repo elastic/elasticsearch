@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -23,9 +21,9 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_slm/policy/{name}/_execute"),
-            new Route(PUT, "/_slm/policy/{name}/_execute")));
+            new Route(PUT, "/_slm/policy/{name}/_execute"));
     }
 
     @Override

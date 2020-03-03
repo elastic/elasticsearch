@@ -156,7 +156,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Quantiles getQuantiles(String jobId) {
-        SearchResponse response = client().prepareSearch(".ml-state")
+        SearchResponse response = client().prepareSearch(".ml-state*")
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
                 .setSize(1)
                 .get();

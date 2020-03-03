@@ -16,14 +16,13 @@ import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStopRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_rollup/job/{id}/_stop"));
+        return List.of(new Route(POST, "/_rollup/job/{id}/_stop"));
     }
 
     @Override

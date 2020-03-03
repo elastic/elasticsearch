@@ -27,8 +27,6 @@ import org.elasticsearch.rest.action.cat.RestTable;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -39,9 +37,9 @@ public class ExampleCatAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/example"),
-            new Route(POST, "/_cat/example")));
+            new Route(POST, "/_cat/example"));
     }
 
     @Override

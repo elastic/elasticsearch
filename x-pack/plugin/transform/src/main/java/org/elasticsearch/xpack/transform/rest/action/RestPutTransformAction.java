@@ -17,14 +17,13 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
+        return List.of(new Route(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 
     @Override

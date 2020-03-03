@@ -48,6 +48,16 @@ list.
 
 
 [float]
+[[transform-node-assignment-limitations]]
+==== {transforms-cap} node assignment not configurable
+
+{transforms-cap} persistent tasks are assigned to the data node running
+fewest persistent tasks at the time of assignment. This cannot be customized.
+It means that if {transforms} are being used then `xpack.transform.enabled`
+must be set to `true` (which is the default) on every data node in the cluster.
+
+
+[float]
 [[transform-aggresponse-limitations]]
 ==== Aggregation responses may be incompatible with destination index mappings
 

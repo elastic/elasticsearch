@@ -40,8 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -51,9 +49,9 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/snapshots"),
-            new Route(GET, "/_cat/snapshots/{repository}")));
+            new Route(GET, "/_cat/snapshots/{repository}"));
     }
 
     @Override

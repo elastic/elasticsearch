@@ -29,7 +29,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
@@ -41,7 +40,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_aliases"));
+        return List.of(new Route(POST, "/_aliases"));
     }
 
     @Override

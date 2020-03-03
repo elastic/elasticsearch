@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.R
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.INSTANCE;
 
@@ -21,7 +20,7 @@ public class RestResumeAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_ccr/auto_follow/{name}/resume"));
+        return List.of(new Route(POST, "/_ccr/auto_follow/{name}/resume"));
     }
 
     @Override

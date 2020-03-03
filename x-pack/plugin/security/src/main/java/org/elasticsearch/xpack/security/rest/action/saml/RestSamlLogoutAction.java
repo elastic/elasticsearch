@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +35,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSamlLogoutAction extends SamlBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSamlLogoutAction.class));
     static final ObjectParser<SamlLogoutRequest, Void> PARSER = new ObjectParser<>("saml_logout", SamlLogoutRequest::new);
 
     static {
@@ -59,7 +56,7 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(POST, "/_security/saml/logout",
-                POST, "/_xpack/security/saml/logout", deprecationLogger)
+                POST, "/_xpack/security/saml/logout")
         );
     }
 

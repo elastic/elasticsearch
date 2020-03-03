@@ -28,7 +28,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.verifyRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -36,7 +35,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/_snapshot/{repository}/_verify"));
+        return List.of(new Route(POST, "/_snapshot/{repository}/_verify"));
     }
 
     @Override

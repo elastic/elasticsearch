@@ -43,7 +43,7 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
 
     public static void operation(PlanExecutor planExecutor, SqlClearCursorRequest request,
             ActionListener<SqlClearCursorResponse> listener) {
-        Cursor cursor = Cursors.decodeFromString(request.getCursor());
+        Cursor cursor = Cursors.decodeFromStringWithZone(request.getCursor()).v1();
         planExecutor.cleanCursor(
                 new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
                         request.mode(), StringUtils.EMPTY, StringUtils.EMPTY, StringUtils.EMPTY, Protocol.FIELD_MULTI_VALUE_LENIENCY,

@@ -121,7 +121,8 @@ SELECT "first_name" <1>
 <1> Double quotes `"` used for column and table identifiers
 <2> Single quotes `'` used for a string literal
 
-NOTE:: to escape single or double quotes, one needs to use that specific quote one more time. For example, the literal `John's` can be escaped like
+[NOTE]
+To escape single or double quotes, one needs to use that specific quote one more time. For example, the literal `John's` can be escaped like
 `SELECT 'John''s' AS name`. The same goes for double quotes escaping - `SELECT 123 AS "test""number"` will display as a result a column with the name `test"number`.
 
 [[sql-syntax-special-chars]]

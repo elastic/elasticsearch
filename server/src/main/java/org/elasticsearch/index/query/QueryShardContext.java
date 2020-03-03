@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -92,6 +93,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
+    private final BooleanSupplier allowExpensiveQueries;
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
@@ -112,18 +114,19 @@ public class QueryShardContext extends QueryRewriteContext {
                              IndexSearcher searcher,
                              LongSupplier nowInMillis,
                              String clusterAlias,
-                             Predicate<String> indexNameMatcher) {
+                             Predicate<String> indexNameMatcher,
+                             BooleanSupplier allowExpensiveQueries) {
         this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-            scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
-            new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                indexSettings.getIndex().getUUID()));
+                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
+                new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                        indexSettings.getIndex().getUUID()), allowExpensiveQueries);
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex);
+            source.fullyQualifiedIndex, source.allowExpensiveQueries);
     }
 
     private QueryShardContext(int shardId,
@@ -140,7 +143,8 @@ public class QueryShardContext extends QueryRewriteContext {
                               IndexSearcher searcher,
                               LongSupplier nowInMillis,
                               Predicate<String> indexNameMatcher,
-                              Index fullyQualifiedIndex) {
+                              Index fullyQualifiedIndex,
+                              BooleanSupplier allowExpensiveQueries) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -155,6 +159,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.searcher = searcher;
         this.indexNameMatcher = indexNameMatcher;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     private void reset() {
@@ -190,6 +195,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitSetProducer bitsetFilter(Query filter) {
         return bitsetFilterCache.getBitSetProducer(filter);
+    }
+
+    public boolean allowExpensiveQueries() {
+        return allowExpensiveQueries.getAsBoolean();
     }
 
     @SuppressWarnings("unchecked")

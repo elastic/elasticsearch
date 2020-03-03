@@ -75,6 +75,7 @@ public class AuthenticationContextSerializer {
     public void writeToContext(Authentication authentication, ThreadContext ctx) throws IOException {
         ensureContextDoesNotContainAuthentication(ctx);
         String header = authentication.encode();
+        assert header != null : "Authentication object encoded to null"; // this usually happens with mock objects in tests
         ctx.putTransient(contextKey, authentication);
         ctx.putHeader(contextKey, header);
     }

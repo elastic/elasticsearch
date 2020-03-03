@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetRollupJobsAction extends BaseRestHandler {
@@ -24,7 +23,7 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_rollup/job/{id}"));
+        return List.of(new Route(GET, "/_rollup/job/{id}"));
     }
 
     @Override

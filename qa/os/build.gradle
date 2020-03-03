@@ -67,7 +67,7 @@ processTestResources {
 
 subprojects { Project platformProject ->
   tasks.register('packagingTest') {
-    dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
+    dependsOn 'distroTest'
   }
 
   vagrant {

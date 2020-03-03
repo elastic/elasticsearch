@@ -30,8 +30,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -39,11 +37,11 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_mtermvectors"),
             new Route(POST, "/_mtermvectors"),
             new Route(GET, "/{index}/_mtermvectors"),
-            new Route(POST, "/{index}/_mtermvectors")));
+            new Route(POST, "/{index}/_mtermvectors"));
     }
 
     @Override

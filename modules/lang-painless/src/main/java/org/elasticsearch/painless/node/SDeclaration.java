@@ -34,13 +34,15 @@ public final class SDeclaration extends AStatement {
 
     private DType type;
     protected final String name;
+    protected final boolean requiresDefault;
     private AExpression expression;
 
-    public SDeclaration(Location location, DType type, String name, AExpression expression) {
+    public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
+        this.requiresDefault = requiresDefault;
         this.expression = expression;
     }
 
@@ -52,7 +54,7 @@ public final class SDeclaration extends AStatement {
         if (expression != null) {
             expression.expected = resolvedType.getType();
             expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+            expression.cast();
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
@@ -62,11 +64,12 @@ public final class SDeclaration extends AStatement {
     DeclarationNode write(ClassNode classNode) {
         DeclarationNode declarationNode = new DeclarationNode();
 
-        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
+        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
 
         declarationNode.setLocation(location);
         declarationNode.setDeclarationType(((DResolvedType)type).getType());
         declarationNode.setName(name);
+        declarationNode.setRequiresDefault(requiresDefault);
 
         return declarationNode;
     }

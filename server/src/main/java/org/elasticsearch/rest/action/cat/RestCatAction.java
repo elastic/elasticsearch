@@ -28,7 +28,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatAction extends BaseRestHandler {
@@ -48,7 +47,7 @@ public class RestCatAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat"));
+        return List.of(new Route(GET, "/_cat"));
     }
 
     @Override

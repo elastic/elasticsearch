@@ -1,3 +1,17 @@
+setup:
+  - do:
+      index:
+        index: .ml-state
+        id: "dummy-document-to-make-index-creation-idempotent"
+        body: >
+          {
+          }
+
+  - do:
+      cluster.health:
+        index: [".ml-state"]
+        wait_for_status: green
+
 ---
 "Put job on the old cluster and post some data":
 

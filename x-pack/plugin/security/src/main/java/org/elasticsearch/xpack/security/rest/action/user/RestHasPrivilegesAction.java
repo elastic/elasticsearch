@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +27,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -43,7 +40,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestHasPrivilegesAction.class));
 
     public RestHasPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -58,16 +54,16 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(GET, "/_security/user/{username}/_has_privileges",
-                GET, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger),
+                GET, "/_xpack/security/user/{username}/_has_privileges"),
             new ReplacedRoute(POST, "/_security/user/{username}/_has_privileges",
-                POST, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger),
+                POST, "/_xpack/security/user/{username}/_has_privileges"),
             new ReplacedRoute(GET, "/_security/user/_has_privileges",
-                GET, "/_xpack/security/user/_has_privileges", deprecationLogger),
+                GET, "/_xpack/security/user/_has_privileges"),
             new ReplacedRoute(POST, "/_security/user/_has_privileges",
-                POST, "/_xpack/security/user/_has_privileges", deprecationLogger)
-        ));
+                POST, "/_xpack/security/user/_has_privileges")
+        );
     }
 
     @Override

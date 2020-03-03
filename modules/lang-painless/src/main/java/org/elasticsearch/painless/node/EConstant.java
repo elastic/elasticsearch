@@ -31,6 +31,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 final class EConstant extends AExpression {
 
+    protected Object constant;
+
     EConstant(Location location, Object constant) {
         super(location);
 
@@ -65,7 +67,6 @@ final class EConstant extends AExpression {
     @Override
     ConstantNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
-
         constantNode.setLocation(location);
         constantNode.setExpressionType(actual);
         constantNode.setConstant(constant);

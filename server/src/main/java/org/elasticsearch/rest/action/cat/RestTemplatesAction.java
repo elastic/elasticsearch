@@ -33,17 +33,15 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/templates"),
-            new Route(GET, "/_cat/templates/{name}")));
+            new Route(GET, "/_cat/templates/{name}"));
     }
 
     @Override

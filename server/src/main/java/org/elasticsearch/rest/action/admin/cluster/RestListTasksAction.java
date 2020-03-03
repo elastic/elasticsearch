@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
@@ -55,7 +54,7 @@ public class RestListTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_tasks"));
+        return List.of(new Route(GET, "/_tasks"));
     }
 
     @Override

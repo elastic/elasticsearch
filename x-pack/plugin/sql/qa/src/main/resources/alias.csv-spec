@@ -41,7 +41,7 @@ emp_no              |INTEGER        |integer
 extra               |STRUCT         |object
 extra.info          |STRUCT         |object
 extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |keyword
+extra_gender        |VARCHAR        |constant_keyword
 extra_no            |INTEGER        |integer
 first_name          |VARCHAR        |text
 first_name.keyword  |VARCHAR        |keyword
@@ -69,7 +69,7 @@ emp_no              |INTEGER        |integer
 extra               |STRUCT         |object
 extra.info          |STRUCT         |object
 extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |keyword
+extra_gender        |VARCHAR        |constant_keyword
 extra_no            |INTEGER        |integer
 first_name          |VARCHAR        |text
 first_name.keyword  |VARCHAR        |keyword

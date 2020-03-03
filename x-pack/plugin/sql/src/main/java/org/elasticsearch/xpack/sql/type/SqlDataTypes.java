@@ -30,6 +30,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -270,6 +271,7 @@ public class SqlDataTypes {
                 || dataType == DATE         // because of date formats
                 || dataType == DATETIME
                 || dataType == SCALED_FLOAT // because of scaling_factor
+                || dataType == CONSTANT_KEYWORD
                 || dataType == GEO_POINT
                 || dataType == GEO_SHAPE
                 || dataType == SHAPE;
@@ -333,6 +335,9 @@ public class SqlDataTypes {
             return JDBCType.VARCHAR;
         }
         if (dataType == TEXT) {
+            return JDBCType.VARCHAR;
+        }
+        if (dataType == CONSTANT_KEYWORD) {
             return JDBCType.VARCHAR;
         }
         if (dataType == DATETIME) {
@@ -458,6 +463,9 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return 32766;
         }
+        if (dataType == CONSTANT_KEYWORD) {
+            return 15;
+        }
         if (dataType == DATETIME) {
             return 3;
         }
@@ -577,6 +585,9 @@ public class SqlDataTypes {
         }
         if (dataType == TEXT) {
             return Integer.MAX_VALUE;
+        }
+        if (dataType == CONSTANT_KEYWORD) {
+            return 32766;
         }
         if (dataType == DATETIME) {
             return 29;

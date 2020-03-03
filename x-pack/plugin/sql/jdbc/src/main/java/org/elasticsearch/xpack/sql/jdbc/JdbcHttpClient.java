@@ -95,15 +95,14 @@ class JdbcHttpClient {
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
         Version version = Version.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
+        return new InfoResponse(mainResponse.getClusterName(), version);
     }
-    
+
     private void checkServerVersion() throws SQLException {
-        if (serverInfo.majorVersion != Version.CURRENT.major
-                || serverInfo.minorVersion != Version.CURRENT.minor
-                || serverInfo.revisionVersion != Version.CURRENT.revision) {
+        if (Version.isServerCompatible(serverInfo.version) == false) {
             throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
+                Version.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
+                serverInfo.version.toString());
         }
     }
 

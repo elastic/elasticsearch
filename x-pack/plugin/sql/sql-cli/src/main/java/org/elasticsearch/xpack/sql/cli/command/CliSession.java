@@ -74,10 +74,10 @@ public class CliSession {
             throw new ClientException(ex);
         }
         Version version = Version.fromString(response.getVersion());
-        // TODO: We can relax compatibility requirement later when we have a better idea about protocol compatibility guarantees
-        if (version.major != Version.CURRENT.major || version.minor != Version.CURRENT.minor) {
-            throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " +
-                    Version.CURRENT.toString());
+        if (Version.isServerCompatible(version) == false) {
+            throw new ClientException("This version of the CLI is only compatible with Elasticsearch version " +
+                Version.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
+                version.toString());
         }
     }
 }

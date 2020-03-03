@@ -104,6 +104,17 @@ public class Version extends org.elasticsearch.xpack.sql.proto.Version {
         return "v" + version + " [" + hash + "]";
     }
 
+    // This function helps ensure that a client won't attempt to communicate to a server with less features than its own. Since this check
+    // is part of the client's start-up check that might not involve an actual SQL API request, the client has to do a bare version check
+    // as well.
+    public static boolean isServerCompatible(Version server) {
+        // Starting with this version, the compatibility logic moved from the client to the server. Only relevant for 7.x releases.
+        return server.compareTo(Version.V_7_7_0) >= 0
+            // Relevant for 8+ releases. Patches bring no features, so they are excluded from the test (which means that a "newer" client
+            // could actually communicate with an "older" client, within the same minor)
+            && server.compareToMajorMinor(CURRENT) >= 0;
+    }
+
     public static int jdbcMajorVersion() {
         return 4;
     }

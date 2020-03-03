@@ -6,13 +6,34 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-public class Version {
+import java.security.InvalidParameterException;
+
+public class Version implements Comparable<Version>{
 
     public final int id;
     public final String version; // originally provided String representation
     public final byte major;
     public final byte minor;
     public final byte revision;
+
+    public static final int REVISION_MULTIPLIER = 100;
+    public static final int MINOR_MULTIPLIER = REVISION_MULTIPLIER * REVISION_MULTIPLIER;
+    public static final int MAJOR_MULTIPLIER = REVISION_MULTIPLIER * MINOR_MULTIPLIER;
+
+
+
+    public static final Version V_7_7_0 = new Version(7, 7, 0);
+
+    public Version(byte major, byte minor, byte revision) {
+        this(toString(major, minor, revision), major, minor, revision);
+    }
+
+    public Version(Integer major, Integer minor, Integer revision) {
+        this(major.byteValue(), minor.byteValue(), revision.byteValue());
+        if (major > Byte.MAX_VALUE || minor > Byte.MAX_VALUE || revision > Byte.MAX_VALUE) {
+            throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + "]");
+        }
+    }
 
     protected Version(String version, byte... parts) {
         this.version = version;
@@ -22,9 +43,13 @@ public class Version {
         this.minor = parts[1];
         this.revision = parts[2];
 
-        id = Integer.valueOf(major) * 1000000
-            + Integer.valueOf(minor) * 10000
-            + Integer.valueOf(revision) * 100;
+        if ((major | minor | revision) < 0 || minor >= REVISION_MULTIPLIER || revision >= REVISION_MULTIPLIER) {
+            throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + "]");
+        }
+
+        id = Integer.valueOf(major) * MAJOR_MULTIPLIER
+            + Integer.valueOf(minor) * MINOR_MULTIPLIER
+            + Integer.valueOf(revision) * REVISION_MULTIPLIER;
     }
 
     public static Version fromString(String version) {
@@ -49,9 +74,22 @@ public class Version {
 
     }
 
+    private static String toString(byte... parts) {
+        assert parts.length >= 1 : "Version must contain at least a Major component";
+        String ver = String.valueOf(parts[0]);
+        for (int i = 1; i < parts.length; i ++) {
+            ver += "." + parts[i];
+        }
+        return ver;
+    }
+
     @Override
     public String toString() {
-        return major + "." + minor + "." + revision;
+        return toString(major, minor, revision);
+    }
+
+    public String majorMinorToString() {
+        return toString(major, minor);
     }
 
     @Override
@@ -79,5 +117,18 @@ public class Version {
             }
         }
         return false;
+    }
+
+    @Override
+    public int compareTo(Version o) {
+        return id - o.id;
+    }
+
+    public static int majorMinorId(Version v) {
+        return v.major * MAJOR_MULTIPLIER + v.minor * MINOR_MULTIPLIER;
+    }
+
+    public int compareToMajorMinor(Version o) {
+        return majorMinorId(this) - majorMinorId(o);
     }
 }

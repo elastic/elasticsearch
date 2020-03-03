@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.version;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -265,9 +265,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             mode = Mode.CLI;
         }
 
-        runSql(mode, clientType, sql);
+        runSql(mode.toString(), clientType, sql);
     }
-    
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void assertTranslateQueryMetric(int expected, Map<String, Object> responseAsMap) throws IOException {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
@@ -280,12 +280,11 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
 
-    private void runSql(Mode mode, String restClient, String sql) throws IOException {
+    private void runSql(String mode, String restClient, String sql) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
-        Boolean includeVersion = Mode.isDriver(mode) || Mode.isCli(mode);
-        if (randomBoolean() && includeVersion == false) {
+        if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
         }
@@ -295,13 +294,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        String query = "{\"query\":\"" + sql + "\"" + mode(mode.toString()) +
-            (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"");
-        if (includeVersion) {
-            query += ", \"client_version\": " + "\"" + Version.CURRENT.toString() + "\"";
-        }
-        query += "}";
-        request.setEntity(new StringEntity(query, ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + version(mode) +
+            (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}", ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
     

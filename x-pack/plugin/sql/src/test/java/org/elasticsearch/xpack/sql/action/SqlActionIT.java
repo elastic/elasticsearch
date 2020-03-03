@@ -30,7 +30,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
         SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-                .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).get();
+                .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).version(Version.CURRENT.toString()).get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;

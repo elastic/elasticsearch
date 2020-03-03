@@ -5,28 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+
+import org.elasticsearch.xpack.sql.client.Version;
+
 /**
  * General information about the server.
  */
 class InfoResponse {
     final String cluster;
-    final int majorVersion;
-    final int minorVersion;
-    final int revisionVersion;
+    final Version version;
 
-    InfoResponse(String clusterName, byte versionMajor, byte versionMinor, byte revisionVersion) {
+    InfoResponse(String clusterName, Version version) {
         this.cluster = clusterName;
-        this.majorVersion = versionMajor;
-        this.minorVersion = versionMinor;
-        this.revisionVersion = revisionVersion;
+        this.version = version;
     }
 
     @Override
     public String toString() {
-        return cluster + "[" + versionString() + "]";
-    }
-    
-    public String versionString() {
-        return majorVersion + "." + minorVersion + "." + revisionVersion;
+        return cluster + "[" + version.toString() + "]";
     }
 }

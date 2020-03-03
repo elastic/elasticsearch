@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -219,9 +220,10 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         Mode mode = requestInfo().mode();
         if (mode != null && (Mode.isDriver(mode) || Mode.isCli(mode))) {
             if (requestInfo().version() == null) {
-                // TODO: should the "strict" clients (drivers, CLI) always be expected to provide their version?
-                //validationException = addValidationError("[client_version] is required for the [" + mode.toString() + "] client",
-                //    validationException);
+                if (Strings.hasText(query())) {
+                    validationException = addValidationError("[client_version] is required for the [" + mode.toString() + "] client",
+                        validationException);
+                }
             } else if (requestInfo().version().equals(Version.CURRENT.toString()) == false) {
                 validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
                         mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",

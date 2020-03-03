@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.qa;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -32,6 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.version;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
 public abstract class SqlProtocolTestCase extends ESRestTestCase {
@@ -136,7 +136,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
                 + "CAST(-1234.34 AS REAL) AS float_negative,"
                 + "1234567890123.34 AS double_positive,"
                 + "-1234567890123.34 AS double_negative\""
-                + mode(mode.toString()) + "}";
+                + mode(mode.toString()) + version(mode.toString()) + "}";
         request.setEntity(new StringEntity(requestContent, ContentType.APPLICATION_JSON));
         
         Map<String, Object> map;
@@ -219,16 +219,14 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
     private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode.toString()) + "}";
+        String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode.toString()) + version(mode.toString()) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
 
         // add a client_id to the request
         if (randomBoolean()) {
             String clientId = randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20));
-            String clientVersion = (Mode.isDriver(mode) || Mode.isCli(mode)) ?
-                ",\"client_version\": \"" + Version.CURRENT.toString() + "\"" : "";
             requestContent = new StringBuilder(requestContent)
-                    .insert(requestContent.length() - 1, ",\"client_id\":\"" + clientId + "\"" + clientVersion).toString();
+                    .insert(requestContent.length() - 1, ",\"client_id\":\"" + clientId + "\"").toString();
         }
         if (randomBoolean()) {
             request.addParameter("error_trace", "true");

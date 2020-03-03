@@ -11,24 +11,26 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.analytics.AnalyticsUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.List;
 
 public class TransportAnalyticsStatsAction extends TransportNodesAction<AnalyticsStatsAction.Request, AnalyticsStatsAction.Response,
-    AnalyticsStatsAction.NodeRequest, AnalyticsStatsAction.NodeResponse> {
-
+        AnalyticsStatsAction.NodeRequest, AnalyticsStatsAction.NodeResponse> {
+    private final AnalyticsUsage usage;
 
     @Inject
     public TransportAnalyticsStatsAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters) {
+                                         ThreadPool threadPool, ActionFilters actionFilters, AnalyticsUsage usage) {
         super(AnalyticsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
             AnalyticsStatsAction.Request::new, AnalyticsStatsAction.NodeRequest::new, ThreadPool.Names.MANAGEMENT,
             AnalyticsStatsAction.NodeResponse.class);
+        this.usage = usage;
     }
 
     @Override
@@ -49,11 +51,8 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<Analytic
     }
 
     @Override
-    protected AnalyticsStatsAction.NodeResponse nodeOperation(AnalyticsStatsAction.NodeRequest request) {
-        AnalyticsStatsAction.NodeResponse statsResponse = new AnalyticsStatsAction.NodeResponse(clusterService.localNode());
-        statsResponse.setCumulativeCardinalityUsage(AnalyticsPlugin.cumulativeCardUsage.get());
-        statsResponse.setTopMetricsUsage(AnalyticsPlugin.topMetricsUsage.get());
-        return statsResponse;
+    protected AnalyticsStatsAction.NodeResponse nodeOperation(AnalyticsStatsAction.NodeRequest request, Task task) {
+        return usage.stats(clusterService.localNode());
     }
 
 }

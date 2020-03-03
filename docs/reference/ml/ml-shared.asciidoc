@@ -134,7 +134,8 @@ analysis. You do not need to add fields with unsupported data types to
 end::analyzed-fields-excludes[]
 
 tag::analyzed-fields-includes[]
-An array of strings that defines the fields that will be included in the analysis.
+An array of strings that defines the fields that will be included in the 
+analysis.
 end::analyzed-fields-includes[]
 
 tag::assignment-explanation-anomaly-jobs[]
@@ -1421,6 +1422,131 @@ tag::total-partition-field-count[]
 The number of `partition` field values that were analyzed by the models. This
 value is cumulative for all detectors in the job.
 end::total-partition-field-count[]
+
+tag::trained-model-configs[]
+An array of trained model resources, which are sorted by the `model_id` value in 
+ascending order.
+
+`model_id`:::
+(string)
+Idetifier for the trained model.
+
+`created_by`:::
+(string)
+Information on the creator of the trained model.
+
+`version`:::
+(string)
+The {es} version number in which the trained model was created.
+
+`create_time`:::
+(<<time-units,time units>>)
+The time when the trained model was created.
+
+`tags`:::
+(string)
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+
+`metadata`:::
+(object)
+An object containing metadata about the trained model. Includes an 
+`analysis_config` and an `input` object.
+
+`analytics_config`:::
+(object)
+The analytics configuration object that describes how the data is analyzed.
+
+`analytics_config`.`model_memory_limit`:::
+(string)
+The approximate maximum amount of memory resources that are permitted for 
+analytical processing for the trained model.
+
+`analytics_config`.`create_time`:::
+(<<time-units,time units>>)
+The time when the trained model was created.
+
+`analytics_config`.`allow_lazy_start`:::
+(boolean)
+Whether this job should be allowed to start when there is insufficient {ml} node 
+capacity for it to be immediately assigned to a node.
+
+`analytics_config`.`analyzed_fields`:::
+(object)
+Contains `includes` and/or `excludes` patterns that select which fields are 
+included in the analysis.
+
+`analytics_config`.`analyzed_fields`.`includes`:::
+(array)
+An array of strings that defines the fields that are included in the 
+destination index.
+
+`analytics_config`.`analyzed_fields`.`excludes`:::
+(array)
+An array of strings that defines the fields that are excluded from the 
+destination.
+
+`analytics_config`.`id`:::
+(string)
+The unique identifier of the {dfanalytics-job}.
+
+`analytics_config`.`id`.`source`:::
+(object)
+The configuration of how the analysis data is sourced. It has an `index` 
+parameter and optionally a `query`.
+  
+`analytics_config`.`id`.`source`.`index`:::
+(array)
+Index or indices on which to perform the analysis. It can be a single index or 
+index pattern as well as an array of indices or patterns.
+    
+`analytics_config`.`id`.`source`.`query`:::
+(object)
+The query that has been specified for the analysis. The {es} query 
+domain-specific language (<<query-dsl,DSL>>). This value corresponds to the 
+query object in an {es} search POST body. By default, this property has the 
+following value: `{"match_all": {}}`.
+
+`analytics_config`.`id`.`dest`:::
+(string)
+The destination configuration of the analysis. It has an `index` parameter and 
+a `results_field`.
+
+`analytics_config`.`id`.`dest`.`index`:::
+(string)
+The _destination index_ that stores the results of the analysis.
+
+`analytics_config`.`id`.`dest`.`results_field`:::
+(string)
+The name of the field in which to store the results of the analysis.
+
+`analytics_config`.`analysis`:::
+(object)
+The type of analysis that is performed on the `source` and its configuration.
+
+`analytics_config`.`version`:::
+(string)
+The {es} version number in which the {dfanalytics-job} was created.
+
+`input`:::
+(object)
+Object containing the input fields of the analysis.
+
+`input`.`field_names`:::
+(array)
+A comma separated list of the input field names.
+
+`estimated_heap_memory_usage_bytes`:::
+(integer)
+The estimated heap usage in bytes to keep the trained model in memory.
+
+`estimated_operations`:::
+(integer)
+The estimated number of operations to use the trained model.
+
+`license_level`:::
+(string)
+The license level of the trained model.
+end::trained-model-configs[]
 
 tag::training-percent[]
 Defines what percentage of the eligible documents that will 

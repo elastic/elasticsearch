@@ -63,7 +63,7 @@ public class Exporters extends AbstractLifecycleComponent {
         final List<Setting.AffixSetting<?>> dynamicSettings =
             getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, dynamicSettings);
-        HttpExporter.registerSettingValidators(clusterService);
+        HttpExporter.registerSettingValidators(clusterService, sslService);
         // this ensures that logging is happening by adding an empty consumer per affix setting
         for (Setting.AffixSetting<?> affixSetting : dynamicSettings) {
             clusterService.getClusterSettings().addAffixUpdateConsumer(affixSetting, (s, o) -> {}, (s, o) -> {});

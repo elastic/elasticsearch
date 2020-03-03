@@ -467,7 +467,8 @@ public final class SearchPhaseController {
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
             from = result.from();
-            size = result.size();
+            // sorted queries can set the size to 0 if they have enough competitive hits.
+            size = Math.max(result.size(), size);
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {

@@ -24,6 +24,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
@@ -90,7 +92,16 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
-        mergeTopDocs(result.queryResult());
+        try {
+            QuerySearchResult queryResult = result.queryResult();
+            if (queryResult.isNull() == false
+                    && hasPrimaryFieldSort
+                    && queryResult.topDocs().topDocs instanceof TopFieldDocs) {
+                mergeTopDocs((TopFieldDocs) result.queryResult().topDocs().topDocs, result.getShardIndex());
+            }
+        } catch (Exception exc) {
+            getLogger().error("Failed to merge response", exc);
+        }
         super.onShardResult(result, shardIt);
     }
 
@@ -99,19 +110,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         return new FetchSearchPhase(results, searchPhaseController, context);
     }
 
-    private synchronized void mergeTopDocs(QuerySearchResult result) {
-        if (result.isNull()
-                || hasPrimaryFieldSort == false
-                || result.topDocs().topDocs instanceof TopFieldDocs == false) {
-            return;
-        }
-        // merge the current best bottom field doc with the new query result
-        TopFieldDocs topDocs = (TopFieldDocs) result.topDocs().topDocs;
+    // merge the current best bottom field doc with the new query result
+    private synchronized void mergeTopDocs(TopFieldDocs topDocs, int shardIndex) {
         final ScoreDoc[] bottomDocs;
         if (topDocs.scoreDocs.length == topDocsSize) {
             FieldDoc bottom = (FieldDoc) topDocs.scoreDocs[topDocsSize - 1];
-            bottomDocs = new FieldDoc[] { new FieldDoc(bottom.doc, bottom.score, bottom.fields, result.getShardIndex()) };
-            bottomDocs[0].shardIndex = result.getShardIndex();
+            bottomDocs = new FieldDoc[] { new FieldDoc(bottom.doc, bottom.score, bottom.fields, shardIndex) };
         } else {
             bottomDocs = new ScoreDoc[0];
         }
@@ -120,7 +124,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             bottomTopDocs = toMerge;
         } else {
             final Sort sort = new Sort(bottomTopDocs.fields);
-            bottomTopDocs = TopFieldDocs.merge(sort, 0, 1, new TopFieldDocs[]{bottomTopDocs, toMerge}, false);
+            bottomTopDocs = TopFieldDocs.merge(sort, 0, 1, new TopFieldDocs[]{ bottomTopDocs, toMerge }, false);
         }
     }
 
@@ -132,7 +136,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
         // disable tracking total hits if we already reached the required estimation.
         if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
-                && current.totalHits.value >= trackTotalHitsUpTo) {
+                && current.totalHits.value >= trackTotalHitsUpTo
+                && current.totalHits.relation == GREATER_THAN_OR_EQUAL_TO) {
             assert request.source() != null : "source should contain a primary sort field";
             request.source(request.source().shallowCopy().trackTotalHits(false));
         }

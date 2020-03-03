@@ -362,7 +362,7 @@ public final class TransformInternalIndex {
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
             IndexTemplateMetaData indexTemplateMetaData = getIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
                 .patterns(indexTemplateMetaData.patterns())
                 .version(indexTemplateMetaData.version())
@@ -396,7 +396,7 @@ public final class TransformInternalIndex {
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
             IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
                 indexTemplateMetaData.patterns()
             )

@@ -74,6 +74,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.index.FilterLeafReader.FilterTerms;
 import static org.apache.lucene.index.FilterLeafReader.FilterTermsEnum;
@@ -233,7 +234,8 @@ public class ContextIndexSearcher extends IndexSearcher {
             Scorer scorer = weight.scorer(ctx);
             if (scorer != null) {
                 try {
-                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector, () -> checkCancelled());
+                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
+                            this.cancellable == null ? () -> {} : this::checkCancelled);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -269,7 +271,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, () -> checkCancelled());
+                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
                     } else {
                         return null;
                     }
@@ -391,9 +393,9 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     static class CancellableLeafReader extends FilterLeafReader {
 
-        private final Holder<QueryCancellable> cancellable;
+        private final Supplier<QueryCancellable> cancellable;
 
-        private CancellableLeafReader(LeafReader leafReader, Holder<QueryCancellable> cancellable)  {
+        private CancellableLeafReader(LeafReader leafReader, Supplier<QueryCancellable> cancellable)  {
             super(leafReader);
             this.cancellable = cancellable;
         }
@@ -413,6 +415,9 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (terms == null) {
                 return null;
             }
+            // If we have a suggest CompletionQuery then the CompletionWeight#bulkScorer() will check that
+            // the terms are instanceof CompletionTerms (not generic FilterTerms) and will throw an exception
+            // if that's not the case.
             return (cancellable.get() != null && terms instanceof CompletionTerms == false) ?
                     new ExitableTerms(terms, cancellable.get()) : terms;
         }
@@ -433,7 +438,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * {@link QueryCancellable} passed trough the hierarchy to the {@link Terms} and {@link PointValues}
      * during construction can be set later with {@link ContextIndexSearcher#setCancellable}
      */
-    private static class Holder<T> {
+    private static class Holder<T> implements Supplier<T> {
 
         private T in;
 
@@ -445,7 +450,8 @@ public class ContextIndexSearcher extends IndexSearcher {
             this.in = in;
         }
 
-        private T get() {
+        @Override
+        public T get() {
             return in;
         }
     }
@@ -479,6 +485,9 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     private static class ExitableTermsEnum extends FilterTermsEnum {
 
+        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
+
+        private int calls;
         private final QueryCancellable cancellable;
 
         private ExitableTermsEnum(TermsEnum termsEnum, QueryCancellable cancellable) {
@@ -489,9 +498,14 @@ public class ContextIndexSearcher extends IndexSearcher {
 
         @Override
         public BytesRef next() throws IOException {
-            // Before every iteration, check if the iteration should exit
-            this.cancellable.checkCancelled();
+            checkAndThrowWithSampling();
             return in.next();
+        }
+
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                cancellable.checkCancelled();
+            }
         }
     }
 

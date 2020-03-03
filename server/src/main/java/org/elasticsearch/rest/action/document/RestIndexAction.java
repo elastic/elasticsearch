@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,6 +33,7 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -81,10 +82,10 @@ public class RestIndexAction extends BaseRestHandler {
 
     public static final class AutoIdHandler extends RestIndexAction {
 
-        private final ClusterService clusterService;
+        private final Supplier<DiscoveryNodes> nodesInCluster;
 
-        public AutoIdHandler(ClusterService clusterService) {
-            this.clusterService = clusterService;
+        public AutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
+            this.nodesInCluster = nodesInCluster;
         }
 
         @Override
@@ -100,7 +101,7 @@ public class RestIndexAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
-            if (request.params().get("op_type") == null && clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
+            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
                 // default to op_type create
                 request.params().put("op_type", "create");
             }

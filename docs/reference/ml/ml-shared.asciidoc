@@ -761,7 +761,9 @@ not be set to `false` on any {ml} nodes.
 end::indices[]
 
 tag::indices-options[]
-Object specifying index expansion options used during search.
+Specifies index expansion options that are used during search.
++
+--
 For example:
 ```
 {
@@ -771,6 +773,8 @@ For example:
    "ignore_throttled": true
 }
 ```
+For more information about these options, see <<multi-index>>.
+--
 end::indices-options[]
 
 tag::influencers[]

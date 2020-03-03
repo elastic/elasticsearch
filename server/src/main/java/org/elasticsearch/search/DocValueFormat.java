@@ -210,7 +210,7 @@ public interface DocValueFormat extends NamedWriteable {
                 this.timeZone = ZoneId.of(zoneId);
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 //if stream is from 7.7 it will have a flag indicating if format is joda
                 boolean isJoda = in.readBoolean();
                 this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);

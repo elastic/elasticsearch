@@ -36,8 +36,6 @@ import java.util.Map;
  * @see org.elasticsearch.search.DocValueFormat.DateTime
  */
 public class DateFieldsIT extends AbstractRollingTestCase {
-    private static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     private static final String V_6_8_1_PLUS_WARNING = "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
         "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'." +
@@ -60,7 +58,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                Request createTestIndex = indexWithDateField("joda_it", "YYYY-MM-dd'T'HH:mm:ssZZ");
+                Request createTestIndex = indexWithDateField("joda_time", "YYYY-MM-dd'T'HH:mm:ssZZ");
 
                 Version minVersion = getMinVersion();
                 if (minVersion.equals(Version.V_6_8_0)) {
@@ -74,13 +72,13 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 Response resp = client().performRequest(createTestIndex);
                 assertEquals(200, resp.getStatusLine().getStatusCode());
 
-                postNewDoc("joda_it/_doc");
+                postNewDoc("joda_time/_doc");
 
                 break;
             case MIXED:
-                postNewDoc("joda_it/_doc");
+                postNewDoc("joda_time/_doc");
 
-                Request search = dateRangeSearch("joda_it/_search");
+                Request search = dateRangeSearch("joda_time/_search");
 
                 RequestOptions options = expectVersionSpecificWarnings(
                     consumer -> consumer.compatible(V_6_8_0_WARNING, V_6_8_1_PLUS_WARNING, V_7_0_0_PLUS_WARNING));
@@ -91,9 +89,8 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
-                postNewDoc("joda_it/_doc");
-                search = dateRangeSearch("joda_it/_search");
-                //somehow  this can at times not have a warning..
+                postNewDoc("joda_time/_doc");
+                search = dateRangeSearch("joda_time/_search");
 
                 search.setOptions(expectWarnings(V_7_0_0_PLUS_WARNING));
                 searchResp = client().performRequest(search);
@@ -105,24 +102,24 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     public void testJavaBackedDocValueAndDateFields() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD:
-                Request createTestIndex = indexWithDateField("java_it", "8yyyy-MM-dd'T'HH:mm:ssXXX");
+                Request createTestIndex = indexWithDateField("java_time", "8yyyy-MM-dd'T'HH:mm:ssXXX");
                 Response resp = client().performRequest(createTestIndex);
                 assertEquals(200, resp.getStatusLine().getStatusCode());
 
-                postNewDoc("java_it/_doc");
+                postNewDoc("java_time/_doc");
 
                 break;
             case MIXED:
-                postNewDoc("java_it/_doc");
+                postNewDoc("java_time/_doc");
 
-                Request search = dateRangeSearch("java_it/_search");
+                Request search = dateRangeSearch("java_time/_search");
                 Response searchResp = client().performRequest(search);
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
-                postNewDoc("java_it/_doc");
+                postNewDoc("java_time/_doc");
 
-                search = dateRangeSearch("java_it/_search");
+                search = dateRangeSearch("java_time/_search");
                 searchResp = client().performRequest(search);
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
                 break;

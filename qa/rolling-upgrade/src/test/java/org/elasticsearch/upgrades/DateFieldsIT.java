@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.http.HttpStats;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -60,25 +62,26 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 createTestIndex.setOptions(ignoreWarnings());
 
                 Response resp = client().performRequest(createTestIndex);
-                assertEquals(200, resp.getStatusLine().getStatusCode());
+                assertEquals(HttpStatus.SC_OK, resp.getStatusLine().getStatusCode());
 
-                postNewDoc("joda_time/_doc");
+                postNewDoc("joda_time");
 
                 break;
             case MIXED:
-                postNewDoc("joda_time/_doc");
+                postNewDoc("joda_time");
 
                 Request search = dateRangeSearch("joda_time");
                 search.setOptions(ignoreWarnings());
 
                 Response searchResp = client().performRequest(search,3);
-                assertEquals(200, searchResp.getStatusLine().getStatusCode());
+                assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
-                postNewDoc("joda_time/_doc");
+                postNewDoc("joda_time");
+
                 search = searchWithAgg("joda_time");
                 search.setOptions(ignoreWarnings());
-
+                //making sure all nodes were used for search
                 searchResp = client().performRequest(search,3);
                 assertSearchResponse(searchResp, 4);
                 break;
@@ -90,23 +93,24 @@ public class DateFieldsIT extends AbstractRollingTestCase {
             case OLD:
                 Request createTestIndex = indexWithDateField("java_time", "8yyyy-MM-dd'T'HH:mm:ssXXX");
                 Response resp = client().performRequest(createTestIndex);
-                assertEquals(200, resp.getStatusLine().getStatusCode());
+                assertEquals(HttpStatus.SC_OK, resp.getStatusLine().getStatusCode());
 
-                postNewDoc("java_time/_doc");
+                postNewDoc("java_time");
 
                 break;
             case MIXED:
-                postNewDoc("java_time/_doc");
+                postNewDoc("java_time");
 
                 Request search = dateRangeSearch("java_time");
                 Response searchResp = client().performRequest(search);
-                assertEquals(200, searchResp.getStatusLine().getStatusCode());
+                assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
-                postNewDoc("java_time/_doc");
+                postNewDoc("java_time");
 
                 search = searchWithAgg("java_time");
-                searchResp = client().performRequest(search);
+                //making sure all nodes were used for search
+                searchResp = client().performRequest(search,3);
                 assertSearchResponse(searchResp, 4);
                 break;
         }
@@ -119,7 +123,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     }
 
     private void assertSearchResponse(Response searchResp, int count) throws IOException {
-        assertEquals(200, searchResp.getStatusLine().getStatusCode());
+        assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
         assertEquals("{\"hits\":{\"total\":" + count + "}}",
         EntityUtils.toString(searchResp.getEntity(), StandardCharsets.UTF_8));
     }
@@ -146,7 +150,6 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     }
 
     private Request searchWithAgg(String endpoint) throws IOException {
-        flush(endpoint,true);
         Request search = new Request("GET", endpoint+"/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         search.addParameter("filter_path", "hits.total");
@@ -195,13 +198,15 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     }
 
     private void postNewDoc(String endpoint) throws IOException {
-        Request putDoc = new Request("POST", endpoint);
+        Request putDoc = new Request("POST", endpoint+"/_doc");
         putDoc.setJsonEntity("{\n" +
             "  \"datetime\": \"2020-01-01T01:01:01+01:00\"\n" +
             "}"
         );
         Response resp = client().performRequest(putDoc);
-        assertEquals(201, resp.getStatusLine().getStatusCode());
+        assertEquals(HttpStatus.SC_CREATED, resp.getStatusLine().getStatusCode());
+        flush(endpoint,true);
+
     }
 
 }

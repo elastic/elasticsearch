@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -36,20 +35,14 @@ import java.util.Map;
 
 public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentileRanksAggregationBuilder> {
     public static final String NAME = PercentileRanks.TYPE_NAME;
-
     private static final ParseField VALUES_FIELD = new ParseField("values");
-    private static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER;
-    static {
-        PARSER = AbstractPercentilesAggregationBuilder.createParser(
-            PercentileRanksAggregationBuilder.NAME,
-            PercentileRanksAggregationBuilder::new,
-            PercentilesConfig.TDigest::new,
-            VALUES_FIELD);
-    }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, aggregationName);
-    }
+    public static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER =
+            AbstractPercentilesAggregationBuilder.createParser(
+                PercentileRanksAggregationBuilder.NAME,
+                PercentileRanksAggregationBuilder::new,
+                PercentilesConfig.TDigest::new,
+                VALUES_FIELD);
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {
         this(name, values, null);

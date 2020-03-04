@@ -30,8 +30,8 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
-    public EqlSearchRequestBuilder eventTypeField(String eventTypeField) {
-        request.eventTypeField(eventTypeField);
+    public EqlSearchRequestBuilder eventCategoryField(String eventCategoryField) {
+        request.eventCategoryField(eventCategoryField);
         return this;
     }
 

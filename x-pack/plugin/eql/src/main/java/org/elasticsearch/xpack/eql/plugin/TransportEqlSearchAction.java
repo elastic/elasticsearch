@@ -62,7 +62,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         String clientId = null;
 
         ParserParams params = new ParserParams()
-            .fieldEventType(request.eventTypeField())
+            .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .implicitJoinKey(request.implicitJoinKeyField());
 

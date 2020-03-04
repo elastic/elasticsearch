@@ -61,6 +61,10 @@ elasticsearch_distributions {
   }
 }
 
+preProcessFixture {
+  dependsOn elasticsearch_distributions.docker
+}
+
 dockerCompose {
   if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
     useComposeFiles = ['docker-compose.yml']

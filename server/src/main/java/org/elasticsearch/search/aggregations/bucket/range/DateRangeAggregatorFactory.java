@@ -30,15 +30,16 @@ import java.util.Map;
 public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
 
     public DateRangeAggregatorFactory(String name,
-                                        ValuesSourceConfig config,
-                                        RangeAggregator.Range[] ranges,
-                                        boolean keyed,
-                                        InternalRange.Factory<?, ?> rangeFactory,
-                                        QueryShardContext queryShardContext,
-                                        AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
-        super(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                      ValuesSourceConfig config,
+                                      RangeAggregator.Range[] ranges,
+                                      boolean keyed,
+                                      InternalRange.Factory<?, ?> rangeFactory,
+                                      QueryShardContext queryShardContext,
+                                      AggregatorFactory parent,
+                                      AggregatorFactories.Builder subFactoriesBuilder,
+                                      Map<String, Object> metaData) throws IOException {
+        super(name, DateRangeAggregationBuilder.NAME, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
+            metaData);
     }
 
 }

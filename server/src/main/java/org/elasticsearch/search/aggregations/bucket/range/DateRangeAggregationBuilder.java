@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -58,6 +59,10 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
 
     private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
         return RangeAggregator.Range.fromXContent(parser);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistry, NAME);
     }
 
     public DateRangeAggregationBuilder(String name) {

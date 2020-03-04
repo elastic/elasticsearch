@@ -42,14 +42,16 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
     public void testBasicSearch() throws Exception {
         Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
         doc1.setJsonEntity("{\"event_subtype_full\": \"already_running\", " +
-                "\"event_type\": \"process\", " +
+                "\"event\": {" +
+                    "\"category\": \"process\"" +
+                "}," +
                 "\"event_type_full\": \"process_event\", " +
                 "\"opcode\": 3," +
                 "\"pid\": 0," +
                 "\"process_name\": \"System Idle Process\"," +
                 "\"serial_event_id\": 1," +
                 "\"subtype\": \"create\"," +
-                "\"timestamp\": 116444736000000000," +
+                "\"@timestamp\": 116444736000000000," +
                 "\"unique_pid\": 1}");
         client().performRequest(doc1);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -78,8 +80,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
             sb.append("\"datetime" + i + "\":\"" + now + "\"");
             sb.append(",");
         }
-        sb.append("\"event_type\": \"process\",");
-        sb.append("\"timestamp\": \"2020-02-03T12:34:56Z\",");
+        sb.append("\"event\": {\"category\": \"process\"},");
+        sb.append("\"@timestamp\": \"2020-02-03T12:34:56Z\",");
         sb.append("\"serial_event_id\": 1");
         sb.append("}");
         doc1.setJsonEntity(sb.toString());

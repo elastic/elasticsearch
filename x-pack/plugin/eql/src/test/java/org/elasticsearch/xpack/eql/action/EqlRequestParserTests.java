@@ -35,7 +35,7 @@ public class EqlRequestParserTests extends ESTestCase {
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"timestamp_field\" : 123}", "timestamp_field doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"event_type_field\" : 123}", "event_type_field doesn't support values of type: VALUE_NUMBER",
+        assertParsingErrorMessage("{\"event_category_field\" : 123}", "event_category_field doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"implicit_join_key_field\" : 123}",
             "implicit_join_key_field doesn't support values of type: VALUE_NUMBER",
@@ -51,7 +51,7 @@ public class EqlRequestParserTests extends ESTestCase {
 
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
-            + "\"event_type_field\" : \"etf\","
+            + "\"event_category_field\" : \"etf\","
             + "\"implicit_join_key_field\" : \"imjf\","
             + "\"search_after\" : [ 12345678, \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
             + "\"size\" : \"101\","
@@ -64,7 +64,7 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals("foo", filter.fieldName());
         assertEquals("bar", filter.value());
         assertEquals("tsf", request.timestampField());
-        assertEquals("etf", request.eventTypeField());
+        assertEquals("etf", request.eventCategoryField());
         assertEquals("imjf", request.implicitJoinKeyField());
         assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
         assertEquals(101, request.fetchSize());

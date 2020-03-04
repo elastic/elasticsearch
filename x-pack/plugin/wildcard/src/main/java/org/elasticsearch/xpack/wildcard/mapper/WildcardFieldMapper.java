@@ -56,11 +56,11 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
- * A {@link FieldMapper} for indexing a keyword fields with ngrams for efficient wildcard matching
+ * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
  */
 public class WildcardFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "wildcard_keyword";
+    public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_NUM_CHARS_COUNT = 6; //maximum allowed number of characters per ngram
 
     public static class Defaults {

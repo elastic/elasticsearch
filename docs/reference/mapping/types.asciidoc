@@ -132,4 +132,4 @@ include::types/shape.asciidoc[]
 
 include::types/constant-keyword.asciidoc[]
 
-include::types/wildcard-keyword.asciidoc[]
+include::types/wildcard.asciidoc[]

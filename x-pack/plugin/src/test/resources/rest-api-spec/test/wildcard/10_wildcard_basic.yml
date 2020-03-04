@@ -13,7 +13,7 @@ setup:
           mappings:
             properties:
               my_wildcard:
-                 type: wildcard_keyword
+                 type: wildcard
   - do:
       index:
         index: test-index
@@ -38,7 +38,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "Long prefix query":
   - do:
@@ -68,7 +68,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "Long unrooted query":
   - do:
@@ -98,7 +98,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "Long suffix query":
   - do:
@@ -113,7 +113,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "No wildcard wildcard query":
   - do:
@@ -128,7 +128,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "Term query on wildcard field":
   - do:
@@ -143,7 +143,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "Terms query on wildcard field":
   - do:
@@ -158,7 +158,7 @@ setup:
 
 
   - match: {hits.total: 1}
-  
+
 ---
 "Sequence fail":
   - do:

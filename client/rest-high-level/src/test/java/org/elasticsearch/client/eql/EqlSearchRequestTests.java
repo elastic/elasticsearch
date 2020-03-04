@@ -43,7 +43,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
             EqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.eventTypeField(randomAlphaOfLength(10));
+            EqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             EqlSearchRequest.query(randomAlphaOfLength(10));
@@ -72,7 +72,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
     @Override
     protected void assertInstances(org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
         clientTestInstance) {
-        assertThat(serverInstance.eventTypeField(), equalTo(clientTestInstance.eventTypeField()));
+        assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
         assertThat(serverInstance.implicitJoinKeyField(), equalTo(clientTestInstance.implicitJoinKeyField()));
         assertThat(serverInstance.timestampField(), equalTo(clientTestInstance.timestampField()));
         assertThat(serverInstance.filter(), equalTo(clientTestInstance.filter()));

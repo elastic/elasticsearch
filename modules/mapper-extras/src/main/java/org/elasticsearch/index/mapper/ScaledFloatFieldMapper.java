@@ -62,6 +62,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -296,6 +298,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.NUMERIC;
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -527,8 +534,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format) {
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested).newBucketedSort(bigArrays, sortOrder, format);
+                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested)
+                    .newBucketedSort(bigArrays, sortOrder, format, bucketSize, extra);
         }
 
         @Override

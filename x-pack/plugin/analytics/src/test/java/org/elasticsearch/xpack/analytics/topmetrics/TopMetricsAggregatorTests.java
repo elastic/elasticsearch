@@ -68,15 +68,16 @@ import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -85,10 +86,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {},
                 doubleFields());
-        assertThat(result.getSortFormat(), equalTo(DocValueFormat.RAW));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), nullValue());
-        assertThat(result.getMetricValue(), notANumber());
+        assertThat(result.getTopMetrics(), equalTo(emptyList()));
     }
 
     public void testUnmappedMetric() throws IOException {
@@ -97,8 +96,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 numberFieldType(NumberType.DOUBLE, "s"));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), nullValue());
-        assertThat(result.getMetricValue(), notANumber());
+        assertThat(result.getTopMetrics(), equalTo(emptyList()));
     }
 
     public void testMissingValueForMetric() throws IOException {
@@ -107,8 +105,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getMetricValue(), notANumber());
+        assertThat(result.getTopMetrics(), hasSize(1));
+        assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
+        assertThat(result.getTopMetrics().get(0).getMetricValue(), notANumber());
     }
 
     public void testActualValueForMetric() throws IOException {
@@ -117,10 +116,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0))));
     }
-    
+
     private InternalTopMetrics collectFromDoubles(TopMetricsAggregationBuilder builder) throws IOException {
         return collect(builder, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
@@ -132,24 +130,27 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testSortByDoubleAscending() throws IOException {
         InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC)));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), 2.0))));
     }
 
     public void testSortByDoubleDescending() throws IOException {
         InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC)));
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
-        assertThat(result.getMetricValue(), equalTo(3.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(2.0, 3.0))));
     }
 
     public void testSortByDoubleCastToLong() throws IOException {
         InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").setNumericType("long")));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1, 2.0))));
     }
 
+    public void testSortByDoubleTwoHits() throws IOException {
+        InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC), 2));
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getTopMetrics(), equalTo(List.of(top(1.0, 2.0), top(2.0, 3.0))));
+    }
 
     public void testSortByFloatAscending() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
@@ -159,8 +160,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 floatAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0d))));
     }
 
     public void testSortByFloatDescending() throws IOException {
@@ -171,8 +171,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 floatAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
-        assertThat(result.getMetricValue(), equalTo(3.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(2.0, 3.0))));
     }
 
     public void testSortByLongAscending() throws IOException {
@@ -183,8 +182,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 longAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(10)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(10, 2.0))));
     }
 
     public void testSortByLongDescending() throws IOException {
@@ -195,8 +193,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 longAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(20)));
-        assertThat(result.getMetricValue(), equalTo(3.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(20, 3.0))));
     }
 
     public void testSortByScoreDescending() throws IOException {
@@ -207,8 +204,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 textAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(2.0, 2.0))));
     }
 
     public void testSortByScoreAscending() throws IOException {
@@ -219,8 +215,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 textAndDoubleField());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getMetricValue(), equalTo(3.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 3.0))));
     }
 
     public void testSortByScriptDescending() throws IOException {
@@ -231,8 +226,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(2.0)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(2.0, 2.0))));
     }
 
     public void testSortByScriptAscending() throws IOException {
@@ -243,8 +237,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getMetricValue(), equalTo(3.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 3.0))));
     }
 
     public void testSortByStringScriptFails() throws IOException {
@@ -271,16 +264,22 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.DESC));
         InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.2054632268631617E7)));
-        assertThat(result.getMetricValue(), equalTo(3.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.2054632268631617E7, 3.0))));
     }
 
     public void testSortByGeoDistanceAscending() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.ASC));
         InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getSortValue(), equalTo(SortValue.from(1.1062351376961706E7)));
-        assertThat(result.getMetricValue(), equalTo(2.0d));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.1062351376961706E7, 2.0))));
+    }
+
+    public void testSortByGeoDistanceTwoHits() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.DESC), 2);
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder);
+        assertThat(result.getSize(), equalTo(2));
+        assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
+        assertThat(result.getTopMetrics(), equalTo(List.of(top(1.2054632268631617E7, 3.0), top(1.1062351376961706E7, 2.0))));
     }
 
     public void testInsideTerms() throws IOException {
@@ -296,14 +295,12 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(bucket1.getKey(), equalTo(1.0));
         InternalTopMetrics top1 = bucket1.getAggregations().get("test");
         assertThat(top1.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(top1.getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(top1.getMetricValue(), equalTo(2.0d));
+        assertThat(top1.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0))));
         Terms.Bucket bucket2 = result.getBuckets().get(1);
         assertThat(bucket2.getKey(), equalTo(2.0));
         InternalTopMetrics top2 = bucket2.getAggregations().get("test");
         assertThat(top2.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(top2.getSortValue(), equalTo(SortValue.from(4.0)));
-        assertThat(top2.getMetricValue(), equalTo(9.0d));
+        assertThat(top2.getTopMetrics(), equalTo(singletonList(top(4.0, 9.0))));
     }
 
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
@@ -358,11 +355,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                  */
                 int bucketThatBreaks = 922; 
                 for (int b = 0; b < bucketThatBreaks; b++) {
-                    try {
-                        leaf.collect(0, b);
-                    } catch (Exception e) {
-                        throw new RuntimeException("ADFADFS " + b, e);
-                    }
+                    leaf.collect(0, b);
                 }
                 CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> leaf.collect(0, bucketThatBreaks));
                 assertThat(e.getMessage(), equalTo("test error"));
@@ -372,13 +365,17 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private TopMetricsAggregationBuilder simpleBuilder(SortBuilder<?> sort) {
-        return new TopMetricsAggregationBuilder("test", singletonList(sort),
-                new MultiValuesSourceFieldConfig.Builder().setFieldName("m").build());
-    }
-
     private TopMetricsAggregationBuilder simpleBuilder() {
         return simpleBuilder(new FieldSortBuilder("s"));
+    }
+
+    private TopMetricsAggregationBuilder simpleBuilder(SortBuilder<?> sort) {
+        return simpleBuilder(sort, 1);
+    }
+
+    private TopMetricsAggregationBuilder simpleBuilder(SortBuilder<?> sort, int size) {
+        return new TopMetricsAggregationBuilder("test", singletonList(sort), size,
+                new MultiValuesSourceFieldConfig.Builder().setFieldName("m").build());
     }
 
     /**
@@ -456,7 +453,6 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     private InternalTopMetrics collect(TopMetricsAggregationBuilder builder, Query query,
             CheckedConsumer<RandomIndexWriter, IOException> buildIndex, MappedFieldType... fields) throws IOException {
         InternalTopMetrics result = (InternalTopMetrics) collect((AggregationBuilder) builder, query, buildIndex, fields);
-        assertThat(result.getSortFormat(), equalTo(DocValueFormat.RAW));
         assertThat(result.getMetricName(), equalTo(builder.getMetricField().getFieldName()));
         return result;
     }
@@ -473,6 +469,14 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 return search(indexSearcher, query, builder, fields);
             }
         }
+    }
+
+    private InternalTopMetrics.TopMetric top(long sortValue, double metricValue) {
+        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValue);
+    }
+
+    private InternalTopMetrics.TopMetric top(double sortValue, double metricValue) {
+        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValue);
     }
 
     /**

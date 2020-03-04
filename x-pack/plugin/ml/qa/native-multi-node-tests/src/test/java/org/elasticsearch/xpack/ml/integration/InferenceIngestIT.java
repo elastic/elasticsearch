@@ -115,7 +115,10 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"target_field\": \"ml.classification\",\n" +
             "          \"inference_config\": {\"classification\": " +
-            "                {\"num_top_classes\":2, \"top_classes_results_field\": \"result_class_prob\"}},\n" +
+            "                {\"num_top_classes\":2, " +
+            "                \"top_classes_results_field\": \"result_class_prob\"," +
+            "                \"num_top_feature_importance_values\": 2" +
+            "          }},\n" +
             "          \"model_id\": \"test_classification\",\n" +
             "          \"field_mappings\": {\n" +
             "            \"col1\": \"col1\",\n" +
@@ -153,6 +156,8 @@ public class InferenceIngestIT extends ESRestTestCase {
         String responseString = EntityUtils.toString(response.getEntity());
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
         assertThat(responseString, containsString("\"predicted_value\":1.0"));
+        assertThat(responseString, containsString("\"col2\":0.944"));
+        assertThat(responseString, containsString("\"col1\":0.19999"));
 
         String sourceWithMissingModel = "{\n" +
             "  \"pipeline\": {\n" +
@@ -321,16 +326,19 @@ public class InferenceIngestIT extends ESRestTestCase {
         "                \"split_gain\": 12.0,\n" +
         "                \"threshold\": 10.0,\n" +
         "                \"decision_type\": \"lte\",\n" +
+        "                \"number_samples\": 300,\n" +
         "                \"default_left\": true,\n" +
         "                \"left_child\": 1,\n" +
         "                \"right_child\": 2\n" +
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 1,\n" +
+        "                \"number_samples\": 100,\n" +
         "                \"leaf_value\": 1\n" +
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
+        "                \"number_samples\": 200,\n" +
         "                \"leaf_value\": 2\n" +
         "              }\n" +
         "            ],\n" +
@@ -352,15 +360,18 @@ public class InferenceIngestIT extends ESRestTestCase {
         "                \"threshold\": 10.0,\n" +
         "                \"decision_type\": \"lte\",\n" +
         "                \"default_left\": true,\n" +
+        "                \"number_samples\": 150,\n" +
         "                \"left_child\": 1,\n" +
         "                \"right_child\": 2\n" +
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 1,\n" +
+        "                \"number_samples\": 50,\n" +
         "                \"leaf_value\": 1\n" +
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
+        "                \"number_samples\": 100,\n" +
         "                \"leaf_value\": 2\n" +
         "              }\n" +
         "            ],\n" +
@@ -445,6 +456,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "              {\n" +
         "                \"node_index\": 0,\n" +
         "                \"split_feature\": 0,\n" +
+        "                \"number_samples\": 100,\n" +
         "                \"split_gain\": 12.0,\n" +
         "                \"threshold\": 10.0,\n" +
         "                \"decision_type\": \"lte\",\n" +
@@ -454,10 +466,12 @@ public class InferenceIngestIT extends ESRestTestCase {
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 1,\n" +
+        "                \"number_samples\": 80,\n" +
         "                \"leaf_value\": 1\n" +
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
+        "                \"number_samples\": 20,\n" +
         "                \"leaf_value\": 0\n" +
         "              }\n" +
         "            ],\n" +
@@ -476,6 +490,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "                \"node_index\": 0,\n" +
         "                \"split_feature\": 0,\n" +
         "                \"split_gain\": 12.0,\n" +
+        "                \"number_samples\": 180,\n" +
         "                \"threshold\": 10.0,\n" +
         "                \"decision_type\": \"lte\",\n" +
         "                \"default_left\": true,\n" +
@@ -484,10 +499,12 @@ public class InferenceIngestIT extends ESRestTestCase {
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 1,\n" +
+        "                \"number_samples\": 10,\n" +
         "                \"leaf_value\": 1\n" +
         "              },\n" +
         "              {\n" +
         "                \"node_index\": 2,\n" +
+        "                \"number_samples\": 170,\n" +
         "                \"leaf_value\": 0\n" +
         "              }\n" +
         "            ],\n" +

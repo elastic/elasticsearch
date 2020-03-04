@@ -10,9 +10,15 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-// https://github.com/elastic/x-plugins/issues/724
 configurations {
   testArtifacts.extendsFrom testRuntime
+  restXpackSpecs
+  restXpackTests
+}
+
+artifacts {
+  restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
+  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
 task testJar(type: Jar) {
@@ -81,6 +87,7 @@ testClusters.integTest {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
@@ -92,6 +99,8 @@ testClusters.integTest {
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 

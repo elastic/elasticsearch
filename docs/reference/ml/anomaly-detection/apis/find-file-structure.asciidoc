@@ -315,7 +315,7 @@ If the request does not encounter errors, you receive the following result:
       {
         "date" : {
           "field" : "release_date",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "ISO8601"
           ]
@@ -702,7 +702,7 @@ If the request does not encounter errors, you receive the following result:
       {
         "date" : {
           "field" : "tpep_pickup_datetime",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "yyyy-MM-dd HH:mm:ss"
           ]
@@ -1577,7 +1577,7 @@ this:
       {
         "date" : {
           "field" : "timestamp",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "ISO8601"
           ]
@@ -1743,7 +1743,7 @@ this:
       {
         "date" : {
           "field" : "timestamp",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "ISO8601"
           ]

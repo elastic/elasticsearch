@@ -18,20 +18,31 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -51,23 +62,40 @@ import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -90,6 +118,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -106,6 +135,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
+
+    // A list of field types that should not be tested, or are not currently supported
+    private static List<String> TYPE_TEST_BLACKLIST = List.of(
+        ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
+        GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
+
+        TextFieldMapper.CONTENT_TYPE, // TODO Does not support doc values, but does support FD, needs a lot of mocking
+        ObjectMapper.NESTED_CONTENT_TYPE, // TODO support for nested
+        CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
+        FieldAliasMapper.CONTENT_TYPE // TODO support alias
+    );
+
 
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
@@ -167,7 +208,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext.getQueryShardContext(), null)
+        A aggregator = (A) aggregationBuilder
+            .rewrite(searchContext.getQueryShardContext())
+            .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
     }
@@ -521,6 +564,200 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AssertingDirectoryReader(reader);
         } else {
             return reader;
+        }
+    }
+
+    /**
+     * Implementors should return a list of {@link ValuesSourceType} that the aggregator supports.
+     * This is used to test the matrix of supported/unsupported field types against the aggregator
+     * and verify it works (or doesn't) as expected.
+     *
+     * If this method is implemented, {@link AggregatorTestCase#createAggBuilderForTypeTest(MappedFieldType, String)}
+     * should be implemented as well.
+     *
+     * @return list of supported ValuesSourceTypes
+     */
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // If aggs don't override this method, an empty list allows the test to be skipped.
+        // Once all aggs implement this method we should make it abstract and not allow skipping.
+        return Collections.emptyList();
+    }
+
+    /**
+     * This method is invoked each time a field type is tested in {@link AggregatorTestCase#testSupportedFieldTypes()}.
+     * The field type and name are provided, and the implementor is expected to return an AggBuilder accordingly.
+     * The AggBuilder should be returned even if the aggregation does not support the field type, because
+     * the test will check if an exception is thrown in that case.
+     *
+     * The list of supported types are provided by {@link AggregatorTestCase#getSupportedValuesSourceTypes()},
+     * which must also be implemented.
+     *
+     * @param fieldType the type of the field that will be tested
+     * @param fieldName the name of the field that will be test
+     * @return an aggregation builder to test against the field
+     */
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        throw new UnsupportedOperationException("If getSupportedValuesSourceTypes() is implemented, " +
+            "createAggBuilderForTypeTest() must be implemented as well.");
+    }
+
+    /**
+     * This test will validate that an aggregator succeeds or fails to run against all the field types
+     * that are registered in {@link IndicesModule} (e.g. all the core field types).  An aggregator
+     * is provided by the implementor class, and it is executed against each field type in turn.  If
+     * an exception is thrown when the field is supported, that will fail the test.  Similarly, if
+     * an exception _is not_ thrown when a field is unsupported, that will also fail the test.
+     *
+     * Exception types/messages are not currently checked, just presence/absence of an exception.
+     */
+    public final void testSupportedFieldTypes() throws IOException {
+        MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
+        String fieldName = "typeTestFieldName";
+        List<ValuesSourceType> supportedVSTypes = getSupportedValuesSourceTypes();
+
+        if (supportedVSTypes.isEmpty()) {
+            // If the test says it doesn't support any VStypes, it has not been converted yet so skip
+            return;
+        } else if (supportedVSTypes.contains(CoreValuesSourceType.ANY)) {
+            throw new IllegalArgumentException("Tests should not specify CoreValuesSourceType.ANY as a supported ValuesSourceType, " +
+                "but should instead list the concrete ValuesSourceTypes that are supported");
+        }
+
+        for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
+
+            // Some field types should not be tested, or require more work and are not ready yet
+            if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {
+                continue;
+            }
+
+            Map<String, Object> source = new HashMap<>();
+            source.put("type", mappedType.getKey());
+            source.put("doc_values", "true");
+
+            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
+            FieldMapper mapper = (FieldMapper) builder.build(new BuilderContext(settings, new ContentPath()));
+
+            MappedFieldType fieldType = mapper.fieldType();
+
+            // Non-aggregatable fields are not testable (they will throw an error on all aggs anyway), so skip
+            if (fieldType.isAggregatable() == false) {
+                continue;
+            }
+
+            try (Directory directory = newDirectory()) {
+                RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+                writeTestDoc(fieldType, fieldName, indexWriter);
+                indexWriter.close();
+
+                try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
+
+                    // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
+                    try {
+                        searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                        if (supportedVSTypes.contains(fieldType.getValuesSourceType()) == false) {
+                            fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
+                                + fieldType.typeName() + "] but executing against the field did not throw an excetion");
+                        }
+                    } catch (Exception e) {
+                        if (supportedVSTypes.contains(fieldType.getValuesSourceType())) {
+                            fail("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
+                                + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Helper method to write a single document with a single value specific to the requested fieldType.
+     *
+     * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
+     * being tested.
+     */
+    private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
+
+        String typeName = fieldType.typeName();
+        ValuesSourceType vst = fieldType.getValuesSourceType();
+        
+        if (vst.equals(CoreValuesSourceType.NUMERIC)) {
+            // TODO note: once VS refactor adds DATE/BOOLEAN, this conditional will go away
+            if (typeName.equals(DateFieldMapper.CONTENT_TYPE) || typeName.equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
+            } else if (typeName.equals(BooleanFieldMapper.CONTENT_TYPE)) {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));
+            } else if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
+                long encoded = NumericUtils.doubleToSortableLong(Math.abs(randomDouble()));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
+            } else if (typeName.equals(NumberFieldMapper.NumberType.FLOAT.typeName())) {
+                long encoded = NumericUtils.floatToSortableInt(Math.abs(randomFloat()));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
+            } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
+                long encoded = HalfFloatPoint.halfFloatToSortableShort(Math.abs(randomFloat()));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
+            } else {
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
+            }
+        } else if (vst.equals(CoreValuesSourceType.BYTES)) {
+            if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
+                iw.addDocument(singleton(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes)));
+            } else if (typeName.equals(IpFieldMapper.CONTENT_TYPE)) {
+                // TODO note: once VS refactor adds IP, this conditional will go away
+                boolean v4 = randomBoolean();
+                iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+            } else {
+                iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef("a"))));
+            }
+        } else if (vst.equals(CoreValuesSourceType.RANGE)) {
+            Object start;
+            Object end;
+            RangeType rangeType;
+
+            if (typeName.equals(RangeType.DOUBLE.typeName())) {
+                start = randomDouble();
+                end = RangeType.DOUBLE.nextUp(start);
+                rangeType = RangeType.DOUBLE;
+            } else if (typeName.equals(RangeType.FLOAT.typeName())) {
+                start = randomFloat();
+                end = RangeType.FLOAT.nextUp(start);
+                rangeType = RangeType.DOUBLE;
+            } else if (typeName.equals(RangeType.IP.typeName())) {
+                boolean v4 = randomBoolean();
+                start = randomIp(v4);
+                end = RangeType.IP.nextUp(start);
+                rangeType = RangeType.IP;
+            } else if (typeName.equals(RangeType.LONG.typeName())) {
+                start = randomLong();
+                end = RangeType.LONG.nextUp(start);
+                rangeType = RangeType.LONG;
+            } else if (typeName.equals(RangeType.INTEGER.typeName())) {
+                start = randomInt();
+                end = RangeType.INTEGER.nextUp(start);
+                rangeType = RangeType.INTEGER;
+            } else if (typeName.equals(RangeType.DATE.typeName())) {
+                start = randomNonNegativeLong();
+                end = RangeType.DATE.nextUp(start);
+                rangeType = RangeType.DATE;
+            } else {
+                throw new IllegalStateException("Unknown type of range [" + typeName + "]");
+            }
+
+            final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range)))));
+
+        }  else if (vst.equals(CoreValuesSourceType.GEOPOINT)) {
+            iw.addDocument(singleton(new LatLonDocValuesField(fieldName, randomDouble(), randomDouble())));
+        } else {
+            throw new IllegalStateException("Unknown field type [" + typeName + "]");
+        }
+    }
+
+    private class MockParserContext extends Mapper.TypeParser.ParserContext {
+        MockParserContext() {
+            super(null, null, null, null, null);
         }
     }
 

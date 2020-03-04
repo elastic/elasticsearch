@@ -342,8 +342,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         }};
 
         assertThat(
-            ((ClassificationInferenceResults)definition.getTrainedModel()
-                .infer(fields, ClassificationConfig.EMPTY_PARAMS))
+            ((ClassificationInferenceResults)definition.infer(fields, ClassificationConfig.EMPTY_PARAMS))
                 .getClassificationLabel(),
             equalTo("Iris-setosa"));
 
@@ -354,8 +353,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
             put("petal_width", 1.4);
         }};
         assertThat(
-            ((ClassificationInferenceResults)definition.getTrainedModel()
-                .infer(fields, ClassificationConfig.EMPTY_PARAMS))
+            ((ClassificationInferenceResults)definition.infer(fields, ClassificationConfig.EMPTY_PARAMS))
                 .getClassificationLabel(),
             equalTo("Iris-versicolor"));
 
@@ -366,10 +364,8 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
             put("petal_width", 2.0);
         }};
         assertThat(
-            ((ClassificationInferenceResults)definition.getTrainedModel()
-                .infer(fields, ClassificationConfig.EMPTY_PARAMS))
+            ((ClassificationInferenceResults)definition.infer(fields, ClassificationConfig.EMPTY_PARAMS))
                 .getClassificationLabel(),
             equalTo("Iris-virginica"));
     }
-
 }

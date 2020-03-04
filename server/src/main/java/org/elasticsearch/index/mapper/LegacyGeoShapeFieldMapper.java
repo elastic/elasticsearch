@@ -21,6 +21,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -28,13 +31,26 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
+import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -44,12 +60,29 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -266,7 +299,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
 
             fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType()));
             fieldType().setGeometryParser(ShapeParser::parse);
-            fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));
 
             // field mapper handles this at build time
             // but prefix tree strategies require a name, so throw a similar exception
@@ -353,6 +385,50 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         public int hashCode() {
             return Objects.hash(super.hashCode(), tree, strategy, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
                     defaultDistanceErrorPct);
+        }
+
+        @Override
+        public Query geoQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            }
+
+            PrefixTreeStrategy prefixTreeStrategy = resolvePrefixTreeStrategy(this.strategy);
+            if (prefixTreeStrategy instanceof RecursivePrefixTreeStrategy && relation == ShapeRelation.DISJOINT) {
+                // this strategy doesn't support disjoint anymore: but it did
+                // before, including creating lucene fieldcache (!)
+                // in this case, execute disjoint as exists && !intersects
+                BooleanQuery.Builder bool = new BooleanQuery.Builder();
+                Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
+                Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
+                bool.add(exists, BooleanClause.Occur.MUST);
+                bool.add(intersects, BooleanClause.Occur.MUST_NOT);
+                return bool.build();
+            } else {
+                return prefixTreeStrategy.makeQuery(getArgs(shape, relation));
+            }
+        }
+
+        public static SpatialArgs getArgs(Geometry shape, ShapeRelation relation) {
+            ShapeBuilder<?,?,?> shapeBuilder = geometryToShapeBuilder(shape);
+            switch (relation) {
+                case DISJOINT:
+                    return new SpatialArgs(SpatialOperation.IsDisjointTo, shapeBuilder.buildS4J());
+                case INTERSECTS:
+                    return new SpatialArgs(SpatialOperation.Intersects, shapeBuilder.buildS4J());
+                case WITHIN:
+                    return new SpatialArgs(SpatialOperation.IsWithin, shapeBuilder.buildS4J());
+                case CONTAINS:
+                    return new SpatialArgs(SpatialOperation.Contains, shapeBuilder.buildS4J());
+                default:
+                    throw new IllegalArgumentException("invalid relation [" + relation + "]");
+            }
+        }
+
+        // public for testing
+        public static ShapeBuilder<?,?,?> geometryToShapeBuilder(Geometry shape) {
+            return  shape.visit(new ShapeVisitor());
         }
 
         @Override
@@ -547,5 +623,86 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static class ShapeVisitor implements GeometryVisitor<ShapeBuilder<?, ?, ?>, RuntimeException> {
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(Circle circle) {
+            return new CircleBuilder().center(circle.getLon(), circle.getLat()).radius(circle.getRadiusMeters(), DistanceUnit.METERS);
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(GeometryCollection<?> collection) {
+            GeometryCollectionBuilder shapes = new GeometryCollectionBuilder();
+            for (Geometry geometry : collection) {
+                shapes.shape(geometry.visit(this));
+            }
+            return shapes;
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(Line line) {
+            List<Coordinate> coordinates = new ArrayList<>();
+            for (int i = 0; i < line.length(); i++) {
+                coordinates.add(new Coordinate(line.getX(i), line.getY(i), line.getZ(i)));
+            }
+            return new LineStringBuilder(coordinates);
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(LinearRing ring) {
+            throw new UnsupportedOperationException("circle is not supported");
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(MultiLine multiLine) {
+            MultiLineStringBuilder lines = new MultiLineStringBuilder();
+            for (int i = 0; i < multiLine.size(); i++) {
+                lines.linestring((LineStringBuilder) visit(multiLine.get(i)));
+            }
+            return lines;
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(MultiPoint multiPoint) {
+            List<Coordinate> coordinates = new ArrayList<>();
+            for (int i = 0; i < multiPoint.size(); i++) {
+                Point p = multiPoint.get(i);
+                coordinates.add(new Coordinate(p.getX(), p.getY(), p.getZ()));
+            }
+            return new MultiPointBuilder(coordinates);
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(MultiPolygon multiPolygon) {
+            MultiPolygonBuilder polygons = new MultiPolygonBuilder();
+            for (int i = 0; i < multiPolygon.size(); i++) {
+                polygons.polygon((PolygonBuilder) visit(multiPolygon.get(i)));
+            }
+            return polygons;
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(Point point) {
+            return new PointBuilder(point.getX(), point.getY());
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(Polygon polygon) {
+            PolygonBuilder polygonBuilder =
+                new PolygonBuilder((LineStringBuilder) visit((Line) polygon.getPolygon()),
+                    ShapeBuilder.Orientation.RIGHT, false);
+            for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                polygonBuilder.hole((LineStringBuilder) visit((Line) polygon.getHole(i)));
+            }
+            return polygonBuilder;
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> visit(Rectangle rectangle) {
+            return new EnvelopeBuilder(new Coordinate(rectangle.getMinX(), rectangle.getMaxY()),
+                new Coordinate(rectangle.getMaxX(), rectangle.getMinY()));
+        }
     }
 }

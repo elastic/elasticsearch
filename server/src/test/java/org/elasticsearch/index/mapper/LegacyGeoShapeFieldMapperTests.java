@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -718,10 +717,10 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
 
-
+        // was hardcoded to pass term?
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> geoShapeFieldMapper.fieldType().geometryQueryBuilder().process(
-                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
+                () -> geoShapeFieldMapper.fieldType().geoQuery(
+                        new Point(-10, 10), "location", ShapeRelation.INTERSECTS, queryShardContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());
         assertFieldWarnings("tree");

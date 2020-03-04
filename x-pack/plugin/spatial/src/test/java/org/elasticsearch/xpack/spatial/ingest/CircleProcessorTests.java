@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
@@ -213,15 +212,14 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        GeoShapeFieldMapper.AbstractGeometryFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);
         shapeType.setName(fieldName);
 
-        VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
         when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
-        Query sameShapeQuery = processor.process(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query pointOnDatelineQuery = processor.process(new Point(180, circle.getLat()), fieldName,
+        Query sameShapeQuery = shapeType.geoQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query pointOnDatelineQuery = shapeType.geoQuery(new Point(180, circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

@@ -30,7 +30,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.geo.GeometryTestUtils.randomGeometry;
-import static org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor.geometryToShapeBuilder;
+import static org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType.geometryToShapeBuilder;
 
 public class GeometryIOTests extends ESTestCase {
 

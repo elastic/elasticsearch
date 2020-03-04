@@ -19,12 +19,38 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.geo.Line;
+import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoLineDecomposer;
+import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -72,13 +98,25 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
             fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()));
             fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
-            fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
         }
     }
 
     public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
         public GeoShapeFieldType() {
             super();
+        }
+
+        @Override
+        public Query geoQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
+            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+                throw new QueryShardException(context,
+                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
+            }
+            if (shape == null) {
+                return new MatchNoDocsQuery();
+            }
+            return shape.visit(new ShapeVisitor(context, fieldName, relation));
         }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
@@ -123,5 +161,121 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
+        QueryShardContext context;
+        MappedFieldType fieldType;
+        String fieldName;
+        ShapeRelation relation;
+
+        ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
+            this.context = context;
+            this.fieldType = context.fieldMapper(fieldName);
+            this.fieldName = fieldName;
+            this.relation = relation;
+        }
+
+        @Override
+        public Query visit(Circle circle) {
+            throw new QueryShardException(context, "Field [" + fieldName + "] found and unknown shape Circle");
+        }
+
+        @Override
+        public Query visit(GeometryCollection<?> collection) {
+            BooleanQuery.Builder bqb = new BooleanQuery.Builder();
+            visit(bqb, collection);
+            return bqb.build();
+        }
+
+        private void visit(BooleanQuery.Builder bqb, GeometryCollection<?> collection) {
+            BooleanClause.Occur occur;
+            if (relation == ShapeRelation.CONTAINS || relation == ShapeRelation.DISJOINT) {
+                // all shapes must be disjoint / must be contained in relation to the indexed shape.
+                occur = BooleanClause.Occur.MUST;
+            } else {
+                // at least one shape must intersect / contain the indexed shape.
+                occur = BooleanClause.Occur.SHOULD;
+            }
+            for (Geometry shape : collection) {
+                bqb.add(shape.visit(this), occur);
+            }
+        }
+
+        @Override
+        public Query visit(org.elasticsearch.geometry.Line line) {
+            List<org.elasticsearch.geometry.Line> collector = new ArrayList<>();
+            GeoLineDecomposer.decomposeLine(line, collector);
+            return makeLineQuery(collector);
+        }
+
+        private Query makeLineQuery(List<org.elasticsearch.geometry.Line> geometryLines) {
+            Line[] lines  = new Line[geometryLines.size()];
+            for (int i = 0; i < geometryLines.size(); i++) {
+                lines[i] =  new Line(geometryLines.get(i).getY(), geometryLines.get(i).getX());
+            }
+            return LatLonShape.newLineQuery(fieldName, relation.getLuceneRelation(), lines);
+        }
+
+        private Query makeQuery(List<org.elasticsearch.geometry.Polygon> geometryPolygons) {
+            Polygon[] polygons  = new Polygon[geometryPolygons.size()];
+            for (int i = 0; i < geometryPolygons.size(); i++) {
+                polygons[i] = toLucenePolygon(geometryPolygons.get(i));
+            }
+            return LatLonShape.newPolygonQuery(fieldName, relation.getLuceneRelation(), polygons);
+        }
+
+        @Override
+        public Query visit(LinearRing ring) {
+            throw new QueryShardException(context, "Field [" + fieldName + "] found and unsupported shape LinearRing");
+        }
+
+        @Override
+        public Query visit(MultiLine multiLine) {
+            List<org.elasticsearch.geometry.Line> collector = new ArrayList<>();
+            GeoLineDecomposer.decomposeMultiLine(multiLine, collector);
+            return makeLineQuery(collector);
+        }
+
+        @Override
+        public Query visit(MultiPoint multiPoint) {
+            double[][] points = new double[multiPoint.size()][2];
+            for (int i = 0; i < multiPoint.size(); i++) {
+                points[i] = new double[] {multiPoint.get(i).getLat(), multiPoint.get(i).getLon()};
+            }
+            return LatLonShape.newPointQuery(fieldName, relation.getLuceneRelation(), points);
+        }
+
+        @Override
+        public Query visit(MultiPolygon multiPolygon) {
+            List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, true, collector);
+            return makeQuery(collector);
+        }
+
+        @Override
+        public Query visit(Point point) {
+            ShapeField.QueryRelation luceneRelation = relation.getLuceneRelation();
+            if (luceneRelation == ShapeField.QueryRelation.CONTAINS) {
+                // contains and intersects are equivalent but the implementation of
+                // intersects is more efficient.
+                luceneRelation = ShapeField.QueryRelation.INTERSECTS;
+            }
+            return LatLonShape.newPointQuery(fieldName, luceneRelation,
+                new double[] {point.getY(), point.getX()});
+        }
+
+        @Override
+        public Query visit(org.elasticsearch.geometry.Polygon polygon) {
+            List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
+            return makeQuery(collector);
+        }
+
+        @Override
+        public Query visit(Rectangle r) {
+            return LatLonShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
+                r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+        }
     }
 }

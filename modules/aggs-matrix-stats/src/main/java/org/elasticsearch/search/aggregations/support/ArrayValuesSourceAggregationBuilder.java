@@ -195,8 +195,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
         HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, userValueTypeHint, field, null, missingMap.get(field),
-                null, format, CoreValuesSourceType.BYTES, "");
+            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext, userValueTypeHint, field, null,
+                missingMap.get(field), null, format, CoreValuesSourceType.BYTES);
             configs.put(field, config);
         }
         return configs;

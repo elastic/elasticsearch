@@ -25,7 +25,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -141,7 +140,7 @@ public class ValuesSourceRegistry {
     public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName,
                                                 // TODO: the following arguments are only needed for the legacy case
                                                 IndexFieldData indexFieldData,
-                                                ValueType valueType, Script script,
+                                                ValueType valueType,
                                                 ValuesSourceType defaultValuesSourceType) {
         if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
             // This will throw if the field doesn't support values sources, although really we probably threw much earlier in that case

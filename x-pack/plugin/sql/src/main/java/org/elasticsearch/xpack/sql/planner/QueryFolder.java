@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -31,11 +32,15 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
@@ -63,7 +68,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.container.AggregateSort;
-import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
@@ -73,11 +77,9 @@ import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
-import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -372,12 +374,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                             // numeric histogram
                             else {
-                                if (field instanceof FieldAttribute) {
-                                    key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field),
-                                            Foldables.doubleValueOf(h.interval()));
-                                } else if (field instanceof Function) {
-                                    key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(),
-                                            Foldables.doubleValueOf(h.interval()));
+                                if (field instanceof FieldAttribute || field instanceof Function) {
+                                    Double interval = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(h.interval()),
+                                            DataTypes.DOUBLE);
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field), interval);
+                                    } else {
+                                        key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(), interval);
+                                    }
                                 }
                             }
                             if (key == null) {
@@ -754,7 +758,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(LimitExec plan) {
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
-                int limit = Foldables.intValueOf(plan.limit());
+                int limit = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(plan.limit()), DataTypes.INTEGER);
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));

@@ -99,6 +99,19 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        String scriptStr = "1";
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
+        ScriptScoreQueryBuilder scriptScoreQueryBuilder = new ScriptScoreQueryBuilder(termQueryBuilder, script);
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> scriptScoreQueryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
     public void testDisallowExpensiveQueries() {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.allowExpensiveQueries()).thenReturn(false);

@@ -113,18 +113,20 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         verifyZeroInteractions(parser);
     }
 
-    public void testPreIndex() throws Exception {
+    public void testPostIndex() throws Exception {
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
+        types.remove(Engine.Result.Type.FAILURE);
+        when(result.getResultType()).thenReturn(randomFrom(types));
 
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch("_id", watchActive, isNewWatch);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
-        Engine.Index returnedOperation = listener.preIndex(shardId, operation);
-        assertThat(returnedOperation, is(operation));
+        listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
 
@@ -139,12 +141,13 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     // this test emulates an index with 10 shards, and ensures that triggering only happens on a
     // single shard
-    public void testPreIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
+    public void testPostIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
         String id = randomAlphaOfLength(10);
         int totalShardCount = randomIntBetween(1, 10);
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch(id, watchActive, isNewWatch);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
@@ -154,7 +157,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             localShards.put(shardId, new ShardAllocationConfiguration(idx, totalShardCount, Collections.emptyList()));
             Configuration configuration = new Configuration(Watch.INDEX, localShards);
             listener.setConfiguration(configuration);
-            listener.preIndex(shardId, operation);
+            listener.postIndex(shardId, operation, result);
         }
 
         // no matter how many shards we had, this should have been only called once
@@ -186,16 +189,17 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         return watch;
     }
 
-    public void testPreIndexCheckParsingException() throws Exception {
+    public void testPostIndexCheckParsingException() throws Exception {
         String id = randomAlphaOfLength(10);
         when(operation.id()).thenReturn(id);
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong()))
                 .thenThrow(new IOException("self thrown"));
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,
-                () -> listener.preIndex(shardId, operation));
+                () -> listener.postIndex(shardId, operation, result));
         assertThat(exc.getMessage(), containsString("Could not parse watch"));
         assertThat(exc.getMessage(), containsString(id));
     }
@@ -203,19 +207,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     public void testPostIndexRemoveTriggerOnDocumentRelatedException() throws Exception {
         when(operation.id()).thenReturn("_id");
         when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
-        when(result.getFailure()).thenReturn(new RuntimeException());
-        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-
-        listener.postIndex(shardId, operation, result);
-        verify(triggerService).remove(eq("_id"));
-    }
-
-    public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreOtherEngineResultTypes() throws Exception {
-        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
-        types.remove(Engine.Result.Type.FAILURE);
-
-        when(operation.id()).thenReturn("_id");
-        when(result.getResultType()).thenReturn(randomFrom(types));
         when(result.getFailure()).thenReturn(new RuntimeException());
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
@@ -238,7 +229,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verify(triggerService).remove(eq("_id"));
+        verifyZeroInteractions(triggerService);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {

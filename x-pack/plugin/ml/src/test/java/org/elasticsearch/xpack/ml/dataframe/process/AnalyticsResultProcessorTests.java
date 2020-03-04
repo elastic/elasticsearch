@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -61,6 +62,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     private StatsHolder statsHolder = new StatsHolder();
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
+    private ResultsPersisterService resultsPersisterService;
     private DataFrameAnalyticsConfig analyticsConfig;
 
     @Before
@@ -70,6 +72,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         dataFrameRowsJoiner = mock(DataFrameRowsJoiner.class);
         trainedModelProvider = mock(TrainedModelProvider.class);
         auditor = mock(DataFrameAnalyticsAuditor.class);
+        resultsPersisterService = mock(ResultsPersisterService.class);
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
@@ -93,7 +96,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     public void testProcess_GivenEmptyResults() {
         givenDataFrameRows(2);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, 50, null), new AnalyticsResult(null, 100, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, 50, null, null), new AnalyticsResult(null, 100, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -108,7 +111,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null), new AnalyticsResult(rowResults2, 100, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null, null),
+            new AnalyticsResult(rowResults2, 100, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -125,7 +129,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null), new AnalyticsResult(rowResults2, 100, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null, null),
+            new AnalyticsResult(rowResults2, 100, null, null)));
 
         doThrow(new RuntimeException("some failure")).when(dataFrameRowsJoiner).processRowResults(any(RowResults.class));
 
@@ -155,7 +160,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
 
         resultProcessor.process(process);
@@ -199,7 +204,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -232,6 +237,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsResultProcessor createResultProcessor(List<String> fieldNames) {
         return new AnalyticsResultProcessor(
-            analyticsConfig, dataFrameRowsJoiner, statsHolder, trainedModelProvider, auditor, fieldNames);
+            analyticsConfig, dataFrameRowsJoiner, statsHolder, trainedModelProvider, auditor, resultsPersisterService, fieldNames);
     }
 }

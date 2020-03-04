@@ -6,15 +6,10 @@ the desired network layers (transport or http), and map the Distinguished Names
 (DNs) from the Subject field in the user certificates to roles. You create the
 mappings in a role mapping file or use the role mappings API.
 
-You can also use a combination of PKI and username/password authentication. For
+TIP: You can use a combination of PKI and username/password authentication. For
 example, you can enable SSL/TLS on the transport layer and define a PKI realm to
 require transport clients to authenticate with X.509 certificates, while still
-authenticating HTTP traffic using username and password credentials. You can
-also set `xpack.security.transport.ssl.client_authentication` to `optional` to
-allow clients without certificates to authenticate with other credentials.
-
-IMPORTANT: You must enable SSL/TLS with client authentication to use PKI when
-clients connect directly to {es}.
+authenticating HTTP traffic using username and password credentials.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace. You must explicitly set the `order`
@@ -38,7 +33,8 @@ xpack:
 With this configuration, any certificate trusted by the {es} SSL/TLS layer is
 accepted for authentication. The username is the common name (CN) extracted
 from the DN in the Subject field of the end-entity certificate. This
-configuration does not permit PKI authentication to {kib}.
+configuration is not sufficient to permit PKI authentication to {kib};
+additional steps are required.
 
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the
@@ -84,6 +80,11 @@ restart for last.
 . Enable client authentication on the desired network layers (transport or http).
 +
 --
+IMPORTANT: To use PKI when clients connect directly to {es}, you must enable
+SSL/TLS with client authentication. That is to say, you must set   `xpack.security.transport.ssl.client_authentication` and
+`xpack.security.http.ssl.client_authentication` to `optional` or `required`. If
+the setting value is `optional`, clients without certificates can authenticate
+with other credentials.
 
 When clients connect directly to {es} and are not proxy-authenticated, the PKI
 realm relies on the TLS settings of the node's network interface. The realm can
@@ -99,15 +100,15 @@ In particular this means:
   `client_authentication` to `optional` or `required`.
 * The interface must _trust_ the certificate that is presented by the client
   by configuring either the `truststore` or `certificate_authorities` paths,
-  or by setting `verification_mode` to `none`. See 
-  <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of this
-  setting.
+  or by setting `verification_mode` to `none`.
 * The _protocols_ supported by the interface must be compatible with those
   used by the client.
+  
+For an explanation of these settings, see <<ssl-tls-settings>>.
 
 The relevant network interface (transport or http) must be configured to trust
-any certificate that is to be used within the PKI realm. However, it is possible to
-configure the PKI realm to trust only a _subset_ of the certificates accepted
+any certificate that is to be used within the PKI realm. However, it is possible
+to configure the PKI realm to trust only a _subset_ of the certificates accepted
 by the network interface. This is useful when the SSL/TLS layer trusts clients 
 with certificates that are signed by a different CA than the one that signs your 
 users' certificates.
@@ -148,11 +149,11 @@ simultaneously.
 . Map roles for PKI users.
 +
 --
-You map roles for PKI users through the <<security-role-mapping-apis,role
-mapping APIs>> or by using a file stored on each node. Both configuration
-options are merged together. When a user authenticates against a PKI realm, the
-privileges for that user are the union of all privileges defined by the roles
-to which the user is mapped.
+You map roles for PKI users through the
+<<security-role-mapping-apis,role mapping APIs>> or by using a file stored on
+each node. Both configuration options are merged together. When a user
+authenticates against a PKI realm, the privileges for that user are the union of
+all privileges defined by the roles to which the user is mapped.
 
 You identify a user by the distinguished name in their certificate.
 For example, the following mapping configuration maps `John Doe` to the
@@ -222,11 +223,14 @@ the PKI realms that have been configured for delegation.
 
 To permit authentication delegation for a specific {es} PKI realm, start by
 configuring the realm for the usual case, as detailed in the
-<<pki-realm-for-direct-clients>> section. Note that you must explicitly
-configure a `truststore` (or, equivalently `certificate_authorities`) even
-though it is the same trust configuration that you have configured on the
-network layer. The `xpack.security.authc.token.enabled` setting must also be
-`true`. Then simply toggle the `delegation.enabled` realm setting to `true`. For example:
+<<pki-realm-for-direct-clients>> section. In this scenario, when you enable TLS,
+it is mandatory that you <<tls-http,encrypt HTTP client communications>>.
+
+You must also explicitly configure a `truststore` (or, equivalently
+`certificate_authorities`) even though it is the same trust configuration that
+you have configured on the network layer. The
+`xpack.security.authc.token.enabled` and `delegation.enabled` settings must also
+be `true`. For example:
 
 [source, yaml]
 ------------------------------------------------------------
@@ -244,11 +248,8 @@ xpack:
 ------------------------------------------------------------
 
 After you restart {es}, this realm can validate delegated PKI authentication.
-You must also 
+You must then 
 {kibana-ref}/kibana-authentication.html#pki-authentication[configure {kib} to allow PKI certificate authentication].
-
-NOTE: PKI authentication delegation requires that SSL/TLS is configured (without
-SSL/TLS client authentication). See <<ssl-tls>>.
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
 connecting directly to {es}. Directly authenticated users and users that are PKI

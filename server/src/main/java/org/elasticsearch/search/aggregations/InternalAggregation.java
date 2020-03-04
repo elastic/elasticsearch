@@ -128,6 +128,28 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
+     * Rewrite the sub-aggregations in the buckets in this aggregation.
+     * The default implementation throws an exception because most
+     * aggregations don't <strong>have</strong> buckets in them. It
+     * should be overridden by aggregations that contain buckets.
+     */
+    public InternalAggregation rewriteBuckets(BucketRewriter rewriter) {
+        throw new IllegalStateException(
+                "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
+    }
+    /**
+     * Used with {@link InternalAggregation#rewriteBuckets(BucketRewriter)} to
+     * rewrite the sub-aggregations within buckets.
+     */
+    public interface BucketRewriter {
+        /**
+         * Return a new {@linkplain InternalAggregations} to rewrite the
+         * bucket or {@code null} if the bucket shouldn't be modified.
+         */
+        InternalAggregations rewrite(InternalAggregations aggregations);
+    }
+
+    /**
      * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
      * be called after all aggregations have been fully reduced
      */

@@ -154,6 +154,23 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         return super.reducePipelines(create(materializedBuckets), reduceContext);
     }
 
+    @Override
+    public InternalAggregation rewriteBuckets(BucketRewriter rewriter) {
+        boolean modified = false;
+        List<B> newBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            InternalAggregations rewritten = rewriter.rewrite((InternalAggregations) bucket.getAggregations());
+            if (rewritten == null) {
+                newBuckets.add(bucket);
+                continue;
+            }
+            modified = true;
+            B newBucket = createBucket(rewritten, bucket);
+            newBuckets.add(newBucket);
+        }
+        return modified ? create(newBuckets) : this;
+    }
+
     private List<B> reducePipelineBuckets(ReduceContext reduceContext) {
         List<B> reducedBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
@@ -192,6 +209,5 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }
-
     }
 }

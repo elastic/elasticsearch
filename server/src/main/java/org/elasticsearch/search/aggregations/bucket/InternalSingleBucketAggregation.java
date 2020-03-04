@@ -170,6 +170,15 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
+    public InternalAggregation rewriteBuckets(BucketRewriter rewriter) {
+        InternalAggregations rewritten = rewriter.rewrite(aggregations);
+        if (rewritten == null) {
+            return this;
+        }
+        return create(rewritten);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;

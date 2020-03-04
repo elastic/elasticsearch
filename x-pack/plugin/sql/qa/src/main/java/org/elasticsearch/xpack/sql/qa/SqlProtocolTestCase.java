@@ -87,9 +87,9 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
     
     public void testIPs() throws IOException {
-        assertQuery("SELECT CAST('12.13.14.15' AS IP)", "CAST('12.13.14.15' AS IP)", "ip", "12.13.14.15", 0);
+        assertQuery("SELECT CAST('12.13.14.15' AS IP)", "CAST('12.13.14.15' AS IP)", "ip", "12.13.14.15", 45);
         assertQuery("SELECT CAST('2001:0db8:0000:0000:0000:ff00:0042:8329' AS IP)", "CAST('2001:0db8:0000:0000:0000:ff00:0042:8329' AS IP)",
-                "ip", "2001:0db8:0000:0000:0000:ff00:0042:8329", 0);
+                "ip", "2001:0db8:0000:0000:0000:ff00:0042:8329", 45);
     }
     
     public void testDateTimeIntervals() throws IOException {

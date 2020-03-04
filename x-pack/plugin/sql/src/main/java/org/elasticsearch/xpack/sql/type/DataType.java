@@ -58,10 +58,10 @@ public enum DataType {
     //                                                                                 display size = 2 doubles + len("POINT( )")
     GEO_POINT(                       ExtTypes.GEOMETRY,  Double.BYTES*2,    Integer.MAX_VALUE, 25 * 2 + 8, false, false, false),
     // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
-    // aka 39 chars
+    // aka 45 chars
     SHAPE(                           ExtTypes.GEOMETRY,  Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, false, false, false),
     //                                                                                 display size = 2 doubles + len("POINT( )")
-    IP(            "ip",             JDBCType.VARCHAR,   39,               39,                 0,  false, false, true),
+    IP(            "ip",             JDBCType.VARCHAR,   45,                45,                45,  false, false, true),
     //
     // INTERVALS
     // the list is long as there are a lot of variations and that's what clients (ODBC) expect

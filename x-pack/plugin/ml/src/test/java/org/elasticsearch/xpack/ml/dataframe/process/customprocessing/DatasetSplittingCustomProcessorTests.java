@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -98,7 +99,7 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
                         assertThat(processedRow[fieldIndex], equalTo(row[fieldIndex]));
                     }
                 }
-                if (processedRow[dependentVariableIndex].length() > 0) {
+                if (DataFrameDataExtractor.NULL_VALUE.equals(processedRow[dependentVariableIndex]) == false) {
                     assertThat(processedRow[dependentVariableIndex], equalTo(row[dependentVariableIndex]));
                     trainingRows++;
                 }

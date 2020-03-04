@@ -52,7 +52,7 @@ public class DataFrameDataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
-    public static final String NULL_VALUE = "\\0";
+    public static final String NULL_VALUE = "\0";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;

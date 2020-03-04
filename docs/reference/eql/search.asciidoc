@@ -88,6 +88,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
       },
       {
         "_index": "sec_logs",
+        "_type": "_doc",
         "_id": "3",
         "_score": null,
         "_source": {

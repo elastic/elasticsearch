@@ -57,8 +57,8 @@ The API returns the following information about the operational progress of a
 job:
 
 `assignment_explanation`::
-(string) For open jobs only, contains messages relating to the selection
-of a node to run the job.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-anomaly-jobs]
 
 [[datacounts]]`data_counts`::
 (object) An object that describes the quantity of input to the job and any
@@ -67,85 +67,73 @@ a job. If a model snapshot is reverted or old results are deleted, the job
 counts are not reset.
 
 `data_counts`.`bucket_count`:::
-(long) The number of bucket results produced by the job.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count-anomaly-jobs]
 
 `data_counts`.`earliest_record_timestamp`:::
-(date) The timestamp of the earliest chronologically input document.
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=earliest-record-timestamp]
 
 `data_counts`.`empty_bucket_count`:::
-(long) The number of buckets which did not contain any data. If your data
-contains many empty buckets, consider increasing your `bucket_span` or using
-functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or
-`non_zero_count`.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=empty-bucket-count]
 
 `data_counts`.`input_bytes`:::
-(long) The number of bytes of input data posted to the job.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=input-bytes]
 
 `data_counts`.`input_field_count`:::
-(long) The total number of fields in input documents posted to the job. This
-count includes fields that are not used in the analysis. However, be aware that
-if you are using a {dfeed}, it extracts only the required fields from the
-documents it retrieves before posting them to the job.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=input-field-count]
 
 `data_counts`.`input_record_count`:::
-(long) The number of input documents posted to the job.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=input-record-count]
 
 `data_counts`.`invalid_date_count`:::
-(long) The number of input documents with either a missing date field or a date
-that could not be parsed.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=invalid-date-count]
 
 `data_counts`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `data_counts`.`last_data_time`:::
-(date) The timestamp at which data was last analyzed, according to server time.
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=last-data-time]
 
 `data_counts`.`latest_empty_bucket_timestamp`:::
-(date) The timestamp of the last bucket that did not contain any data.
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=latest-empty-bucket-timestamp]
 
 `data_counts`.`latest_record_timestamp`:::
-(date) The timestamp of the latest chronologically input document.
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=latest-record-timestamp]
 
 `data_counts`.`latest_sparse_bucket_timestamp`:::
-(date) The timestamp of the last bucket that was considered sparse.
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=latest-sparse-record-timestamp]
 
 `data_counts`.`missing_field_count`:::
-(long) The number of input documents that are missing a field that the job is
-configured to analyze. Input documents with missing fields are still processed
-because it is possible that not all fields are missing. The value of
-`processed_record_count` includes this count.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=missing-field-count]
 +
---
-NOTE: If you are using {dfeeds} or posting data to the job in JSON format, a
-high `missing_field_count` is often not an indication of data issues. It is not
-necessarily a cause for concern.
-
---
+The value of `processed_record_count` includes this count.
 
 `data_counts`.`out_of_order_timestamp_count`:::
-(long) The number of input documents that are out of time sequence and outside
-of the latency window. This information is applicable only when you provide data
-to the job by using the <<ml-post-data,post data API>>. These out of order
-documents are  discarded, since jobs require time series data to be in ascending
-chronological order.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=out-of-order-timestamp-count]
 
 `data_counts`.`processed_field_count`:::
-(long) The total number of fields in all the documents that have been processed
-by the job. Only fields that are specified in the detector configuration object
-contribute to this count. The timestamp is not included in this count.
+include::{docdir}/ml/ml-shared.asciidoc[tag=processed-field-count]
 
 `data_counts`.`processed_record_count`:::
-(long) The number of input documents that have been processed by the job. This
-value includes documents with missing fields, since they are nonetheless
-analyzed. If you use {dfeeds} and have aggregations in your search query, the
-`processed_record_count` will be the number of aggregation results processed,
-not the number of {es} documents.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=processed-record-count]
 
 `data_counts`.`sparse_bucket_count`:::
-(long) The number of buckets that contained few data points compared to the
-expected number of data points. If your data contains many sparse buckets,
-consider using a longer `bucket_span`.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 
 [[forecastsstats]]`forecasts_stats`::
 (object) An object that provides statistical information about forecasts 
@@ -167,8 +155,9 @@ value of `1` indicates that at least one forecast exists.
 related to this job. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`records`:::
-(object) The `avg`, `min`, `max` and `total` number of model_forecast documents 
-written for forecasts related to this job. If there are no forecasts, this property is omitted.
+(object) The `avg`, `min`, `max` and `total` number of `model_forecast` documents 
+written for forecasts related to this job. If there are no forecasts, this
+property is omitted.
 
 `forecasts_stats`.`processing_time_ms`:::
 (object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 
@@ -179,8 +168,8 @@ forecasts related to this job. If there are no forecasts, this property is omitt
 {"finished" : 2, "started" : 1}. If there are no forecasts, this property is omitted.
 
 `forecasts_stats`.`total`:::
-(long) The number of individual forecasts currently available for this job. A 
-value of `1` or more indicates that forecasts exist.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=forecast-total]
 
 `job_id`::
 (string)
@@ -191,38 +180,24 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 model. It has the following properties:
  
 `model_size_stats`.`bucket_allocation_failures_count`:::
-(long) The number of buckets for which new entities in incoming data were not
-processed due to insufficient model memory. This situation is also signified
-by a `hard_limit: memory_status` property value.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-allocation-failures-count]
 
 `model_size_stats`.`categorized_doc_count`:::
-(long) The number of documents that have had a field categorized.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorized-doc-count]
 
 `model_size_stats`.`categorization_status`:::
-(string) The status of categorization for this job.
-Contains one of the following values.
-+
---
-* `ok`: Categorization is performing acceptably well (or not being
-used at all).
-* `warn`: Categorization is detecting a distribution of categories
-that suggests the input data is inappropriate for categorization.
-Problems could be that there is only one category, more than 90% of
-categories are rare, the number of categories is greater than 50% of
-the number of categorized documents, there are no frequently
-matched categories, or more than 50% of categories are dead.
-
---
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-status]
 
 `model_size_stats`.`dead_category_count`:::
-(long) The number of categories created by categorization that will
-never be assigned again because another category's definition
-makes it a superset of the dead category.  (Dead categories are a
-side effect of the way categorization has no prior training.)
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dead-category-count]
 
 `model_size_stats`.`frequent_category_count`:::
-(long) The number of categories that match more than 1% of categorized
-documents.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=frequent-category-count]
 
 `model_size_stats`.`job_id`:::
 (string)
@@ -232,53 +207,47 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (date) The timestamp of the `model_size_stats` according to server time.
 
 `model_size_stats`.`memory_status`:::
-(string) The status of the mathematical models. This property can have one of
-the following values:
-+
---
-* `ok`: The models stayed below the configured value.
-* `soft_limit`: The models used more than 60% of the configured memory limit
-and older unused models will be pruned to free up space.
-* `hard_limit`: The models used more space than the configured memory limit.
-As a result, not all incoming data was processed.
---
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-status]
 
 `model_size_stats`.`model_bytes`:::
-(long) The number of bytes of memory used by the models. This is the maximum
-value since the last time the model was persisted. If the job is closed,
-this value indicates the latest size.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-bytes]
 
 `model_size_stats`.`model_bytes_exceeded`:::
- (long) The number of bytes over the high limit for memory usage at the last
- allocation failure.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-bytes-exceeded]
 
 `model_size_stats`.`model_bytes_memory_limit`:::
-(long) The upper limit for memory usage, checked on increasing values.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit-anomaly-jobs]
 
 `model_size_stats`.`rare_category_count`:::
-(long) The number of categories that match just one categorized document.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=rare-category-count]
 
 `model_size_stats`.`result_type`:::
 (string) For internal use. The type of result.
 
 `model_size_stats`.`total_by_field_count`:::
-(long) The number of `by` field values that were analyzed by the models. This 
-value is cumulative for all detectors.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=total-by-field-count]
 
 `model_size_stats`.`total_category_count`:::
-(long) The number of categories created by categorization.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=total-category-count]
 
 `model_size_stats`.`total_over_field_count`:::
-(long) The number of `over` field values that were analyzed by the models. This 
-value is cumulative for all detectors.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=total-over-field-count]
 
 `model_size_stats`.`total_partition_field_count`:::
-(long) The number of `partition` field values that were analyzed by the models. 
-This value is cumulative for all detectors.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=total-partition-field-count]
 
 `model_size_stats`.`timestamp`:::
-(date) The timestamp of the `model_size_stats` according to the timestamp of the
-data.
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-timestamp]
 
 [[stats-node]]`node`::
 (object) Contains properties for the node that runs the job. This information is
@@ -289,10 +258,12 @@ available only for open jobs.
 `{"ml.machine_memory": "17179869184", "ml.max_open_jobs" : "20"}`.
   
 `node`.`ephemeral_id`:::
-(string) The ephemeral ID of the node.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `node`.`id`:::
-(string) The unique identifier of the node.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `node`.`name`:::
 (string) The node name.
@@ -301,26 +272,12 @@ available only for open jobs.
 (string) The host and port where transport HTTP connections are accepted.
 
 `open_time`::
-(string) For open jobs only, the elapsed time for which the job has been open.
-For example, `28746386s`.
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=open-time]
 
 `state`::
-(string) The status of the job, which can be one of the following values:
-+
---
-* `closed`: The job finished successfully with its model state persisted. The
-job must be opened before it can accept further data.
-* `closing`: The job close action is in progress and has not yet completed. A
-closing job cannot accept further data.
-* `failed`: The job did not finish successfully due to an error. This situation
-can occur due to invalid input data, a fatal error occurring during the analysis,
-or an external interaction such as the process being killed by the Linux out of
-memory (OOM) killer. If the job had irrevocably failed, it must be force closed
-and then deleted. If the {dfeed} can be corrected, the job can be closed and
-then re-opened.
-* `opened`: The job is available to receive and process data.
-* `opening`: The job open action is in progress and has not yet completed.
---
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=state-anomaly-job]
 
 [[timingstats]]`timing_stats`::
 (object) An object that provides statistical information about timing aspect of
@@ -330,28 +287,32 @@ this job. It has the following properties:
 (double) Average of all bucket processing times in milliseconds.
 
 `timing_stats`.`bucket_count`:::
-(long) The number of buckets processed.
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
 `timing_stats`.`exponential_average_bucket_processing_time_ms`:::
-(double) Exponential moving average of all bucket processing times in
-milliseconds.
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average]
 
 `timing_stats`.`exponential_average_bucket_processing_time_per_hour_ms`:::
-(double) Exponentially-weighted moving average of bucket processing times
-calculated in a 1 hour time window.
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average-hour]
 
 `timing_stats`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `timing_stats`.`maximum_bucket_processing_time_ms`:::
-(double) Maximum among all bucket processing times in milliseconds.
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-maximum]
 
 `timing_stats`.`minimum_bucket_processing_time_ms`:::
-(double) Minimum among all bucket processing times in milliseconds.
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-minimum]
 
 `timing_stats`.`total_bucket_processing_time_ms`:::
-(double) Sum of all bucket processing times in milliseconds.
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
 
 [[ml-get-job-stats-response-codes]]
 ==== {api-response-codes-title}

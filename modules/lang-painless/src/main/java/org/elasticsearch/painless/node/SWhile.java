@@ -50,10 +50,10 @@ public final class SWhile extends AStatement {
 
         condition.expected = boolean.class;
         condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+        condition.cast();
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        if (condition instanceof EBoolean) {
+            continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
@@ -89,7 +89,7 @@ public final class SWhile extends AStatement {
     WhileNode write(ClassNode classNode) {
         WhileNode whileNode = new WhileNode();
 
-        whileNode.setConditionNode(condition.write(classNode));
+        whileNode.setConditionNode(condition.cast(condition.write(classNode)));
         whileNode.setBlockNode(block == null ? null : block.write(classNode));
 
         whileNode.setLocation(location);

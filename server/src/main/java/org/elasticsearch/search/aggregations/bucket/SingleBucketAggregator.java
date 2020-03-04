@@ -22,6 +22,4 @@ package org.elasticsearch.search.aggregations.bucket;
  * A bucket aggregator that doesn't create new buckets.
  */
 public interface SingleBucketAggregator {
-
-    int bucketDocCount(long bucketOrd);
 }

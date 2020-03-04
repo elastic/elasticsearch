@@ -14,7 +14,7 @@ POST /test/_bulk?refresh
 {"index": {}}
 {"s": 1, "v": 3.1415}
 {"index": {}}
-{"s": 2, "v": 1}
+{"s": 2, "v": 1.0}
 {"index": {}}
 {"s": 3, "v": 2.71828}
 POST /test/_search?filter_path=aggregations
@@ -74,8 +74,73 @@ At this point `metric` supports only `{"field": "field_name"}` and all metrics
 are returned as double precision floating point numbers. Expect more to
 come here.
 
+==== `size`
+
+`top_metrics` can return the top few document's worth of metrics using the size parameter:
+
+[source,console,id=search-aggregations-metrics-top-metrics-size]
+----
+POST /test/_bulk?refresh
+{"index": {}}
+{"s": 1, "v": 3.1415}
+{"index": {}}
+{"s": 2, "v": 1.0}
+{"index": {}}
+{"s": 3, "v": 2.71828}
+POST /test/_search?filter_path=aggregations
+{
+  "aggs": {
+    "tm": {
+      "top_metrics": {
+        "metric": {"field": "v"},
+        "sort": {"s": "desc"},
+        "size": 2
+      }
+    }
+  }
+}
+----
+
+Which returns:
+
+[source,js]
+----
+{
+  "aggregations": {
+    "tm": {
+      "top": [
+        {"sort": [3], "metrics": {"v": 2.718280076980591 } },
+        {"sort": [2], "metrics": {"v": 1.0 } }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE
+
+The default `size` is 1. The maximum default size is `10` because the aggregation's
+working storage is "dense", meaning we allocate `size` slots for every bucket. `10`
+is a *very* conservative default maximum and you can raise it if you need to by
+changing the `top_metrics_max_size` index setting. But know that large sizes can
+take a fair bit of memory, especially if they are inside of an aggregation which
+makes many buckes like a large
+<<search-aggregations-metrics-top-metrics-example-terms, terms aggregation>>.
+
+[source,console]
+----
+PUT /test/_settings
+{
+  "top_metrics_max_size": 100
+}
+----
+// TEST[continued]
+
+NOTE: If `size` is more than `1` the `top_metrics` aggregation can't be the target of a sort.
+
+
 ==== Examples
 
+[[search-aggregations-metrics-top-metrics-example-terms]]
 ===== Use with terms
 
 This aggregation should be quite useful inside of <<search-aggregations-bucket-terms-aggregation, `terms`>>

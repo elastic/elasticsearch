@@ -48,20 +48,20 @@ import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.FilterScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -151,7 +151,7 @@ public class FunctionScoreTests extends ESTestCase {
 
         @Override
         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format) {
+                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -248,7 +248,7 @@ public class FunctionScoreTests extends ESTestCase {
 
         @Override
         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format) {
+                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 

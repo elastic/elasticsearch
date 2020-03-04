@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -49,11 +50,7 @@ public final class EConditional extends AExpression {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         condition.expected = boolean.class;
         condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
-
-        if (condition.constant != null) {
-            throw createError(new IllegalArgumentException("Extraneous conditional statement."));
-        }
+        condition.cast();
 
         left.expected = expected;
         left.explicit = explicit;
@@ -67,24 +64,30 @@ public final class EConditional extends AExpression {
         right.analyze(scriptRoot, scope);
 
         if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
+            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual);
+
+            if (promote == null) {
+                throw createError(new ClassCastException("cannot apply a conditional operator [?:] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]"));
+            }
 
             left.expected = promote;
             right.expected = promote;
             actual = promote;
         }
 
-        left = left.cast(scriptRoot, scope);
-        right = right.cast(scriptRoot, scope);
+        left.cast();
+        right.cast();
     }
 
     @Override
     ConditionalNode write(ClassNode classNode) {
         ConditionalNode conditionalNode = new ConditionalNode();
 
-        conditionalNode.setLeftNode(left.write(classNode));
-        conditionalNode.setRightNode(right.write(classNode));
-        conditionalNode.setConditionNode(condition.write(classNode));
+        conditionalNode.setLeftNode(left.cast(left.write(classNode)));
+        conditionalNode.setRightNode(right.cast(right.write(classNode)));
+        conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
 
         conditionalNode.setLocation(location);
         conditionalNode.setExpressionType(actual);

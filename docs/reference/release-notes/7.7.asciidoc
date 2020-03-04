@@ -11,3 +11,8 @@ Mapping::
 * Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time and
   results in a deprecation warning for indices created in Elasticsearch 7.7.0 and later.
   (e.g. incorrect analyzer settings or unknown field types). {pull}51233[#51233]
+
+Search::
+* A regression that allowed negative scores in a script_score query was corrected.
+A behaviour is restored that throws an error if script_score query produces
+a negative score {pull}52478[#52478].

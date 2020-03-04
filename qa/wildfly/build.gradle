@@ -76,3 +76,7 @@ task integTest(type: Test) {
 }
 
 check.dependsOn integTest
+
+dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
+thirdPartyAudit.enabled = false

@@ -34,16 +34,17 @@ public class WildcardOnBinaryDvQuery extends Query {
 
     private final String field;
     private final String wildcardPattern;
+    private Automaton automaton;
 
-    public WildcardOnBinaryDvQuery(String field, String wildcardPattern) {
+    public WildcardOnBinaryDvQuery(String field, String wildcardPattern, Automaton automaton) {
         this.field = field;
         this.wildcardPattern = wildcardPattern;
+        this.automaton = automaton;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(field,wildcardPattern));
+                
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
         
         return new ConstantScoreWeight(this, boost) {
@@ -54,11 +55,8 @@ public class WildcardOnBinaryDvQuery extends Query {
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override
                     public boolean matches() throws IOException {
-                        if (values.advanceExact(approximation.docID())) {
-                            BytesRef value = values.binaryValue();
-                            return  bytesMatcher.run(value.bytes, value.offset, value.length);
-                        }
-                        return false;                        
+                        BytesRef value = values.binaryValue();
+                        return  bytesMatcher.run(value.bytes, value.offset, value.length);
                     }
 
                     @Override

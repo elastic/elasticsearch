@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -85,7 +87,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Builder docValues(boolean docValues) {
-            if(docValues == false) {
+            if (docValues == false) {
                 throw new MapperParsingException("The field [" + name +
                         "] cannot have doc values = false");                
             }
@@ -94,7 +96,7 @@ public class WildcardFieldMapper extends FieldMapper {
         
         @Override
         public Builder index(boolean index) {
-            if(index == false) {
+            if (index == false) {
                 throw new MapperParsingException("The field [" + name +
                         "] cannot have index = false");                
             }
@@ -186,9 +188,22 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         public WildcardFieldType clone() {
-            return new WildcardFieldType(this);
+            WildcardFieldType result = new WildcardFieldType(this);
+            result.setNumChars(numChars);
+            return result;
         }
         
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), numChars);
+        }        
+        
+        @Override
+        public boolean equals(Object o) {
+            if (!super.equals(o)) return false;
+            WildcardFieldType that = (WildcardFieldType) o;
+            return numChars == that.numChars;
+        }        
         
         // Holds parsed information about the wildcard pattern
         static class PatternStructure {
@@ -385,7 +400,8 @@ public class WildcardFieldMapper extends FieldMapper {
             if (approximation.clauses().size() > 1 || patternStructure.needsVerification()) {
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(new WildcardOnBinaryDvQuery(name(), wildcardPattern), Occur.MUST));
+                Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                verifyingBuilder.add(new BooleanClause(new WildcardOnBinaryDvQuery(name(), wildcardPattern, automaton), Occur.MUST));
                 return verifyingBuilder.build();
             }
             return approximation;
@@ -396,8 +412,19 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         void setNumChars(int numChars) {
+            checkIfFrozen();
             this.numChars = numChars;
         }
+        
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
+            WildcardFieldType other = (WildcardFieldType)fieldType;
+            // prevent user from changing num_chars
+            if (numChars() != other.numChars()) {
+                conflicts.add("mapper [" + name() + "] has different [num_chars]");
+            }
+        }        
 
         @Override
         public String typeName() {

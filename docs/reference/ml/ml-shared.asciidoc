@@ -524,6 +524,36 @@ been reported.
 `peak_usage_bytes`::::
 (long) The number of bytes used at the highest peak of memory usage.
 
+`node`:::
+(object)
+Contains properties for the node that runs the job. This information is 
+available only for running jobs.
+
+`node`.`attributes`:::
+(object)
+Lists node attributes such as `ml.machine_memory`, `ml.max_open_jobs`, and 
+`xpack.installed`.
+
+`node`.`ephemeral_id`:::
+(string)
+The ephemeral id of the node.
+
+`node`.`id`:::
+(string)
+The unique identifier of the node.
+
+`node`.`name`:::
+(string)
+The node name.
+
+`node`.`transport_address`:::
+(string)
+The host and port where transport HTTP connections are accepted.
+
+`assignment_explanation`:::
+(string)
+For running jobs only, contains messages relating to the selection of a node to 
+run the job.
 end::data-frame-analytics-stats[]
 
 tag::datafeed-id[]

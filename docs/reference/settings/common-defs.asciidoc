@@ -43,22 +43,6 @@ example, for version 11 the default value is `TLS_AES_256_GCM_SHA384`,
 https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java Cryptography Architecture documentation].
 end::ssl-cipher-suites-values-java11[]
 
-tag::ssl-cipher-suites-values-java8[]
-Supported cipher suites vary depending on which version of Java you use. For
-example, for version 8 the default is `TLS_AES_256_GCM_SHA384`,
-`TLS_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, 
-`TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, 
-`TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, 
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`,  
-`TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`,  
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`,  
-`TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`,
-`TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA`. For more information, Oracle's
-http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[Java Cryptography Architecture documentation].
-end::ssl-cipher-suites-values-java8[]
-
 tag::ssl-key-pem[]
 Path to a PEM encoded file containing the private key.
 //TBD: You cannot use this setting and `ssl.keystore.path` at the same time.

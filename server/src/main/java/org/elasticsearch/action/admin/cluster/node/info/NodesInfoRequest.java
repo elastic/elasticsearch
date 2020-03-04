@@ -34,10 +34,11 @@ import java.util.stream.Collectors;
  */
 public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private Set<String> infoSections = new TreeSet<>();
+    private Set<String> infoSections = new TreeSet<>(Metrics.allMetrics());
 
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
+        infoSections.clear();
         infoSections.addAll(Arrays.asList(in.readStringArray()));
     }
 
@@ -47,6 +48,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      */
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
+        all();
     }
 
     /**
@@ -253,6 +255,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
         String metricName() {
             return this.metricName;
+        }
+
+        static Set<String> allMetrics() {
+            return Arrays.stream(values()).map(Metrics::metricName).collect(Collectors.toSet());
         }
     }
 }

@@ -110,7 +110,7 @@ public class SearchCancellationTests extends ESTestCase {
         expectThrows(TaskCancelledException.class,
             () -> searcher.search(new MatchAllDocsQuery(), collector1));
 
-        searcher.removeQueryTimeout(cancellation);
+        searcher.removeQueryCancellation(cancellation);
         TotalHitCountCollector collector2 = new TotalHitCountCollector();
         searcher.search(new MatchAllDocsQuery(), collector2);
         assertThat(collector2.getTotalHits(), equalTo(reader.numDocs()));
@@ -118,12 +118,13 @@ public class SearchCancellationTests extends ESTestCase {
 
     public void testCancellableDirectoryReader() throws IOException {
         AtomicBoolean cancelled = new AtomicBoolean(true);
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.addQueryCancellation(() -> {
+        Runnable cancellation = () -> {
             if (cancelled.get()) {
                 throw new TaskCancelledException("cancelled");
-        }});
+        }};
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
+                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        searcher.addQueryCancellation(cancellation);
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
 
         expectThrows(TaskCancelledException.class,
@@ -139,25 +140,42 @@ public class SearchCancellationTests extends ESTestCase {
         Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME);
         TermsEnum termsIterator = terms.iterator();
         TermsEnum termsIntersect = terms.intersect(automaton, null);
-        PointValues pointValues = searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME);
+        PointValues pointValues1 = searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME);
         cancelled.set(true);
         expectThrows(TaskCancelledException.class, termsIterator::next);
         expectThrows(TaskCancelledException.class, termsIntersect::next);
-        expectThrows(TaskCancelledException.class, pointValues::getDocCount);
-        expectThrows(TaskCancelledException.class, pointValues::getNumDimensions);
-        expectThrows(TaskCancelledException.class, () -> pointValues.intersect(new PointValues.IntersectVisitor() {
-            @Override
-            public void visit(int docID) {
-            }
+        expectThrows(TaskCancelledException.class, pointValues1::getDocCount);
+        expectThrows(TaskCancelledException.class, pointValues1::getNumIndexDimensions);
+        expectThrows(TaskCancelledException.class, () -> pointValues1.intersect(new PointValuesIntersectVisitor()));
 
-            @Override
-            public void visit(int docID, byte[] packedValue) {
-            }
+        cancelled.set(false); // Avoid exception during construction of the wrapper objects
+        // Re-initialize objects so that we reset the `calls` counter used to avoid cancellation check
+        // on every iteration and assure that cancellation would normally happen if we hadn't removed the
+        // cancellation runnable.
+        termsIterator = terms.iterator();
+        termsIntersect = terms.intersect(automaton, null);
+        PointValues pointValues2 = searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME);
+        cancelled.set(true);
+        searcher.removeQueryCancellation(cancellation);
+        termsIterator.next();
+        termsIntersect.next();
+        pointValues2.getDocCount();
+        pointValues2.getNumIndexDimensions();
+        pointValues2.intersect(new PointValuesIntersectVisitor());
+    }
 
-            @Override
-            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                return null;
-            }
-        }));
+    private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {
+        @Override
+        public void visit(int docID) {
+        }
+
+        @Override
+        public void visit(int docID, byte[] packedValue) {
+        }
+
+        @Override
+        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+            return PointValues.Relation.CELL_CROSSES_QUERY;
+        }
     }
 }

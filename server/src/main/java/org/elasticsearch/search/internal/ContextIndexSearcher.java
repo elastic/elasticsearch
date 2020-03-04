@@ -107,14 +107,18 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Add a {@link Runnable} that will be run on a regular basis while
-     * collecting documents and check for query cancellation or timeout.
+     * Add a {@link Runnable} that will be run on a regular basis while fetching document from the
+     * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */
     public Runnable addQueryCancellation(Runnable action) {
         return this.cancellable.add(action);
     }
 
-    public void removeQueryTimeout(Runnable action) {
+    /**
+     * Remove a {@link Runnable} that checks for query cancellation or timeout
+     * which is called while fetching documents from the DirectoryReader but also while collecting them.
+     */
+    public void removeQueryCancellation(Runnable action) {
         this.cancellable.remove(action);
     }
 

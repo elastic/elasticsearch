@@ -303,7 +303,7 @@ public class QueryPhase implements SearchPhase {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
                 if (timeoutRunnable != null) {
-                   searcher.removeQueryTimeout(timeoutRunnable);
+                   searcher.removeQueryCancellation(timeoutRunnable);
                 }
             }
         } catch (Exception e) {

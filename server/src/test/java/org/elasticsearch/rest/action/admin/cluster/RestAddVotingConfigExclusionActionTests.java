@@ -52,8 +52,6 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
         assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeIds());
         assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeNames());
-        assertWarnings("Using [node_name] for adding voting config exclustion will be removed in a future version. " +
-            "Please use [node_ids] or [node_names] instead");
     }
 
     public void testResolveVotingConfigExclusionsRequestNodeIds() {

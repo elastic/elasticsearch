@@ -87,8 +87,6 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
 
-        assertThat(makeRequest().resolveVotingConfigExclusions(clusterState),
-                containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
         assertThat(makeRequest("_all").resolveVotingConfigExclusions(clusterState),
         containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
         assertThat(makeRequest("_local").resolveVotingConfigExclusions(clusterState),
@@ -133,14 +131,8 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
                 .coordinationMetaData(CoordinationMetaData.builder().addVotingConfigExclusion(otherNode1Exclusion).build()));
         final ClusterState clusterState = builder.build();
 
-        assertThat(makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 3, "setting.name"),
-                containsInAnyOrder(localNodeExclusion, otherNode2Exclusion));
         assertThat(makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
             contains(localNodeExclusion));
-        assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),
-            equalTo("add voting config exclusions request for [] would add [2] exclusions to the existing [1] which would exceed " +
-                "the maximum of [2] set by [setting.name]"));
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
             equalTo("add voting config exclusions request for [_local] would add [1] exclusions to the existing [1] which would " +

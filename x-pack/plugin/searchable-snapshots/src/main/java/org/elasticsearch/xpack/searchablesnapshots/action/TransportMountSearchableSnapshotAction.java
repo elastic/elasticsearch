@@ -76,7 +76,6 @@ public class TransportMountSearchableSnapshotAction
             return blockException;
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-
     }
 
     /**

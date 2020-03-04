@@ -234,8 +234,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
      */
     public void testHijackScrollFails() throws Exception {
         createUser("full_access", "rest_minimal");
+        final String mode = randomMode();
 
-        String mode = randomMode();
         Map<String, Object> adminResponse = RestActions.runSql(null,
                 new StringEntity("{\"query\": \"SELECT * FROM test\", \"fetch_size\": 1" + mode(mode) + version(mode) + "}",
                         ContentType.APPLICATION_JSON), mode);
@@ -243,10 +243,9 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         String cursor = (String) adminResponse.remove("cursor");
         assertNotNull(cursor);
 
-        final String m = randomMode();
         ResponseException e = expectThrows(ResponseException.class, () -> RestActions.runSql("full_access",
-                new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(m) + version(mode) + "}", ContentType.APPLICATION_JSON),
-                m));
+                new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + version(mode) + "}", ContentType.APPLICATION_JSON),
+                mode));
         // TODO return a better error message for bad scrolls
         assertThat(e.getMessage(), containsString("No search context found for id"));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());

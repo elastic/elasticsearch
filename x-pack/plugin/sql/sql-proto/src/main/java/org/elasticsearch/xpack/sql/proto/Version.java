@@ -20,8 +20,6 @@ public class Version implements Comparable<Version>{
     public static final int MINOR_MULTIPLIER = REVISION_MULTIPLIER * REVISION_MULTIPLIER;
     public static final int MAJOR_MULTIPLIER = REVISION_MULTIPLIER * MINOR_MULTIPLIER;
 
-
-
     public static final Version V_7_7_0 = new Version(7, 7, 0);
 
     public Version(byte major, byte minor, byte revision) {

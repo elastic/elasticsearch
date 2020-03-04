@@ -35,7 +35,7 @@ specified in the `query` parameter. The EQL query matches events with an
 ----
 GET sec_logs/_eql/search
 {
-  "event_type_field": "event.category",
+  "event_category_field": "event.category",
   "timestamp_field": "@timestamp",
   "query": """
     process where process.name == "cmd.exe"
@@ -88,9 +88,9 @@ The API returns the following response containing the matching event:
 [[eql-search-specify-event-type-field]]
 === Specify an event type field
 
-The EQL search API uses `event_type` as the required <<eql-required-fields,event
-type field>> by default. You can use the `event_type_field` parameter to specify
-another event type field.
+The EQL search API uses `event.category` as the required <<eql-required-fields,event
+category field>> by default. You can use the `event_category_field` parameter to specify
+another event category field.
 
 For example, the following request specifies `file.type` as the event type
 field.
@@ -99,7 +99,7 @@ field.
 ----
 GET sec_logs/_eql/search
 {
-  "event_type_field": "file.type",
+  "event_category_field": "file.type",
   "timestamp_field": "@timestamp",
   "query": """
     file where agent.id == "8a4f500d"
@@ -123,7 +123,7 @@ timestamp field.
 GET sec_logs/_eql/search
 {
   "timestamp_field": "file.accessed",
-  "event_type_field": "event.category",
+  "event_category_field": "event.category",
   "query": """
     file where (file.size > 1 and file.type == "file")
   """
@@ -147,7 +147,7 @@ filtered documents.
 ----
 GET sec_logs/_eql/search
 {
-  "event_type_field": "event.category",
+  "event_category_field": "event.category",
   "timestamp_field": "@timestamp",
   "filter": {
     "range" : {

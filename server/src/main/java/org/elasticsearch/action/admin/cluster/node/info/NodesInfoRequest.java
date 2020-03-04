@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
  */
 public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private Set<String> requestedMetrics = new TreeSet<>(Metrics.allMetrics());
+    private Set<String> requestedMetrics = Metrics.allMetrics();
 
     /**
      * Create a new NodeInfoRequest from a {@link StreamInput} object.
@@ -49,36 +48,16 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         if (in.getVersion().before(Version.V_8_0_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.SETTINGS.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.OS.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.PROCESS.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.JVM.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.THREAD_POOL.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.TRANSPORT.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.HTTP.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.PLUGINS.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.INGEST.metricName());
-            }
-            if (in.readBoolean()) {
-                requestedMetrics.add(Metrics.INDICES.metricName());
-            }
+            addOrRemoveMetric(in.readBoolean(), Metrics.SETTINGS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.HTTP.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.PLUGINS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.INGEST.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.INDICES.metricName());
         } else {
             requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
         }
@@ -105,7 +84,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Sets to return all the data.
      */
     public NodesInfoRequest all() {
-        requestedMetrics.addAll(Arrays.stream(Metrics.values()).map(Metrics::metricName).collect(Collectors.toSet()));
+        requestedMetrics.addAll(Metrics.allMetrics());
         return this;
     }
 
@@ -282,16 +261,16 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         if (out.getVersion().before(Version.V_8_0_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
-            out.writeBoolean(requestedMetrics.contains(Metrics.SETTINGS.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.OS.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.PROCESS.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.JVM.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.THREAD_POOL.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.TRANSPORT.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.HTTP.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.PLUGINS.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.INGEST.metricName()));
-            out.writeBoolean(requestedMetrics.contains(Metrics.INDICES.metricName()));
+            out.writeBoolean(Metrics.SETTINGS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.THREAD_POOL.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.TRANSPORT.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.HTTP.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.PLUGINS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.INDICES.containedIn(requestedMetrics));
         } else {
             out.writeStringArray(requestedMetrics.toArray(String[]::new));
         }

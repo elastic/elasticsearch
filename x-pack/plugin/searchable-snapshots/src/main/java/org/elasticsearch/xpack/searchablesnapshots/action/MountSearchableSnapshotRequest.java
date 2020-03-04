@@ -42,7 +42,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
     /**
-     * Constructs a new put repository request with the provided repository and snapshot names.
+     * Constructs a new mount searchable snapshot request, restoring an index under the given mountedIndex name
      */
     public MountSearchableSnapshotRequest(String mountedIndex) {
         this.mountedIndex = mountedIndex;

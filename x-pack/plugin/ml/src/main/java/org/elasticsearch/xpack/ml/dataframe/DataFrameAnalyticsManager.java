@@ -201,6 +201,14 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             reindexResponse -> {
+                // If the reindex task is canceled, this listener is called.
+                // Consequently, we should not signal reindex completion.
+                if (task.isStopping()) {
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before marking reindex as finished.",
+                        task.getParams().getId());
+                    task.markAsCompleted();
+                    return;
+                }
                 task.setReindexingTaskId(null);
                 task.setReindexingFinished();
                 auditor.info(

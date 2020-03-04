@@ -1,17 +1,32 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
-public class NodesInfoRequestTest {
+public class NodesInfoRequestTests extends ESTestCase {
 
-    @Test
     public void testNodesInfoRequestSettings() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.settings(true);
@@ -23,7 +38,6 @@ public class NodesInfoRequestTest {
         assertThat(request.settings(), equalTo(roundTrippedRequest.settings()));
     }
 
-    @Test
     public void testNodesInfoRequestOs() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.os(true);
@@ -35,7 +49,6 @@ public class NodesInfoRequestTest {
         assertThat(request.os(), equalTo(roundTrippedRequest.os()));
     }
 
-    @Test
     public void testNodesInfoRequestProcess() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.process(true);
@@ -47,7 +60,6 @@ public class NodesInfoRequestTest {
         assertThat(request.process(), equalTo(roundTrippedRequest.process()));
     }
 
-    @Test
     public void testNodesInfoRequestJvm() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.jvm(true);
@@ -59,7 +71,6 @@ public class NodesInfoRequestTest {
         assertThat(request.jvm(), equalTo(roundTrippedRequest.jvm()));
     }
 
-    @Test
     public void testNodesInfoRequestThreadPool() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.threadPool(true);
@@ -71,7 +82,6 @@ public class NodesInfoRequestTest {
         assertThat(request.threadPool(), equalTo(roundTrippedRequest.threadPool()));
     }
 
-    @Test
     public void testNodesInfoRequestTransport() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.transport(true);
@@ -83,7 +93,6 @@ public class NodesInfoRequestTest {
         assertThat(request.transport(), equalTo(roundTrippedRequest.transport()));
     }
 
-    @Test
     public void testNodesInfoRequestHttp() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.http(true);
@@ -95,7 +104,6 @@ public class NodesInfoRequestTest {
         assertThat(request.http(), equalTo(roundTrippedRequest.http()));
     }
 
-    @Test
     public void testNodesInfoRequestPlugins() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.plugins(true);
@@ -107,7 +115,6 @@ public class NodesInfoRequestTest {
         assertThat(request.plugins(), equalTo(roundTrippedRequest.plugins()));
     }
 
-    @Test
     public void testNodesInfoRequestIngest() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.ingest(true);
@@ -119,7 +126,6 @@ public class NodesInfoRequestTest {
         assertThat(request.ingest(), equalTo(roundTrippedRequest.ingest()));
     }
 
-    @Test
     public void testNodesInfoRequestIndices() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.indices(true);
@@ -131,7 +137,6 @@ public class NodesInfoRequestTest {
         assertThat(request.indices(), equalTo(roundTrippedRequest.indices()));
     }
 
-    @Test
     public void testNodesInfoRequestAll() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.all();
@@ -159,7 +164,6 @@ public class NodesInfoRequestTest {
         assertTrue(roundTrippedRequest.indices());
     }
 
-    @Test
     public void testNodesInfoRequestClear() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.clear();

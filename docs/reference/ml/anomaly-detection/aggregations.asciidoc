@@ -11,6 +11,11 @@ distributes these calculations across your cluster. You can then feed this
 aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
+The aggregation you create in a {dfeed} needs to have the same name as that of 
+the field it operates on. You can define the aggregated fields in the 
+`analysis_config` object of the {anomaly-job}. The job analyzes only the fields 
+that you provided in the configuration.
+
 TIP: If you use a terms aggregation and the cardinality of a term is high, the
 aggregation might not be effective and you might want to just use the default
 search and scroll behavior.
@@ -58,10 +63,7 @@ PUT _ml/anomaly_detectors/farequote
 // TEST[skip:setup:farequote_data]
 
 In this example, the `airline`, `responsetime`, and `time` fields are
-aggregations. Only the aggregated fields defined in the `analysis_config` are 
-used by the {anomaly-job}. If you want to create a {datafeed} with an 
-aggregation that operates on a particular field of the job, you have to define 
-that field in the `analysis_config` when you create the job.
+aggregations.
 
 NOTE: When the `summary_count_field_name` property is set to a non-null value,
 the job expects to receive aggregated input. The property must be set to the

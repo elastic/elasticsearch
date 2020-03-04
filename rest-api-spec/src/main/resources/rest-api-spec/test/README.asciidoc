@@ -205,7 +205,7 @@ testing. Using it looks like this:
 
 ....
     - do:
-        allowd_warnings:
+        allowed_warnings:
             - some warning
             - this argument is also always a list, never a single string
             - no matter how many warnings you expect

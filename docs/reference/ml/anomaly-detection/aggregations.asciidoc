@@ -58,7 +58,10 @@ PUT _ml/anomaly_detectors/farequote
 // TEST[skip:setup:farequote_data]
 
 In this example, the `airline`, `responsetime`, and `time` fields are
-aggregations.
+aggregations. Only the aggregated fields defined in the `analysis_config` are 
+used by the {anomaly-job}. If you want to create a {datafeed} with an 
+aggregation that operates on a particular field of the job, you have to define 
+that field in the `analysis_config` when you create the job.
 
 NOTE: When the `summary_count_field_name` property is set to a non-null value,
 the job expects to receive aggregated input. The property must be set to the

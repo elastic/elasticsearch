@@ -32,10 +32,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleLimitSysouts;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -45,7 +43,6 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,24 +73,18 @@ public class WildflyIT extends LuceneTestCase {
             logger.info("Connecting to uri: " + baseUrl);
 
             final HttpPut put = new HttpPut(new URI(endpoint));
-            final String body;
-            try (XContentBuilder builder = jsonBuilder()) {
-                builder.startObject();
-                {
-                    builder.field("first_name", "John");
-                    builder.field("last_name", "Smith");
-                    builder.field("age", 25);
-                    builder.field("about", "I love to go rock climbing");
-                    builder.startArray("interests");
-                    {
-                        builder.value("sports");
-                        builder.value("music");
-                    }
-                    builder.endArray();
-                }
-                builder.endObject();
-                body = Strings.toString(builder);
-            }
+
+            final String body = "{"
+                + "  \"first_name\": \"John\","
+                + "  \"last_name\": \"Smith\","
+                + "  \"age\": 25,"
+                + "  \"about\": \"I love to go rock climbing\","
+                + "  \"interests\": ["
+                + "    \"sports\","
+                + "    \"music\""
+                + "  ]"
+                + "}";
+
             put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
             try (CloseableHttpResponse response = client.execute(put)) {
                 int status = response.getStatusLine().getStatusCode();

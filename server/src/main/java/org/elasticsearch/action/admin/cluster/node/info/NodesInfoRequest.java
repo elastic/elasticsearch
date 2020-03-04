@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,40 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
         infoSections.clear();
-        infoSections.addAll(Arrays.asList(in.readStringArray()));
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            infoSections.addAll(Arrays.asList(in.readStringArray()));
+        } else {
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.SETTINGS.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.OS.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.PROCESS.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.JVM.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.THREAD_POOL.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.TRANSPORT.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.HTTP.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.PLUGINS.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.INGEST.metricName());
+            }
+            if (in.readBoolean()) {
+                infoSections.add(Metrics.INDICES.metricName());
+            }
+        }
     }
 
     /**
@@ -232,7 +266,20 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(infoSections.toArray(String[]::new));
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeStringArray(infoSections.toArray(String[]::new));
+        } else {
+            out.writeBoolean(infoSections.contains(Metrics.SETTINGS.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.OS.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.PROCESS.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.JVM.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.THREAD_POOL.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.TRANSPORT.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.HTTP.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.PLUGINS.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.INGEST.metricName()));
+            out.writeBoolean(infoSections.contains(Metrics.INDICES.metricName()));
+        }
     }
 
     enum Metrics {

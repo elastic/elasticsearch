@@ -1,0 +1,13 @@
+---
+"Test Me": # TODO: delete this
+
+  - do:
+      index:
+        index:          test_1
+        id:             1
+        body:           { foo: bar }
+        version_type:   external
+        version:        5
+
+  - match:   { _version: 5}
+

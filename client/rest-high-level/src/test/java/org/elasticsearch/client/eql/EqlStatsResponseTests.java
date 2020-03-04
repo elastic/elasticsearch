@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class EqlStatsResponseTests extends AbstractResponseTestCase<EqlStatsResponseToXContent, EqlStatsResponse> {
@@ -86,10 +85,6 @@ public class EqlStatsResponseTests extends AbstractResponseTestCase<EqlStatsResp
     @Override
     protected void assertInstances(EqlStatsResponseToXContent serverTestInstanceWrap, EqlStatsResponse clientInstance) {
         EqlStatsResponse serverTestInstance = serverTestInstanceWrap.unwrap();
-
         assertThat(serverTestInstance, is(clientInstance));
-        assertThat(serverTestInstance.getHeader(), is(clientInstance.getHeader()));
-        assertThat(serverTestInstance.getClusterName(), equalTo(clientInstance.getClusterName()));
-        assertThat(serverTestInstance.getNodes().size(), equalTo(clientInstance.getNodes().size()));
     }
 }

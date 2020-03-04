@@ -39,10 +39,22 @@ import java.io.IOException;
  */
 class ExitableDirectoryReader extends FilterDirectoryReader {
 
+    /**
+     * Used to check if query cancellation is actually enabled
+     * and if so use it to check if the query is cancelled or timed-out.
+     */
     interface QueryCancellation {
 
+        /**
+         * Used to prevent unnecessary checks for cancellation
+         * @return true if query cancellation is enabled
+         */
         boolean isEnabled();
 
+        /**
+         * Call to check if the query is cancelled or timed-out.
+         * If so a {@link RuntimeException} is thrown
+         */
         void checkCancelled();
     }
 

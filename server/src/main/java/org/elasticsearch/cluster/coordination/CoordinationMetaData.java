@@ -233,8 +233,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         private final String nodeName;
 
         public VotingConfigExclusion(DiscoveryNode node) {
-            this.nodeId = node.getId();
-            this.nodeName = node.getName();
+            this(node.getId(), node.getName());
         }
 
         public VotingConfigExclusion(StreamInput in) throws IOException {

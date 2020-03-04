@@ -34,6 +34,9 @@ import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -43,9 +46,11 @@ import java.util.stream.Collectors;
  */
 public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
     private final String[] nodeDescriptions;
-    private String[] nodeIds = null;
-    private String[] nodeNames = null;
+    private final String[] nodeIds;
+    private final String[] nodeNames;
     private final TimeValue timeout;
+    public static final String nodeDescriptionDeprecationMsg = "Using [node_name] for adding voting config exclustion will be removed " +
+        "in a future version. Please use [node_ids] or [node_names] instead";
 
     /**
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for a
@@ -66,6 +71,12 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }
+
+        if(noneOrMoreThanOneIsSet(nodeDescriptions, nodeIds, nodeNames)) {
+            throw new IllegalArgumentException("Please set node identifiers correctly. " +
+                "One and only one of [node_name], [node_names] and [node_ids] has to be set");
+        }
+
         this.nodeDescriptions = nodeDescriptions;
         this.nodeIds = nodeIds;
         this.nodeNames = nodeNames;
@@ -76,10 +87,13 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         super(in);
         // TODO should this be removed in the latest version where nodeIds and nodeNames are used?
         nodeDescriptions = in.readStringArray();
-        // TODO which version to use here?
-        if (in.getVersion() == Version.V_EMPTY) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             nodeIds = in.readStringArray();
             nodeNames = in.readStringArray();
+        }
+        else {
+            nodeIds = Strings.EMPTY_ARRAY;
+            nodeNames = Strings.EMPTY_ARRAY;
         }
         timeout = in.readTimeValue();
     }
@@ -98,32 +112,50 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             }
         }
         else {
-            DiscoveryNodes.NodeResolutionResults nodeResolutionResults;
-            Set<VotingConfigExclusion> resolvedNodes;
-            Set<VotingConfigExclusion> unresolvedNodes;
+            Set<VotingConfigExclusion> resolvedVotingConfigExclusions;
+            Set<VotingConfigExclusion> unresolvedVotingConfigExclusions;
+
+            Set<String> resolvedNodes = new HashSet<>(nodeIds.length);
+            Set<String> unresolvedNodes = new HashSet<>();
 
             if (nodeIds.length >= 1) {
-                nodeResolutionResults = allNodes.resolveNodesExact(true, nodeIds);
+                for (String nodeId : nodeIds) {
+                    if (allNodes.nodeExists(nodeId)) {
+                        resolvedNodes.add(nodeId);
+                    }
+                    else {
+                        unresolvedNodes.add(nodeId);
+                    }
+                }
 
-                unresolvedNodes = Arrays.stream(nodeResolutionResults.getUnresolvedNodes())
-                    .map(nodeId -> new VotingConfigExclusion(nodeId, "")).collect(Collectors.toSet());
+                unresolvedVotingConfigExclusions = unresolvedNodes.stream()
+                    .map(nodeId -> new VotingConfigExclusion(nodeId, "_absent_")).collect(Collectors.toSet());
             }
             else {
-                nodeResolutionResults = allNodes.resolveNodesExact(false, nodeNames);
+                Map<String, String> existingNodesNameId = new HashMap<>();
+                for (DiscoveryNode node : allNodes) {
+                    if (node.isMasterNode()) {
+                        existingNodesNameId.put(node.getName(), node.getId());
+                    }
+                }
 
-                unresolvedNodes = Arrays.stream(nodeResolutionResults.getUnresolvedNodes())
-                    .map(nodeName -> new VotingConfigExclusion("", nodeName)).collect(Collectors.toSet());
+                for (String nodeName : nodeNames) {
+                    if (existingNodesNameId.containsKey(nodeName)){
+                        resolvedNodes.add(existingNodesNameId.get(nodeName));
+                    }
+                    else {
+                        unresolvedNodes.add(nodeName);
+                    }
+                }
+
+                unresolvedVotingConfigExclusions = unresolvedNodes.stream()
+                    .map(nodeName -> new VotingConfigExclusion("_absent_", nodeName)).collect(Collectors.toSet());
             }
 
-            resolvedNodes = Arrays.stream(nodeResolutionResults.getResolvedNodes())
+            resolvedVotingConfigExclusions = resolvedNodes.stream()
                 .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
 
-            allProcessedNodes = Sets.newHashSet(Iterables.concat(resolvedNodes, unresolvedNodes));
-
-            if (allProcessedNodes.isEmpty()) {
-                throw new IllegalArgumentException("add voting config exclusions request for nodeIds " + Arrays.asList(nodeIds) +
-                    " or nodeNames " + Arrays.asList(nodeNames) + " matched no master-eligible nodes or absent nodes");
-            }
+            allProcessedNodes = Sets.newHashSet(Iterables.concat(resolvedVotingConfigExclusions, unresolvedVotingConfigExclusions));
         }
 
         allProcessedNodes.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
@@ -143,6 +175,26 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                 + maximumSettingKey + "]");
         }
         return resolvedExclusions;
+    }
+
+    public static boolean noneOrMoreThanOneIsSet(String[] deprecatedNodeDescription, String[] nodeIds, String[] nodeNames) {
+        if(arrayHasElement(deprecatedNodeDescription)) {
+            return arrayHasElement(nodeIds) || arrayHasElement(nodeNames);
+        }
+        else if (arrayHasElement(nodeIds)) {
+            return arrayHasElement(nodeNames);
+        }
+        else if (arrayHasElement(nodeNames)) {
+            return false;
+        }
+        else {
+            // none of the node identifiers are set
+            return true;
+        }
+    }
+
+    private static boolean arrayHasElement(String[] array) {
+        return array != null && array.length > 0;
     }
 
     /**
@@ -183,11 +235,9 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         super.writeTo(out);
         // TODO should this be removed in the latest version where nodeIds and nodeNames are used?
         out.writeStringArray(nodeDescriptions);
-        // TODO which version to use here?
-        if (out.getVersion() == Version.V_EMPTY) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeStringArray(nodeIds);
             out.writeStringArray(nodeNames);
-
         }
         out.writeTimeValue(timeout);
     }

@@ -38,7 +38,6 @@ import org.elasticsearch.common.util.set.Sets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -317,63 +316,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
         return nodes.get(resolvedNodeIds[0]);
     }
-
-    public static class NodeResolutionResults {
-        private String[] resolvedNodes;
-        private String[] unresolvedNodes;
-
-        public NodeResolutionResults(String[] resolvedNodes, String[] unresolvedNodes) {
-            this.resolvedNodes = resolvedNodes;
-            this.unresolvedNodes = unresolvedNodes;
-        }
-
-        public String[] getResolvedNodes() {
-            return resolvedNodes;
-        }
-
-        public String[] getUnresolvedNodes() {
-            return unresolvedNodes;
-        }
-    }
-
-    public NodeResolutionResults resolveNodesExact(boolean isNodeIds, String... nodes) {
-        if (nodes == null || nodes.length == 0) {
-            return new NodeResolutionResults(StreamSupport.stream(this.spliterator(), false)
-                                            .map(DiscoveryNode::getId).toArray(String[]::new), new String[0]);
-        } else {
-            ObjectHashSet<String> resolvedNodes = new ObjectHashSet<>(nodes.length);
-            ObjectHashSet<String> unresolvedNodes = new ObjectHashSet<>();
-
-            if (isNodeIds) {
-                for (String nodeId : nodes) {
-                    if (nodeExists(nodeId)) {
-                        resolvedNodes.add(nodeId);
-                    }
-                    else {
-                        unresolvedNodes.add(nodeId);
-                    }
-                }
-            }
-            else {
-                Map<String, String> existingNodesNameId = new HashMap<>();
-                for (DiscoveryNode node : this) {
-                    existingNodesNameId.put(node.getName(), node.getId());
-                }
-
-                for (String nodeName : nodes) {
-                    if (existingNodesNameId.containsKey(nodeName)){
-                        resolvedNodes.add(existingNodesNameId.get(nodeName));
-                    }
-                    else {
-                        unresolvedNodes.add(nodeName);
-                    }
-                }
-            }
-
-            return new NodeResolutionResults(resolvedNodes.toArray(String.class), unresolvedNodes.toArray(String.class));
-        }
-    }
-
 
     /**
      * resolves a set of node "descriptions" to concrete and existing node ids. "descriptions" can be (resolved in this order):

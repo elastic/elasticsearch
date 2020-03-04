@@ -34,6 +34,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 
+import static org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest.nodeDescriptionDeprecationMsg;
+
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
@@ -41,8 +43,8 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public RestAddVotingConfigExclusionAction(RestController controller) {
-        // TODO This API is being deprecated.
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this,
+                                                nodeDescriptionDeprecationMsg, DEPRECATION_LOGGER);
 
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions", this);
     }
@@ -68,9 +70,6 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         String nodeNames = null;
 
         if (request.hasParam("node_name")) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("add_voting_config_exclusion",
-                "Using [node_name] for adding voting config exclustion will be removed in a future version. " +
-                    "Please use [node_ids] or [node_names] instead");
             deprecatedNodeDescription = request.param("node_name");
         }
 
@@ -79,12 +78,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         }
 
         if (request.hasParam("node_names")){
-            nodeNames = request.param("node_names");
-        }
-
-        if(!oneAndonlyOneIsSet(deprecatedNodeDescription, nodeIds, nodeNames)) {
-            throw new IllegalArgumentException("Please set node identifiers correctly. " +
-                "One and only one of [node_name], [node_names] and [node_ids] has to be set");
+            nodeNames =  request.param("node_names");
         }
 
         return new AddVotingConfigExclusionsRequest(
@@ -95,21 +89,5 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         );
     }
 
-    private boolean oneAndonlyOneIsSet(String deprecatedNodeDescription, String nodeIds, String nodeNames) {
-        if(Strings.hasText(deprecatedNodeDescription)) {
-            return Strings.isNullOrEmpty(nodeIds) && Strings.isNullOrEmpty(nodeNames);
-        }
-        else if (Strings.hasText(nodeIds)) {
-            return Strings.isNullOrEmpty(nodeNames);
-        }
-        else if (Strings.hasText(nodeNames)) {
-            return true;
-        }
-        else {
-            // none of the node identifiers are set
-            return false;
-        }
-
-    }
 
 }

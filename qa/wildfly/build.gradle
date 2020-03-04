@@ -21,7 +21,6 @@ import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'war'
 apply plugin: 'elasticsearch.build'
-//apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.distribution-download'
 
@@ -47,6 +46,10 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   compile project(path: ':client:rest-high-level', configuration: 'shadow')
   testCompile project(':test:framework')
+}
+
+war {
+  archiveName "example-app.war"
 }
 
 elasticsearch_distributions {

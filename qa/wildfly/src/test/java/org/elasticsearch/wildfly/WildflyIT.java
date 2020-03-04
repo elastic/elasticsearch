@@ -62,7 +62,7 @@ public class WildflyIT extends LuceneTestCase {
                     + ". This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
             );
         }
-        return "http://localhost:" + port + "/wildfly-8.0.0-SNAPSHOT/transport";
+        return "http://localhost:" + port + "/example-app/transport";
     }
 
     public void testRestClient() throws URISyntaxException, IOException {

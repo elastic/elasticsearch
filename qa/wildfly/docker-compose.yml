@@ -6,11 +6,11 @@ services:
     environment:
       JAVA_OPTS: -Delasticsearch.uri=elasticsearch:9200 -Djboss.http.port=8080 -Djava.net.preferIPv4Stack=true
     volumes:
-      - ./build/distributions/wildfly-8.0.0-SNAPSHOT.war:/opt/jboss/wildfly/standalone/deployments/wildfly-8.0.0-SNAPSHOT.war
+      - ./build/distributions/example-app.war:/opt/jboss/wildfly/standalone/deployments/example-app.war
     ports:
       - "8080"
     healthcheck:
-      start_period: 10s
+      start_period: 5s
       test: ["CMD", "grep", "Admin console listening on", "/opt/jboss/wildfly/standalone/log/server.log"]
       interval: 2s
       timeout: 1s

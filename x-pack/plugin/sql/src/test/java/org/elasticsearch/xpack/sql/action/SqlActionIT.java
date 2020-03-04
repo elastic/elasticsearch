@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -55,7 +55,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     public void testSqlActionOutdatedVersion() {
         SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
             .query("SELECT true").mode(randomFrom(Mode.CLI, Mode.JDBC)).version("1.2.3");
-        assertThrows(request, org.elasticsearch.action.ActionRequestValidationException.class);
+        assertRequestBuilderThrows(request, org.elasticsearch.action.ActionRequestValidationException.class);
     }
 }
 

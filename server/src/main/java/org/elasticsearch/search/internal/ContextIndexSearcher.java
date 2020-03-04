@@ -20,15 +20,10 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -50,14 +45,11 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -71,13 +63,10 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
-
-import static org.apache.lucene.index.FilterLeafReader.FilterTerms;
-import static org.apache.lucene.index.FilterLeafReader.FilterTermsEnum;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -91,25 +80,26 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private QueryCancellable cancellable;
+    private MutableQueryTimeout cancellable;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, true);
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout());
     }
 
-    // TODO: Remove the 2nd constructor so that the IndexReader is always wrapped.
+    // TODO: Make the 2nd constructor private so that the IndexReader is always wrapped.
     // Some issues must be fixed:
     //   - regarding tests deriving from AggregatorTestCase and more specifically the use of searchAndReduce and
     //     the ShardSearcher sub-searchers.
     //   - tests that use a MultiReader
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                boolean shouldWrap) throws IOException {
-        super(shouldWrap ? new CancellableDirectoryReader((DirectoryReader) reader, new Holder<>(null)) : reader);
+                                MutableQueryTimeout cancellable) throws IOException {
+        super(cancellable != null ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
+        this.cancellable = cancellable != null ? cancellable : new MutableQueryTimeout();
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -117,18 +107,15 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Set a {@link Runnable} that will be run on a regular basis while
-     * collecting documents and check for query cancellation or timeout
+     * Add a {@link Runnable} that will be run on a regular basis while
+     * collecting documents and check for query cancellation or timeout.
      */
-    public void setCancellable(QueryCancellable cancellable) {
-        this.cancellable = Objects.requireNonNull(cancellable, "queryCancellable should not be null");
-        ((CancellableDirectoryReader) getIndexReader()).setCancellable(cancellable);
+    public Runnable addQueryCancellation(Runnable action) {
+        return this.cancellable.add(action);
     }
 
-    private void checkCancelled() {
-        if (cancellable != null) {
-            cancellable.checkCancelled();
-        }
+    public void removeQueryTimeout(Runnable action) {
+        this.cancellable.remove(action);
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -207,7 +194,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        checkCancelled();
+        cancellable.shouldExit();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
@@ -235,7 +222,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (scorer != null) {
                 try {
                     intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                            this.cancellable == null ? () -> {} : cancellable::checkCancelled);
+                            this.cancellable.isTimeoutEnabled() ? cancellable::shouldExit : () -> {});
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -245,7 +232,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private Weight wrapWeight(Weight weight) {
-        if (cancellable != null) {
+        if (cancellable.isTimeoutEnabled()) {
             return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -271,7 +258,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
+                        return new CancellableBulkScorer(in, cancellable::shouldExit);
                     } else {
                         return null;
                     }
@@ -348,277 +335,33 @@ public class ContextIndexSearcher extends IndexSearcher {
         return (DirectoryReader) reader;
     }
 
-    /**
-     * iFace which implements the query timeout / cancellation logic
-     */
-    public interface QueryCancellable {
+    private static class MutableQueryTimeout implements QueryTimeout {
 
-        void checkCancelled();
-    }
+        private final Set<Runnable> runnables = new HashSet<>();
 
-    /**
-     * Wraps an {@link IndexReader} with a {@link QueryCancellable}.
-     */
-    static class CancellableDirectoryReader extends FilterDirectoryReader {
-
-        private final Holder<QueryCancellable> cancellableHolder;
-
-        private CancellableDirectoryReader(DirectoryReader in, Holder<QueryCancellable> cancellableHolder) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader reader) {
-                    return new CancellableLeafReader(reader, cancellableHolder);
-                }
-            });
-            this.cancellableHolder = cancellableHolder;
-        }
-
-        private void setCancellable(QueryCancellable cancellable) {
-            this.cancellableHolder.set(cancellable);
-        }
-
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
-            throw new UnsupportedOperationException("doWrapDirectoryReader() should never be invoked");
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return in.getReaderCacheHelper();
-        }
-    }
-
-    /**
-     * Wraps a {@link FilterLeafReader} with a {@link QueryCancellable}.
-     */
-    static class CancellableLeafReader extends FilterLeafReader {
-
-        private final Supplier<QueryCancellable> cancellable;
-
-        private CancellableLeafReader(LeafReader leafReader, Supplier<QueryCancellable> cancellable)  {
-            super(leafReader);
-            this.cancellable = cancellable;
-        }
-
-        @Override
-        public PointValues getPointValues(String field) throws IOException {
-            final PointValues pointValues = in.getPointValues(field);
-            if (pointValues == null) {
-                return null;
+        private Runnable add(Runnable action) {
+            Objects.requireNonNull(action, "cancellation runnable should not be null");
+            if (runnables.add(action) == false) {
+                throw new IllegalArgumentException("Cancellation runnable already added");
             }
-            return (cancellable.get() != null) ? new ExitablePointValues(pointValues, cancellable.get()) : pointValues;
+            return action;
+        }
+
+        private void remove(Runnable action) {
+            runnables.remove(action);
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
-            Terms terms = in.terms(field);
-            if (terms == null) {
-                return null;
+        public boolean shouldExit() {
+            for (Runnable timeout : runnables) {
+                timeout.run();
             }
-            // If we have a suggest CompletionQuery then the CompletionWeight#bulkScorer() will check that
-            // the terms are instanceof CompletionTerms (not generic FilterTerms) and will throw an exception
-            // if that's not the case.
-            return (cancellable.get() != null && terms instanceof CompletionTerms == false) ?
-                    new ExitableTerms(terms, cancellable.get()) : terms;
+            return false;
         }
 
         @Override
-        public CacheHelper getCoreCacheHelper() {
-            return in.getCoreCacheHelper();
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return in.getReaderCacheHelper();
-        }
-    }
-
-    /**
-     * Helper class to be used as an immutable reference so that the underlying
-     * {@link QueryCancellable} passed trough the hierarchy to the {@link Terms} and {@link PointValues}
-     * during construction can be set later with {@link ContextIndexSearcher#setCancellable}
-     */
-    private static class Holder<T> implements Supplier<T> {
-
-        private T in;
-
-        private Holder(T in) {
-            this.in = in;
-        }
-
-        private void set(T in) {
-            this.in = in;
-        }
-
-        @Override
-        public T get() {
-            return in;
-        }
-    }
-
-    /**
-     * Wrapper class for {@link FilterTerms} that check for query cancellation or timeout.
-     */
-    static class ExitableTerms extends FilterTerms {
-
-        private final QueryCancellable cancellable;
-
-        private ExitableTerms(Terms terms, QueryCancellable cancellable) {
-            super(terms);
-            this.cancellable = cancellable;
-        }
-
-        @Override
-        public TermsEnum intersect(CompiledAutomaton compiled, BytesRef startTerm) throws IOException {
-            return new ExitableTermsEnum(in.intersect(compiled, startTerm), cancellable);
-        }
-
-        @Override
-        public TermsEnum iterator() throws IOException {
-            return new ExitableTermsEnum(in.iterator(), cancellable);
-        }
-    }
-
-    /**
-     * Wrapper class for {@link FilterTermsEnum} that is used by {@link ExitableTerms} for
-     * implementing an exitable enumeration of terms.
-     */
-    private static class ExitableTermsEnum extends FilterTermsEnum {
-
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
-
-        private int calls;
-        private final QueryCancellable cancellable;
-
-        private ExitableTermsEnum(TermsEnum termsEnum, QueryCancellable cancellable) {
-            super(termsEnum);
-            this.cancellable = cancellable;
-            this.cancellable.checkCancelled();
-        }
-
-        private void checkAndThrowWithSampling() {
-            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                cancellable.checkCancelled();
-            }
-        }
-
-        @Override
-        public BytesRef next() throws IOException {
-            checkAndThrowWithSampling();
-            return in.next();
-        }
-    }
-
-    /**
-     * Wrapper class for {@link PointValues} that checks for query cancellation or timeout.
-     */
-    static class ExitablePointValues extends PointValues {
-
-        private final PointValues in;
-        private final QueryCancellable cancellable;
-
-        private ExitablePointValues(PointValues in, QueryCancellable cancellable) {
-            this.in = in;
-            this.cancellable = cancellable;
-            this.cancellable.checkCancelled();
-        }
-
-        @Override
-        public void intersect(IntersectVisitor visitor) throws IOException {
-            cancellable.checkCancelled();
-            in.intersect(new ExitableIntersectVisitor(visitor, cancellable));
-        }
-
-        @Override
-        public long estimatePointCount(IntersectVisitor visitor) {
-            cancellable.checkCancelled();
-            return in.estimatePointCount(visitor);
-        }
-
-        @Override
-        public byte[] getMinPackedValue() throws IOException {
-            cancellable.checkCancelled();
-            return in.getMinPackedValue();
-        }
-
-        @Override
-        public byte[] getMaxPackedValue() throws IOException {
-            cancellable.checkCancelled();
-            return in.getMaxPackedValue();
-        }
-
-        @Override
-        public int getNumDimensions() throws IOException {
-            cancellable.checkCancelled();
-            return in.getNumDimensions();
-        }
-
-        @Override
-        public int getNumIndexDimensions() throws IOException {
-            cancellable.checkCancelled();
-            return in.getNumIndexDimensions();
-        }
-
-        @Override
-        public int getBytesPerDimension() throws IOException {
-            cancellable.checkCancelled();
-            return in.getBytesPerDimension();
-        }
-
-        @Override
-        public long size() {
-            cancellable.checkCancelled();
-            return in.size();
-        }
-
-        @Override
-        public int getDocCount() {
-            cancellable.checkCancelled();
-            return in.getDocCount();
-        }
-    }
-
-    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
-
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
-
-        private final PointValues.IntersectVisitor in;
-        private final QueryCancellable cancellable;
-        private int calls;
-
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryCancellable cancellable) {
-            this.in = in;
-            this.cancellable = cancellable;
-        }
-
-        private void checkAndThrowWithSampling() {
-            if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                cancellable.checkCancelled();
-            }
-        }
-
-        @Override
-        public void visit(int docID) throws IOException {
-            checkAndThrowWithSampling();
-            in.visit(docID);
-        }
-
-        @Override
-        public void visit(int docID, byte[] packedValue) throws IOException {
-            checkAndThrowWithSampling();
-            in.visit(docID, packedValue);
-        }
-
-        @Override
-        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            cancellable.checkCancelled();
-            return in.compare(minPackedValue, maxPackedValue);
-        }
-
-        @Override
-        public void grow(int count) {
-            cancellable.checkCancelled();
-            in.grow(count);
+        public boolean isTimeoutEnabled() {
+            return runnables.isEmpty() == false;
         }
     }
 }

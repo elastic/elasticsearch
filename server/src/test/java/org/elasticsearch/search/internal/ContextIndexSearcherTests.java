@@ -67,9 +67,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.ContextIndexSearcher.CancellableDirectoryReader;
-import org.elasticsearch.search.internal.ContextIndexSearcher.ExitablePointValues;
-import org.elasticsearch.search.internal.ContextIndexSearcher.ExitableTerms;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -79,8 +76,10 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
-import static org.elasticsearch.search.internal.ContextIndexSearcher.CancellableLeafReader;
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -244,13 +243,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
 
         // Assert wrapping
-        assertEquals(CancellableDirectoryReader.class, searcher.getIndexReader().getClass());
+        assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());
         for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
-            assertEquals(CancellableLeafReader.class, lrc.reader().getClass());
+            assertEquals(ExitableLeafReader.class, lrc.reader().getClass());
             assertNotEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
             assertNotEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
         }
-        searcher.setCancellable(() -> {});
+        searcher.addQueryCancellation(() -> {});
         for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
             assertEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
             assertEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());

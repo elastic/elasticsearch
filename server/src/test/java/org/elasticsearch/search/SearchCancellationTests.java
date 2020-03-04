@@ -62,18 +62,17 @@ public class SearchCancellationTests extends ESTestCase {
         // we need at least 2 segments - so no merges should be allowed
         w.w.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
         w.setDoRandomForceMerge(false);
-        int numDocs = TestUtil.nextInt(random(), 2, 20);
-        indexRandomDocuments(w, numDocs, 0);
+        indexRandomDocuments(w, TestUtil.nextInt(random(), 2, 20));
         w.flush();
-        indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20), numDocs);
+        indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20));
         reader = w.getReader();
         w.close();
     }
 
-    private static void indexRandomDocuments(RandomIndexWriter w, int numDocs, int repeatChar) throws IOException {
+    private static void indexRandomDocuments(RandomIndexWriter w, int numDocs) throws IOException {
         for (int i = 1; i <= numDocs; ++i) {
             Document doc = new Document();
-            doc.add(new StringField(STRING_FIELD_NAME, "a".repeat(i + repeatChar), Field.Store.NO));
+            doc.add(new StringField(STRING_FIELD_NAME, "a".repeat(i), Field.Store.NO));
             doc.add(new IntPoint(POINT_FIELD_NAME, i, i + 1));
             w.addDocument(doc);
         }
@@ -86,32 +85,45 @@ public class SearchCancellationTests extends ESTestCase {
         reader = null;
     }
 
+    public void testAddingCancellationActions() throws IOException {
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
+                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        NullPointerException npe = expectThrows(NullPointerException.class, () -> searcher.addQueryCancellation(null));
+        assertEquals("cancellation runnable should not be null", npe.getMessage());
+
+        Runnable r = () -> {};
+        searcher.addQueryCancellation(r);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> searcher.addQueryCancellation(r));
+        assertEquals("Cancellation runnable already added", iae.getMessage());
+    }
+
     public void testCancellableCollector() throws IOException {
-        TotalHitCountCollector collector = new TotalHitCountCollector();
-        AtomicBoolean cancelled = new AtomicBoolean();
+        TotalHitCountCollector collector1 = new TotalHitCountCollector();
+        Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCancellable(() -> {
-            if (cancelled.get()) {
-                throw new TaskCancelledException("cancelled");
-            }
-        });
-        searcher.search(new MatchAllDocsQuery(), collector);
-        assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
-        cancelled.set(true);
+
+        searcher.search(new MatchAllDocsQuery(), collector1);
+        assertThat(collector1.getTotalHits(), equalTo(reader.numDocs()));
+
+        searcher.addQueryCancellation(cancellation);
         expectThrows(TaskCancelledException.class,
-            () -> searcher.search(new MatchAllDocsQuery(), collector));
+            () -> searcher.search(new MatchAllDocsQuery(), collector1));
+
+        searcher.removeQueryTimeout(cancellation);
+        TotalHitCountCollector collector2 = new TotalHitCountCollector();
+        searcher.search(new MatchAllDocsQuery(), collector2);
+        assertThat(collector2.getTotalHits(), equalTo(reader.numDocs()));
     }
 
     public void testCancellableDirectoryReader() throws IOException {
         AtomicBoolean cancelled = new AtomicBoolean(true);
         ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCancellable(() -> {
+        searcher.addQueryCancellation(() -> {
             if (cancelled.get()) {
                 throw new TaskCancelledException("cancelled");
-            }
-        });
+        }});
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
 
         expectThrows(TaskCancelledException.class,

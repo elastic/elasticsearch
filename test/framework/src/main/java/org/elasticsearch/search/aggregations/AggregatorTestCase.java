@@ -245,7 +245,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         };
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexSearcher.getIndexReader(),
-            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy, false);
+            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy, null);
 
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);

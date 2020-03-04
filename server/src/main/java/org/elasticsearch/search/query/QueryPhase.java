@@ -81,7 +81,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.search.internal.ContextIndexSearcher.QueryCancellable;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
@@ -255,54 +254,58 @@ public class QueryPhase implements SearchPhase {
                 final long startTime = searchContext.getRelativeTimeInMillis();
                 final long timeout = searchContext.timeout().millis();
                 final long maxTime = startTime + timeout;
-                timeoutRunnable = () -> {
+                timeoutRunnable = searcher.addQueryCancellation(() -> {
                     final long time = searchContext.getRelativeTimeInMillis();
                     if (time > maxTime) {
                         throw new TimeExceededException();
                     }
-                };
+                });
             } else {
                 timeoutRunnable = null;
             }
 
-            final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
                 SearchShardTask task = searchContext.getTask();
-                cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
-            } else {
-                cancellationRunnable = null;
+                searcher.addQueryCancellation(() -> {
+                    if (task.isCancelled()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
+                });
             }
 
-            QueryCancellableImpl cancellable = new QueryCancellableImpl(timeoutRunnable, cancellationRunnable);
-            searcher.setCancellable(cancellable);
+            try {
+                boolean shouldRescore;
+                // if we are optimizing sort and there are no other collectors
+                if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {
+                    shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
+                } else {
+                    shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                }
 
-            boolean shouldRescore;
-            // if we are optimizing sort and there are no other collectors
-            if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {
-                shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
-            } else {
-                shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
-            }
+                // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
+                if (sortAndFormatsForRewrittenNumericSort != null) {
+                    searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
+                    restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
+                }
 
-            // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
-            if (sortAndFormatsForRewrittenNumericSort != null) {
-                searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
-                restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
-            }
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
+                    (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
+                    "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
+                    EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
 
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
-                (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
-                "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-            if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
-                EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                return shouldRescore;
+            } finally {
+                // Search phase has finished, no longer need to check for timeout
+                // otherwise aggregation phase might get cancelled.
+                if (timeoutRunnable != null) {
+                   searcher.removeQueryTimeout(timeoutRunnable);
+                }
             }
-            // Search phase has finished, no longer need to check for timeout
-            // otherwise aggregation phase might get cancelled.
-            cancellable.unsetCheckTimeout();
-            return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
@@ -630,29 +633,4 @@ public class QueryPhase implements SearchPhase {
     }
 
     private static class TimeExceededException extends RuntimeException {}
-
-    private static class QueryCancellableImpl implements QueryCancellable {
-
-        private Runnable checkCancelled;
-        private Runnable checkTimeout;
-
-        private QueryCancellableImpl(Runnable checkTimeout, Runnable checkCancelled) {
-            this.checkCancelled = checkCancelled;
-            this.checkTimeout = checkTimeout;
-        }
-
-        @Override
-        public void checkCancelled() {
-            if (checkTimeout != null) {
-                checkTimeout.run();
-            }
-            if (checkCancelled != null) {
-                checkCancelled.run();
-            }
-        }
-
-        private void unsetCheckTimeout() {
-            this.checkTimeout = null;
-        }
-    }
 }

@@ -460,24 +460,19 @@ public class TransportStartDataFrameAnalyticsAction
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) persistentTask.getState();
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
             switch (analyticsState) {
+                case STARTED:
                 case REINDEXING:
                 case ANALYZING:
                     return true;
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
-                // The STARTING and STARTED cases here are expected to be incredibly short-lived.
-                //
-                // STARTING just occurring during the time period when a job has successfully
-                // been assigned to a node but the request to update
+                // The STARTING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
                 // its task state is still in-flight.  (The long-lived STARTING case when a lazy node needs to
                 // be added to the cluster to accommodate the job was dealt with higher up this method when the
                 // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
-                //
-                // STARTED occurring between the task starting to work and all the necessary indices being
-                // updated or created.
                 case STARTING:
-                case STARTED:
                 case STOPPED:
                     return false;
                 case FAILED:
@@ -585,7 +580,8 @@ public class TransportStartDataFrameAnalyticsAction
                 verifyIndicesPrimaryShardsAreActive(clusterState,
                     resolver,
                     AnomalyDetectorsIndex.configIndexName(),
-                    MlStatsIndex.indexPattern());
+                    MlStatsIndex.indexPattern(),
+                    AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
                 String reason = "Not opening data frame analytics job [" + id +
                     "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";

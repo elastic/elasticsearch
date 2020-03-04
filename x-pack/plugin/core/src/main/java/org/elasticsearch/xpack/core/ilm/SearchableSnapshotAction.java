@@ -124,7 +124,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
      * Creates a consumer of parameters needed to evaluate the ILM generated snapshot status in the provided snapshotRepository in an
      * async way, akin to an equivalent {@link AsyncWaitStep} implementation.
      */
-    private static TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
+    static TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
         return (client, indexMetaData, branchingStepListener) -> {
 
             LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
@@ -134,8 +134,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             final String indexName = indexMetaData.getIndex().getName();
             if (Strings.hasText(snapshotName) == false) {
                 branchingStepListener.onFailure(new IllegalStateException("snapshot name was not generated for policy [" + policyName +
-                    "] and index " +
-                    "[" + indexName + "]"));
+                    "] and index [" + indexName + "]"));
                 return;
             }
             SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(snapshotRepository, new String[]{snapshotName});

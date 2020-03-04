@@ -106,12 +106,16 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
         return onCompleteConditionMet.get() ? nextStepKeyFulfilledWaitAction : nextStepKeyUnfulfilledWaitAction;
     }
 
-    final StepKey getNextStepKeyUnfulfilledWaitAction() {
+    StepKey getNextStepKeyUnfulfilledWaitAction() {
         return nextStepKeyUnfulfilledWaitAction;
     }
 
-    final StepKey getNextStepKeyFulfilledWaitAction() {
+    StepKey getNextStepKeyFulfilledWaitAction() {
         return nextStepKeyFulfilledWaitAction;
+    }
+
+    TriConsumer<Client, IndexMetaData, BranchingStepListener> getAsyncWaitAction() {
+        return asyncWaitAction;
     }
 
     @Override

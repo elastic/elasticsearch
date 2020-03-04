@@ -365,7 +365,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
-            ScriptService.SCRIPT_CONTEXT_CACHE_ENABLED,
             ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
             ScriptService.TYPES_ALLOWED_SETTING,
             ScriptService.CONTEXTS_ALLOWED_SETTING,

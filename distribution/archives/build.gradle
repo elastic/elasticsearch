@@ -319,9 +319,14 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
 
   group = "org.elasticsearch.distribution.integ-test-zip"
 
+  restResources {
+    restTests {
+      includeCore '*'
+    }
+  }
+
   integTest {
     dependsOn assemble
-    includePackaged = true
     runner {
       if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
         // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man

@@ -317,16 +317,28 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @Override
-    public void testSelectFromIndexWithoutTypes() throws Exception {
+    public void testSelectColumnFromMissingIndex() throws Exception {
+        String mode = randomFrom("jdbc", "plain");
+        expectBadRequest(() -> runSql(mode, "SELECT abc FROM missing"), containsString("1:17: Unknown index [missing]"));
+    }
+
+    @Override
+    public void testSelectFromEmptyIndex() throws Exception {
         // Create an index without any types
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
         client().performRequest(request);
         String mode = randomFrom("jdbc", "plain");
-        expectBadRequest(() -> runSql(mode, "SELECT * FROM test"),
-                // see https://github.com/elastic/elasticsearch/issues/34719
-            //containsString("1:15: [test] doesn't have any types so it is incompatible with sql"));
-            containsString("1:15: Unknown index [test]"));
+        expectBadRequest(() -> runSql(mode, "SELECT * FROM test"), containsString("1:8: Cannot determine columns for [*]"));
+    }
+
+    @Override
+    public void testSelectColumnFromEmptyIndex() throws Exception {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
+        String mode = randomFrom("jdbc", "plain");
+        expectBadRequest(() -> runSql(mode, "SELECT abc FROM test"), containsString("1:8: Unknown column [abc]"));
     }
 
     @Override

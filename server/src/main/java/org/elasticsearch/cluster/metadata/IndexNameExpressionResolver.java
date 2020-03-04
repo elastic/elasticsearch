@@ -684,8 +684,6 @@ public class IndexNameExpressionResolver {
                 return resolveEmptyOrTrivialWildcard(options, metaData);
             }
 
-            // TODO: Fix API to work with sets rather than lists since we need to convert to sets
-            // internally anyway.
             Set<String> result = innerResolve(context, expressions, options, metaData);
 
             if (result == null) {

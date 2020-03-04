@@ -287,6 +287,7 @@ public final class ReservedFieldNames {
             DatafeedConfig.CHUNKING_CONFIG.getPreferredName(),
             DatafeedConfig.HEADERS.getPreferredName(),
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName(),
+            DatafeedConfig.INDICES_OPTIONS.getPreferredName(),
             DelayedDataCheckConfig.ENABLED.getPreferredName(),
             DelayedDataCheckConfig.CHECK_WINDOW.getPreferredName(),
 

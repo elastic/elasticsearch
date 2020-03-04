@@ -90,7 +90,8 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         if (query instanceof SpanMatchNoDocsQuery) {
             return;
         }
-        assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class)).or(instanceOf(FieldMaskingSpanQuery.class)));
+        assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class))
+                .or(instanceOf(FieldMaskingSpanQuery.class)));
         if (query instanceof SpanMultiTermQueryWrapper) {
             SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
             Query innerQuery = queryBuilder.innerQuery().toQuery(context);

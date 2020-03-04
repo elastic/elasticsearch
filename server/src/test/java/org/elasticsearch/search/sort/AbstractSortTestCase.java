@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -154,7 +155,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         QueryShardContext mockShardContext = createMockShardContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
-            SortFieldAndFormat sortField = sortBuilder.build(mockShardContext);
+            SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext)
+                    .build(mockShardContext);
             sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
         }
     }

@@ -516,7 +516,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             FieldMapper fieldMapper = (FieldMapper) disabledMapper.mappers().getMapper("field");
             fieldMapper.fieldType().fielddataBuilder("test");
         });
-        assertThat(e.getMessage(), containsString("Fielddata is disabled"));
+        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")

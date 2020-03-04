@@ -287,4 +287,4 @@ still be adjusted as desired using the cluster settings API.
 [float]
 ==== HTTP Max content length setting is no longer parsed leniently
 Previously, `http.max_content_length` would reset to `100mb` if the setting was
-`Integer.MAX_VALUE`.  This leniency has been removed.
+greater than `Integer.MAX_VALUE`.  This leniency has been removed.

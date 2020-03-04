@@ -599,16 +599,16 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context) throws IOException {
+    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
         GeoPoint[] localPoints = localPoints();
         MultiValueMode localSortMode = localSortMode();
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
         Nested nested = nested(context);
 
-        // TODO implement the single point optimization above 
+        // TODO implement the single point optimization above
 
         return comparatorSource(localPoints, localSortMode, geoIndexFieldData, nested)
-                .newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW);
+                .newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
     }
 
     private GeoPoint[] localPoints() {
@@ -670,10 +670,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             throw new QueryShardException(context,
                 "max_children is only supported on v6.5.0 or higher");
         }
-        if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-            throw new QueryShardException(context,
-                "max_children is only supported on last level of nested sort");
-        }
         validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
         return resolveNested(context, nestedSort);
     }
@@ -711,21 +707,27 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-                return new BucketedSort.ForDoubles(bigArrays, sortOrder, format) {
+            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                    int bucketSize, BucketedSort.ExtraData extra) {
+                return new BucketedSort.ForDoubles(bigArrays, sortOrder, format, bucketSize, extra) {
                     @Override
                     public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                        return new Leaf() {
+                        return new Leaf(ctx) {
                             private final NumericDoubleValues values = getNumericDoubleValues(ctx);
+                            private double value;
 
                             @Override
                             protected boolean advanceExact(int doc) throws IOException {
-                                return values.advanceExact(doc);
+                                if (values.advanceExact(doc)) {
+                                    value = values.doubleValue();
+                                    return true;
+                                }
+                                return false;
                             }
 
                             @Override
-                            protected double docValue() throws IOException {
-                                return values.doubleValue();
+                            protected double docValue() {
+                                return value;
                             }
                         };
                     }

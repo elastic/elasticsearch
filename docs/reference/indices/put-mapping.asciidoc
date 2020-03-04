@@ -47,6 +47,8 @@ To update the mapping of all indices, omit this parameter or use a value of
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +

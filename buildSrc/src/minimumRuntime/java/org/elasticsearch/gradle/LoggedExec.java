@@ -5,9 +5,11 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Exec;
 import org.gradle.api.tasks.Internal;
 import org.gradle.process.BaseExecSpec;
+import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
@@ -30,6 +32,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("unchecked")
 public class LoggedExec extends Exec {
 
+    private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     private Consumer<Logger> outputLogger;
 
     public LoggedExec() {
@@ -94,21 +97,21 @@ public class LoggedExec extends Exec {
     }
 
     public static ExecResult exec(Project project, Action<ExecSpec> action) {
-        return genericExec(project, project::exec, action);
+        return genericExec(project::exec, action);
+    }
+
+    public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {
+        return genericExec(execOperations::exec, action);
     }
 
     public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
-        return genericExec(project, project::javaexec, action);
+        return genericExec(project::javaexec, action);
     }
 
     private static final Pattern NEWLINE = Pattern.compile(System.lineSeparator());
 
-    private static <T extends BaseExecSpec> ExecResult genericExec(
-        Project project,
-        Function<Action<T>, ExecResult> function,
-        Action<T> action
-    ) {
-        if (project.getLogger().isInfoEnabled()) {
+    private static <T extends BaseExecSpec> ExecResult genericExec(Function<Action<T>, ExecResult> function, Action<T> action) {
+        if (LOGGER.isInfoEnabled()) {
             return function.apply(action);
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -125,7 +128,10 @@ public class LoggedExec extends Exec {
             });
         } catch (Exception e) {
             try {
-                NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> project.getLogger().error("| " + s));
+                if (output.size() != 0) {
+                    LOGGER.error("Exec output and error:");
+                    NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> LOGGER.error("| " + s));
+                }
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);
             }

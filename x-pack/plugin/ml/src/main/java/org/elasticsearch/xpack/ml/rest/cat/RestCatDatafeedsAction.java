@@ -82,9 +82,9 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
                 .build());
 
         // Timing stats
-        table.addCell("bucket.count",
+        table.addCell("buckets.count",
             TableColumnAttributeBuilder.builder("bucket count")
-                .setAliases("bc", "bucketCount")
+                .setAliases("bc", "bucketsCount")
                 .build());
         table.addCell("search.count",
             TableColumnAttributeBuilder.builder("number of searches ran by the datafeed")
@@ -96,7 +96,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
                 .build());
         table.addCell("search.bucket_avg",
             TableColumnAttributeBuilder.builder("the average search time per bucket (millisecond)", false)
-                .setAliases("sba", "bucketTimeMin")
+                .setAliases("sba", "searchBucketAvg")
                 .build());
         table.addCell("search.exp_avg_hour",
             TableColumnAttributeBuilder.builder("the exponential average search time per hour (millisecond)", false)

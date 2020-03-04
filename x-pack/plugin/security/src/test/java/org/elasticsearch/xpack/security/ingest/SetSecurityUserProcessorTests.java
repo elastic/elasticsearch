@@ -68,9 +68,9 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         User user = Mockito.mock(User.class);
         Authentication authentication = Mockito.mock(Authentication.class);
         Mockito.when(authentication.getUser()).thenReturn(user);
-        final Authentication.RealmRef authRealm = new Authentication.RealmRef("_name", "_type", "_node_name");
-        Mockito.when(authentication.getAuthenticatedBy()).thenReturn(authRealm);
-        Mockito.when(authentication.getSourceRealm()).thenReturn(authRealm);
+        final Authentication.RealmRef authByRealm = new Authentication.RealmRef("_name", "_type", "_node_name");
+        Mockito.when(authentication.getSourceRealm()).thenReturn(authByRealm);
+        Mockito.when(authentication.getAuthenticatedBy()).thenReturn(authByRealm);
         Mockito.when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.REALM);
         Mockito.when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // don't care as long as it's not null
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);

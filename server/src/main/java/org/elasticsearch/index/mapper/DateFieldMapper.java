@@ -50,6 +50,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -393,11 +394,16 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
+            boolean[] nowUsed = new boolean[1];
+            LongSupplier nowSupplier = () -> {
+                nowUsed[0] = true;
+                return context.nowInMillis();
+            };
             long l, u;
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;
             } else {
-                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, context::nowInMillis);
+                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier);
                 if (includeLower == false) {
                     ++l;
                 }
@@ -405,7 +411,7 @@ public final class DateFieldMapper extends FieldMapper {
             if (upperTerm == null) {
                 u = Long.MAX_VALUE;
             } else {
-                u = parseToLong(upperTerm, includeUpper, timeZone, parser, context::nowInMillis);
+                u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier);
                 if (includeUpper == false) {
                     --u;
                 }
@@ -414,6 +420,9 @@ public final class DateFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            if (nowUsed[0]) {
+                query = new DateRangeIncludingNowQuery(query);
             }
             return query;
         }

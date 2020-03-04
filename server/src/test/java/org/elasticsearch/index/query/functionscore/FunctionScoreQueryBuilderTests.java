@@ -552,11 +552,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), weightFactorFunction(1.3f)))
-                .toQuery(createShardContext());
+        QueryShardContext context = createShardContext();
+        Query parsedQuery = parseQuery(functionScoreQuery(termQuery(STRING_FIELD_NAME_2, "banon"), weightFactorFunction(1.3f)))
+                .rewrite(context).toQuery(context);
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "banon")));
         assertThat((double) (functionScoreQuery.getFunctions()[0]).getWeight(), closeTo(1.3, 0.001));
     }
 
@@ -642,14 +643,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testRewrite() throws IOException {
         FunctionScoreQueryBuilder functionScoreQueryBuilder =
-            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()))
+            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder(STRING_FIELD_NAME, "bar").toString()))
                 .boostMode(CombineFunction.REPLACE)
                 .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
                 .setMinScore(1)
                 .maxBoost(100);
         FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
-        assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
+        assertEquals(rewrite.query(), new TermQueryBuilder(STRING_FIELD_NAME, "bar"));
         assertEquals(rewrite.boostMode(), CombineFunction.REPLACE);
         assertEquals(rewrite.scoreMode(), FunctionScoreQuery.ScoreMode.SUM);
         assertEquals(rewrite.getMinScore(), 1f, 0.0001);
@@ -657,18 +658,18 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testRewriteWithFunction() throws IOException {
-        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
-        TermQueryBuilder secondFunction = new TermQueryBuilder("tq", "2");
-        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
-                : new TermQueryBuilder("foo", "bar");
+        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder(STRING_FIELD_NAME_2, "1").toString());
+        TermQueryBuilder secondFunction = new TermQueryBuilder(STRING_FIELD_NAME_2, "2");
+        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder(STRING_FIELD_NAME, "bar").toString())
+                : new TermQueryBuilder(STRING_FIELD_NAME, "bar");
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
         FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
-        assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
-        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
+        assertEquals(rewrite.query(), new TermQueryBuilder(STRING_FIELD_NAME, "bar"));
+        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder(STRING_FIELD_NAME_2, "1"));
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
     }
 
@@ -685,7 +686,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             builder.boostMode(randomFrom(CombineFunction.values()));
         }
 
-        Query query = builder.toQuery(createShardContext());
+        QueryShardContext shardContext = createShardContext();
+        Query query = builder.rewrite(shardContext).toQuery(shardContext);
         assertThat(query, instanceOf(FunctionScoreQuery.class));
 
         CombineFunction expectedBoostMode = builder.boostMode() != null
@@ -839,5 +841,28 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             }
         }
         return true;
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+
+        // main query needs rewriting
+        FunctionScoreQueryBuilder functionQueryBuilder1 = new FunctionScoreQueryBuilder(termQueryBuilder);
+        functionQueryBuilder1.setMinScore(1);
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> functionQueryBuilder1.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+
+        // filter needs rewriting
+        FunctionScoreQueryBuilder functionQueryBuilder2 = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(),
+                new FilterFunctionBuilder[] {
+                        new FilterFunctionBuilder(termQueryBuilder, new RandomScoreFunctionBuilder())
+                });
+        e = expectThrows(IllegalStateException.class,
+                () -> functionQueryBuilder2.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

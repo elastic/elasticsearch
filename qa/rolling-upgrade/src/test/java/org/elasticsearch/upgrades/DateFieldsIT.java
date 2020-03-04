@@ -25,7 +25,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.http.HttpStats;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

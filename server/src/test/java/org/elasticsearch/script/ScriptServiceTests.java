@@ -96,66 +96,6 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 
-    /*
-    public void testGeneralCacheSettings() {
-        // Mixed settings
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ScriptService.useGeneralCacheSettings(
-                    Settings.builder()
-                        .put("script.context.foo.cache_max_size", 1)
-                        .put("script.context.baz.cache_expire", TimeValue.timeValueMillis(1000))
-                        .put("script.context.bar.cache_max_size", 2)
-                        .put("script.cache.max_size", 5)
-                        .build()
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            is("Cannot combine deprecated general script cache settings [script.cache.max_size] with context specific script" +
-                " cache settings [script.context.bar.cache_max_size, script.context.baz.cache_expire, script.context.foo.cache_max_size]")
-        );
-
-        // Mixed compilation rate settings
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ScriptService.useGeneralCacheSettings(
-                Settings.builder()
-                    .put("script.context.foo.max_compilations_rate", "1/1m")
-                    .put("script.max_compilations_rate", "2/1m")
-                    .build()
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            is("Cannot combine deprecated general script cache settings [script.max_compilations_rate] with context specific script" +
-                " cache settings [script.context.foo.max_compilations_rate]")
-        );
-
-        // Using only general settings, get general cache
-        assertTrue(
-            ScriptService.useGeneralCacheSettings(
-                Settings.builder()
-                    .put("script.cache.max_size", 1)
-                    .put("script.cache.expire", TimeValue.timeValueDays(1)).build()
-            )
-        );
-
-        // Using only context settings, get get context cache
-        assertFalse(
-            ScriptService.useGeneralCacheSettings(
-                Settings.builder()
-                    .put("script.context.baz.cache_max_size", 1)
-                    .put("script.context.foo.cache_expire", TimeValue.timeValueDays(1)).build()
-            )
-        );
-
-
-        // default is use general.  TODO(stu): change when default changes
-        assertTrue(ScriptService.useGeneralCacheSettings(Settings.EMPTY));
-    }
-     */
-
     public void testMaxCompilationRateSetting() throws Exception {
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));

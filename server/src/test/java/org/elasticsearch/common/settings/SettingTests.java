@@ -883,14 +883,6 @@ public class SettingTests extends ESTestCase {
         assertEquals(fix1.get(Settings.builder().put("abc.qrx", 30).build()), Integer.valueOf(30));
     }
 
-    public void testAffixSettingsExists() {
-        Setting<Integer> affix = Setting.affixKeySetting("qrs.", "tuv", k -> Setting.intSetting(k, 10));
-        assertFalse(affix.exists(Settings.EMPTY));
-        assertTrue(affix.exists(Settings.builder().put("qrs.123.tuv", 20).build()));
-        assertTrue(affix.exists(Settings.builder().put("qrs.123.tuv", 20).put("qrs.456.tuv", 30).build()));
-        assertFalse(affix.exists(Settings.builder().put("qrs.suv", 20).build()));
-    }
-
     public void testMinMaxInt() {
         Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);
         try {

@@ -62,7 +62,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-
+    // Special setting value for SCRIPT_GENERAL_MAX_COMPILATIONS_RATE to indicate the script service should use context
+    // specific caches
     private static final Tuple<Integer, TimeValue> USE_CONTEXT_RATE_VALUE = new Tuple<>(-1, TimeValue.MINUS_ONE);
     private static final String USE_CONTEXT_RATE_KEY = "use-context";
 
@@ -345,12 +346,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
         }
 
-        Cache cache = this.cache.get();
-        if (cache.contextCache.containsKey(context.name) == false) {
+        ScriptCache scriptCache = this.cache.get().contextCache.get(context.name);
+        if (scriptCache == null) {
             throw new IllegalArgumentException("script context [" + context.name + "] has no script cache");
         }
 
-        return cache.contextCache.get(context.name).compile(context, scriptEngine, id, idOrCode, type, options);
+        return scriptCache.compile(context, scriptEngine, id, idOrCode, type, options);
     }
 
     public boolean isLangSupported(String lang) {

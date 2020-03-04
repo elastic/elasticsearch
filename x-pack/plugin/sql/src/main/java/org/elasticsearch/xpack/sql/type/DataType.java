@@ -54,7 +54,7 @@ public enum DataType {
     //
     // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
     // aka 39 chars
-    IP(            "ip",             JDBCType.VARCHAR,   39,               39,                 0,  false, false, true),
+    IP(            "ip",             JDBCType.VARCHAR,   45,               45,                 45,  false, false, true),
     //
     // INTERVALS
     // the list is long as there are a lot of variations and that's what clients (ODBC) expect

@@ -19,10 +19,27 @@
 
 package org.elasticsearch.wildfly.transport;
 
-import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 
-import javax.ws.rs.ext.Provider;
+import javax.enterprise.inject.Produces;
+import java.nio.file.Path;
 
-@Provider
-public class TransportJacksonJsonProvider extends ResteasyJackson2Provider {
+@SuppressWarnings("unused")
+public final class RestHighLevelClientProducer {
+
+    @Produces
+    public RestHighLevelClient createRestHighLevelClient() {
+        String httpUri = System.getProperty("elasticsearch.uri");
+
+        return new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
+    }
+
+    @SuppressForbidden(reason = "get path not configured in environment")
+    private Path getPath(final String elasticsearchProperties) {
+        return PathUtils.get(elasticsearchProperties);
+    }
 }

@@ -35,8 +35,6 @@ specified in the `query` parameter. The EQL query matches events with an
 ----
 GET sec_logs/_eql/search
 {
-  "event_category_field": "event.category",
-  "timestamp_field": "@timestamp",
   "query": """
     process where process.name == "cmd.exe"
   """
@@ -44,7 +42,8 @@ GET sec_logs/_eql/search
 ----
 
 Because the `sec_log` index follows the ECS, you don't need to specify the
-timestamp field. The request uses the `@timestamp` field by default.
+required <<eql-required-fields,event category or timestamp>> fields. The request
+uses the `event.category` and `@timestamp` fields by default.
 
 The API returns the following response containing the matching event:
 
@@ -85,22 +84,21 @@ The API returns the following response containing the matching event:
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
 
 [discrete]
-[[eql-search-specify-event-type-field]]
-=== Specify an event type field
+[[eql-search-specify-event-category-field]]
+=== Specify an event category field
 
-The EQL search API uses `event.category` as the required <<eql-required-fields,event
-category field>> by default. You can use the `event_category_field` parameter to specify
-another event category field.
+The EQL search API uses `event.category` as the required
+<<eql-required-fields,event category field>> by default. You can use the
+`event_category_field` parameter to specify another event category field.
 
-For example, the following request specifies `file.type` as the event type
+For example, the following request specifies `file.type` as the event category
 field.
 
 [source,console]
 ----
 GET sec_logs/_eql/search
 {
-  "event_category_field": "file.type",
-  "timestamp_field": "@timestamp",
+   "event_category_field": "file.type",
   "query": """
     file where agent.id == "8a4f500d"
   """
@@ -123,7 +121,6 @@ timestamp field.
 GET sec_logs/_eql/search
 {
   "timestamp_field": "file.accessed",
-  "event_category_field": "event.category",
   "query": """
     file where (file.size > 1 and file.type == "file")
   """
@@ -147,8 +144,6 @@ filtered documents.
 ----
 GET sec_logs/_eql/search
 {
-  "event_category_field": "event.category",
-  "timestamp_field": "@timestamp",
   "filter": {
     "range" : {
       "file.size" : {

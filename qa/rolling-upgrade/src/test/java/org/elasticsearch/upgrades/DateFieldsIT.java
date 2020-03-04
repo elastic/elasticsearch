@@ -28,7 +28,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
@@ -69,7 +68,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
             case MIXED:
                 postNewDoc("joda_time/_doc");
 
-                Request search = dateRangeSearch("joda_time/_search");
+                Request search = dateRangeSearch("joda_time");
                 search.setOptions(ignoreWarnings());
 
                 Response searchResp = client().performRequest(search,3);
@@ -77,7 +76,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 break;
             case UPGRADED:
                 postNewDoc("joda_time/_doc");
-                search = searchWithAgg("joda_time/_search");
+                search = searchWithAgg("joda_time");
                 search.setOptions(ignoreWarnings());
 
                 searchResp = client().performRequest(search,3);
@@ -99,14 +98,14 @@ public class DateFieldsIT extends AbstractRollingTestCase {
             case MIXED:
                 postNewDoc("java_time/_doc");
 
-                Request search = dateRangeSearch("java_time/_search");
+                Request search = dateRangeSearch("java_time");
                 Response searchResp = client().performRequest(search);
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
                 postNewDoc("java_time/_doc");
 
-                search = searchWithAgg("java_time/_search");
+                search = searchWithAgg("java_time");
                 searchResp = client().performRequest(search);
                 assertSearchResponse(searchResp, 4);
                 break;
@@ -126,11 +125,12 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     }
 
     private Request dateRangeSearch(String endpoint) {
-        Request search = new Request("GET", endpoint);
+        Request search = new Request("GET", endpoint+"/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         search.addParameter("filter_path", "hits.total");
         search.setJsonEntity("" +
                 "{\n" +
+                "  \"track_total_hits\": true,\n" +
                 "  \"sort\": \"datetime\",\n" +
                 "  \"query\": {\n" +
                 "    \"range\": {\n" +
@@ -145,12 +145,14 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         return search;
     }
 
-    private Request searchWithAgg(String endpoint) {
-        Request search = new Request("GET", endpoint);
+    private Request searchWithAgg(String endpoint) throws IOException {
+        flush(endpoint,true);
+        Request search = new Request("GET", endpoint+"/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         search.addParameter("filter_path", "hits.total");
 
         search.setJsonEntity("{\n" +
+            "  \"track_total_hits\": true,\n" +
             "  \"sort\": \"datetime\",\n" +
             "  \"query\": {\n" +
             "    \"range\": {\n" +
@@ -192,22 +194,6 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         return createTestIndex;
     }
 
-    private Version getMinVersion() throws IOException {
-        Version minNodeVersion = null;
-        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
-        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-        for (Map.Entry<?, ?> node : nodes.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
-            if (minNodeVersion == null) {
-                minNodeVersion = nodeVersion;
-            } else if (nodeVersion.before(minNodeVersion)) {
-                minNodeVersion = nodeVersion;
-            }
-        }
-        return minNodeVersion;
-    }
-
     private void postNewDoc(String endpoint) throws IOException {
         Request putDoc = new Request("POST", endpoint);
         putDoc.setJsonEntity("{\n" +
@@ -216,7 +202,6 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         );
         Response resp = client().performRequest(putDoc);
         assertEquals(201, resp.getStatusLine().getStatusCode());
-        client().performRequest(new Request("POST", "/_flush"));
     }
 
 }

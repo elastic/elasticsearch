@@ -105,24 +105,17 @@ public class DataFrameAnalyticsManager {
 
         // Retrieve configuration
         ActionListener<Boolean> statsIndexListener = ActionListener.wrap(
-            aBoolean -> {
-                LOGGER.debug("[{}] created .ml-stats index", task.getParams().getId());
-                configProvider.get(task.getParams().getId(), configListener);
-            },
+            aBoolean -> configProvider.get(task.getParams().getId(), configListener),
             configListener::onFailure
         );
 
         // Make sure the stats index and alias exist
         ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
-            aBoolean -> {
-                LOGGER.debug("[{}] created .ml-state index. Starting to create/update .ml-stats index", task.getParams().getId());
-                createStatsIndexAndUpdateMappingsIfNecessary(clusterState, statsIndexListener);
-            },
+            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(clusterState, statsIndexListener),
             configListener::onFailure
         );
 
         // Make sure the state index and alias exist
-        LOGGER.debug("[{}] Starting to create/update .ml-state index", task.getParams().getId());
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasListener);
     }
 

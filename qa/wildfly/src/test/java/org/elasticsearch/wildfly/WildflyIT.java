@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -56,12 +55,27 @@ public class WildflyIT extends LuceneTestCase {
 
     private Logger logger = LogManager.getLogger(WildflyIT.class);
 
+    private String buildBaseUrl() {
+        final String propertyName = "test.fixtures.wildfly.tcp.8080";
+        final String port = System.getProperty(propertyName);
+        if (port == null) {
+            throw new IllegalStateException(
+                "Could not find system property "
+                    + propertyName
+                    + ". This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
+            );
+        }
+        return "http://localhost:" + port + "/wildfly-8.0.0-SNAPSHOT/transport";
+    }
+
     public void testRestClient() throws URISyntaxException, IOException {
+        final String baseUrl = buildBaseUrl();
+
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
-            final String str = String.format(Locale.ROOT, "%s/employees/1", "http://localhost:8080/wildfly-8.0.0-SNAPSHOT/transport");
-            logger.info("Connecting to uri: " + str);
-            System.err.println("Connecting to uri: " + str);
-            final HttpPut put = new HttpPut(new URI(str));
+            final String endpoint = baseUrl + "/employees/1";
+            logger.info("Connecting to uri: " + baseUrl);
+
+            final HttpPut put = new HttpPut(new URI(endpoint));
             final String body;
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
@@ -90,9 +104,9 @@ public class WildflyIT extends LuceneTestCase {
                 );
             }
 
-            logger.info("Fetching resource at " + str);
+            logger.info("Fetching resource at " + endpoint);
 
-            final HttpGet get = new HttpGet(new URI(str));
+            final HttpGet get = new HttpGet(new URI(endpoint));
             try (
                 CloseableHttpResponse response = client.execute(get);
                 XContentParser parser = JsonXContent.jsonXContent.createParser(

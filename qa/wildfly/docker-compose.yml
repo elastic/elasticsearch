@@ -8,7 +8,7 @@ services:
     volumes:
       - ./build/distributions/wildfly-8.0.0-SNAPSHOT.war:/opt/jboss/wildfly/standalone/deployments/wildfly-8.0.0-SNAPSHOT.war
     ports:
-      - "8080:8080"
+      - "8080"
     healthcheck:
       start_period: 10s
       test: ["CMD", "grep", "Admin console listening on", "/opt/jboss/wildfly/standalone/log/server.log"]
@@ -18,8 +18,6 @@ services:
 
   elasticsearch:
     image: elasticsearch:test
-    ports:
-      - "9200"
     environment:
       discovery.type: single-node
     ulimits:

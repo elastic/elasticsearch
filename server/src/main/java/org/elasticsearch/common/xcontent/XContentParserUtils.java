@@ -25,7 +25,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -158,5 +160,37 @@ public final class XContentParserUtils {
         } else {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: empty key");
         }
+    }
+
+    /**
+     * Parses a json map of objects into a map
+     *
+     * Each map key is passed as the context to the object parser used to construct
+     * the map values.
+     *
+     * @param p             the XContentParser
+     * @param objectParser  a parser used to construct map values
+     * @param singleton     if {@code true}, then an exception is thrown if the map has more than one key
+     */
+    public static <T> Map<String, T> parseMap(XContentParser p, ContextParser<String, T> objectParser,
+                                              boolean singleton) throws IOException {
+        Map<String, T> map = new HashMap<>();
+        if (p.currentToken() != Token.START_OBJECT) {
+            ensureExpectedToken(Token.START_OBJECT, p.nextToken(), p::getTokenLocation);
+        }
+        while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+            ensureExpectedToken(Token.FIELD_NAME, p.currentToken(), p::getTokenLocation);
+            if (singleton && map.isEmpty() == false) {
+                throw new XContentParseException(p.getTokenLocation(),
+                    "Expected a single field but found [" + map.keySet().iterator().next() + "," + p.currentName() + "]");
+            }
+            String currentField = p.currentName();
+            try {
+                map.put(currentField, objectParser.parse(p, currentField));
+            } catch (Exception e) {
+                throw new XContentParseException(p.getTokenLocation(), "Error parsing field [" + currentField + "]", e);
+            }
+        }
+        return map;
     }
 }

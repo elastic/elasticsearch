@@ -41,6 +41,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class XContentParserUtilsTests extends ESTestCase {
@@ -252,5 +254,62 @@ public class XContentParserUtilsTests extends ESTestCase {
                 assertEquals("Failed to parse object: empty key", exception.getMessage());
             }
         }
+    }
+
+    private static class TestStruct {
+        final String name;
+        String a;
+        long b;
+
+        TestStruct(String name) {
+            this.name = name;
+        }
+    }
+
+    public void testMapParsing() throws IOException {
+
+        ObjectParser<TestStruct, String> structParser = ObjectParser.fromBuilder("test", TestStruct::new);
+        structParser.declareString((t, s) -> t.a = s, new ParseField("a"));
+        structParser.declareLong((t, l) -> t.b = l, new ParseField("b"));
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{ \"label1\" : { \"a\" : \"hello\", \"b\" : 1 }, \"label2\" : { \"a\" : \"world\", \"b\" : 2 } }");
+
+        Map<String, TestStruct> map = XContentParserUtils.parseMap(parser, structParser, false);
+
+        assertThat(map, hasKey("label1"));
+        assertThat(map.get("label1").name, equalTo("label1"));
+        assertThat(map.get("label1").a, equalTo("hello"));
+        assertThat(map.get("label1").b, equalTo(1L));
+        assertThat(map, hasKey("label2"));
+        assertThat(map.get("label2").name, equalTo("label2"));
+        assertThat(map.get("label2").a, equalTo("world"));
+        assertThat(map.get("label2").b, equalTo(2L));
+
+    }
+
+    public void testMapParsingErrors() throws IOException {
+
+        ObjectParser<TestStruct, String> structParser = ObjectParser.fromBuilder("test", TestStruct::new);
+        structParser.declareString((t, s) -> t.a = s, new ParseField("a"));
+        structParser.declareLong((t, l) -> t.b = l, new ParseField("b"));
+
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent,
+                "{ \"label1\" : { \"a\" : \"hello\", \"b\" : 1 }, \"label2\" : { \"a\" : \"world\", \"b\" : 2 } }");
+            Exception e = expectThrows(XContentParseException.class, () -> XContentParserUtils.parseMap(parser, structParser, true));
+            assertThat(e.getMessage(), equalTo("[1:42] Expected a single field but found [label1,label2]"));
+        }
+
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent,
+                "{ \"label1\" : { \"a\" : \"hello\", \"b\" : 1 }, \"label2\" : { \"a\" : \"world\", \"b\" : \"two\" } }");
+            Exception e = expectThrows(XContentParseException.class, () -> XContentParserUtils.parseMap(parser, structParser, false));
+            assertThat(e.getMessage(), equalTo("[1:76] Error parsing field [label2]"));
+            Throwable t = e.getCause();
+            assertNotNull(t);
+            assertThat(t.getMessage(), containsString("[test] failed to parse field [b]"));
+        }
+
     }
 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -41,6 +42,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -74,6 +76,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -205,7 +208,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext.getQueryShardContext(), null)
+        A aggregator = (A) aggregationBuilder
+            .rewrite(searchContext.getQueryShardContext())
+            .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
     }
@@ -605,8 +610,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52681")
-    public void testSupportedFieldTypes() throws IOException {
+    public final void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
         String fieldName = "typeTestFieldName";
@@ -647,7 +651,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 indexWriter.close();
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
@@ -676,67 +680,78 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
-        if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.NUMERIC)) {
+        String typeName = fieldType.typeName();
+        ValuesSourceType vst = fieldType.getValuesSourceType();
+        
+        if (vst.equals(CoreValuesSourceType.NUMERIC)) {
             // TODO note: once VS refactor adds DATE/BOOLEAN, this conditional will go away
-            if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
-                || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+            if (typeName.equals(DateFieldMapper.CONTENT_TYPE) || typeName.equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
                 iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
-            } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
+            } else if (typeName.equals(BooleanFieldMapper.CONTENT_TYPE)) {
                 iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));
+            } else if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
+                long encoded = NumericUtils.doubleToSortableLong(Math.abs(randomDouble()));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
+            } else if (typeName.equals(NumberFieldMapper.NumberType.FLOAT.typeName())) {
+                long encoded = NumericUtils.floatToSortableInt(Math.abs(randomFloat()));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
+            } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
+                long encoded = HalfFloatPoint.halfFloatToSortableShort(Math.abs(randomFloat()));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, encoded)));
             } else {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomLong())));
+                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
             }
-        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.BYTES)) {
-            if (fieldType.typeName().equals(BinaryFieldMapper.CONTENT_TYPE)) {
+        } else if (vst.equals(CoreValuesSourceType.BYTES)) {
+            if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
                 iw.addDocument(singleton(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes)));
-            } else if (fieldType.typeName().equals(IpFieldMapper.CONTENT_TYPE)) {
+            } else if (typeName.equals(IpFieldMapper.CONTENT_TYPE)) {
                 // TODO note: once VS refactor adds IP, this conditional will go away
                 boolean v4 = randomBoolean();
                 iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
             } else {
                 iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef("a"))));
             }
-        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.RANGE)) {
+        } else if (vst.equals(CoreValuesSourceType.RANGE)) {
             Object start;
             Object end;
             RangeType rangeType;
 
-            if (fieldType.typeName().equals(RangeType.DOUBLE.typeName())) {
+            if (typeName.equals(RangeType.DOUBLE.typeName())) {
                 start = randomDouble();
                 end = RangeType.DOUBLE.nextUp(start);
                 rangeType = RangeType.DOUBLE;
-            } else if (fieldType.typeName().equals(RangeType.FLOAT.typeName())) {
+            } else if (typeName.equals(RangeType.FLOAT.typeName())) {
                 start = randomFloat();
                 end = RangeType.FLOAT.nextUp(start);
                 rangeType = RangeType.DOUBLE;
-            } else if (fieldType.typeName().equals(RangeType.IP.typeName())) {
+            } else if (typeName.equals(RangeType.IP.typeName())) {
                 boolean v4 = randomBoolean();
                 start = randomIp(v4);
                 end = RangeType.IP.nextUp(start);
                 rangeType = RangeType.IP;
-            } else if (fieldType.typeName().equals(RangeType.LONG.typeName())) {
+            } else if (typeName.equals(RangeType.LONG.typeName())) {
                 start = randomLong();
                 end = RangeType.LONG.nextUp(start);
                 rangeType = RangeType.LONG;
-            } else if (fieldType.typeName().equals(RangeType.INTEGER.typeName())) {
+            } else if (typeName.equals(RangeType.INTEGER.typeName())) {
                 start = randomInt();
                 end = RangeType.INTEGER.nextUp(start);
                 rangeType = RangeType.INTEGER;
-            } else if (fieldType.typeName().equals(RangeType.DATE.typeName())) {
+            } else if (typeName.equals(RangeType.DATE.typeName())) {
                 start = randomNonNegativeLong();
                 end = RangeType.DATE.nextUp(start);
                 rangeType = RangeType.DATE;
             } else {
-                throw new IllegalStateException("Unknown type of range [" + fieldType.typeName() + "]");
+                throw new IllegalStateException("Unknown type of range [" + typeName + "]");
             }
 
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range)))));
 
-        }  else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.GEOPOINT)) {
+        }  else if (vst.equals(CoreValuesSourceType.GEOPOINT)) {
             iw.addDocument(singleton(new LatLonDocValuesField(fieldName, randomDouble(), randomDouble())));
         } else {
-            throw new IllegalStateException("Unknown field type [" + fieldType.typeName() + "]");
+            throw new IllegalStateException("Unknown field type [" + typeName + "]");
         }
     }
 

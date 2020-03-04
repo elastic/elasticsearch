@@ -91,6 +91,9 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public SortedSetDocValues getOrdinalsValues() {
+            if (value == null) {
+                return DocValues.emptySortedSet();
+            }
             final BytesRef term = new BytesRef(value);
             final SortedDocValues sortedValues = new AbstractSortedDocValues() {
 
@@ -165,7 +168,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format) {
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 

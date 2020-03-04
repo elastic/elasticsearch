@@ -19,6 +19,7 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -108,6 +109,13 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()));
         }
         return builder;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -128,8 +129,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public void validateSortPathKey(String key) {
-            in.validateSortPathKey(key);
+        public BucketComparator bucketComparator(String key, SortOrder order) {
+            throw new UnsupportedOperationException("Can't sort on deferred aggregations");
         }
     }
 

@@ -77,6 +77,16 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
+test.enabled = false
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 thirdPartyAudit.enabled = false
+
+testingConventions {
+  naming.clear()
+  naming {
+    IT {
+      baseClass "org.apache.lucene.util.LuceneTestCase"
+    }
+  }
+}

@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.SpatialUtils;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer;
-import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -212,7 +211,7 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
-        GeoShapeFieldMapper.AbstractGeometryFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);
         shapeType.setName(fieldName);
 
@@ -249,11 +248,10 @@ public class CircleProcessorTests extends ESTestCase {
         shapeType.setHasDocValues(false);
         shapeType.setName(fieldName);
 
-        ShapeQueryProcessor processor = new ShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
         when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
-        Query sameShapeQuery = processor.process(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query centerPointQuery = processor.process(new Point(circle.getLon(), circle.getLat()), fieldName,
+        Query sameShapeQuery = shapeType.spatialQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query centerPointQuery = shapeType.spatialQuery(new Point(circle.getLon(), circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

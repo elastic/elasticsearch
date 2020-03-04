@@ -413,6 +413,11 @@ public abstract class MappedFieldType extends FieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
+    public Query spatialQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        throw new IllegalArgumentException("Can only use shape queries on shape fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
     /**
      * Create an {@link IntervalsSource} to be used for proximity queries
      */

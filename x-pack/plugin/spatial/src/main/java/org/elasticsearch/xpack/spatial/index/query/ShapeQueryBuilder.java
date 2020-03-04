@@ -118,9 +118,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
         }
-
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return ft.geometryQueryBuilder().process(shape, ft.name(), relation, context);
+        return fieldType.spatialQuery(shape, fieldType.name(), relation, context);
     }
 
     @Override

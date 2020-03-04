@@ -202,8 +202,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
                 "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
         }
 
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return new ConstantScoreQuery(ft.geoQuery(shape, fieldName, relation, context));
+        return new ConstantScoreQuery(fieldType.geoQuery(shape, fieldName, relation, context));
     }
 
     @Override

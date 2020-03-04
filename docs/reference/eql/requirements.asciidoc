@@ -8,9 +8,15 @@
 
 experimental::[]
 
-EQL is schemaless and works out-of-the-box with most common log formats. If you
-use a standard log format and already know what fields in your index contain
-event type and timestamp information, you can skip this page.
+EQL is schema-less and works well with most common log formats.
+
+
+[TIP]
+====
+While no schema is required to use EQL in {es}, we recommend the
+{ecs-ref}[Elastic Common Schema (ECS)]. The EQL search API is designed to work
+with core ECS fields by default.
+====
 
 [discrete]
 [[eql-required-fields]]
@@ -28,10 +34,3 @@ A field containing the event classification, such as `process`, `file`, or
 Timestamp::
 A field containing the date and/or time the event occurred. This is typically
 mapped as a <<date,`date`>> field.
-
-[TIP]
-====
-While no schema is required to use EQL in {es}, we recommend the
-{ecs-ref}[Elastic Common Schema (ECS)]. {es}'s EQL search is designed to work
-with core ECS fields by default.
-====

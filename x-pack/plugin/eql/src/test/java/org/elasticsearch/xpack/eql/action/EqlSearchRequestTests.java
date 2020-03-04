@@ -64,7 +64,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
                 .indices(new String[]{defaultTestIndex})
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
-                .eventTypeField(randomAlphaOfLength(10))
+                .eventCategoryField(randomAlphaOfLength(10))
                 .implicitJoinKeyField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .query(randomAlphaOfLength(10));

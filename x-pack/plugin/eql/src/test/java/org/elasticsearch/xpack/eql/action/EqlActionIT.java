@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -48,6 +49,17 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         Iterator<JsonNode> entries = rootNode.elements();
         while (entries.hasNext()) {
             JsonNode entry = entries.next();
+
+            // Adjust the structure of the document with additional event.category and @timestamp fields
+            // Add event.category field
+            ObjectNode objEvent = ((ObjectNode)entry).putObject("event");
+            JsonNode objEventType = entry.get("event_type");
+            objEvent.put("category", objEventType.asText());
+
+            // Add @timestamp field
+            JsonNode objTimestamp = entry.get("timestamp");
+            ((ObjectNode)entry).put("@timestamp", objTimestamp.asLong());
+
             bulkBuilder.add(new IndexRequest(testIndexName).source(entry.toString(), XContentType.JSON));
         }
         BulkResponse bulkResponse = bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

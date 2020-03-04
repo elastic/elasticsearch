@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
@@ -22,11 +23,6 @@ forbiddenPatterns {
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
   from project(':x-pack:plugin:core')
@@ -104,23 +100,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn("${baseName}#bwcTest")
-  }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-check.dependsOn(bwcTestSnapshots)
-
-test.enabled = false

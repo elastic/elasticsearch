@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -68,6 +69,7 @@ import static org.mockito.Mockito.when;
 
 public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
+    private static final String MISSING_FIELD_NAME = "does-not-exist";
     private static final int FIELD_COUNT = 10;
     private ExecutorService singleThreadExecutor;
 
@@ -99,7 +101,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     public void testNullBitSetIsReturnedForNonMatchingQuery() throws Exception {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
         runTestOnIndex((shardContext, leafContext) -> {
-            final Query query = QueryBuilders.termQuery("does-not-exist", "any-value").toQuery(shardContext);
+            final Query query = QueryBuilders.termQuery(MISSING_FIELD_NAME, "any-value").rewrite(shardContext).toQuery(shardContext);
             final BitSet bitSet = cache.getBitSet(query, leafContext);
             assertThat(bitSet, nullValue());
         });
@@ -543,6 +545,17 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
         final MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(Mockito.anyString())).thenAnswer(invocation -> {
+            final String fieldName = (String) invocation.getArguments()[0];
+            if (fieldName.equals(MISSING_FIELD_NAME)) {
+                return null;
+            } else {
+                KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
+                ft.setName(fieldName);
+                ft.freeze();
+                return ft;
+            }
+        });
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

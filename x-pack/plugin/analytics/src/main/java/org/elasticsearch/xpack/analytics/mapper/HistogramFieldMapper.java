@@ -268,7 +268,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format) {
+                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
                             throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };

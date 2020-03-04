@@ -42,6 +42,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -78,6 +79,7 @@ public class ReadOnlyEngine extends Engine {
     private final DocsStats docsStats;
     private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
+    private final CompletionStatsCache completionStatsCache;
 
     protected volatile TranslogStats translogStats;
 
@@ -122,6 +124,10 @@ public class ReadOnlyEngine extends Engine {
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
+
+                completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+                // no need to register a refresh listener to invalidate completionStatsCache since this engine is readonly
+
                 success = true;
             } finally {
                 if (success == false) {
@@ -223,15 +229,14 @@ public class ReadOnlyEngine extends Engine {
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");
         }
-        final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         final TranslogConfig translogConfig = config.getTranslogConfig();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
             config.getIndexSettings().getTranslogRetentionSize().getBytes(),
             config.getIndexSettings().getTranslogRetentionAge().getMillis(),
             config.getIndexSettings().getTranslogRetentionTotalFiles()
         );
-        translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
-
+        final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(), seqNo -> {})
         ) {
@@ -542,5 +547,10 @@ public class ReadOnlyEngine extends Engine {
         } else {
             return reader;
         }
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fieldNamePatterns) {
+        return completionStatsCache.get(fieldNamePatterns);
     }
 }

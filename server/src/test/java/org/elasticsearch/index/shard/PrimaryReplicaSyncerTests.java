@@ -126,15 +126,12 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             assertThat(resyncRequest.getMaxSeenAutoIdTimestampOnPrimary(), equalTo(shard.getMaxSeenAutoIdTimestamp()));
         }
         if (syncNeeded && globalCheckPoint < numDocs - 1) {
+            assertThat(resyncTask.getSkippedOperations(), equalTo(0));
+            assertThat(resyncTask.getResyncedOperations(), equalTo(Math.toIntExact(numDocs - 1 - globalCheckPoint)));
             if (shard.indexSettings.isSoftDeleteEnabled()) {
-                assertThat(resyncTask.getSkippedOperations(), equalTo(0));
-                assertThat(resyncTask.getResyncedOperations(), equalTo(resyncTask.getTotalOperations()));
                 assertThat(resyncTask.getTotalOperations(), equalTo(Math.toIntExact(numDocs - 1 - globalCheckPoint)));
             } else {
-                int skippedOps = Math.toIntExact(globalCheckPoint + 1); // everything up to global checkpoint included
-                assertThat(resyncTask.getSkippedOperations(), equalTo(skippedOps));
-                assertThat(resyncTask.getResyncedOperations(), equalTo(numDocs - skippedOps));
-                assertThat(resyncTask.getTotalOperations(), equalTo(globalCheckPoint == numDocs - 1 ? 0 : numDocs));
+                assertThat(resyncTask.getTotalOperations(), equalTo(numDocs));
             }
         } else {
             assertThat(resyncTask.getSkippedOperations(), equalTo(0));

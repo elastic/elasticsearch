@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -234,22 +233,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
-    }
-
-    public boolean isAvailableWithLicense(XPackLicenseState licenseState) {
-        // Basic is always true
-        if (licenseLevel.equals(License.OperationMode.BASIC)) {
-            return true;
-        }
-
-        // The model license does not matter, this is the highest licensed level
-        if (licenseState.isActive() && XPackLicenseState.isAllowedByOperationMode(
-            licenseState.getOperationMode(), License.OperationMode.PLATINUM, true)) {
-            return true;
-        }
-
-        // catch the rest, if the license is active and is at least the required model license
-        return licenseState.isActive() && License.OperationMode.compare(licenseState.getOperationMode(), licenseLevel) >= 0;
     }
 
     @Override

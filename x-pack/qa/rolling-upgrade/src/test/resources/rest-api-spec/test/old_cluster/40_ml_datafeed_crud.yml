@@ -2,7 +2,6 @@ setup:
   - skip:
       version: "all"
       reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
-
 ---
 "Put job and datafeed without aggs in old cluster":
 

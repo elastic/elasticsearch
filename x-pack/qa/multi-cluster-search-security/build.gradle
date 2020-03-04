@@ -7,6 +7,12 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
+restResources {
+  restApi {
+    includeXpack 'security'
+  }
+}
+
 task 'remote-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   runner {

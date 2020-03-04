@@ -94,6 +94,18 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return;
         }
 
+        Version minCompatibilityVersion = request.getTrainedModelConfig()
+            .getModelDefinition()
+            .getTrainedModel()
+            .getMinimalCompatibilityVersion();
+        if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "Definition for [{}] requires that all nodes are at least version [{}]",
+                request.getTrainedModelConfig().getModelId(),
+                minCompatibilityVersion.toString()));
+            return;
+        }
+
         TrainedModelConfig trainedModelConfig = new TrainedModelConfig.Builder(request.getTrainedModelConfig())
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())

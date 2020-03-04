@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -44,8 +43,6 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
 
@@ -304,56 +301,4 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             .assertToXContentEquivalence(true)
             .test();
     }
-
-    public void testIsAvailableWithLicense() {
-        TrainedModelConfig.Builder builder = createTestInstance(randomAlphaOfLength(10));
-
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isActive()).thenReturn(false);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
-
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.ENTERPRISE);
-        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
-        assertTrue(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(true);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.GOLD);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-
-        when(licenseState.isActive()).thenReturn(false);
-        assertFalse(builder.setLicenseLevel(License.OperationMode.ENTERPRISE.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.PLATINUM.description()).build().isAvailableWithLicense(licenseState));
-        assertTrue(builder.setLicenseLevel(License.OperationMode.BASIC.description()).build().isAvailableWithLicense(licenseState));
-        assertFalse(builder.setLicenseLevel(License.OperationMode.GOLD.description()).build().isAvailableWithLicense(licenseState));
-    }
-
 }

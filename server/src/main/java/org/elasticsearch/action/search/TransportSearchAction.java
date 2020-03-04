@@ -553,10 +553,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (ShardIterator shardIterator : localShardsIterator) {
             shards.add(new SearchShardIterator(localClusterAlias, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
-        return new GroupShardsIterator<>(shards);
+        return GroupShardsIterator.sortAndCreate(shards);
     }
 
-    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
+    private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(SearchTask task, SearchRequest searchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
                                                         BiFunction<String, String, Transport.Connection> connectionLookup,
@@ -572,8 +572,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, indexRoutings, executor, searchRequest, listener, shardIterators,
                 timeProvider, clusterStateVersion, task, (iter) -> {
-                AbstractSearchAsyncAction action = searchAsyncAction(task, searchRequest, iter, timeProvider, connectionLookup,
-                    clusterStateVersion, aliasFilter, concreteIndexBoosts, indexRoutings, listener, false, clusters);
+                AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
+                    task,
+                    searchRequest,
+                    iter,
+                    timeProvider,
+                    connectionLookup,
+                    clusterStateVersion,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    indexRoutings,
+                    listener,
+                    false,
+                    clusters);
                 return new SearchPhase(action.getName()) {
                     @Override
                     public void run() {

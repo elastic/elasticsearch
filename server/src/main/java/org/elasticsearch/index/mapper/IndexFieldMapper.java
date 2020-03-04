@@ -21,13 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -89,7 +83,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class IndexFieldType extends MappedFieldType {
+    static final class IndexFieldType extends ConstantFieldType {
 
         IndexFieldType() {}
 
@@ -108,81 +102,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            // The _index field is always searchable.
-            return true;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        /**
-         * This termQuery impl looks at the context to determine the index that
-         * is being queried and then returns a MATCH_ALL_QUERY or MATCH_NO_QUERY
-         * if the value matches this index. This can be useful if aliases or
-         * wildcards are used but the aim is to restrict the query to specific
-         * indices
-         */
-        @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            String pattern = value instanceof BytesRef
-                ? ((BytesRef) value).utf8ToString()
-                : value.toString();
-            if (context.indexMatches(pattern)) {
-                // No need to OR these clauses - we can only logically be
-                // running in the context of just one of these index names.
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
-                    "] doesn't match the provided value [" + value + "].");
-            }
-        }
-
-        @Override
-        public Query termsQuery(List values, QueryShardContext context) {
-            if (context == null) {
-                return super.termsQuery(values, context);
-            }
-            for (Object value : values) {
-                String pattern = value instanceof BytesRef
-                    ? ((BytesRef) value).utf8ToString()
-                    : value.toString();
-                if (context.indexMatches(pattern)) {
-                    // No need to OR these clauses - we can only logically be
-                    // running in the context of just one of these index names.
-                    return Queries.newMatchAllQuery();
-                }
-            }
-            // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
-                "] doesn't match the provided values [" + values + "].");
-        }
-
-        @Override
-        public Query prefixQuery(String value,
-                                 @Nullable MultiTermQuery.RewriteMethod method,
-                                 QueryShardContext context) {
-            String pattern = value + "*";
-            if (context.indexMatches(pattern)) {
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
-                    "] doesn't match the provided prefix [" + value + "].");
-            }
-        }
-
-        @Override
-        public Query wildcardQuery(String value,
-                                   @Nullable MultiTermQuery.RewriteMethod method,
-                                   QueryShardContext context) {
-            if (context.indexMatches(value)) {
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName()
-                    + "] doesn't match the provided pattern [" + value + "].");
-            }
+        protected boolean matches(String pattern, QueryShardContext context) {
+            return context.indexMatches(pattern);
         }
 
         @Override

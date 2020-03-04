@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -92,6 +94,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
+    public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -154,6 +157,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             ignoreUnknownFields ? DelayedDataCheckConfig.LENIENT_PARSER : DelayedDataCheckConfig.STRICT_PARSER,
             DELAYED_DATA_CHECK_CONFIG);
         parser.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
+        parser.declareObject(Builder::setIndicesOptions,
+            (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
+            INDICES_OPTIONS);
         return parser;
     }
 
@@ -179,11 +185,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final Map<String, String> headers;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
+    private final IndicesOptions indicesOptions;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
                            QueryProvider queryProvider, AggProvider aggProvider, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
-                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches) {
+                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches, IndicesOptions indicesOptions) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -197,6 +204,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.headers = Collections.unmodifiableMap(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
+        this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -241,6 +249,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             maxEmptySearches = in.readOptionalVInt();
         } else {
             maxEmptySearches = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         }
     }
 
@@ -414,6 +427,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return maxEmptySearches;
     }
 
+    public IndicesOptions getIndicesOptions() {
+        return indicesOptions;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -455,6 +472,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalVInt(maxEmptySearches);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     @Override
@@ -494,6 +514,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
+        builder.startObject(INDICES_OPTIONS.getPreferredName());
+        indicesOptions.toXContent(builder, params);
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -527,13 +551,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig)
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
-                && Objects.equals(this.maxEmptySearches, that.maxEmptySearches);
+                && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
+                && Objects.equals(this.indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, queryProvider, scrollSize, aggProvider, scriptFields, chunkingConfig,
-                headers, delayedDataCheckConfig, maxEmptySearches);
+                headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
     }
 
     @Override
@@ -607,6 +632,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
+        private IndicesOptions indicesOptions;
 
         public Builder() { }
 
@@ -630,6 +656,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.headers = new HashMap<>(config.headers);
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
+            this.indicesOptions = config.indicesOptions;
         }
 
         public void setId(String datafeedId) {
@@ -735,6 +762,15 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
 
+        public Builder setIndicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
+            return this;
+        }
+
+        public IndicesOptions getIndicesOptions() {
+            return this.indicesOptions;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -749,8 +785,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
+            if (indicesOptions == null) {
+                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
-                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches);
+                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
         }
 
         void validateScriptFields() {

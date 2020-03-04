@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;

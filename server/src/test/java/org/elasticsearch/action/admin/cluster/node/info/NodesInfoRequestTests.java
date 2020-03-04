@@ -27,6 +27,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NodesInfoRequestTests extends ESTestCase {
 
+    /**
+     * Make sure that we can set, serialize, and deserialize arbitrary sets
+     * of metrics.
+     */
     public void testMetricsSetters() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
         request.settings(randomBoolean());
@@ -39,17 +43,26 @@ public class NodesInfoRequestTests extends ESTestCase {
         request.plugins(randomBoolean());
         request.ingest(randomBoolean());
         request.indices(randomBoolean());
-        NodesInfoRequest roundTrippedRequest = roundTripRequest(request);
-        assertThat(request.settings(), equalTo(roundTrippedRequest.settings()));
+        NodesInfoRequest deserializedRequest = roundTripRequest(request);
+        assertThat(request.settings(), equalTo(deserializedRequest.settings()));
     }
 
+    /**
+     * Test that a newly constructed NodesInfoRequestObject requests all of the
+     * possible metrics defined in {@link NodesInfoRequest.Metrics}.
+     */
     public void testNodesInfoRequestDefaults() {
         NodesInfoRequest defaultNodesInfoRequest = new NodesInfoRequest(randomAlphaOfLength(8));
         NodesInfoRequest allMetricsNodesInfoRequest = new NodesInfoRequest(randomAlphaOfLength(8));
+        allMetricsNodesInfoRequest.all();
 
         assertRequestsEqual(defaultNodesInfoRequest, allMetricsNodesInfoRequest);
     }
 
+    /**
+     * Test that the {@link NodesInfoRequest#all()} method sets all of the
+     * metrics to {@code true}.
+     */
     public void testNodesInfoRequestAll() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.all();
@@ -66,6 +79,10 @@ public class NodesInfoRequestTests extends ESTestCase {
         assertTrue(request.indices());
     }
 
+    /**
+     * Test that the {@link NodesInfoRequest#clear()} method sets all of the
+     * metrics to {@code false}.
+     */
     public void testNodesInfoRequestClear() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.clear();
@@ -82,6 +99,11 @@ public class NodesInfoRequestTests extends ESTestCase {
         assertFalse(request.indices());
     }
 
+    /**
+     * Serialize and deserialize a request.
+     * @param request A request to serialize.
+     * @return The deserialized, "round-tripped" request.
+     */
     private static NodesInfoRequest roundTripRequest(NodesInfoRequest request) throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);

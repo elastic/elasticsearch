@@ -340,7 +340,7 @@ end::chunking-config[]
 
 tag::class-assignment-objective[]
 Defines the objective to optimize when assigning class labels. Available
-objectives are maximize_accuracy and maximize_minimum_recall. When maximizing
+objectives are `maximize_accuracy` and `maximize_minimum_recall`. When maximizing
 accuracy class labels are chosen to maximize the number of correct predictions.
 When maximizing minimum recall labels are chosen to maximize the minimum recall
 for any class. Defaults to maximize_minimum_recall.

@@ -161,7 +161,7 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     public double value(String name) {
         int index = metricNames.indexOf(name);
         if (index < 0) {
-            throw new IllegalArgumentException("known metric [" + name + "]");            
+            throw new IllegalArgumentException("unknown metric [" + name + "]");            
         }
         if (topMetrics.isEmpty()) {
             return Double.NaN;

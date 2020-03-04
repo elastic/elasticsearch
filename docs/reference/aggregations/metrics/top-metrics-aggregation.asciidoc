@@ -103,6 +103,27 @@ POST /test/_search?filter_path=aggregations
 }
 ----
 
+Which returns:
+
+[source,js]
+----
+{
+  "aggregations": {
+    "tm": {
+      "top": [ {
+        "sort": [3],
+        "metrics": {
+          "v": 2.718280076980591,
+          "m": -12.199999809265137
+        }
+      } ]
+    }
+  }
+}
+----
+// TESTRESPONSE
+
+
 ==== `size`
 
 `top_metrics` can return the top few document's worth of metrics using the size parameter:

@@ -62,7 +62,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     private final List<SortBuilder<?>> sortBuilders;
     private final int size;
     private final List<MultiValuesSourceFieldConfig> metricFields;
-    // TODO MultiValuesSourceFieldConfig has more things than we support and less things than we want to support
+    // TODO replace with ValuesSourceConfig once the value source refactor has landed
 
     /**
      * Build a {@code top_metrics} aggregation request.

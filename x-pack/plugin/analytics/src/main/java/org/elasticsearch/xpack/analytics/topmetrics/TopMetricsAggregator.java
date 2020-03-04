@@ -22,10 +22,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -33,8 +30,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * Collects the {@code top_metrics} aggregation, which functions like a memory
@@ -57,16 +52,17 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     TopMetricsAggregator(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, int size,
-            SortBuilder<?> sort, List<MultiValuesSourceFieldConfig> metricFields) throws IOException {
+            SortBuilder<?> sort, List<String> metricNames, List<ValuesSource.Numeric> metricValuesSources) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.size = size;
-        metrics = new Metrics(size, context.getQueryShardContext(), metricFields);
+        assert metricNames.size() == metricValuesSources.size();
+        metrics = new Metrics(size, context.getQueryShardContext(), metricNames, metricValuesSources);
         /*
          * If we're only collecting a single value then only provided *that*
          * value to the sort so that swaps and loads are just a little faster
          * in that *very* common case.
          */
-        BucketedSort.ExtraData values = metricFields.size() == 1 ? metrics.values[0] : metrics;
+        BucketedSort.ExtraData values = metricValuesSources.size() == 1 ? metrics.values[0] : metrics;
         this.sort = sort.buildBucketedSort(context.getQueryShardContext(), size, values);
     }
 
@@ -136,18 +132,11 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         private final List<String> names;
         private final MetricValues[] values;
 
-        Metrics(int size, QueryShardContext ctx, List<MultiValuesSourceFieldConfig> fieldsConfig) {
-            names = fieldsConfig.stream().map(MultiValuesSourceFieldConfig::getFieldName).collect(toList());
-            values = new MetricValues[fieldsConfig.size()];
+        Metrics(int size, QueryShardContext ctx, List<String> names, List<ValuesSource.Numeric> valuesSources) {
+            this.names = names; 
+            values = new MetricValues[valuesSources.size()];
             int i = 0;
-            for (MultiValuesSourceFieldConfig config : fieldsConfig) {
-                ValuesSourceConfig<ValuesSource.Numeric> resolved = ValuesSourceConfig.resolve(ctx, ValueType.NUMERIC,
-                        config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null);
-                if (resolved == null) {
-                    values[i++] = new MissingMetricValues();
-                    continue;
-                }
-                ValuesSource.Numeric valuesSource = resolved.toValuesSource(ctx);
+            for (ValuesSource.Numeric valuesSource : valuesSources) {
                 if (valuesSource == null) {
                     values[i++] = new MissingMetricValues();
                     continue;

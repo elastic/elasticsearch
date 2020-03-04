@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -33,25 +34,17 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
 
 /**
  * This is test is meant to verify that when upgrading from 6.x version to 7.7 or newer it is able to parse date fields with joda pattern.
- * This test cannot be implemented in yml because in mixed cluster
- * there are 3 options of warnings to be returned (it was refactored few times).
+ *
+ * The test is indexing documents and searches with use of joda or java pattern.
+ * In order to make sure that serialization logic is used a search call is executed 3 times (using all nodes)
+ *
  * A special flag on DocValues is used to indicate that an index was created in 6.x and has a joda pattern.
  * When upgrading from 7.0-7.6 to 7.7 there is no way to tell if a pattern was created in 6.x as this flag cannot be added.
+ * Hence a skip assume section in init()
+ *
  * @see org.elasticsearch.search.DocValueFormat.DateTime
  */
 public class DateFieldsIT extends AbstractRollingTestCase {
-
-    private static final String V_6_8_1_PLUS_WARNING = "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
-        "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'." +
-        " Prefix your date format with '8' to use the new specifier.";
-
-    private static final String V_7_0_0_PLUS_WARNING = "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
-        "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
-        "Use new java.time date format specifiers.";
-
-    private static final String V_6_8_0_WARNING = "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. "
-        + "Prefix your date format with '8' to use the new specifier.";
-
     @BeforeClass
     public static void init(){
         assumeTrue("upgrading from 7.0-7.6 will fail parsing joda formats",
@@ -59,19 +52,10 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     }
 
     public void testJodaBackedDocValueAndDateFields() throws Exception {
-
         switch (CLUSTER_TYPE) {
             case OLD:
                 Request createTestIndex = indexWithDateField("joda_time", "YYYY-MM-dd'T'HH:mm:ssZZ");
-
-                Version minVersion = getMinVersion();
-                if (minVersion.equals(Version.V_6_8_0)) {
-                    createTestIndex.setOptions(expectWarnings(V_6_8_0_WARNING));
-                } else if (minVersion.onOrAfter(Version.V_6_8_1) && minVersion.before(Version.V_7_0_0)) {
-                    createTestIndex.setOptions(expectWarnings(V_6_8_1_PLUS_WARNING));
-                } else {
-                    createTestIndex.setOptions(expectWarnings(V_7_0_0_PLUS_WARNING));
-                }
+                createTestIndex.setOptions(ignoreWarnings());
 
                 Response resp = client().performRequest(createTestIndex);
                 assertEquals(200, resp.getStatusLine().getStatusCode());
@@ -83,22 +67,18 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 postNewDoc("joda_time/_doc");
 
                 Request search = dateRangeSearch("joda_time/_search");
+                search.setOptions(ignoreWarnings());
 
-                RequestOptions options = expectVersionSpecificWarnings(
-                    consumer -> consumer.compatible(V_6_8_0_WARNING, V_6_8_1_PLUS_WARNING, V_7_0_0_PLUS_WARNING));
-
-                search.setOptions(options);
-
-                Response searchResp = client().performRequest(search);
+                Response searchResp = client().performRequest(search,3);
                 assertEquals(200, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
                 postNewDoc("joda_time/_doc");
-                search = dateRangeSearch("joda_time/_search");
+                search = searchWithAgg("joda_time/_search");
+                search.setOptions(ignoreWarnings());
 
-                search.setOptions(expectWarnings(V_7_0_0_PLUS_WARNING));
-                searchResp = client().performRequest(search);
-                assertSearchResponse(searchResp, 3);
+                searchResp = client().performRequest(search,3);
+                assertSearchResponse(searchResp, 4);
                 break;
         }
     }
@@ -123,11 +103,17 @@ public class DateFieldsIT extends AbstractRollingTestCase {
             case UPGRADED:
                 postNewDoc("java_time/_doc");
 
-                search = dateRangeSearch("java_time/_search");
+                search = searchWithAgg("java_time/_search");
                 searchResp = client().performRequest(search);
-                assertSearchResponse(searchResp, 3);
+                assertSearchResponse(searchResp, 4);
                 break;
         }
+    }
+
+    private RequestOptions ignoreWarnings() {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+        return options.build();
     }
 
     private void assertSearchResponse(Response searchResp, int count) throws IOException {
@@ -156,6 +142,33 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         return search;
     }
 
+    private Request searchWithAgg(String endpoint) {
+        Request search = new Request("GET", endpoint);
+        search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        search.addParameter("filter_path", "hits.total");
+
+        search.setJsonEntity("{\n" +
+            "  \"sort\": \"datetime\",\n" +
+            "  \"query\": {\n" +
+            "    \"range\": {\n" +
+            "      \"datetime\": {\n" +
+            "        \"gte\": \"2020-01-01T00:00:00+01:00\",\n" +
+            "        \"lte\": \"2020-01-02T00:00:00+01:00\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"aggs\" : {\n" +
+            "    \"docs_per_year\" : {\n" +
+            "      \"date_histogram\" : {\n" +
+            "        \"field\" : \"date\",\n" +
+            "        \"calendar_interval\" : \"year\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n"
+        );
+        return search;
+    }
     private Request indexWithDateField(String indexName, String format) {
         Request createTestIndex = new Request("PUT", indexName);
         createTestIndex.addParameter("include_type_name", "false");
@@ -200,6 +213,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         );
         Response resp = client().performRequest(putDoc);
         assertEquals(201, resp.getStatusLine().getStatusCode());
+        client().performRequest(new Request("POST", "/_flush"));
     }
 
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -197,8 +199,8 @@ public interface DocValueFormat extends NamedWriteable {
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();
             this.resolution = resolution;
-
         }
+
         public DateTime(StreamInput in) throws IOException {
             String datePattern = in.readString();
 
@@ -210,17 +212,16 @@ public interface DocValueFormat extends NamedWriteable {
                 this.timeZone = ZoneId.of(zoneId);
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
+            final boolean isJoda;
             if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                //if stream is from 7.7 it will have a flag indicating if format is joda
-                boolean isJoda = in.readBoolean();
-                this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
-            } else if (Joda.isJodaPattern(in.getVersion(), datePattern)) {
-                //when received a stream from 6.0-6.latest it can be java if starts with 8 otherwise joda
-                this.formatter = Joda.forPattern(datePattern);
-            }else{
-                // unknown if this is joda or java for versions earlier then [7.0-7.7). Assuming Java.
-                this.formatter = DateFormatter.forPattern(datePattern);
+                //if stream is from 7.7 Node it will have a flag indicating if format is joda
+                isJoda = in.readBoolean();
+            } else {
+                //when received a stream from 6.0-6.latest Node it can be java if starts with 8 otherwise joda
+                // If a stream is from [7.0 - 7.7) it will assume (sometimes incorrectly) that the date is java
+                isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
             }
+            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
 
             this.parser = formatter.toDateMathParser();
 
@@ -240,7 +241,7 @@ public interface DocValueFormat extends NamedWriteable {
                 out.writeString(timeZone.getId());
                 out.writeVInt(resolution.ordinal());
             }
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 //in order not to loose information if the formatter is a joda we send a flag
                 out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
             }

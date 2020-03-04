@@ -235,6 +235,17 @@ public class RestClient implements Closeable {
         return performRequest(nextNodes(), internalRequest, null);
     }
 
+    public Response performRequest(Request request,  int times) throws IOException {
+        Response response = null;
+        InternalRequest internalRequest = new InternalRequest(request);
+        NodeTuple<Iterator<Node>> iteratorNodeTuple = nextNodes();
+        for(int i=0;i<times;i++){
+            response = performRequest(iteratorNodeTuple, internalRequest, null);
+        }
+        return response;
+    }
+
+
     private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple,
                                     final InternalRequest request,
                                     Exception previousException) throws IOException {

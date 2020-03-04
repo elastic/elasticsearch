@@ -58,11 +58,7 @@ public class WildflyIT extends LuceneTestCase {
 
     public void testRestClient() throws URISyntaxException, IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
-            final String str = String.format(
-                Locale.ROOT,
-                "%s/employees/1",
-                "http://localhost:8080/wildfly-8.0.0-SNAPSHOT/transport"
-            );
+            final String str = String.format(Locale.ROOT, "%s/employees/1", "http://localhost:8080/wildfly-8.0.0-SNAPSHOT/transport");
             logger.info("Connecting to uri: " + str);
             System.err.println("Connecting to uri: " + str);
             final HttpPut put = new HttpPut(new URI(str));
@@ -87,20 +83,24 @@ public class WildflyIT extends LuceneTestCase {
             put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
             try (CloseableHttpResponse response = client.execute(put)) {
                 int status = response.getStatusLine().getStatusCode();
-                assertThat("expected a 201 response but got: " + status + " - body: " + EntityUtils.toString(response.getEntity()),
-                        status, equalTo(201));
+                assertThat(
+                    "expected a 201 response but got: " + status + " - body: " + EntityUtils.toString(response.getEntity()),
+                    status,
+                    equalTo(201)
+                );
             }
 
             logger.info("Fetching resource at " + str);
 
             final HttpGet get = new HttpGet(new URI(str));
             try (
-                    CloseableHttpResponse response = client.execute(get);
-                    XContentParser parser =
-                            JsonXContent.jsonXContent.createParser(
-                                    new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
-                                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                                    response.getEntity().getContent())) {
+                CloseableHttpResponse response = client.execute(get);
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    response.getEntity().getContent()
+                )
+            ) {
                 final Map<String, Object> map = parser.map();
                 assertThat(map.get("first_name"), equalTo("John"));
                 assertThat(map.get("last_name"), equalTo("Smith"));
@@ -108,7 +108,8 @@ public class WildflyIT extends LuceneTestCase {
                 assertThat(map.get("about"), equalTo("I love to go rock climbing"));
                 final Object interests = map.get("interests");
                 assertThat(interests, instanceOf(List.class));
-                @SuppressWarnings("unchecked") final List<String> interestsAsList = (List<String>) interests;
+                @SuppressWarnings("unchecked")
+                final List<String> interestsAsList = (List<String>) interests;
                 assertThat(interestsAsList, containsInAnyOrder("sports", "music"));
             }
         }

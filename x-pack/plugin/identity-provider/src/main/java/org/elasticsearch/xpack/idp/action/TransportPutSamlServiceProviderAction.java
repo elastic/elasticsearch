@@ -59,7 +59,8 @@ public class TransportPutSamlServiceProviderAction
             if (matchingDocuments.isEmpty()) {
                 // derive a document id from the entity id so that don't accidentally create duplicate entities due to a race condition
                 document.docId = deriveDocumentId(document);
-                // force a create in case there are concurrent requests
+                // force a create in case there are concurrent requests. This way, if two nodes/threads are trying to create the SP at
+                // the same time, one will fail. That's not ideal, but it's better than having 1 silently overwrite the other.
                 writeDocument(document, DocWriteRequest.OpType.CREATE, listener);
             } else if (matchingDocuments.size() == 1) {
                 SamlServiceProviderDocument existingDoc = Iterables.get(matchingDocuments, 0);

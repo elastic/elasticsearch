@@ -101,57 +101,61 @@ public class TransportMountSearchableSnapshotAction
 
         // Retrieve IndexId and SnapshotId instances, which are then used to create a new restore
         // request, which is then sent on to the actual snapshot restore mechanism
-        final Repository repository = repositoriesService.repository(repoName);
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-        repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.whenComplete(repoData -> {
-            final Map<String, IndexId> indexIds = repoData.getIndices();
+        try {
+            final Repository repository = repositoriesService.repository(repoName);
+            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+            repository.getRepositoryData(repositoryDataListener);
+            repositoryDataListener.whenComplete(repoData -> {
+                final Map<String, IndexId> indexIds = repoData.getIndices();
 
-            if (indexIds.containsKey(indexName) == false && indexIds.get(indexName) != null) {
-                // Can't proceed, we need the index metadata
-                listener.onFailure(new ElasticsearchException("the index " + indexName +
-                    " is missing from the snapshot repository metadata"));
-                return;
-            }
+                if (indexIds.containsKey(indexName) == false && indexIds.get(indexName) != null) {
+                    // Can't proceed, we need the index metadata
+                    listener.onFailure(new ElasticsearchException("the index " + indexName +
+                        " is missing from the snapshot repository metadata"));
+                    return;
+                }
 
-            final IndexId indexId = indexIds.get(indexName);
+                final IndexId indexId = indexIds.get(indexName);
 
-            final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds().stream()
-                .filter(s -> snapName.equals(s.getName())).findFirst();
+                final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds().stream()
+                    .filter(s -> snapName.equals(s.getName())).findFirst();
 
-            if (matchingSnapshotId.isEmpty()) {
-                // We also need the snapshot metadata, so if we can't find them, then fail
-                listener.onFailure(new ElasticsearchException("the snapshot " + snapName +
-                    " is missing from the snapshot repository metadata"));
-                return;
-            }
+                if (matchingSnapshotId.isEmpty()) {
+                    // We also need the snapshot metadata, so if we can't find them, then fail
+                    listener.onFailure(new ElasticsearchException("the snapshot " + snapName +
+                        " is missing from the snapshot repository metadata"));
+                    return;
+                }
 
-            final SnapshotId snapshotId = matchingSnapshotId.get();
+                final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(repoName, snapName);
-            restoreRequest
-                // Restore the single index specified
-                .indices(indexName)
-                // Always rename it to the desired mounted index name
-                .renamePattern(".+")
-                .renameReplacement(request.mountedIndex())
-                // Pass through any restore settings
-                .settings(request.settings())
-                // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                .indexSettings(Settings.builder().put(request.indexSettings())
-                    .put(getIndexSettings(request.repository(), snapshotId, indexId))
-                    .build())
-                // Pass through ignored index settings
-                .ignoreIndexSettings(request.ignoreIndexSettings())
-                // Don't include global state
-                .includeGlobalState(false)
-                // Don't include aliases
-                .includeAliases(false)
-                // Pass through the wait-for-completion flag
-                .waitForCompletion(request.waitForCompletion());
+                final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(repoName, snapName);
+                restoreRequest
+                    // Restore the single index specified
+                    .indices(indexName)
+                    // Always rename it to the desired mounted index name
+                    .renamePattern(".+")
+                    .renameReplacement(request.mountedIndex())
+                    // Pass through any restore settings
+                    .settings(request.settings())
+                    // Pass through index settings, adding the index-level settings required to use searchable snapshots
+                    .indexSettings(Settings.builder().put(request.indexSettings())
+                        .put(getIndexSettings(request.repository(), snapshotId, indexId))
+                        .build())
+                    // Pass through ignored index settings
+                    .ignoreIndexSettings(request.ignoreIndexSettings())
+                    // Don't include global state
+                    .includeGlobalState(false)
+                    // Don't include aliases
+                    .includeAliases(false)
+                    // Pass through the wait-for-completion flag
+                    .waitForCompletion(request.waitForCompletion());
 
-            // Finally, actually restore the snapshot, passing in the original listener
-            client.admin().cluster().restoreSnapshot(restoreRequest, listener);
-        }, listener::onFailure);
+                // Finally, actually restore the snapshot, passing in the original listener
+                client.admin().cluster().restoreSnapshot(restoreRequest, listener);
+            }, listener::onFailure);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

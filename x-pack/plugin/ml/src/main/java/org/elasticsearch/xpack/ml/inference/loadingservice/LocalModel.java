@@ -61,7 +61,10 @@ public class LocalModel implements Model {
     @Override
     public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
         try {
-            if (fieldNames.stream().allMatch(f -> MapHelper.dig(f.getFieldName(), fields) == null)) {
+            // If the model field type is null, that means either an unsupported type was stored
+            // Or a type has not been set. Either way, default to lenient
+            if (fieldNames.stream().allMatch(f -> f.getModelFieldType() == null
+                || f.getModelFieldType().supportsJavaObjectType(MapHelper.dig(f.getFieldName(), fields)))) {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }

@@ -187,7 +187,7 @@ public class TrainedModelInput implements ToXContentObject, Writeable {
             return fieldType;
         }
 
-        public ModelFieldType getFieldTypeAsModelFieldType() {
+        public ModelFieldType getModelFieldType() {
             return fieldType == null ? null : ModelFieldType.fromString(fieldName);
         }
     }

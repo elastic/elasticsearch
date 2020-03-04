@@ -95,7 +95,8 @@ public final class Messages {
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
     public static final String INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED =
         "Getting model definition is not supported when getting more than one model";
-    public static final String INFERENCE_WARNING_ALL_FIELDS_MISSING = "Model [{0}] could not be inferred as all fields were missing";
+    public static final String INFERENCE_WARNING_ALL_FIELDS_MISSING =
+        "Model [{0}] could not be inferred as all fields were either missing or not of the expected type";
     public static final String INFERENCE_INVALID_TAGS = "Invalid tags {0}; must only can contain lowercase alphanumeric (a-z and 0-9), " +
         "hyphens or underscores, must start and end with alphanumeric, and must be less than {1} characters.";
     public static final String INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE = "The provided tags {0} must not match existing model_ids.";

@@ -135,7 +135,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
-@Repeat(iterations = 100)
 public class RequestConvertersTests extends ESTestCase {
     public void testPing() {
         Request request = RequestConverters.ping();

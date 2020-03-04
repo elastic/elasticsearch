@@ -61,9 +61,10 @@ public class WildflyIT extends LuceneTestCase {
             final String str = String.format(
                 Locale.ROOT,
                 "%s/employees/1",
-                System.getProperty("tests.jboss.root")
+                "http://localhost:8080/wildfly-8.0.0-SNAPSHOT/transport"
             );
             logger.info("Connecting to uri: " + str);
+            System.err.println("Connecting to uri: " + str);
             final HttpPut put = new HttpPut(new URI(str));
             final String body;
             try (XContentBuilder builder = jsonBuilder()) {
@@ -89,6 +90,8 @@ public class WildflyIT extends LuceneTestCase {
                 assertThat("expected a 201 response but got: " + status + " - body: " + EntityUtils.toString(response.getEntity()),
                         status, equalTo(201));
             }
+
+            logger.info("Fetching resource at " + str);
 
             final HttpGet get = new HttpGet(new URI(str));
             try (

@@ -49,7 +49,7 @@ dependencies {
 }
 
 war {
-  archiveName "example-app.war"
+  archiveName 'example-app.war'
 }
 
 elasticsearch_distributions {
@@ -62,7 +62,7 @@ elasticsearch_distributions {
 }
 
 preProcessFixture {
-  dependsOn elasticsearch_distributions.docker
+  dependsOn war, elasticsearch_distributions.docker
 }
 
 dockerCompose {
@@ -82,15 +82,19 @@ task integTest(type: Test) {
 check.dependsOn integTest
 
 test.enabled = false
+
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
+
 thirdPartyAudit.enabled = false
+
 
 testingConventions {
   naming.clear()
+  // We only have one "special" integration test here to connect to wildfly
   naming {
     IT {
-      baseClass "org.apache.lucene.util.LuceneTestCase"
+      baseClass 'org.apache.lucene.util.LuceneTestCase'
     }
   }
 }

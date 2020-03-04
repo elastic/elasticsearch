@@ -367,7 +367,7 @@ public class MatchProcessorTests extends ESTestCase {
 
     public SearchResponse mockResponse(Map<?, Map<String, ?>> documents) {
         SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey().toString(), Collections.emptyMap());
+            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey().toString(), Collections.emptyMap(), Collections.emptyMap());
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(e.getValue());
                 builder.flush();

@@ -72,7 +72,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[6];
         for (int i = 0; i < 6; i++) {
             rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -122,7 +122,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                     rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
                 }
             }
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -179,7 +179,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         // only create four hits
         SearchHit[] hits = new SearchHit[4];
         for (int i = 0; i < 4; i++) {
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();

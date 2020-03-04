@@ -69,9 +69,9 @@ public class Classification implements DataFrameAnalysis {
                 (Integer) a[6],
                 (String) a[7],
                 (Double) a[8],
-                (ClassAssignmentObjective) a[9],
-                (Integer) a[10],
-                (Long) a[11]));
+                (Integer) a[9],
+                (Long) a[10],
+                (ClassAssignmentObjective) a[11]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
@@ -109,8 +109,8 @@ public class Classification implements DataFrameAnalysis {
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                            @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction,
                            @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
-                           @Nullable Double trainingPercent, @Nullable ClassAssignmentObjective classAssignmentObjective,
-                           @Nullable Integer numTopClasses, @Nullable Long randomizeSeed) {
+                           @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed,
+                           @Nullable ClassAssignmentObjective classAssignmentObjective) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -338,8 +338,8 @@ public class Classification implements DataFrameAnalysis {
 
         public Classification build() {
             return new Classification(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
-                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, classAssignmentObjective,
-                numTopClasses, randomizeSeed);
+                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed,
+                classAssignmentObjective);
         }
     }
 }

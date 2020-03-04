@@ -17,10 +17,14 @@ The following <<docs-bulk,bulk API>> request adds some example log data to the
 ----
 PUT sec_logs/_bulk?refresh
 {"index":{"_index" : "sec_logs", "_id" : "1"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs", "_id" : "2"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs", "_id" : "3"}}
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "4"}}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{"_index" : "sec_logs", "_id" : "5"}}
 { "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 // TESTSETUP
@@ -45,22 +49,45 @@ Because the `sec_log` index follows the ECS, you don't need to specify the
 required <<eql-required-fields,event category or timestamp>> fields. The request
 uses the `event.category` and `@timestamp` fields by default.
 
-The API returns the following response containing the matching event:
+The API returns the following response containing the matching events. Events
+in the response are sorted by timestamp, converted to milliseconds since the
+https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 
 [source,console-result]
 ----
 {
-  "took": 3,
+  "took": 60,
   "timed_out": false,
   "hits": {
     "total": {
-      "value": 1,
+      "value": 2,
       "relation": "eq"
     },
     "events": [
       {
         "_index": "sec_logs",
         "_id": "1",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-06T11:04:05.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process"
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607252645000
+        ]
+      },
+      {
+        "_index": "sec_logs",
+        "_id": "3",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:06:07.000Z",
@@ -75,13 +102,15 @@ The API returns the following response containing the matching event:
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
         },
-        "sort" : [1607339167000]
+        "sort": [
+          1607339167000
+        ]
       }
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
 
 [discrete]
 [[eql-search-specify-event-category-field]]

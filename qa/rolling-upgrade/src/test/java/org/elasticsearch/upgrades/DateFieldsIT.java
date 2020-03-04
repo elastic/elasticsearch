@@ -36,7 +36,10 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * This is test is meant to verify that when upgrading from 6.x version to 7.7 or newer it is able to parse date fields with joda pattern.
  *
  * The test is indexing documents and searches with use of joda or java pattern.
- * In order to make sure that serialization logic is used a search call is executed 3 times (using all nodes)
+ * In order to make sure that serialization logic is used a search call is executed 3 times (using all nodes).
+ * It cannot be guaranteed that serialization logic will always be used as it might happen that
+ * all shards are allocated on the same node and client is connecting to it.
+ * Because of this warnings assertions have to be ignored.
  *
  * A special flag on DocValues is used to indicate that an index was created in 6.x and has a joda pattern.
  * When upgrading from 7.0-7.6 to 7.7 there is no way to tell if a pattern was created in 6.x as this flag cannot be added.

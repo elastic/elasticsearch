@@ -51,7 +51,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry, String aggregationName) {
         valuesSourceRegistry.register(aggregationName,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new RangeAggregationSupplier() {
+            new RangeAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,
                                         AggregatorFactories factories,
@@ -104,11 +104,11 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
 
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             aggregationTypeName);
-        if (aggregatorSupplier instanceof RangeAggregationSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected RangeAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((RangeAggregationSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
+        return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
             ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
     }
 }

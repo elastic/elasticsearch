@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public interface RangeAggregationSupplier extends AggregatorSupplier {
+public interface RangeAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
                      ValuesSource.Numeric valuesSource,

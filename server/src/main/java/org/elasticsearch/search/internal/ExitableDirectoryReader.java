@@ -25,7 +25,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
@@ -35,16 +34,23 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import java.io.IOException;
 
 /**
- * Wraps an {@link IndexReader} with a {@link QueryTimeout}
+ * Wraps an {@link IndexReader} with a {@link QueryCancellation}
  * which checks for cancelled or timed-out query.
  */
 class ExitableDirectoryReader extends FilterDirectoryReader {
 
-    ExitableDirectoryReader(DirectoryReader in, QueryTimeout queryTimeout) throws IOException {
+    interface QueryCancellation {
+
+        boolean isEnabled();
+
+        void checkCancelled();
+    }
+
+    ExitableDirectoryReader(DirectoryReader in, QueryCancellation queryCancellation) throws IOException {
         super(in, new SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader reader) {
-                return new ExitableLeafReader(reader, queryTimeout);
+                return new ExitableLeafReader(reader, queryCancellation);
             }
         });
     }
@@ -58,17 +64,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     public CacheHelper getReaderCacheHelper() {
         return in.getReaderCacheHelper();
     }
-
     /**
-     * Wraps a {@link FilterLeafReader} with a {@link QueryTimeout}.
+     * Wraps a {@link FilterLeafReader} with a {@link QueryCancellation}.
      */
     static class ExitableLeafReader extends FilterLeafReader {
 
-        private final QueryTimeout queryTimeout;
+        private final QueryCancellation queryCancellation;
 
-        private ExitableLeafReader(LeafReader leafReader, QueryTimeout queryTimeout) {
+        private ExitableLeafReader(LeafReader leafReader, QueryCancellation queryCancellation) {
             super(leafReader);
-            this.queryTimeout = queryTimeout;
+            this.queryCancellation = queryCancellation;
         }
 
         @Override
@@ -77,7 +82,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (pointValues == null) {
                 return null;
             }
-            return queryTimeout.isTimeoutEnabled() ? new ExitablePointValues(pointValues, queryTimeout) : pointValues;
+            return queryCancellation.isEnabled() ? new ExitablePointValues(pointValues, queryCancellation) : pointValues;
         }
 
         @Override
@@ -89,8 +94,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             // If we have a suggest CompletionQuery then the CompletionWeight#bulkScorer() will check that
             // the terms are instanceof CompletionTerms (not generic FilterTerms) and will throw an exception
             // if that's not the case.
-            return (queryTimeout.isTimeoutEnabled() && terms instanceof CompletionTerms == false) ?
-                    new ExitableTerms(terms, queryTimeout) : terms;
+            return (queryCancellation.isEnabled() && terms instanceof CompletionTerms == false) ?
+                    new ExitableTerms(terms, queryCancellation) : terms;
         }
 
         @Override
@@ -109,21 +114,21 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
      */
     static class ExitableTerms extends FilterLeafReader.FilterTerms {
 
-        private final QueryTimeout queryTimeout;
+        private final QueryCancellation queryCancellation;
 
-        private ExitableTerms(Terms terms, QueryTimeout queryTimeout) {
+        private ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
             super(terms);
-            this.queryTimeout = queryTimeout;
+            this.queryCancellation = queryCancellation;
         }
 
         @Override
         public TermsEnum intersect(CompiledAutomaton compiled, BytesRef startTerm) throws IOException {
-            return new ExitableTermsEnum(in.intersect(compiled, startTerm), queryTimeout);
+            return new ExitableTermsEnum(in.intersect(compiled, startTerm), queryCancellation);
         }
 
         @Override
         public TermsEnum iterator() throws IOException {
-            return new ExitableTermsEnum(in.iterator(), queryTimeout);
+            return new ExitableTermsEnum(in.iterator(), queryCancellation);
         }
     }
 
@@ -136,17 +141,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
 
         private int calls;
-        private final QueryTimeout queryTimeout;
+        private final QueryCancellation queryCancellation;
 
-        private ExitableTermsEnum(TermsEnum termsEnum, QueryTimeout queryTimeout) {
+        private ExitableTermsEnum(TermsEnum termsEnum, QueryCancellation queryCancellation) {
             super(termsEnum);
-            this.queryTimeout = queryTimeout;
-            this.queryTimeout.shouldExit();
+            this.queryCancellation = queryCancellation;
+            this.queryCancellation.checkCancelled();
         }
 
         private void checkAndThrowWithSampling() {
             if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                queryTimeout.shouldExit();
+                queryCancellation.checkCancelled();
             }
         }
 
@@ -163,65 +168,65 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     static class ExitablePointValues extends PointValues {
 
         private final PointValues in;
-        private final QueryTimeout queryTimeout;
+        private final QueryCancellation queryCancellation;
 
-        private ExitablePointValues(PointValues in, QueryTimeout queryTimeout) {
+        private ExitablePointValues(PointValues in, QueryCancellation queryCancellation) {
             this.in = in;
-            this.queryTimeout = queryTimeout;
-            this.queryTimeout.shouldExit();
+            this.queryCancellation = queryCancellation;
+            this.queryCancellation.checkCancelled();
         }
 
         @Override
         public void intersect(IntersectVisitor visitor) throws IOException {
-            queryTimeout.shouldExit();
-            in.intersect(new ExitableIntersectVisitor(visitor, queryTimeout));
+            queryCancellation.checkCancelled();
+            in.intersect(new ExitableIntersectVisitor(visitor, queryCancellation));
         }
 
         @Override
         public long estimatePointCount(IntersectVisitor visitor) {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.estimatePointCount(visitor);
         }
 
         @Override
         public byte[] getMinPackedValue() throws IOException {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.getMinPackedValue();
         }
 
         @Override
         public byte[] getMaxPackedValue() throws IOException {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.getMaxPackedValue();
         }
 
         @Override
         public int getNumDimensions() throws IOException {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.getNumDimensions();
         }
 
         @Override
         public int getNumIndexDimensions() throws IOException {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.getNumIndexDimensions();
         }
 
         @Override
         public int getBytesPerDimension() throws IOException {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.getBytesPerDimension();
         }
 
         @Override
         public long size() {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.size();
         }
 
         @Override
         public int getDocCount() {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.getDocCount();
         }
     }
@@ -231,17 +236,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
 
         private final PointValues.IntersectVisitor in;
-        private final QueryTimeout queryTimeout;
+        private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryTimeout queryTimeout) {
+        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryCancellation queryCancellation) {
             this.in = in;
-            this.queryTimeout = queryTimeout;
+            this.queryCancellation = queryCancellation;
         }
 
         private void checkAndThrowWithSampling() {
             if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                queryTimeout.shouldExit();
+                queryCancellation.checkCancelled();
             }
         }
 
@@ -259,13 +264,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             return in.compare(minPackedValue, maxPackedValue);
         }
 
         @Override
         public void grow(int count) {
-            queryTimeout.shouldExit();
+            queryCancellation.checkCancelled();
             in.grow(count);
         }
     }

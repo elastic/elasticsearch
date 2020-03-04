@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
@@ -198,7 +197,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        cancellable.shouldExit();
+        cancellable.checkCancelled();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
@@ -226,7 +225,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (scorer != null) {
                 try {
                     intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                            this.cancellable.isTimeoutEnabled() ? cancellable::shouldExit : () -> {});
+                            this.cancellable.isEnabled() ? cancellable::checkCancelled: () -> {});
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -236,7 +235,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private Weight wrapWeight(Weight weight) {
-        if (cancellable.isTimeoutEnabled()) {
+        if (cancellable.isEnabled()) {
             return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -262,7 +261,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, cancellable::shouldExit);
+                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
                     } else {
                         return null;
                     }
@@ -339,7 +338,7 @@ public class ContextIndexSearcher extends IndexSearcher {
         return (DirectoryReader) reader;
     }
 
-    private static class MutableQueryTimeout implements QueryTimeout {
+    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
 
         private final Set<Runnable> runnables = new HashSet<>();
 
@@ -356,15 +355,14 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
 
         @Override
-        public boolean shouldExit() {
+        public void checkCancelled() {
             for (Runnable timeout : runnables) {
                 timeout.run();
             }
-            return false;
         }
 
         @Override
-        public boolean isTimeoutEnabled() {
+        public boolean isEnabled() {
             return runnables.isEmpty() == false;
         }
     }

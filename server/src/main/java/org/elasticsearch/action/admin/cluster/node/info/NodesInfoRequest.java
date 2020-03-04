@@ -46,9 +46,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
         requestedMetrics.clear();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
-        } else {
+        if (in.getVersion().before(Version.V_8_0_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
             if (in.readBoolean()) {
@@ -81,6 +79,8 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
             if (in.readBoolean()) {
                 requestedMetrics.add(Metrics.INDICES.metricName());
             }
+        } else {
+            requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
         }
     }
 
@@ -279,9 +279,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeStringArray(requestedMetrics.toArray(String[]::new));
-        } else {
+        if (out.getVersion().before(Version.V_8_0_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
             out.writeBoolean(requestedMetrics.contains(Metrics.SETTINGS.metricName()));
@@ -294,6 +292,8 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
             out.writeBoolean(requestedMetrics.contains(Metrics.PLUGINS.metricName()));
             out.writeBoolean(requestedMetrics.contains(Metrics.INGEST.metricName()));
             out.writeBoolean(requestedMetrics.contains(Metrics.INDICES.metricName()));
+        } else {
+            out.writeStringArray(requestedMetrics.toArray(String[]::new));
         }
     }
 

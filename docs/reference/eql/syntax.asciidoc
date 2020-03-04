@@ -14,12 +14,12 @@ experimental::[]
 [[eql-basic-syntax]]
 === Basic syntax
 
-EQL queries require an event type and a matching condition. The `where` keyword
-connects them.
+EQL queries require an event category and a matching condition. The `where`
+keyword connects them.
 
 [source,eql]
 ----
-event_type where condition
+event_category where condition
 ----
 
 For example, the following EQL query matches `process` events with a
@@ -31,19 +31,19 @@ process where process.name == "svchost.exe"
 ----
 
 [discrete]
-[[eql-syntax-event-types]]
-==== Event types
+[[eql-syntax-event-categories]]
+==== Event categories
 
-In {es}, an event type is a valid, indexed value of the
-<<eql-required-fields,event type field>>. You can set the event type field using
-the `event_type_field` parameter of the EQL search API.
+In {es}, an event category is a valid, indexed value of the
+<<eql-required-fields,event category field>>. You can set the event category
+field using the `event_category_field` parameter of the EQL search API.
 
 [discrete]
-[[eql-syntax-match-any-event-type]]
-===== Match any event type
+[[eql-syntax-match-any-event-category]]
+===== Match any event category
 
-To match events of any type, use the `any` keyword. You can also use the `any`
-keyword to search for documents without a event type field.
+To match events of any category, use the `any` keyword. You can also use the
+`any` keyword to search for documents without a event category field.
 
 For example, the following EQL query matches any documents with a
 `network.protocol` field value of `http`:
@@ -199,7 +199,7 @@ field != "example*wildcard"
 [[eql-syntax-match-any-condition]]
 ===== Match any condition
 
-To match events solely on event type, use the `where true` condition.
+To match events solely on event category, use the `where true` condition.
 
 For example, the following EQL query matches any `file` events:
 

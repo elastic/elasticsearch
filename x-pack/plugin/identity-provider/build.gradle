@@ -14,6 +14,7 @@ archivesBaseName = 'x-pack-identity-provider'
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
   // the following are all SAML dependencies - might as well download the whole internet
   compile "org.opensaml:opensaml-core:3.4.5"
@@ -34,7 +35,7 @@ dependencies {
   compile "net.shibboleth.utilities:java-support:7.5.1"
   compile "org.apache.santuario:xmlsec:2.1.4"
   compile "io.dropwizard.metrics:metrics-core:3.2.2"
-  compile ("org.cryptacular:cryptacular:1.2.3") {
+  compile ("org.cryptacular:cryptacular:1.2.4") {
       exclude group: 'org.bouncycastle'
   }
   compile "org.slf4j:slf4j-api:${versions.slf4j}"

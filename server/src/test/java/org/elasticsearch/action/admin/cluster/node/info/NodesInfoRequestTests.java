@@ -25,6 +25,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
+ * can be found in {@link org.elasticsearch.rest.action.admin.cluster.RestNodesInfoActionTests}.
+ */
 public class NodesInfoRequestTests extends ESTestCase {
 
     /**

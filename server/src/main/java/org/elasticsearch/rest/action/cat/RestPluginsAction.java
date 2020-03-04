@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -96,8 +97,14 @@ public class RestPluginsAction extends AbstractCatAction {
 
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
-
-            for (PluginInfo pluginInfo : info.getPlugins().getPluginInfos()) {
+            if (info == null) {
+                continue;
+            }
+            PluginsAndModules plugins = info.getPlugins();
+            if (plugins == null) {
+                continue;
+            }
+            for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
                 table.startRow();
                 table.addCell(node.getId());
                 table.addCell(node.getName());

@@ -211,6 +211,7 @@ public final class ELambda extends AExpression implements ILambda {
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(parameterNames);
         functionNode.setStatic(true);
+        functionNode.setVarArgs(false);
         functionNode.setSynthetic(true);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 

@@ -47,6 +47,7 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
             randomFrom(DataFrameAnalyticsState.values()),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : createRandomProgress(),
+            randomBoolean() ? null : MemoryUsageTests.createRandom(),
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
     }
@@ -69,6 +70,9 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
         }
         if (stats.getProgress() != null) {
             builder.field(DataFrameAnalyticsStats.PROGRESS.getPreferredName(), stats.getProgress());
+        }
+        if (stats.getMemoryUsage() != null) {
+            builder.field(DataFrameAnalyticsStats.MEMORY_USAGE.getPreferredName(), stats.getMemoryUsage());
         }
         if (stats.getNode() != null) {
             builder.field(DataFrameAnalyticsStats.NODE.getPreferredName(), stats.getNode());

@@ -36,7 +36,7 @@ The information provided by this API includes:
   The default value is `true`.
 
 [discrete]
-[[info-api--example]]
+[[info-api-example]]
 === {api-examples-title}
 
 The following example queries the info API:
@@ -70,6 +70,10 @@ Example response:
       "analytics" : {
           "available" : true,
           "enabled" : true
+      },
+      "constant_keyword" : {
+         "available" : true,
+         "enabled" : true
       },
       "enrich" : {
           "available" : true,

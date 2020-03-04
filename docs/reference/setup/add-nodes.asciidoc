@@ -25,13 +25,19 @@ green.
 
 image::setup/images/elas_0204.png["A cluster with three nodes"]
 
-To add a node to a cluster:
+You can run multiple nodes on your local machine in order to experiment with how
+an {es} cluster of multiple nodes behaves. To add a node to a cluster running on
+your local machine:
 
 . Set up a new {es} instance.
-. Specify the name of the cluster in its `cluster.name` attribute. For example,
-to add a node to the `logging-prod` cluster, set `cluster.name: "logging-prod"`
-in `elasticsearch.yml`.
+. Specify the name of the cluster with the `cluster.name` setting in
+`elasticsearch.yml`. For example, to add a node to the `logging-prod` cluster,
+add the line `cluster.name: "logging-prod"` to `elasticsearch.yml`.
 . Start {es}. The node automatically discovers and joins the specified cluster.
+
+To add a node to a cluster running on multiple machines, you must also
+<<unicast.hosts,set `discovery.seed_hosts`>> so that the new node can discover
+the rest of its cluster.
 
 For more information about discovery and shard allocation, see
 <<modules-discovery>> and <<modules-cluster>>.

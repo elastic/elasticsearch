@@ -80,7 +80,9 @@ import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -120,6 +122,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
             TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
         }
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new TermsAggregationBuilder("foo", ValueType.STRING).field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES);
     }
 
     public void testGlobalOrdinalsExecutionHint() throws Exception {
@@ -683,13 +696,15 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     }
 
                     if (multiValued == false) {
+                        MappedFieldType filterFieldType = new KeywordFieldMapper.KeywordFieldType();
+                        filterFieldType.setName("include");
                         aggregationBuilder = new FilterAggregationBuilder("_name1", QueryBuilders.termQuery("include", "yes"));
                         aggregationBuilder.subAggregation(new TermsAggregationBuilder("_name2", valueType)
                             .executionHint(executionHint)
                             .size(numTerms)
                             .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .field("field"));
-                        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, filterFieldType);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
@@ -1237,7 +1252,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
                         () -> createAggregator(termsAgg, indexSearcher, fieldType));
-                    assertEquals("Invalid aggregator order path [script]. The provided aggregation [script] " +
+                    assertEquals("Invalid aggregation order path [script]. The provided aggregation [script] " +
                         "either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
                         e.getMessage());
                 }

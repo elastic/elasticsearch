@@ -34,6 +34,7 @@ import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
+  id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
   id "com.diffplug.gradle.spotless" version "3.24.2" apply false
 }
@@ -105,13 +106,15 @@ subprojects {
     // Projects that should be formatted and checked with Spotless are
     // listed here, by project path. Once the number of formatted projects
     // is greater than the number of unformatted projects, this can be
-    // switched to an exclude list, and eventualy removed completely.
+    // switched to an exclude list, and eventually removed completely.
     def projectPathsToFormat = [
+      ':benchmarks',
       ':build-tools',
       ':distribution:tools:java-version-checker',
       ':distribution:tools:keystore-cli',
       ':distribution:tools:launchers',
       ':distribution:tools:plugin-cli',
+      ':qa:os',
       ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]
@@ -190,7 +193,7 @@ task verifyVersions {
       throw new GradleException("Must run in online mode to verify versions")
     }
     // Read the list from maven central.
-    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here
+    // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
       bwcVersions.compareToAuthoritative(

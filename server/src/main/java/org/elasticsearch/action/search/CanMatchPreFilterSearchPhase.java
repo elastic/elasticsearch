@@ -113,7 +113,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             return shardsIts;
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
-        return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()), false);
+        return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()));
     }
 
     private static List<SearchShardIterator> sortShards(GroupShardsIterator<SearchShardIterator> shardsIts,
@@ -122,7 +122,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         return IntStream.range(0, shardsIts.size())
             .boxed()
             .sorted(shardComparator(shardsIts, minAndMaxes,  order))
-            .map(ord -> shardsIts.get(ord))
+            .map(shardsIts::get)
             .collect(Collectors.toList());
     }
 
@@ -133,7 +133,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,
                                                        MinAndMax<?>[] minAndMaxes,
                                                        SortOrder order) {
-        final Comparator<Integer> comparator = Comparator.comparing(index -> minAndMaxes[index],  MinAndMax.getComparator(order));
+        final Comparator<Integer> comparator = Comparator.comparing(index -> minAndMaxes[index], MinAndMax.getComparator(order));
         return comparator.thenComparing(index -> shardsIts.get(index).shardId());
     }
 

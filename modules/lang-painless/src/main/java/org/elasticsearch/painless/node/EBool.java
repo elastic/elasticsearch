@@ -49,21 +49,11 @@ public final class EBool extends AExpression {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         left.expected = boolean.class;
         left.analyze(scriptRoot, scope);
-        left = left.cast(scriptRoot, scope);
+        left.cast();
 
         right.expected = boolean.class;
         right.analyze(scriptRoot, scope);
-        right = right.cast(scriptRoot, scope);
-
-        if (left.constant != null && right.constant != null) {
-            if (operation == Operation.AND) {
-                constant = (boolean)left.constant && (boolean)right.constant;
-            } else if (operation == Operation.OR) {
-                constant = (boolean)left.constant || (boolean)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        right.cast();
 
         actual = boolean.class;
     }
@@ -72,8 +62,8 @@ public final class EBool extends AExpression {
     BooleanNode write(ClassNode classNode) {
         BooleanNode booleanNode = new BooleanNode();
 
-        booleanNode.setLeftNode(left.write(classNode));
-        booleanNode.setRightNode(right.write(classNode));
+        booleanNode.setLeftNode(left.cast(left.write(classNode)));
+        booleanNode.setRightNode(right.cast(right.write(classNode)));
 
         booleanNode.setLocation(location);
         booleanNode.setExpressionType(actual);

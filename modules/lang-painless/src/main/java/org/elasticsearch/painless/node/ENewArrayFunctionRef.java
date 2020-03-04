@@ -57,7 +57,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
         function.generateSignature(scriptRoot.getPainlessLookup());
         function.analyze(scriptRoot);
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
-        //scriptRoot.getClassNode().addFunction(function);
 
         if (expected == null) {
             ref = null;

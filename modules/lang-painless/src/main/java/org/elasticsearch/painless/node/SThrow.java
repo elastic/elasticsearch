@@ -44,7 +44,7 @@ public final class SThrow extends AStatement {
     void analyze(ScriptRoot scriptRoot, Scope scope) {
         expression.expected = Exception.class;
         expression.analyze(scriptRoot, scope);
-        expression = expression.cast(scriptRoot, scope);
+        expression.cast();
 
         methodEscape = true;
         loopEscape = true;
@@ -56,7 +56,7 @@ public final class SThrow extends AStatement {
     ThrowNode write(ClassNode classNode) {
         ThrowNode throwNode = new ThrowNode();
 
-        throwNode.setExpressionNode(expression.write(classNode));
+        throwNode.setExpressionNode(expression.cast(expression.write(classNode)));
 
         throwNode.setLocation(location);
 

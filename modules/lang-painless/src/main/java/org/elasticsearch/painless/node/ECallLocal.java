@@ -123,13 +123,14 @@ public final class ECallLocal extends AExpression {
             actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");
             scriptRoot.getClassNode().addField(new SField(location,
-                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass(), null));
+                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass()));
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             actual = instanceBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("instance_binding");
             scriptRoot.getClassNode().addField(new SField(location, Modifier.STATIC | Modifier.PUBLIC,
-                    bindingName, instanceBinding.targetInstance.getClass(), instanceBinding.targetInstance));
+                    bindingName, instanceBinding.targetInstance.getClass()));
+            scriptRoot.addStaticConstant(bindingName, instanceBinding.targetInstance);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -143,7 +144,7 @@ public final class ECallLocal extends AExpression {
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
             expression.analyze(scriptRoot, scope);
-            arguments.set(argument, expression.cast(scriptRoot, scope));
+            expression.cast();
         }
 
         statement = true;
@@ -154,7 +155,7 @@ public final class ECallLocal extends AExpression {
         MemberCallNode memberCallNode = new MemberCallNode();
 
         for (AExpression argument : arguments) {
-            memberCallNode.addArgumentNode(argument.write(classNode));
+            memberCallNode.addArgumentNode(argument.cast(argument.write(classNode)));
         }
 
         memberCallNode.setLocation(location);

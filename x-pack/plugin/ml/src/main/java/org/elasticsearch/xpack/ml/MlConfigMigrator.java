@@ -23,6 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -106,14 +107,17 @@ public class MlConfigMigrator {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver expressionResolver;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private final AtomicBoolean migrationInProgress;
     private final AtomicBoolean tookConfigSnapshot;
 
-    public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
+    public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService,
+                            IndexNameExpressionResolver expressionResolver) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
         this.tookConfigSnapshot = new AtomicBoolean(false);
@@ -459,7 +463,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), expressionResolver, ActionListener.wrap(
             r -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest,
                     ActionListener.<IndexResponse>wrap(

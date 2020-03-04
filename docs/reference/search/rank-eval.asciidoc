@@ -69,6 +69,8 @@ generation in your application.
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
@@ -201,20 +203,21 @@ will be used. The following metrics are supported:
 [[k-precision]]
 ===== Precision at K (P@k)
 
-This metric measures the number of relevant results in the top k search results. 
-It's a form of the well-known 
-https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric 
-that only looks at the top k documents. It is the fraction of relevant documents 
-in those first k results. A precision at 10 (P@10) value of 0.6 then means six 
-out of the 10 top hits are relevant with respect to the user's information need.
+This metric measures the proportion of relevant results in the top k search results.
+It's a form of the well-known
+https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Precision[Precision]
+metric that only looks at the top k documents. It is the fraction of relevant
+documents in those first k results. A precision at 10 (P@10) value of 0.6 then
+means 6 out of the 10 top hits are relevant with respect to the user's
+information need.
 
-P@k works well as a simple evaluation metric that has the benefit of being easy 
-to understand and explain. Documents in the collection need to be rated as either 
-relevant or irrelevant with respect to the current query. P@k does not take 
-into account the position of the relevant documents within the top k results, 
-so a ranking of ten results that contains one relevant result in position 10 is 
-equally as good as a ranking of ten results that contains one relevant result  
-in position 1.
+P@k works well as a simple evaluation metric that has the benefit of being easy
+to understand and explain. Documents in the collection need to be rated as either
+relevant or irrelevant with respect to the current query. P@k is a set-based
+metric and does not take into account the position of the relevant documents
+within the top k results, so a ranking of ten results that contains one
+relevant result in position 10 is equally as good as a ranking of ten results
+that contains one relevant result in position 1.
 
 [source,console]
 --------------------------------
@@ -248,6 +251,58 @@ in the query. Defaults to 10.
 "relevant". Defaults to `1`.
 |`ignore_unlabeled` |controls how unlabeled documents in the search results are counted.
 If set to 'true', unlabeled documents are ignored and neither count as relevant or irrelevant. Set to 'false' (the default), they are treated as irrelevant.
+|=======================================================================
+
+
+[float]
+[[k-recall]]
+===== Recall at K (R@k)
+
+This metric measures the total number of relevant results in the top k search
+results. It's a form of the well-known
+https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Recall[Recall]
+metric. It is the fraction of relevant documents in those first k results
+relative to all possible relevant results. A recall at 10 (R@10) value of 0.5 then
+means 4 out of 8 relevant documents, with respect to the user's information
+need, were retrieved in the 10 top hits.
+
+R@k works well as a simple evaluation metric that has the benefit of being easy
+to understand and explain. Documents in the collection need to be rated as either
+relevant or irrelevant with respect to the current query. R@k is a set-based
+metric and does not take into account the position of the relevant documents
+within the top k results, so a ranking of ten results that contains one
+relevant result in position 10 is equally as good as a ranking of ten results
+that contains one relevant result in position 1.
+
+[source,console]
+--------------------------------
+GET /twitter/_rank_eval
+{
+    "requests": [
+    {
+        "id": "JFK query",
+        "request": { "query": { "match_all": {}}},
+        "ratings": []
+    }],
+    "metric": {
+      "recall": {
+        "k" : 20,
+        "relevant_rating_threshold": 1
+      }
+   }
+}
+--------------------------------
+// TEST[setup:twitter]
+
+The `recall` metric takes the following optional parameters
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+|`k` |sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter
+in the query. Defaults to 10.
+|`relevant_rating_threshold` |sets the rating threshold above which documents are considered to be
+"relevant". Defaults to `1`.
 |=======================================================================
 
 

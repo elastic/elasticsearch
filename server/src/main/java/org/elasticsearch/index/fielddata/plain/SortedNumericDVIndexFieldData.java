@@ -121,14 +121,16 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * casting the values if their native type doesn't match.
      */
     public BucketedSort newBucketedSort(NumericType targetNumericType, BigArrays bigArrays, @Nullable Object missingValue,
-            MultiValueMode sortMode, Nested nested, SortOrder sortOrder, DocValueFormat format) {
-        return comparatorSource(targetNumericType, missingValue, sortMode, nested).newBucketedSort(bigArrays, sortOrder, format);
+            MultiValueMode sortMode, Nested nested, SortOrder sortOrder, DocValueFormat format,
+            int bucketSize, BucketedSort.ExtraData extra) {
+        return comparatorSource(targetNumericType, missingValue, sortMode, nested)
+                .newBucketedSort(bigArrays, sortOrder, format, bucketSize, extra);
     }
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format) {
-        return newBucketedSort(numericType, bigArrays, missingValue, sortMode, nested, sortOrder, format);
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        return newBucketedSort(numericType, bigArrays, missingValue, sortMode, nested, sortOrder, format, bucketSize, extra);
     }
 
     private XFieldComparatorSource comparatorSource(NumericType targetNumericType, @Nullable Object missingValue, MultiValueMode sortMode,

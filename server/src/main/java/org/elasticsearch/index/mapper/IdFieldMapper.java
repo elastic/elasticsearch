@@ -50,6 +50,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -158,6 +160,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: should this even exist? Is aggregating on the ID field valid?
+            return CoreValuesSourceType.BYTES;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("Fielddata access on the _id field is disallowed");
@@ -209,7 +217,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format) {
+                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
 

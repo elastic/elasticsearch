@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -887,7 +888,7 @@ public class JobResultsProviderTests extends ESTestCase {
     }
 
     private JobResultsProvider createProvider(Client client) {
-        return new JobResultsProvider(client, Settings.EMPTY);
+        return new JobResultsProvider(client, Settings.EMPTY, new IndexNameExpressionResolver());
     }
 
     private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {

@@ -6,7 +6,7 @@ The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS PUB
 140-2), titled "Security Requirements for Cryptographic Modules" is a U.S.
 government computer security standard used to approve cryptographic modules.
 {es} offers a FIPS 140-2 compliant mode and as such can run in a FIPS 140-2
-enabled JVM. In order to set {es} in fips mode, you must set the
+enabled JVM. In order to set {es} in FIPS mode, you must set the
 `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`
 
 For {es}, adherence to FIPS 140-2 is ensured by
@@ -19,12 +19,13 @@ For {es}, adherence to FIPS 140-2 is ensured by
   documented below.
 
 [float]
+[[fips-140-compliance-upgrade]]
 === Upgrade considerations
 
-If you plan to upgrade your existing Cluster to a version that can be run in
+If you plan to upgrade your existing cluster to a version that can be run in
 a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
 upgrade to the new version in your existing JVM and perform all necessary
-configuration changes in preparation for running in fips mode. You can then
+configuration changes in preparation for running in FIPS mode. You can then
 perform a rolling restart of the nodes, this time starting each node in the FIPS
 140-2 JVM. This will allow {es} to take care of a couple of things automatically for you:
 
@@ -40,6 +41,7 @@ FIPS 140-2 JVM. In this case, you would need to also regenerate your
 necessary configuration changes outlined below, before starting each node.
 
 [float]
+[[fips-140-compliance-es]]
 === Configuring {es} for FIPS 140-2
 
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
@@ -47,18 +49,48 @@ related settings need to be configured accordingly in order to be compliant
 and able to run {es} successfully in a FIPS 140-2 enabled JVM.
 
 [float]
+[[fips-140-compliance-tls]]
 ==== TLS
 
 SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot
-be used for <<ssl-tls-settings, `ssl.supported_protocols`>>
+be used for <<ssl-tls-settings,`ssl.supported_protocols`>>
 
-NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
-(the FIPS Approved Security Provider that your JVM uses). All the ciphers that
-are configured by default in {es} are FIPS 140-2 compliant and as such can be
-used in a FIPS 140-2 JVM. (see <<ssl-tls-settings, `ssl.cipher_suites`>>)
+The use of TLS ciphers is mainly governed by the relevant crypto module
+(the FIPS Approved Security Provider that your JVM uses). In general, the
+ciphers that are configured by default in {es} are FIPS 140-2 compliant and can
+be used in a FIPS 140-2 JVM. If you use JDK 11, however, the following ciphers
+are not supported while running in FIPS mode:
+
+* `TLS_AES_256_GCM_SHA384`
+* `TLS_AES_128_GCM_SHA256`
+* `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
+* `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`
+* `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`
+* `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`
+* `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`
+* `TLS_RSA_WITH_AES_256_GCM_SHA384`
+* `TLS_RSA_WITH_AES_128_GCM_SHA256`
+
+Likewise, if you use JDK 13, the following ciphers are not supported:
+
+* `TLS_AES_256_GCM_SHA384`
+* `TLS_AES_128_GCM_SHA256`
+* `TLS_CHACHA20_POLY1305_SHA256`
+* `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
+* `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`
+* `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`
+* `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`
+* `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`
+* `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`
+* `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`
+* `TLS_RSA_WITH_AES_256_GCM_SHA384`
+* `TLS_RSA_WITH_AES_128_GCM_SHA256`
+
+For more information, see <<ssl-tls-settings, `ssl.cipher_suites`>>.
 
 [float]
-==== TLS Keystores and keys
+[[fips-140-compliance-keys]]
+==== TLS keystores and keys
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
 conveniently store key and trust material. Neither `JKS`, nor `PKCS#12` keystores
@@ -85,7 +117,8 @@ the following table:
 |=======================
 
 [float]
-==== Password Hashing
+[[fips-140-compliance-passwords]]
+==== Password hashing
 
 {es} offers a number of algorithms for securely hashing credentials in memory and
 on disk. However, only the `PBKDF2` family of algorithms is compliant with FIPS
@@ -108,10 +141,11 @@ non-compliant algorithms will be discarded and the new ones will be created
 using the compliant `PBKDF2` algorithm you have selected.
 
 [float]
+[[fips-140-compliance-limitations]]
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of
-features are not available while running in fips mode. The list is as follows:
+features are not available while running in FIPS mode. The list is as follows:
 
 * Azure Classic Discovery Plugin
 * Ingest Attachment Plugin

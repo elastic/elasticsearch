@@ -1,7 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-index-lifecycle]]
+<<<<<<< HEAD
 === Index lifecycle
+=======
+== Understanding the index lifecycle
+>>>>>>> Removed example from concepts.
 ++++
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
@@ -18,11 +22,19 @@ slower.
 An index's _lifecycle policy_ specifies which phases 
 are applicable, what actions are performed in each phase,
 and when it transitions between phases. 
+<<<<<<< HEAD
 
 To automatically apply a lifecycle policy to new time-series indices when they roll over, 
 you associate the policy with the index template. 
 To manage indices that don't roll over, you can manually apply a lifecycle policy when creating the index.
 
+=======
+
+To automatically apply a lifecycle policy to new time-series indices when they roll over, 
+you associate the policy with the index template. 
+To manage indices that don't roll over, you can manually apply a lifecycle policy when creating the index.
+
+>>>>>>> Removed example from concepts.
 [float]
 [[ilm-phase-transitions]]
 === Phase transitions

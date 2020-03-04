@@ -18,7 +18,7 @@ To automatically back up your indices and manage snapshots,
 use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
 
 * <<overview-index-lifecycle-management>>
-* <<ilm-concepts>>
+* <<ilm-index-lifecycle>>
 * <<ilm-tutorial-rollover, _Tutorial: Automate rollover with {ilm-init}_>>
 * <<set-up-lifecycle-policy>>
 * <<index-lifecycle-error-handling>>
@@ -30,7 +30,7 @@ use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>
 --
 include::overview-ilm.asciidoc[]
 
-include::ilm-concepts.asciidoc[]
+include::ilm-index-lifecycle.asciidoc[]
 
 include::getting-started-ilm.asciidoc[]
 

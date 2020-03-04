@@ -98,7 +98,7 @@ public class ValuesSourceConfig {
             ValuesSourceConfig::getLegacyMapping);
     }
 
-    public static ValuesSourceConfig internalResolve(QueryShardContext context,
+    private static ValuesSourceConfig internalResolve(QueryShardContext context,
                                                      ValueType userValueTypeHint,
                                                      String field,
                                                      Script script,

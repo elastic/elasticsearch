@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
@@ -54,6 +55,8 @@ public class OptimizerTests extends ESTestCase {
     public void testEqualsWildcard() {
         for (String q : new String[]{"foo where command_line == '* bar *'", "foo where '* bar *' == command_line"}) {
             LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof OrderBy);
+            plan = ((OrderBy) plan).child();
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -72,6 +75,8 @@ public class OptimizerTests extends ESTestCase {
         for (String q : new String[]{"foo where command_line != '* baz *'", "foo where '* baz *' != command_line"}) {
 
             LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof OrderBy);
+            plan = ((OrderBy) plan).child();
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -89,6 +94,8 @@ public class OptimizerTests extends ESTestCase {
 
     public void testWildcardEscapes() {
         LogicalPlan plan = accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'");
+        assertTrue(plan instanceof OrderBy);
+        plan = ((OrderBy) plan).child();
         assertTrue(plan instanceof Filter);
 
         Filter filter = (Filter) plan;

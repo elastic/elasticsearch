@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.optimizer;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
@@ -60,14 +61,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
-            if (expr instanceof Literal) {
-                Literal l = (Literal) expr;
-                if (l.value() instanceof String) {
-                    String s = (String) l.value();
-                    return s.contains("*");
-                }
+            if (expr.foldable()) {
+                Object value = expr.fold();
+                return value instanceof String && value.toString().contains("*");
             }
-
             return false;
         }
 
@@ -86,26 +83,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
             return filter.transformExpressionsUp(e -> {
-                // expr == "wildcard*phrase"
-                if (e instanceof Equals) {
-                    Equals eq = (Equals) e;
+                // expr == "wildcard*phrase" || expr != "wildcard*phrase"
+                if (e instanceof Equals || e instanceof NotEquals) {
+                    BinaryComparison cmp = (BinaryComparison) e;
 
-                    if (isWildcard(eq.right())) {
-                        String wcString = (String) eq.right().fold();
-                        e = new Like(e.source(), eq.left(), toLikePattern(wcString));
+                    if (isWildcard(cmp.right())) {
+                        String wcString = cmp.right().fold().toString();
+                        Expression like = new Like(e.source(), cmp.left(), toLikePattern(wcString));
+
+                        if (e instanceof NotEquals) {
+                            like = new Not(e.source(), like);
+                        }
+
+                        e = like;
                     }
                 }
 
-                // expr != "wildcard*phrase"
-                else if (e instanceof NotEquals) {
-                    NotEquals eq = (NotEquals) e;
-
-                    if (isWildcard(eq.right())) {
-                        String wcString = (String) eq.right().fold();
-                        Like inner = new Like(eq.source(), eq.left(), toLikePattern(wcString));
-                        e = new Not(e.source(), inner);
-                    }
-                }
                 return e;
             });
         }

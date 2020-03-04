@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,6 +84,7 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -193,6 +195,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicLong idGenerator = new AtomicLong();
 
+    final String contextUUID = UUIDs.randomBase64UUID(); // combined with idGenerator to generate SearchContextId
+
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final MultiBucketConsumerService multiBucketConsumerService;
@@ -284,7 +288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected void putContext(SearchContext context) {
-        final SearchContext previous = activeContexts.put(context.id(), context);
+        final SearchContext previous = activeContexts.put(context.id().getId(), context);
         assert previous == null;
     }
 
@@ -412,8 +416,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         listener.onResponse(QuerySearchResult.nullInstance());
     }
 
-    private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(ActionRunnable.supply(listener, executable::get));
+    private <T> void runAsync(SearchContextId contextId, Supplier<T> executable, ActionListener<T> listener) {
+        getExecutor(contextId).execute(ActionRunnable.supply(listener, executable::get));
     }
 
     private SearchPhaseResult executeQueryPhase(SearchRewriteContext rewriteContext, SearchShardTask task) throws Exception {
@@ -468,8 +472,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeQueryPhase(InternalScrollSearchRequest request,
                                   SearchShardTask task,
                                   ActionListener<ScrollQuerySearchResult> listener) {
-        runAsync(request.id(), () -> {
-            final SearchContext context = findContext(request.id(), request);
+        runAsync(request.contextId(), () -> {
+            final SearchContext context = findContext(request.contextId(), request);
             context.incRef();
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 context.setTask(task);
@@ -490,8 +494,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
-        runAsync(request.id(), () -> {
-            final SearchContext context = findContext(request.id(), request);
+        runAsync(request.contextId(), () -> {
+            final SearchContext context = findContext(request.contextId(), request);
             context.setTask(task);
             context.incRef();
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
@@ -526,10 +530,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final Executor getExecutor(long id) {
-        SearchContext context = activeContexts.get(id);
+    private boolean isMatchContextUUID(SearchContextId contextId) {
+        return contextId.getUuid().isEmpty() || contextId.getUuid().equals(contextUUID);
+    }
+
+    final Executor getExecutor(SearchContextId contextId) {
+        if (isMatchContextUUID(contextId) == false) {
+            throw new SearchContextMissingException(contextId);
+        }
+        SearchContext context = activeContexts.get(contextId.getId());
         if (context == null) {
-            throw new SearchContextMissingException(id);
+            throw new SearchContextMissingException(contextId);
         }
         return getExecutor(context.indexShard());
     }
@@ -541,8 +552,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
-        runAsync(request.id(), () -> {
-            final SearchContext context = findContext(request.id(), request);
+        runAsync(request.contextId(), () -> {
+            final SearchContext context = findContext(request.contextId(), request);
             context.setTask(task);
             context.incRef();
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)){
@@ -563,8 +574,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
-        runAsync(request.id(), () -> {
-            final SearchContext context = findContext(request.id(), request);
+        runAsync(request.contextId(), () -> {
+            final SearchContext context = findContext(request.contextId(), request);
             context.incRef();
             try {
                 context.setTask(task);
@@ -576,7 +587,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, System.nanoTime())) {
                     fetchPhase.execute(context);
                     if (fetchPhaseShouldFreeContext(context)) {
-                        freeContext(request.id());
+                        freeContext(request.contextId());
                     } else {
                         contextProcessedSuccessfully(context);
                     }
@@ -593,10 +604,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, listener);
     }
 
-    private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
-        SearchContext context = activeContexts.get(id);
+    private SearchContext findContext(SearchContextId contextId, TransportRequest request) throws SearchContextMissingException {
+        if (isMatchContextUUID(contextId) == false) {
+            throw new SearchContextMissingException(contextId);
+        }
+        final SearchContext context = activeContexts.get(contextId.getId());
         if (context == null) {
-            throw new SearchContextMissingException(id);
+            throw new SearchContextMissingException(contextId);
         }
 
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
@@ -704,8 +718,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             IndexShard indexShard = indexService.getShard(request.shardId().getId());
             SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-            DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-                searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout, fetchPhase);
+            DefaultSearchContext searchContext = new DefaultSearchContext(
+                new SearchContextId(contextUUID, idGenerator.incrementAndGet()),
+                request, shardTarget, searcher, clusterService, indexService, indexShard, bigArrays,
+                threadPool::relativeTimeInMillis, timeout, fetchPhase);
             success = true;
             return searchContext;
         } finally {
@@ -718,6 +734,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+
     private void freeAllContextForIndex(Index index) {
         assert index != null;
         for (SearchContext ctx : activeContexts.values()) {
@@ -727,15 +744,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    public boolean freeContext(SearchContextId contextId) {
+        if (contextId.getUuid().isEmpty() || contextUUID.equals(contextId.getUuid())) {
+            return freeContext(contextId.getId());
+        }
+        return false;
+    }
 
-    public boolean freeContext(long id) {
+    private boolean freeContext(long id) {
         try (SearchContext context = removeContext(id)) {
             if (context != null) {
                 onFreeContext(context);
                 return true;
             }
-            return false;
         }
+        return false;
     }
 
     private void onFreeContext(SearchContext context) {

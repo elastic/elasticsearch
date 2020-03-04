@@ -37,15 +37,30 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     @Override
-    public void testSelectFromIndexWithoutTypes() throws Exception {
+    public void testSelectColumnFromMissingIndex() throws Exception {
+        assertFoundOneProblem(command("SELECT abc FROM test"));
+        assertEquals("line 1:17: Unknown index [test]" + END, readLine());
+    }
+
+    @Override
+    public void testSelectFromEmptyIndex() throws Exception {
         // Create an index without any types
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
         client().performRequest(request);
 
         assertFoundOneProblem(command("SELECT * FROM test"));
-        //assertEquals("line 1:15: [test] doesn't have any types so it is incompatible with sql" + END, readLine());
-        assertEquals("line 1:15: Unknown index [test]" + END, readLine());
+        assertEquals("line 1:8: Cannot determine columns for [*]" + END, readLine());
+    }
+
+    @Override
+    public void testSelectColumnFromEmptyIndex() throws Exception {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
+        
+        assertFoundOneProblem(command("SELECT abc FROM test"));
+        assertEquals("line 1:8: Unknown column [abc]" + END, readLine());
     }
 
     @Override

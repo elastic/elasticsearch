@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -114,7 +115,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         validate(metaData, rolloverRequest);
         final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = alias.getWriteIndex();
-        final boolean explicitWriteIndex = Boolean.TRUE.equals(indexMetaData.getAliases().get(alias.getAliasName()).writeIndex());
+        final AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias.getAliasName());
+        final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex());
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();
@@ -155,7 +157,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexRequest);
                                 newState = indexAliasesService.applyAliasActions(newState,
                                     rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, rolloverRequest, explicitWriteIndex,
-                                        alias.isHidden()));
+                                        aliasMetaData.isHidden()));
                                 RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
                                     threadPool.absoluteTimeInMillis());
                                 return ClusterState.builder(newState)

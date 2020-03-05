@@ -29,20 +29,21 @@ import java.util.Comparator;
 import java.util.Objects;
 
 /**
- * A class that encapsulates a minimum and a maximum {@link Comparable}.
+ * A class that encapsulates a minimum and a maximum, that are of the same type and {@link Comparable}.
  */
 public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     private final T minValue;
     private final T maxValue;
 
-    private MinAndMax(T minValue, T maxValue) {
+    public MinAndMax(T minValue, T maxValue) {
         this.minValue = Objects.requireNonNull(minValue);
         this.maxValue = Objects.requireNonNull(maxValue);
     }
 
+    @SuppressWarnings("unchecked")
     public MinAndMax(StreamInput in) throws IOException {
-        this.minValue = (T) Lucene.readSortValue(in);
-        this.maxValue = (T) Lucene.readSortValue(in);
+        this.minValue = (T)Lucene.readSortValue(in);
+        this.maxValue = (T)Lucene.readSortValue(in);
     }
 
     @Override
@@ -54,27 +55,23 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     /**
      * Return the minimum value.
      */
-    public T getMin() {
+    T getMin() {
         return minValue;
     }
 
     /**
      * Return the maximum value.
      */
-    public T getMax() {
+    T getMax() {
         return maxValue;
-    }
-
-    public static <T extends Comparable<? super T>> MinAndMax<T> newMinMax(T min, T max) {
-        return new MinAndMax<>(min, max);
     }
 
     /**
      * Return a {@link Comparator} for {@link MinAndMax} values according to the provided {@link SortOrder}.
      */
     public static Comparator<MinAndMax<?>> getComparator(SortOrder order) {
-        Comparator<MinAndMax> cmp = order == SortOrder.ASC  ?
-            Comparator.comparing(v -> (Comparable) v.getMin()) : Comparator.comparing(v -> (Comparable) v.getMax());
+        Comparator<MinAndMax<?>> cmp = order == SortOrder.ASC  ?
+            Comparator.comparing(MinAndMax::getMin) : Comparator.comparing(MinAndMax::getMax);
         if (order == SortOrder.DESC) {
             cmp = cmp.reversed();
         }

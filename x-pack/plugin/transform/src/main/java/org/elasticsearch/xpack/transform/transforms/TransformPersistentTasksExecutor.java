@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -103,19 +102,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
-            (node) -> node.getVersion().onOrAfter(Version.V_8_0_0)
-                ? nodeCanRunThisTransform(node, params, null)
-                : nodeCanRunThisTransformPre77(node, params, null)
+            (node) -> nodeCanRunThisTransform(node, params, null)
         );
 
         if (discoveryNode == null) {
             Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
             for (DiscoveryNode node : clusterState.getNodes()) {
-                if (node.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0, remove from 8.0
-                    nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
-                } else {
-                    nodeCanRunThisTransformPre77(node, params, explainWhyAssignmentFailed);
-                }
+                nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
             }
             String reason = "Not starting transform ["
                 + params.getId()
@@ -128,29 +121,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         return new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
-    }
-
-    // todo: this can be removed for 8.0 after backport
-    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
-        if (node.isDataNode() == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "not a data node");
-            }
-            return false;
-        }
-
-        // version of the transform run on a node that has at least the same version
-        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
-            if (explain != null) {
-                explain.put(
-                    node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
-                );
-            }
-            return false;
-        }
-
-        return true;
     }
 
     public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {

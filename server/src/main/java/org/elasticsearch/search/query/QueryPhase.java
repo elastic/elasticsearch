@@ -112,8 +112,8 @@ public class QueryPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
         final Runnable cancellation;
         if (context.lowLevelCancellation()) {
+            SearchShardTask task = context.getTask();
             cancellation = context.searcher().addQueryCancellation(() -> {
-                SearchShardTask task = context.getTask();
                 if (task.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
@@ -282,8 +282,8 @@ public class QueryPhase implements SearchPhase {
             }
 
             if (searchContext.lowLevelCancellation()) {
+                SearchShardTask task = searchContext.getTask();
                 searcher.addQueryCancellation(() -> {
-                    SearchShardTask task = searchContext.getTask();
                     if (task.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }

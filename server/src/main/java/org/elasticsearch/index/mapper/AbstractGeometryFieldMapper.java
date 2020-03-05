@@ -256,7 +256,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
+    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends SpatialFieldType {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
         protected Indexer<Parsed, Processed> geometryIndexer;

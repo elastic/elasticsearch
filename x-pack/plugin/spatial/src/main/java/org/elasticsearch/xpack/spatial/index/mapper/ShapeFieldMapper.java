@@ -11,7 +11,6 @@ import org.apache.lucene.geo.XYLine;
 import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -138,16 +137,15 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
 
         @Override
         public Query spatialQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-            if (shape == null) {
-                return new MatchNoDocsQuery();
-            }
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(context,
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
             }
-            // wrap geometry Query as a ConstantScoreQuery
-            return new ConstantScoreQuery(shape.visit(new ShapeVisitor(context, fieldName, relation)));
+            if (shape == null) {
+                return new MatchNoDocsQuery();
+            }
+            return shape.visit(new ShapeVisitor(context, fieldName, relation));
         }
 
     }

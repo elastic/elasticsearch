@@ -30,7 +30,6 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.geo.GeometryTestUtils.randomGeometry;
-import static org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType.geometryToShapeBuilder;
 
 public class GeometryIOTests extends ESTestCase {
 
@@ -40,7 +39,7 @@ public class GeometryIOTests extends ESTestCase {
             Geometry geometry = randomGeometry(hasAlt);
             if (shapeSupported(geometry) && randomBoolean()) {
                 // Shape builder conversion doesn't support altitude
-                ShapeBuilder<?, ?, ?> shapeBuilder = geometryToShapeBuilder(geometry);
+                ShapeBuilder<?, ?, ?> shapeBuilder = GeoUtils.geometryToShapeBuilder(geometry);
                 if (randomBoolean()) {
                     Geometry actual = shapeBuilder.buildGeometry();
                     assertEquals(geometry, actual);

@@ -43,7 +43,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -405,16 +404,6 @@ public abstract class MappedFieldType extends FieldType {
 
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
         throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
-            + "] which is of type [" + typeName() + "]");
-    }
-
-    public Query geoQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        throw new IllegalArgumentException("Can only use geo_shape queries on geo_shape fields - not on [" + name
-            + "] which is of type [" + typeName() + "]");
-    }
-
-    public Query spatialQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        throw new IllegalArgumentException("Can only use shape queries on shape fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 

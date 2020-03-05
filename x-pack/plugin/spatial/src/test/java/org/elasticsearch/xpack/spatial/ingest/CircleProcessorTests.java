@@ -29,7 +29,7 @@ import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SpatialFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -211,14 +211,14 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        SpatialFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);
         shapeType.setName(fieldName);
 
         QueryShardContext mockedContext = mock(QueryShardContext.class);
         when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
-        Query sameShapeQuery = shapeType.geoQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query pointOnDatelineQuery = shapeType.geoQuery(new Point(180, circle.getLat()), fieldName,
+        Query sameShapeQuery = shapeType.spatialQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query pointOnDatelineQuery = shapeType.spatialQuery(new Point(180, circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -244,7 +244,7 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldMapper.ShapeFieldType();
+        SpatialFieldType shapeType = new ShapeFieldMapper.ShapeFieldType();
         shapeType.setHasDocValues(false);
         shapeType.setName(fieldName);
 

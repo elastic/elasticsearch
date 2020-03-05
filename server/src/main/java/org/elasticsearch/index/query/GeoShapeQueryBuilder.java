@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SpatialFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -200,7 +200,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
         }
-        return new ConstantScoreQuery(fieldType.geoQuery(shape, fieldName, relation, context));
+        return ((SpatialFieldType)fieldType).spatialQuery(shape, fieldName, relation, context);
     }
 
     @Override

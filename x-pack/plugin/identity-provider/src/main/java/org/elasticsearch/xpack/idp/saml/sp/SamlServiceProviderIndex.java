@@ -11,9 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -27,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,8 +38,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -44,7 +51,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -68,6 +77,58 @@ public class SamlServiceProviderIndex implements Closeable {
     private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
     private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
     private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
+
+    public static final class DocumentVersion {
+        public final String id;
+        public final long primaryTerm;
+        public final long seqNo;
+
+        public DocumentVersion(String id, long primaryTerm, long seqNo) {
+            this.id = id;
+            this.primaryTerm = primaryTerm;
+            this.seqNo = seqNo;
+        }
+
+        public DocumentVersion(GetResponse get) {
+            this(get.getId(), get.getPrimaryTerm(), get.getSeqNo());
+        }
+
+        public DocumentVersion(GetResult get) {
+            this(get.getId(), get.getPrimaryTerm(), get.getSeqNo());
+        }
+
+        public DocumentVersion(SearchHit hit) {
+            this(hit.getId(), hit.getPrimaryTerm(), hit.getSeqNo());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final DocumentVersion that = (DocumentVersion) o;
+            return Objects.equals(this.id, that.id) && primaryTerm == that.primaryTerm &&
+                seqNo == that.seqNo;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, primaryTerm, seqNo);
+        }
+    }
+
+    public static final class DocumentSupplier {
+        public final DocumentVersion version;
+        public final Supplier<SamlServiceProviderDocument> document;
+
+        public DocumentSupplier(DocumentVersion version, Supplier<SamlServiceProviderDocument> document) {
+            this.version = version;
+            this.document = new CachedSupplier<>(document);
+        }
+
+        public SamlServiceProviderDocument getDocument() {
+            return document.get();
+        }
+    }
 
     public SamlServiceProviderIndex(Client client, ClusterService clusterService) {
         this.client = new OriginSettingClient(client, ClientHelper.IDP_ORIGIN);
@@ -153,20 +214,23 @@ public class SamlServiceProviderIndex implements Closeable {
         return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
-    public void writeDocument(SamlServiceProviderDocument document, ActionListener<String> listener) {
+    public void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
+                              ActionListener<DocWriteResponse> listener) {
         final ValidationException exception = document.validate();
         if (exception != null) {
             listener.onFailure(exception);
             return;
         }
+
         if (templateInstalled) {
-            _writeDocument(document, listener);
+            _writeDocument(document, opType, listener);
         } else {
-            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, listener), listener::onFailure));
+            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, opType, listener), listener::onFailure));
         }
     }
 
-    private void _writeDocument(SamlServiceProviderDocument document, ActionListener<String> listener) {
+    private void _writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
+                                ActionListener<DocWriteResponse> listener) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              XContentBuilder xContentBuilder = new XContentBuilder(XContentType.JSON.xContent(), out)) {
             document.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -174,11 +238,13 @@ public class SamlServiceProviderIndex implements Closeable {
             // - that would cause the alias to be created as a concrete index, which is not what we want.
             // So, until we know that the alias exists we have to write to the expected index name instead.
             final IndexRequest request = new IndexRequest(aliasExists ? ALIAS_NAME : INDEX_NAME)
+                .opType(opType)
                 .source(xContentBuilder)
                 .id(document.docId);
             client.index(request, ActionListener.wrap(response -> {
-                logger.debug("Wrote service provider [{}][{}] as document [{}]", document.name, document.entityId, response.getId());
-                listener.onResponse(response.getId());
+                logger.debug("Wrote service provider [{}][{}] as document [{}] ({})",
+                    document.name, document.entityId, response.getId(), response.getResult());
+                listener.onResponse(response);
             }, listener::onFailure));
         } catch (IOException e) {
             listener.onFailure(e);
@@ -193,12 +259,12 @@ public class SamlServiceProviderIndex implements Closeable {
         }, listener::onFailure));
     }
 
-    public void findByEntityId(String entityId, ActionListener<Set<SamlServiceProviderDocument>> listener) {
+    public void findByEntityId(String entityId, ActionListener<Set<DocumentSupplier>> listener) {
         final QueryBuilder query = QueryBuilders.termQuery(SamlServiceProviderDocument.Fields.ENTITY_ID.getPreferredName(), entityId);
         findDocuments(query, listener);
     }
 
-    public void findAll(ActionListener<Set<SamlServiceProviderDocument>> listener) {
+    public void findAll(ActionListener<Set<DocumentSupplier>> listener) {
         final QueryBuilder query = QueryBuilders.matchAllQuery();
         findDocuments(query, listener);
     }
@@ -208,7 +274,7 @@ public class SamlServiceProviderIndex implements Closeable {
             response -> listener.onResponse(null), listener::onFailure));
     }
 
-    private void findDocuments(QueryBuilder query, ActionListener<Set<SamlServiceProviderDocument>> listener) {
+    private void findDocuments(QueryBuilder query, ActionListener<Set<DocumentSupplier>> listener) {
         logger.trace("Searching [{}] for [{}]", ALIAS_NAME, query);
         final SearchRequest request = client.prepareSearch(ALIAS_NAME)
             .setQuery(query)
@@ -216,12 +282,20 @@ public class SamlServiceProviderIndex implements Closeable {
             .setFetchSource(true)
             .request();
         client.search(request, ActionListener.wrap(response -> {
-            logger.trace("Search hits: [{}] [{}]", response.getHits().getTotalHits(), Arrays.toString(response.getHits().getHits()));
-            final Set<SamlServiceProviderDocument> docs = Stream.of(response.getHits().getHits())
-                .map(hit -> toDocument(hit.getId(), hit.getSourceRef()))
+            if (logger.isTraceEnabled()) {
+                logger.trace("Search hits: [{}] [{}]", response.getHits().getTotalHits(), Arrays.toString(response.getHits().getHits()));
+            }
+            final Set<DocumentSupplier> docs = Stream.of(response.getHits().getHits())
+                .map(hit -> new DocumentSupplier(new DocumentVersion(hit), () -> toDocument(hit.getId(), hit.getSourceRef())))
                 .collect(Collectors.toUnmodifiableSet());
             listener.onResponse(docs);
-        }, listener::onFailure));
+        }, ex -> {
+            if (ex instanceof IndexNotFoundException) {
+                listener.onResponse(Set.of());
+            } else {
+                listener.onFailure(ex);
+            }
+        }));
     }
 
     private SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
@@ -232,5 +306,10 @@ public class SamlServiceProviderIndex implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException("failed to parse document [" + documentId + "]", e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{alias=" + ALIAS_NAME + " [" + (aliasExists ? "exists" : "not-found") + "]}";
     }
 }

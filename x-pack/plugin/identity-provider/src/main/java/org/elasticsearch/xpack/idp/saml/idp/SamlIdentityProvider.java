@@ -6,13 +6,19 @@
 
 package org.elasticsearch.xpack.idp.saml.idp;
 
+
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.joda.time.Duration;
+import org.joda.time.ReadableDuration;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 
+import java.io.UncheckedIOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,11 +38,13 @@ public class SamlIdentityProvider {
     private final String entityId;
     private final Map<String, URL> ssoEndpoints;
     private final Map<String, URL> sloEndpoints;
-    private Map<String, SamlServiceProvider> registeredServiceProviders;
+    private final ServiceProviderDefaults serviceProviderDefaults;
     private final X509Credential signingCredential;
     private final X509Credential metadataSigningCredential;
     private ContactInfo technicalContact;
     private OrganizationInfo organization;
+
+    private Map<String, SamlServiceProvider> registeredServiceProviders;
 
     // Package access - use Builder instead
     SamlIdentityProvider(String entityId, Map<String, URL> ssoEndpoints, Map<String, URL> sloEndpoints,
@@ -46,6 +54,8 @@ public class SamlIdentityProvider {
         this.ssoEndpoints = ssoEndpoints;
         this.sloEndpoints = sloEndpoints;
         this.signingCredential = signingCredential;
+        // TODO
+        this.serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5));
         this.metadataSigningCredential = metadataSigningCredential;
         this.technicalContact = technicalContact;
         this.organization = organization;
@@ -69,10 +79,6 @@ public class SamlIdentityProvider {
         return sloEndpoints.get(binding);
     }
 
-    public SamlServiceProvider getRegisteredServiceProvider(String spEntityId) {
-        return registeredServiceProviders.get(spEntityId);
-    }
-
     public X509Credential getSigningCredential() {
         return signingCredential;
     }
@@ -89,13 +95,38 @@ public class SamlIdentityProvider {
         return technicalContact;
     }
 
+    public ServiceProviderDefaults getServiceProviderDefaults() {
+        return serviceProviderDefaults;
+    }
+
+    /**
+     * Asynchronously lookup the specified {@link SamlServiceProvider} by entity-id.
+     * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
+     *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
+     *                 the backing store (elasticsearch index) that hold the SP data).
+     */
+    public void getRegisteredServiceProvider(String spEntityId, ActionListener<SamlServiceProvider> listener) {
+        // TODO use resolver
+        listener.onResponse(registeredServiceProviders.get(spEntityId));
+    }
+
     private Map<String, SamlServiceProvider> gatherRegisteredServiceProviders() {
         // TODO Fetch all the registered service providers from the index (?) they are persisted.
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
-        registeredSps.put("https://sp.some.org",
-            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", Set.of(TRANSIENT), null, false,
-                false, null));
+        try {
+            registeredSps.put("https://sp.some.org",
+                new CloudServiceProvider("https://sp.some.org", new URL("https://sp.some.org/api/security/v1/saml"), Set.of(TRANSIENT),
+                    Duration.standardMinutes(5), null,
+                    new SamlServiceProvider.AttributeNames(
+                        "https://saml.elasticsearch.org/attributes/principal",
+                        "https://saml.elasticsearch.org/attributes/name",
+                        "https://saml.elasticsearch.org/attributes/email",
+                        "https://saml.elasticsearch.org/attributes/groups"),
+                    null, false, false));
+        } catch (MalformedURLException e) {
+            throw new UncheckedIOException(e);
+        }
         return registeredSps;
     }
 
@@ -174,6 +205,23 @@ public class SamlIdentityProvider {
         @Override
         public int hashCode() {
             return Objects.hash(organizationName, displayName, url);
+        }
+    }
+
+    public static final class ServiceProviderDefaults {
+        public final String applicationName;
+        public final String loginAction;
+        public final String nameIdFormat;
+        public final ReadableDuration authenticationExpiry;
+
+        public ServiceProviderDefaults(String applicationName,
+                                       String loginAction,
+                                       String nameIdFormat,
+                                       ReadableDuration authenticationExpiry) {
+            this.applicationName = applicationName;
+            this.loginAction = loginAction;
+            this.nameIdFormat = nameIdFormat;
+            this.authenticationExpiry = authenticationExpiry;
         }
     }
 }

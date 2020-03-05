@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -13,12 +14,15 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.SerializationTestUtils;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 
 import java.io.IOException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.List;
@@ -51,35 +55,36 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     }
 
     public void testValidationSucceedsWithMinimalFields() throws Exception {
-        final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
-        doc.setDocId(randomAlphaOfLength(16));
-        doc.setName(randomAlphaOfLengthBetween(8, 12));
-        doc.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
-        doc.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
-        doc.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
-        doc.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
-        doc.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
-        doc.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        final SamlServiceProviderDocument doc = createMinimalDocument();
         final ValidationException validationException = doc.validate();
         assertThat(validationException, nullValue());
     }
 
     public void testXContentRoundTripWithMinimalFields() throws Exception {
-        final SamlServiceProviderDocument doc1 = new SamlServiceProviderDocument();
-        doc1.setDocId(randomAlphaOfLength(16));
-        doc1.setName(randomAlphaOfLengthBetween(8, 12));
-        doc1.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
-        doc1.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
-        doc1.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
-        doc1.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
-        doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
-        doc1.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
-
+        final SamlServiceProviderDocument doc1 = createMinimalDocument();
         final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
         assertThat(assertXContentRoundTrip(doc2), equalTo(doc1));
     }
 
     public void testXContentRoundTripWithAllFields() throws Exception {
+        final SamlServiceProviderDocument doc1 = createFullDocument();
+        final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
+        assertThat(assertXContentRoundTrip(doc2), equalTo(doc1));
+    }
+
+    public void testStreamRoundTripWithMinimalFields() throws Exception {
+        final SamlServiceProviderDocument doc1 = createMinimalDocument();
+        final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
+        assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
+    }
+
+    public void testStreamRoundTripWithAllFields() throws Exception {
+        final SamlServiceProviderDocument doc1 = createFullDocument();
+        final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
+        assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
+    }
+
+    private SamlServiceProviderDocument createFullDocument() throws CertificateException, IOException {
         final List<X509Credential> credentials = readCredentials();
         final List<X509Certificate> certificates = credentials.stream()
             .map(X509Credential::getEntityCertificate)
@@ -114,9 +119,20 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.attributeNames.setEmail("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setName("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setGroups("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        return doc1;
+    }
 
-        final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
-        assertThat(assertXContentRoundTrip(doc2), equalTo(doc1));
+    private SamlServiceProviderDocument createMinimalDocument() {
+        final SamlServiceProviderDocument doc1 = new SamlServiceProviderDocument();
+        doc1.setDocId(randomAlphaOfLength(16));
+        doc1.setName(randomAlphaOfLengthBetween(8, 12));
+        doc1.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
+        doc1.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
+        doc1.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
+        doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
+        doc1.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        return doc1;
     }
 
     private SamlServiceProviderDocument assertXContentRoundTrip(SamlServiceProviderDocument obj1) throws IOException {
@@ -133,6 +149,11 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
             return obj2;
         }
+    }
+
+    private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument obj1) throws IOException {
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
+        return SerializationTestUtils.assertRoundTrip(obj1, SamlServiceProviderDocument::new, version);
     }
 
 }

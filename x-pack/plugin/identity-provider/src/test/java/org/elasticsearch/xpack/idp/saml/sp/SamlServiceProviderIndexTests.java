@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
@@ -177,7 +181,10 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> getAllDocs(SamlServiceProviderIndex index) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        index.findAll(future);
+        index.findAll(ActionListener.wrap(
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            future::onFailure
+        ));
         return future.actionGet();
     }
 
@@ -188,15 +195,18 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     }
 
     private void writeDocument(SamlServiceProviderIndex index, SamlServiceProviderDocument doc) {
-        final PlainActionFuture<String> future = new PlainActionFuture<>();
-        index.writeDocument(doc, future);
-        doc.setDocId(future.actionGet());
+        final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
+        index.writeDocument(doc, DocWriteRequest.OpType.INDEX, future);
+        doc.setDocId(future.actionGet().getId());
     }
 
 
     private SamlServiceProviderDocument findByEntityId(SamlServiceProviderIndex index, String entityId) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        index.findByEntityId(entityId, future);
+        index.findByEntityId(entityId, ActionListener.wrap(
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            future::onFailure
+        ));
         final Set<SamlServiceProviderDocument> docs = future.actionGet();
         assertThat(docs, iterableWithSize(1));
         return docs.iterator().next();
@@ -208,7 +218,11 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         future.actionGet();
     }
 
-    private SamlServiceProviderDocument randomDocument(int index) {
+    public static SamlServiceProviderDocument randomDocument() {
+        return randomDocument(randomIntBetween(1, 999_999));
+    }
+
+    public static SamlServiceProviderDocument randomDocument(int index) {
         final SamlServiceProviderDocument document = new SamlServiceProviderDocument();
         document.setName(randomAlphaOfLengthBetween(5, 12));
         document.setEntityId(randomUri() + index);
@@ -254,11 +268,11 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         return document;
     }
 
-    private String randomUri() {
+    private static String randomUri() {
         return randomUri(randomFrom("urn", "http", "https"));
     }
 
-    private String randomUri(String scheme) {
+    private static String randomUri(String scheme) {
         return scheme + "://" + randomAlphaOfLengthBetween(2, 6) + "."
             + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 4) + "/";
     }

@@ -34,6 +34,7 @@ public class TransportSamlInitiateSingleSignOnAction
     extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
 
     private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
+
     private final SecurityContext securityContext;
     private final SamlIdentityProvider identityProvider;
     private final SamlFactory samlFactory;
@@ -50,30 +51,35 @@ public class TransportSamlInitiateSingleSignOnAction
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        try {
-            final SamlServiceProvider sp = identityProvider.getRegisteredServiceProvider(request.getSpEntityId());
-            if (null == sp) {
-                final String message =
-                    "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";
-                logger.debug(message);
-                listener.onFailure(new IllegalArgumentException(message));
-                return;
-            }
-            final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
-            if (secondaryAuthentication == null) {
-                listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
-                return;
-            }
-            final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
-            final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
-                Clock.systemUTC(), identityProvider);
-            final Response response = builder.build(user, null);
-            listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
-                samlFactory.getXmlContent(response),
-                user.getServiceProvider().getEntityId()));
-        } catch (IOException e) {
-            listener.onFailure(new IllegalArgumentException(e.getMessage()));
-        }
+        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
+            sp -> {
+                try {
+                    if (null == sp) {
+                        final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
+                            + "] is not registered with this Identity Provider";
+                        logger.debug(message);
+                        listener.onFailure(new IllegalArgumentException(message));
+                        return;
+                    }
+                    final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
+                    if (secondaryAuthentication == null) {
+                        listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
+                        return;
+                    }
+                    final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
+                    final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
+                        samlFactory, Clock.systemUTC(), identityProvider);
+                    final Response response = builder.build(user, null);
+                    listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                        user.getServiceProvider().getAssertionConsumerService().toString(),
+                        samlFactory.getXmlContent(response),
+                        user.getServiceProvider().getEntityId()));
+                } catch (IOException e) {
+                    listener.onFailure(new IllegalArgumentException(e.getMessage()));
+                }
+            },
+            listener::onFailure
+        ));
     }
 
     private UserServiceAuthentication buildUserFromAuthentication(Authentication authentication, SamlServiceProvider sp) {

@@ -51,7 +51,7 @@ public final class SReturn extends AStatement {
             expression.expected = scope.getReturnType();
             expression.internal = true;
             expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+            expression.cast();
         }
 
         methodEscape = true;
@@ -65,7 +65,7 @@ public final class SReturn extends AStatement {
     ReturnNode write(ClassNode classNode) {
         ReturnNode returnNode = new ReturnNode();
 
-        returnNode.setExpressionNode(expression == null ? null : expression.write(classNode));
+        returnNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
 
         returnNode.setLocation(location);
 

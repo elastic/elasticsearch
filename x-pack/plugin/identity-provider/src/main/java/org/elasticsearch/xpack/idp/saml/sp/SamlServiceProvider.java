@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
 import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
@@ -27,17 +26,26 @@ public interface SamlServiceProvider {
     ReadableDuration getAuthnExpiry();
 
     class AttributeNames {
-        public final String groups = "https://saml.elasticsearch.org/attributes/groups";
+        public final String principal;
+        public final String name;
+        public final String email;
+        public final String groups;
+
+        public AttributeNames(String principal, String name, String email, String groups) {
+            this.principal = principal;
+            this.name = name;
+            this.email = email;
+            this.groups = groups;
+        }
     }
 
     AttributeNames getAttributeNames();
 
-    @Nullable
-    X509Credential getSpSigningCredential();
+    ServiceProviderPrivileges getPrivileges();
+
+    Set<X509Credential> getSpSigningCredentials();
 
     boolean shouldSignAuthnRequests();
 
     boolean shouldSignLogoutRequests();
-
-    ServiceProviderPrivileges getPrivileges();
 }

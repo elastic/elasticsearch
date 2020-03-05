@@ -46,7 +46,6 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
@@ -110,7 +109,23 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess(true);
+        final Runnable cancellation;
+        if (context.lowLevelCancellation()) {
+            cancellation = context.searcher().addQueryCancellation(() -> {
+                if (context.getTask().isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+            });
+        } else {
+            cancellation = null;
+        }
+        try {
+            context.preProcess(true);
+        } finally {
+            if (cancellation != null) {
+                context.searcher().removeQueryCancellation(cancellation);
+            }
+        }
     }
 
     @Override
@@ -265,9 +280,8 @@ public class QueryPhase implements SearchPhase {
             }
 
             if (searchContext.lowLevelCancellation()) {
-                SearchShardTask task = searchContext.getTask();
                 searcher.addQueryCancellation(() -> {
-                    if (task.isCancelled()) {
+                    if (searchContext.getTask().isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }
                 });

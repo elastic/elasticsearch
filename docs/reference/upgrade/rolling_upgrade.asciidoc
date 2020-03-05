@@ -10,14 +10,14 @@ running the older version.
 We strongly recommend you upgrade you divide your cluster's nodes into the
 following two groups and upgrade the groups in this order:
 
-. Nodes that are not <<master-node,master-eligible>>. You can retrieve a list of
-these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
-configured with `node.master: false`. You may upgrade the nodes in this group in
-any order.
+. Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
+of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
+configured with `node.master: false`.
 
 . Master-eligible nodes, which are the remaining nodes. You can retrieve a list
-of these nodes with `GET /_nodes/master:true`. You may upgrade the nodes in this
-group in any order.
+of these nodes with `GET /_nodes/master:true`.
+
+You may upgrade the nodes within each of these groups in any order.
 
 Upgrading the nodes in this order ensures that the master-ineligible nodes are
 always running a version at least as new as the master-eligible nodes. Newer

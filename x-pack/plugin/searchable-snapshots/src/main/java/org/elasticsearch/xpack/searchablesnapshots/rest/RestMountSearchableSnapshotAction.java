@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -14,11 +15,10 @@ import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapsho
 import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotRequest;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestMountSearchableSnapshotAction extends BaseRestHandler {
     @Override
@@ -28,16 +28,17 @@ public class RestMountSearchableSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Arrays.asList(new Route(POST, "/{index}/_snapshot/mount"),
-            new Route(PUT, "/{index}/_snapshot/mount"));
+        return Collections.singletonList(new Route(POST, "/{index}/_searchable_snapshots/mount"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        MountSearchableSnapshotRequest restoreRequest = new MountSearchableSnapshotRequest(request.param("index"));
-        restoreRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreRequest.masterNodeTimeout()));
-        restoreRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
-        request.applyContentParser(p -> restoreRequest.source(p.mapOrdered()));
-        return channel -> client.execute(MountSearchableSnapshotAction.INSTANCE, restoreRequest, new RestToXContentListener<>(channel));
+        MountSearchableSnapshotRequest mountSearchableSnapshotRequest = MountSearchableSnapshotRequest.PARSER.apply(request.contentParser(),
+            new MountSearchableSnapshotRequest.RequestParams(
+                request.param("index"),
+                request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT),
+                request.paramAsBoolean("wait_for_completion", false)));
+        return channel -> client.execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
+            new RestToXContentListener<>(channel));
     }
 }

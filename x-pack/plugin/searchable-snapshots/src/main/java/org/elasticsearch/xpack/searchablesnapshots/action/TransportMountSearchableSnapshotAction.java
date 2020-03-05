@@ -149,7 +149,8 @@ public class TransportMountSearchableSnapshotAction
                     // Don't include aliases
                     .includeAliases(false)
                     // Pass through the wait-for-completion flag
-                    .waitForCompletion(request.waitForCompletion());
+                    .waitForCompletion(request.waitForCompletion())
+                    .masterNodeTimeout(request.masterNodeTimeout());
 
                 // Finally, actually restore the snapshot, passing in the original listener
                 client.admin().cluster().restoreSnapshot(restoreRequest, listener);

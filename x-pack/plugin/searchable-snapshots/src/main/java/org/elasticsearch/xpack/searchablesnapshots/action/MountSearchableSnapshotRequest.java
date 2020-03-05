@@ -6,46 +6,92 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> implements ToXContentObject {
 
+    public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RequestParams> PARSER = new ConstructingObjectParser<>(
+        "mount_searchable_snapshot", true,
+        (a, p) -> new MountSearchableSnapshotRequest(p.mountedIndexName, (String) a[0], (String) a[1], (String) a[2],
+            (Settings) a[3], (Settings) a[4], (String[]) a[5], p.masterTimeout, p.waitForCompletion));
+
+    private static final ParseField REPOSITORY_FIELD = new ParseField("repository");
+    private static final ParseField SNAPSHOT_FIELD = new ParseField("snapshot");
+    private static final ParseField SNAPSHOT_INDEX_FIELD = new ParseField("index");
+    private static final ParseField SETTINGS_FIELD = new ParseField("settings");
+    private static final ParseField INDEX_SETTINGS_FIELD = new ParseField("index_settings");
+    private static final ParseField IGNORE_INDEX_SETTINGS_FIELD = new ParseField("ignore_index_settings");
+
+    static {
+        PARSER.declareField(constructorArg(), XContentParser::text, REPOSITORY_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), XContentParser::text, SNAPSHOT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), XContentParser::text, SNAPSHOT_INDEX_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(),
+            p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
+            IGNORE_INDEX_SETTINGS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+    }
+
+    public static class RequestParams {
+        final String mountedIndexName;
+        final TimeValue masterTimeout;
+        final boolean waitForCompletion;
+
+        public RequestParams(String mountedIndexName, TimeValue masterTimeout, boolean waitForCompletion) {
+            this.mountedIndexName = mountedIndexName;
+            this.masterTimeout = masterTimeout;
+            this.waitForCompletion = waitForCompletion;
+        }
+    }
+
+    private final String repository;
+    private final String snapshot;
+    private final String snapshotIndex;
     private final String mountedIndex;
-    private String snapshot;
-    private String repository;
-    private String snapshotIndex;
-    private Boolean waitForCompletion;
-    private Settings settings = EMPTY_SETTINGS;
-    private Settings indexSettings = EMPTY_SETTINGS;
-    private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private final boolean waitForCompletion;
+    private final Settings settings;
+    private final Settings indexSettings;
+    private final String[] ignoreIndexSettings;
 
     /**
      * Constructs a new mount searchable snapshot request, restoring an index under the given mountedIndex name
      */
-    public MountSearchableSnapshotRequest(String mountedIndex) {
-        this.mountedIndex = mountedIndex;
+    public MountSearchableSnapshotRequest(String mountedIndexName,
+                                          String repository, String snapshotName, String snapshotIndexName,
+                                          Settings settings, Settings indexSettings,
+                                          String[] ignoreIndexSettings, TimeValue masterNodeTimeout, boolean waitForCompletion) {
+        this.repository = Objects.requireNonNull(repository);
+        this.snapshot = Objects.requireNonNull(snapshotName);
+        this.snapshotIndex = Objects.requireNonNull(snapshotIndexName);
+        this.mountedIndex = Objects.requireNonNull(mountedIndexName);
+        this.settings = Objects.requireNonNullElse(settings, Settings.EMPTY);
+        this.indexSettings = Objects.requireNonNullElse(indexSettings, Settings.EMPTY);
+        this.ignoreIndexSettings = Objects.requireNonNullElse(ignoreIndexSettings, Strings.EMPTY_ARRAY);
+        this.waitForCompletion = waitForCompletion;
+        masterNodeTimeout(Objects.requireNonNull(masterNodeTimeout));
     }
 
     public MountSearchableSnapshotRequest(StreamInput in) throws IOException {
@@ -54,7 +100,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.repository = in.readString();
         this.snapshotIndex = in.readString();
         this.mountedIndex = in.readString();
-        this.waitForCompletion = in.readOptionalBoolean();
+        this.waitForCompletion = in.readBoolean();
         this.settings = readSettingsFromStream(in);
         this.indexSettings = readSettingsFromStream(in);
         this.ignoreIndexSettings = in.readStringArray();
@@ -67,7 +113,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         out.writeString(repository);
         out.writeString(snapshotIndex);
         out.writeString(mountedIndex);
-        out.writeOptionalBoolean(waitForCompletion);
+        out.writeBoolean(waitForCompletion);
         writeSettingsToStream(settings, out);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
@@ -75,57 +121,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (snapshot == null) {
-            validationException = addValidationError("snapshot name is missing", validationException);
-        }
-        if (repository == null) {
-            validationException = addValidationError("repository is missing", validationException);
-        }
-        if (snapshotIndex == null) {
-            validationException = addValidationError("index name from snapshot is missing", validationException);
-        }
-        if (mountedIndex == null) {
-            validationException = addValidationError("index name to mount is missing", validationException);
-        }
-        if (settings == null) {
-            validationException = addValidationError("settings are missing", validationException);
-        }
-        if (indexSettings == null) {
-            validationException = addValidationError("indexSettings are missing", validationException);
-        }
-        return validationException;
-    }
-
-    /**
-     * Sets the name of the snapshot.
-     *
-     * @param snapshot snapshot name
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest snapshot(String snapshot) {
-        this.snapshot = snapshot;
-        return this;
-    }
-
-    /**
-     * Returns the name of the snapshot.
-     *
-     * @return snapshot name
-     */
-    public String snapshot() {
-        return this.snapshot;
-    }
-
-    /**
-     * Sets repository name
-     *
-     * @param repository repository name
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest repository(String repository) {
-        this.repository = repository;
-        return this;
+       return null;
     }
 
     /**
@@ -138,12 +134,14 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     }
 
     /**
-     * Sets the name of the index that should be restored from snapshot
+     * Returns the name of the snapshot.
+     *
+     * @return snapshot name
      */
-    public MountSearchableSnapshotRequest snapshotIndex(String indexName) {
-        this.snapshotIndex = indexName;
-        return this;
+    public String snapshot() {
+        return this.snapshot;
     }
+
 
     /**
      * Returns index that should be restored from snapshot
@@ -160,82 +158,12 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     }
 
     /**
-     * If this parameter is set to true the operation will wait for completion of restore process before returning.
-     *
-     * @param waitForCompletion if true the operation will wait for completion
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest waitForCompletion(boolean waitForCompletion) {
-        this.waitForCompletion = waitForCompletion;
-        return this;
-    }
-
-    /**
      * Returns wait for completion setting
      *
      * @return true if the operation will wait for completion
      */
     public boolean waitForCompletion() {
         return waitForCompletion;
-    }
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest settings(Settings settings) {
-        this.settings = settings;
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest settings(Settings.Builder settings) {
-        this.settings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @return this request
-     */
-    public MountSearchableSnapshotRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-        return this;
     }
 
     /**
@@ -248,64 +176,10 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     }
 
     /**
-     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
-     */
-    public MountSearchableSnapshotRequest ignoreIndexSettings(String... ignoreIndexSettings) {
-        this.ignoreIndexSettings = ignoreIndexSettings;
-        return this;
-    }
-
-    /**
-     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
-     */
-    public MountSearchableSnapshotRequest ignoreIndexSettings(List<String> ignoreIndexSettings) {
-        this.ignoreIndexSettings = ignoreIndexSettings.toArray(new String[ignoreIndexSettings.size()]);
-        return this;
-    }
-
-    /**
      * Returns the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public String[] ignoreIndexSettings() {
         return ignoreIndexSettings;
-    }
-
-    /**
-     * Sets settings that should be added/changed for restored index
-     */
-    public MountSearchableSnapshotRequest indexSettings(Settings settings) {
-        this.indexSettings = settings;
-        return this;
-    }
-
-    /**
-     * Sets settings that should be added/changed for restored index
-     */
-    public MountSearchableSnapshotRequest indexSettings(Settings.Builder settings) {
-        this.indexSettings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets settings that should be added/changed for restored index
-     */
-    public MountSearchableSnapshotRequest indexSettings(String source, XContentType xContentType) {
-        this.indexSettings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
-     * Sets settings that should be added/changed for restored index
-     */
-    public MountSearchableSnapshotRequest indexSettings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            indexSettings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-        return this;
     }
 
     /**
@@ -315,87 +189,29 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         return this.indexSettings;
     }
 
-    /**
-     * Parses mount definition
-     *
-     * @param source mount definition
-     * @return this request
-     */
-    @SuppressWarnings("unchecked")
-    public MountSearchableSnapshotRequest source(Map<String, Object> source) {
-        // TODO: this could be rewritten with a Constructing Object Parser rather than manually
-        //  parsing the XContent, this was copied/modified from RestoreSnapshotRequest
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String name = entry.getKey();
-            if (name.equals("snapshot_index")) {
-                if (entry.getValue() instanceof String) {
-                    snapshotIndex((String) entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("malformed snapshot_index section, should be a single string but was [" +
-                        entry.getValue() + "]");
-                }
-            } else if (name.equals("repository")) {
-                if (!(entry.getValue() instanceof String)) {
-                    throw new IllegalArgumentException("malformed repository");
-                }
-                repository((String) entry.getValue());
-            } else if (name.equals("snapshot")) {
-                if (!(entry.getValue() instanceof String)) {
-                    throw new IllegalArgumentException("malformed snapshot");
-                }
-                snapshot((String) entry.getValue());
-            } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("malformed settings section");
-                }
-                settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("index_settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("malformed index_settings section");
-                }
-                indexSettings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("ignore_index_settings")) {
-                if (entry.getValue() instanceof String) {
-                    ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
-                } else if (entry.getValue() instanceof List) {
-                    ignoreIndexSettings((List<String>) entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
-                }
-            } else {
-                if (IndicesOptions.isIndicesOptions(name) == false) {
-                    throw new IllegalArgumentException("Unknown parameter " + name);
-                }
-            }
-        }
-        return this;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("snapshot_index", snapshotIndex);
-        builder.field("repository", repository);
-        builder.field("snapshot", snapshot);
-        if (settings != null) {
-            builder.startObject("settings");
-            if (settings.isEmpty() == false) {
-                settings.toXContent(builder, params);
-            }
+        builder.field(REPOSITORY_FIELD.getPreferredName(), repository);
+        builder.field(SNAPSHOT_FIELD.getPreferredName(), snapshot);
+        builder.field(SNAPSHOT_INDEX_FIELD.getPreferredName(), snapshotIndex);
+        if (settings.isEmpty() == false) {
+            builder.startObject(SETTINGS_FIELD.getPreferredName());
+            settings.toXContent(builder, params);
             builder.endObject();
         }
-        if (indexSettings != null) {
-            builder.startObject("index_settings");
-            if (indexSettings.isEmpty() == false) {
-                indexSettings.toXContent(builder, params);
-            }
+        if (indexSettings.isEmpty() == false) {
+            builder.startObject(INDEX_SETTINGS_FIELD.getPreferredName());
+            indexSettings.toXContent(builder, params);
             builder.endObject();
         }
-        builder.startArray("ignore_index_settings");
-        for (String ignoreIndexSetting : ignoreIndexSettings) {
-            builder.value(ignoreIndexSetting);
+        if (ignoreIndexSettings.length > 0) {
+            builder.startArray(IGNORE_INDEX_SETTINGS_FIELD.getPreferredName());
+            for (String ignoreIndexSetting : ignoreIndexSettings) {
+                builder.value(ignoreIndexSetting);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -417,13 +233,14 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             Objects.equals(mountedIndex, that.mountedIndex) &&
             Objects.equals(settings, that.settings) &&
             Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
+            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
+            Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, snapshotIndex, mountedIndex, waitForCompletion,
-            settings, indexSettings);
+        int result = Objects.hash(snapshot, repository, snapshotIndex, mountedIndex, waitForCompletion, settings, indexSettings,
+            masterNodeTimeout);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;
     }

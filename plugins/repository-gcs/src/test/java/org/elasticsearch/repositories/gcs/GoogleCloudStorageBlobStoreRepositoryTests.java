@@ -264,6 +264,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                                                     final HttpTransportOptions httpTransportOptions) {
                     StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
                     return options.toBuilder()
+                        .setHost(options.getHost())
+                        .setCredentials(options.getCredentials())
                         .setRetrySettings(RetrySettings.newBuilder()
                             .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                             .setInitialRetryDelay(Duration.ofMillis(10L))
@@ -331,7 +333,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             }
 
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-            return exchange.getRemoteAddress().toString()
+            return exchange.getRemoteAddress().getHostString()
                 + " " + exchange.getRequestMethod()
                 + " " + exchange.getRequestURI()
                 + (range != null ?  " " + range :  "");

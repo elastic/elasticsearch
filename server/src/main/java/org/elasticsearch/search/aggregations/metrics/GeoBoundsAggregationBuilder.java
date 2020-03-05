@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private static final ObjectParser<GeoBoundsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareFields(PARSER, false, false, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 

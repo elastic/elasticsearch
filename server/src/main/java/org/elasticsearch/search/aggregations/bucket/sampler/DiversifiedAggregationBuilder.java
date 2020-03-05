@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -47,7 +46,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     private static final ObjectParser<DiversifiedAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DiversifiedAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareFields(PARSER, true, false, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareInt(DiversifiedAggregationBuilder::shardSize, SamplerAggregator.SHARD_SIZE_FIELD);
         PARSER.declareInt(DiversifiedAggregationBuilder::maxDocsPerValue, SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD);
         PARSER.declareString(DiversifiedAggregationBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);

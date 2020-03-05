@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -105,7 +104,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             return ctor.apply(name, values, percentilesConfig);
         });
 
-        ValuesSourceParserHelper.declareFields(parser, true, true, false);
+        ValuesSourceAggregationBuilder.declareFields(parser, true, true, false);
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), valuesField);
         parser.declareBoolean(T::keyed, KEYED_FIELD);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,

@@ -560,7 +560,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // generating description in a lazy way since source can be quite big
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override

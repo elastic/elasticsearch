@@ -39,6 +39,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -47,9 +49,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
@@ -98,8 +100,8 @@ class AsyncSearchIndexService {
     }
 
     private final ClusterService clusterService;
-    private final ThreadContext threadContext;
     private final Client client;
+    private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
 
     AsyncSearchIndexService(ClusterService clusterService,
@@ -107,8 +109,8 @@ class AsyncSearchIndexService {
                             Client client,
                             NamedWriteableRegistry registry) {
         this.clusterService = clusterService;
-        this.threadContext = threadContext;
-        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+        this.client = new OriginSettingClient(client, ASYNC_SEARCH_ORIGIN);
         this.registry = registry;
     }
 
@@ -160,6 +162,7 @@ class AsyncSearchIndexService {
         source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
         source.put(RESULT_FIELD, encodeResponse(response));
         IndexRequest indexRequest = new IndexRequest(INDEX)
+            .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
         createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
@@ -226,7 +229,7 @@ class AsyncSearchIndexService {
      */
     AsyncSearchTask getTask(TaskManager taskManager, AsyncSearchId searchId) throws IOException {
         Task task = taskManager.getTask(searchId.getTaskId().getId());
-        if (task == null || task instanceof AsyncSearchTask == false) {
+        if (task instanceof AsyncSearchTask == false) {
             return null;
         }
         AsyncSearchTask searchTask = (AsyncSearchTask) task;
@@ -235,7 +238,7 @@ class AsyncSearchIndexService {
         }
 
         // Check authentication for the user
-        final Authentication auth = Authentication.getAuthentication(threadContext);
+        final Authentication auth = securityContext.getAuthentication();
         if (ensureAuthenticatedUserIsSame(searchTask.getOriginHeaders(), auth) == false) {
             throw new ResourceNotFoundException(searchId.getEncoded() + " not found");
         }
@@ -248,7 +251,7 @@ class AsyncSearchIndexService {
      */
     void getResponse(AsyncSearchId searchId,
                      ActionListener<AsyncSearchResponse> listener) {
-        final Authentication current = Authentication.getAuthentication(client.threadPool().getThreadContext());
+        final Authentication current = securityContext.getAuthentication();
         GetRequest internalGet = new GetRequest(INDEX)
             .preference(searchId.getEncoded())
             .id(searchId.getDocId());
@@ -267,7 +270,6 @@ class AsyncSearchIndexService {
                     return;
                 }
 
-                @SuppressWarnings("unchecked")
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 listener.onResponse(encoded != null ? decodeResponse(encoded) : null);
             },
@@ -289,7 +291,7 @@ class AsyncSearchIndexService {
             // origin is an authenticated user but current is not
             return false;
         }
-        Authentication origin = Authentication.decode(originHeaders.get(AUTHENTICATION_KEY));
+        Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
         return ensureAuthenticatedUserIsSame(origin, current);
     }
 

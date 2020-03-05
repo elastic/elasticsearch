@@ -7,19 +7,24 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 
-import java.io.IOException;
 
+import java.io.IOException;
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteAsyncSearchAction extends BaseRestHandler  {
-
-    public RestDeleteAsyncSearchAction(RestController controller) {
-        controller.registerHandler(DELETE, "/_async_search/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(DELETE, "/_async_search/{id}")));
     }
 
     @Override

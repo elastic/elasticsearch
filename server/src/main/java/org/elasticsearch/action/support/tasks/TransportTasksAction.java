@@ -99,12 +99,7 @@ public abstract class TransportTasksAction<
     private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
-        try {
-            processTasks(request, tasks::add);
-        } catch (Exception exc) {
-            listener.onFailure(exc);
-            return;
-        }
+        processTasks(request, tasks::add);
         if (tasks.isEmpty()) {
             listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), emptyList(), emptyList()));
             return;

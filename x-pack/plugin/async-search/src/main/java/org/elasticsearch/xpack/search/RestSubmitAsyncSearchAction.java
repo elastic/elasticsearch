@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -18,17 +18,22 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.io.IOException;
 import java.util.function.IntConsumer;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
 
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
-    RestSubmitAsyncSearchAction(RestController controller) {
-        controller.registerHandler(POST, "/_async_search", this);
-        controller.registerHandler(GET, "/_async_search", this);
-        controller.registerHandler(POST, "/{index}/_async_search", this);
-        controller.registerHandler(GET, "/{index}/_async_search", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_async_search"),
+            new Route(GET, "/_async_search"),
+            new Route(POST, "/{index}/_async_search"),
+            new Route(GET, "/{index}/_async_search")));
     }
 
     @Override

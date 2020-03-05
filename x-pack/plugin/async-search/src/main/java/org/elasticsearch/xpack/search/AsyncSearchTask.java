@@ -136,7 +136,7 @@ class AsyncSearchTask extends SearchTask {
                 }
 
                 @Override
-                public void onFailure(Exception e) {
+                public void onFailure(Exception exc) {
                     // cancelling failed
                     isCancelling.compareAndSet(true, false);
                     runnable.run();
@@ -144,7 +144,7 @@ class AsyncSearchTask extends SearchTask {
             });
         } else {
             runnable.run();
-        }
+       }
     }
 
     @Override

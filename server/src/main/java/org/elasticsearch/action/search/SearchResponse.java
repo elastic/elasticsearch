@@ -108,11 +108,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
     }
 
-    public SearchResponse(SearchResponse clone) {
-        this(clone.internalResponse, clone.scrollId, clone.totalShards, clone.successfulShards, clone.skippedShards,
-            clone.tookInMillis, clone.shardFailures, clone.clusters);
-    }
-
     @Override
     public RestStatus status() {
         return RestStatus.status(successfulShards, totalShards, shardFailures);

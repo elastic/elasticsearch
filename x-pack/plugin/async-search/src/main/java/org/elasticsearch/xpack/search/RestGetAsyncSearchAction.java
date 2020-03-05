@@ -8,18 +8,23 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetAsyncSearchAction extends BaseRestHandler  {
-
-    public RestGetAsyncSearchAction(RestController controller) {
-        controller.registerHandler(GET, "/_async_search/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(new Route(GET, "/_async_search/{id}")));
     }
+
 
     @Override
     public String getName() {

@@ -196,8 +196,8 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         };
         client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                SearchTask task = (SearchTask) super.createTask(id, type, action, parentTaskId, headers);
+            public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                SearchTask task = super.createTask(id, type, action, parentTaskId, headers);
                 task.setProgressListener(listener);
                 return task;
             }

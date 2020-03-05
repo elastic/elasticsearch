@@ -39,6 +39,12 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public final class AsyncSearch extends Plugin implements ActionPlugin {
+    private final Settings settings;
+
+    public AsyncSearch(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
@@ -54,9 +60,9 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(restController),
-            new RestGetAsyncSearchAction(restController),
-            new RestDeleteAsyncSearchAction(restController)
+            new RestSubmitAsyncSearchAction(),
+            new RestGetAsyncSearchAction(),
+            new RestDeleteAsyncSearchAction()
         );
     }
 
@@ -69,7 +75,8 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry,
                                                Environment environment,
                                                NodeEnvironment nodeEnvironment,
-                                               NamedWriteableRegistry namedWriteableRegistry) {
+                                               NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         if (DiscoveryNode.isDataNode(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
             AsyncSearchIndexService indexService =

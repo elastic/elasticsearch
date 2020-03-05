@@ -115,6 +115,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
+        // same pivot as testSimplePivot, but we retrieve the grouping key using a script and add prefix
         String config = "{"
             + " \"dest\": {\"index\":\""
             + transformIndex

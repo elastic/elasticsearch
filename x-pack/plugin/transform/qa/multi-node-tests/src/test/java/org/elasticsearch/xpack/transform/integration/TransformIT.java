@@ -238,8 +238,6 @@ public class TransformIT extends TransformIntegTestCase {
             indexName
         ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
 
-        logger.info("config: {}", config);
-
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 

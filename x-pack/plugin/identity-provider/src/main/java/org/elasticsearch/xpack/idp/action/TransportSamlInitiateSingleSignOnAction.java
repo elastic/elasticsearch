@@ -56,36 +56,34 @@ public class TransportSamlInitiateSingleSignOnAction
         // TODO : Inject this IDP from the plugin
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         idp.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
-            sp -> doExecute(request, idp, sp, listener),
+            sp -> {
+                try {
+                    if (null == sp) {
+                        final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
+                            + "] is not registered with this Identity Provider";
+                        logger.debug(message);
+                        listener.onFailure(new IllegalArgumentException(message));
+                        return;
+                    }
+                    final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
+                    if (secondaryAuthentication == null) {
+                        listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
+                        return;
+                    }
+                    final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
+                    final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
+                        samlFactory, Clock.systemUTC(), idp);
+                    final Response response = builder.build(user, null);
+                    listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                        user.getServiceProvider().getAssertionConsumerService().toString(),
+                        samlFactory.getXmlContent(response),
+                        user.getServiceProvider().getEntityId()));
+                } catch (IOException e) {
+                    listener.onFailure(new IllegalArgumentException(e.getMessage()));
+                }
+            },
             listener::onFailure
         ));
-    }
-
-    private void doExecute(SamlInitiateSingleSignOnRequest request, SamlIdentityProvider idp, SamlServiceProvider sp,
-                           ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        try {
-            if (null == sp) {
-                final String message =
-                    "Service Provider with Entity ID [" + request.getSpEntityId() + "] is not registered with this Identity Provider";
-                logger.debug(message);
-                listener.onFailure(new IllegalArgumentException(message));
-                return;
-            }
-            final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
-            if (secondaryAuthentication == null) {
-                listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
-                return;
-            }
-            final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
-            final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(samlFactory,
-                Clock.systemUTC(), idp);
-            final Response response = builder.build(user, null);
-            listener.onResponse(new SamlInitiateSingleSignOnResponse(user.getServiceProvider().getAssertionConsumerService().toString(),
-                samlFactory.getXmlContent(response),
-                user.getServiceProvider().getEntityId()));
-        } catch (IOException e) {
-            listener.onFailure(new IllegalArgumentException(e.getMessage()));
-        }
     }
 
     private UserServiceAuthentication buildUserFromAuthentication(Authentication authentication, SamlServiceProvider sp) {

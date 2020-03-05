@@ -95,7 +95,7 @@ public class CloudIdp implements SamlIdentityProvider {
     }
 
     /**
-     * Asynchronously lookup the specified {@link SamlServiceProvider} by entity-id.
+     * Asynchronously lookup the specified {@link SamlServiceProvider} by EntityID.
      * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
      *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
      *                 the backing store (elasticsearch index) that hold the SP data).

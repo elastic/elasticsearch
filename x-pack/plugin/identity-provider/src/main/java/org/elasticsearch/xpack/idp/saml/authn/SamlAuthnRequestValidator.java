@@ -134,7 +134,7 @@ public class SamlAuthnRequestValidator {
             parameters.get("Signature"));
     }
 
-    private boolean validateAuthnRequest(AuthnRequest authnRequest, SamlServiceProvider sp, ParsedQueryString parsedQueryString,
+    private void validateAuthnRequest(AuthnRequest authnRequest, SamlServiceProvider sp, ParsedQueryString parsedQueryString,
                                          ActionListener<SamlValidateAuthnRequestResponse> listener) {
         // If the Service Provider should not sign requests, do not try to handle signatures even if they are added to the request
         if (sp.shouldSignAuthnRequests()) {
@@ -142,7 +142,7 @@ public class SamlAuthnRequestValidator {
                 if (Strings.hasText(parsedQueryString.sigAlg) == false) {
                     logAndRespond(new ParameterizedMessage("Query string [{}] contains a Signature but SigAlg parameter is missing",
                         parsedQueryString.queryString), listener);
-                    return true;
+                    return;
                 }
                 final X509Credential spSigningCredential = sp.getSpSigningCredential();
                 if (spSigningCredential == null) {
@@ -150,32 +150,34 @@ public class SamlAuthnRequestValidator {
                         "Unable to validate signature of authentication request, " +
                             "Service Provider hasn't registered signing credentials",
                         listener);
-                    return true;
+                    return;
                 }
                 if (validateSignature(parsedQueryString, spSigningCredential) == false) {
                     logAndRespond(
                         new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
                             parsedQueryString.queryString,
                             samlFactory.describeCredentials(Collections.singletonList(spSigningCredential))), listener);
-                    return true;
+                    return;
                 }
             } else if (Strings.hasText(parsedQueryString.sigAlg)) {
                 logAndRespond(new ParameterizedMessage("Query string [{}] contains a SigAlg parameter but Signature is missing",
                     parsedQueryString.queryString), listener);
-                return true;
+                return;
             } else {
                 logAndRespond("The Service Provider must sign authentication requests but no signature was found", listener);
-                return true;
+                return;
             }
         }
-        validateAuthnRequest(authnRequest, sp);
+
+        checkDestination(authnRequest);
+        checkAcs(authnRequest, sp);
+
         Map<String, Object> authnState = buildAuthnState(authnRequest, sp);
         final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(sp.getEntityId(),
             authnRequest.isForceAuthn(), authnState);
         logger.trace(new ParameterizedMessage("Validated AuthnResponse from queryString [{}] and extracted [{}]",
             parsedQueryString.queryString, response));
         listener.onResponse(response);
-        return false;
     }
 
     private Map<String, Object> buildAuthnState(AuthnRequest request, SamlServiceProvider sp) {
@@ -196,11 +198,6 @@ public class SamlAuthnRequestValidator {
             }
         }
         return authnState;
-    }
-
-    private void validateAuthnRequest(AuthnRequest authnRequest, SamlServiceProvider sp) {
-        checkDestination(authnRequest);
-        checkAcs(authnRequest, sp);
     }
 
     private boolean validateSignature(ParsedQueryString queryString, X509Credential credential) {

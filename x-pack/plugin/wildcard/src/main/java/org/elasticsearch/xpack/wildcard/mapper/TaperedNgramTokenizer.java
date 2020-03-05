@@ -82,7 +82,8 @@ public class TaperedNgramTokenizer extends Tokenizer {
           if (length == -1) break;
           upto += length;
           if (upto > IndexWriter.MAX_TERM_LENGTH) {
-              throw new IllegalArgumentException("Provided value longer than Lucene maximum term length of " + IndexWriter.MAX_TERM_LENGTH );
+              throw new IllegalArgumentException("Provided value longer than Lucene maximum term length of " 
+                      + IndexWriter.MAX_TERM_LENGTH );
           }
           if (upto == curTermBuffer.length)
               curTermBuffer = termAtt.resizeBuffer(1+curTermBuffer.length);

@@ -35,7 +35,7 @@ public class ValueTypeTests extends ESTestCase {
         assertEquals(ValueType.IP, ValueType.resolveForScript("ip"));
         assertEquals(ValueType.BOOLEAN, ValueType.resolveForScript("boolean"));
     }
-    
+
     public void testCompatibility() {
         assertTrue(ValueType.DOUBLE.isA(ValueType.NUMERIC));
         assertTrue(ValueType.DOUBLE.isA(ValueType.NUMBER));

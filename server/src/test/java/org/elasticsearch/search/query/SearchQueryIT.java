@@ -1773,16 +1773,16 @@ public class SearchQueryIT extends ESIntegTestCase {
    }
 
    /**
-    * Test that searches on keyword fields get normalized
+    * Test that wildcard queries on keyword fields get normalized
     */
-    public void testWildcardQueryNormalizationOnKeywordFields() {
+    public void testWildcardQueryNormalizationOnKeywordField() {
        assertAcked(prepareCreate("test")
                .setSettings(Settings.builder()
                        .put("index.analysis.normalizer.lowercase_normalizer.type", "custom")
                        .putList("index.analysis.normalizer.lowercase_normalizer.filter", "lowercase")
                        .build())
-                .setMapping("field1", "type=keyword,normalizer=lowercase_normalizer", "field2", "type=text,analyzer=whitespace"));
-       client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa", "field2", "Bbb Aaa").get();
+                .setMapping("field1", "type=keyword,normalizer=lowercase_normalizer"));
+       client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
        refresh();
 
         {
@@ -1795,6 +1795,31 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1L);
         }
    }
+
+    /**
+     * Test that wildcard queries on text fields get normalized
+     */
+     public void testWildcardQueryNormalizationOnTextField() {
+        assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                        .put("index.analysis.analyzer.lowercase_analyzer.type", "custom")
+                        .put("index.analysis.analyzer.lowercase_analyzer.tokenizer", "standard")
+                        .putList("index.analysis.analyzer.lowercase_analyzer.filter", "lowercase")
+                        .build())
+                 .setMapping("field1", "type=text,analyzer=lowercase_analyzer"));
+        client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+        refresh();
+
+         {
+             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
+             SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 1L);
+
+             wildCardQuery = wildcardQuery("field1", "bb*");
+             searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 1L);
+         }
+    }
 
     /**
      * Reserved characters should be excluded when the normalization is applied for keyword fields.

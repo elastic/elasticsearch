@@ -32,7 +32,6 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,8 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -63,7 +60,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
-    private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new KeywordFieldType();
@@ -309,31 +305,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             if (value instanceof BytesRef) {
                 value = ((BytesRef) value).utf8ToString();
-            }
-            if (value instanceof String) {
-                // best effort to not pass the wildcard characters and escaped characters through #normalize
-                String termStr = (String) value;
-                Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(termStr);
-                BytesRefBuilder sb = new BytesRefBuilder();
-                int last = 0;
-
-                while (wildcardMatcher.find()) {
-                    if (wildcardMatcher.start() > 0) {
-                        String chunk = termStr.substring(last, wildcardMatcher.start());
-                        BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
-                        sb.append(normalized);
-                    }
-                    // append the matched group - without normalizing
-                    sb.append(new BytesRef(wildcardMatcher.group()));
-
-                    last = wildcardMatcher.end();
-                }
-                if (last < termStr.length()) {
-                    String chunk = termStr.substring(last);
-                    BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
-                    sb.append(normalized);
-                }
-                return sb.toBytesRef();
             }
             return searchAnalyzer().normalize(name(), value.toString());
         }

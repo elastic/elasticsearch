@@ -202,7 +202,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         }
 
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden);
+            out.writeOptionalBoolean(isHidden());
         }
     }
 

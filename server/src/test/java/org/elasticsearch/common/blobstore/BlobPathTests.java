@@ -38,5 +38,4 @@ public class BlobPathTests extends ESTestCase {
         path = path.add("d/");
         assertThat(path.buildAsString(), is("a/b/c/d/"));
     }
-
 }

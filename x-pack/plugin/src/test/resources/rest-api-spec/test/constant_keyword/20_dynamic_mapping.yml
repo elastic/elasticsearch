@@ -1,0 +1,82 @@
+---
+"Dynamic mappings":
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          mappings:
+            properties:
+              foo:
+                type: constant_keyword
+
+  - do:
+      index:
+        index: test1
+        id:    1
+        body:  {}
+
+  - do:
+      indices.get_mapping:
+        index: test1
+
+  - match: { test1.mappings.properties.foo.type: constant_keyword }
+  - is_false: test1.mappings.properties.foo.value
+
+  - do:
+      index:
+        index: test1
+        id:    1
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.get_mapping:
+        index: test1
+
+  - match: { test1.mappings.properties.foo.type: constant_keyword }
+  - is_false: test1.mappings.properties.foo.value
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          query:
+            term:
+              foo:
+                value: bar
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          aggs:
+            foo_terms:
+              terms:
+                field: foo
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.foo_terms.buckets: 0 }
+
+  - do:    
+      index:
+        index: test1
+        id:    1
+        body:
+          foo: bar
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.get_mapping:
+        index: test1
+
+  - match: { test1.mappings.properties.foo.type: constant_keyword }
+  - match: { test1.mappings.properties.foo.value: bar }

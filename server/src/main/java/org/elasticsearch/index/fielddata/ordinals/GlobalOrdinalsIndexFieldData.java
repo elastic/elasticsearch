@@ -108,7 +108,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format) {
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
@@ -198,7 +198,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
         @Override
         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format) {
+                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new IllegalArgumentException("only supported on numeric fields");
         }
 

@@ -272,7 +272,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
             out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
             out.writeBoolean(Metrics.INDICES.containedIn(requestedMetrics));
         } else {
-            out.writeStringArray(requestedMetrics.toArray(String[]::new));
+            out.writeStringArray(requestedMetrics.toArray(new String[0]));
         }
     }
 

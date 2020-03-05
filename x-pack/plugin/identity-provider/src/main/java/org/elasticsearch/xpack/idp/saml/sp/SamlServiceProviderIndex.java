@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -120,6 +123,10 @@ public class SamlServiceProviderIndex implements Closeable {
         public DocumentSupplier(DocumentVersion version, Supplier<SamlServiceProviderDocument> document) {
             this.version = version;
             this.document = new CachedSupplier<>(document);
+        }
+
+        public SamlServiceProviderDocument getDocument() {
+            return document.get();
         }
     }
 
@@ -207,20 +214,23 @@ public class SamlServiceProviderIndex implements Closeable {
         return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
-    public void writeDocument(SamlServiceProviderDocument document, ActionListener<String> listener) {
+    public void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
+                              ActionListener<DocWriteResponse> listener) {
         final ValidationException exception = document.validate();
         if (exception != null) {
             listener.onFailure(exception);
             return;
         }
+
         if (templateInstalled) {
-            _writeDocument(document, listener);
+            _writeDocument(document, opType, listener);
         } else {
-            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, listener), listener::onFailure));
+            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, opType, listener), listener::onFailure));
         }
     }
 
-    private void _writeDocument(SamlServiceProviderDocument document, ActionListener<String> listener) {
+    private void _writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
+                                ActionListener<DocWriteResponse> listener) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              XContentBuilder xContentBuilder = new XContentBuilder(XContentType.JSON.xContent(), out)) {
             document.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -228,11 +238,13 @@ public class SamlServiceProviderIndex implements Closeable {
             // - that would cause the alias to be created as a concrete index, which is not what we want.
             // So, until we know that the alias exists we have to write to the expected index name instead.
             final IndexRequest request = new IndexRequest(aliasExists ? ALIAS_NAME : INDEX_NAME)
+                .opType(opType)
                 .source(xContentBuilder)
                 .id(document.docId);
             client.index(request, ActionListener.wrap(response -> {
-                logger.debug("Wrote service provider [{}][{}] as document [{}]", document.name, document.entityId, response.getId());
-                listener.onResponse(response.getId());
+                logger.debug("Wrote service provider [{}][{}] as document [{}] ({})",
+                    document.name, document.entityId, response.getId(), response.getResult());
+                listener.onResponse(response);
             }, listener::onFailure));
         } catch (IOException e) {
             listener.onFailure(e);
@@ -277,7 +289,13 @@ public class SamlServiceProviderIndex implements Closeable {
                 .map(hit -> new DocumentSupplier(new DocumentVersion(hit), () -> toDocument(hit.getId(), hit.getSourceRef())))
                 .collect(Collectors.toUnmodifiableSet());
             listener.onResponse(docs);
-        }, listener::onFailure));
+        }, ex -> {
+            if (ex instanceof IndexNotFoundException) {
+                listener.onResponse(Set.of());
+            } else {
+                listener.onFailure(ex);
+            }
+        }));
     }
 
     private SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
@@ -288,5 +306,10 @@ public class SamlServiceProviderIndex implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException("failed to parse document [" + documentId + "]", e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{alias=" + ALIAS_NAME + " [" + (aliasExists ? "exists" : "not-found") + "]}";
     }
 }

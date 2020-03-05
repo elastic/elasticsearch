@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
 import java.util.Collections;
 
@@ -98,6 +99,7 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends ESTestCase {
                     new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name")))
                 .writeToContext(threadContext);
         }
-        return new TransportSamlInitiateSingleSignOnAction(transportService, securityContext, actionFilters, env);
+        final SamlFactory factory = new SamlFactory();
+        return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext, env, factory);
     }
 }

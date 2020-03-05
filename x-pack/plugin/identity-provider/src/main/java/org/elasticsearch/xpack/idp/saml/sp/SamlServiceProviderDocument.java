@@ -11,6 +11,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -42,7 +45,7 @@ import java.util.stream.Collectors;
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
  */
-public class SamlServiceProviderDocument implements ToXContentObject {
+public class SamlServiceProviderDocument implements ToXContentObject, Writeable {
 
     public static final String SIGN_AUTHN = "authn";
     public static final String SIGN_LOGOUT = "logout";
@@ -54,7 +57,7 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         public String resource;
         @Nullable
         public String loginAction;
-        public Map<String, String> groupActions;
+        public Map<String, String> groupActions = Map.of();
 
         public void setApplication(String application) {
             this.application = application;
@@ -230,6 +233,7 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         }
     }
 
+    @Nullable
     public String docId;
 
     public String name;
@@ -251,6 +255,68 @@ public class SamlServiceProviderDocument implements ToXContentObject {
     public final Privileges privileges = new Privileges();
     public final AttributeNames attributeNames = new AttributeNames();
     public final Certificates certificates = new Certificates();
+
+    public SamlServiceProviderDocument() {
+    }
+
+    public SamlServiceProviderDocument(StreamInput in) throws IOException {
+        docId = in.readOptionalString();
+        name = in.readString();
+        entityId = in.readString();
+        acs = in.readString();
+        enabled = in.readBoolean();
+        created = in.readInstant();
+        lastModified = in.readInstant();
+        nameIdFormats = in.readSet(StreamInput::readString);
+        authenticationExpiryMillis = in.readBoolean() ? in.readVLong() : null;
+
+        privileges.application = in.readOptionalString();
+        privileges.resource = in.readString();
+        privileges.loginAction = in.readOptionalString();
+        privileges.groupActions = in.readMap(StreamInput::readString, StreamInput::readString);
+
+        attributeNames.principal = in.readString();
+        attributeNames.email = in.readOptionalString();
+        attributeNames.name = in.readOptionalString();
+        attributeNames.groups = in.readOptionalString();
+
+        certificates.serviceProviderSigning = in.readStringList();
+        certificates.identityProviderSigning = in.readStringList();
+        certificates.identityProviderMetadataSigning = in.readStringList();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(docId);
+        out.writeString(name);
+        out.writeString(entityId);
+        out.writeString(acs);
+        out.writeBoolean(enabled);
+        out.writeInstant(created);
+        out.writeInstant(lastModified);
+        out.writeCollection(nameIdFormats, StreamOutput::writeString);
+        if (authenticationExpiryMillis == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVLong(authenticationExpiryMillis);
+        }
+
+        out.writeOptionalString(privileges.application);
+        out.writeString(privileges.resource);
+        out.writeOptionalString(privileges.loginAction);
+        out.writeMap(privileges.groupActions == null ? Map.of() : privileges.groupActions,
+            StreamOutput::writeString, StreamOutput::writeString);
+
+        out.writeString(attributeNames.principal);
+        out.writeOptionalString(attributeNames.email);
+        out.writeOptionalString(attributeNames.name);
+        out.writeOptionalString(attributeNames.groups);
+
+        out.writeStringCollection(certificates.serviceProviderSigning);
+        out.writeStringCollection(certificates.identityProviderSigning);
+        out.writeStringCollection(certificates.identityProviderMetadataSigning);
+    }
 
     public String getDocId() {
         return docId;
@@ -274,6 +340,10 @@ public class SamlServiceProviderDocument implements ToXContentObject {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public void setCreated(Instant created) {
+        this.created = created;
     }
 
     public void setCreatedMillis(Long millis) {
@@ -380,20 +450,19 @@ public class SamlServiceProviderDocument implements ToXContentObject {
     public ValidationException validate() {
         final ValidationException validation = new ValidationException();
         if (Strings.isNullOrEmpty(name)) {
-            validation.addValidationError("field [" + Fields.NAME.getPreferredName() + "] is required, but was [" + name + "]");
+            validation.addValidationError("field [" + Fields.NAME + "] is required, but was [" + name + "]");
         }
         if (Strings.isNullOrEmpty(entityId)) {
-            validation.addValidationError("field [" + Fields.ENTITY_ID.getPreferredName() + "] is required, but was [" + entityId + "]");
+            validation.addValidationError("field [" + Fields.ENTITY_ID + "] is required, but was [" + entityId + "]");
         }
         if (Strings.isNullOrEmpty(acs)) {
-            validation.addValidationError("field [" + Fields.ACS.getPreferredName() + "] is required, but was [" + acs + "]");
+            validation.addValidationError("field [" + Fields.ACS + "] is required, but was [" + acs + "]");
         }
         if (created == null) {
-            validation.addValidationError("field [" + Fields.CREATED_DATE.getPreferredName() + "] is required, but was [" + created + "]");
+            validation.addValidationError("field [" + Fields.CREATED_DATE + "] is required, but was [" + created + "]");
         }
         if (lastModified == null) {
-            validation.addValidationError(
-                "field [" + Fields.LAST_MODIFIED.getPreferredName() + "] is required, but was [" + lastModified + "]");
+            validation.addValidationError("field [" + Fields.LAST_MODIFIED + "] is required, but was [" + lastModified + "]");
         }
 
         final Set<String> invalidSignOptions = Sets.difference(signMessages, ALLOWED_SIGN_MESSAGES);
@@ -403,12 +472,12 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         }
 
         if (Strings.isNullOrEmpty(privileges.resource)) {
-            validation.addValidationError("field [" + Fields.PRIVILEGES.getPreferredName() + "."
-                + Fields.Privileges.RESOURCE.getPreferredName() + "] is required, but was [" + privileges.resource + "]");
+            validation.addValidationError("field [" + Fields.PRIVILEGES + "." + Fields.Privileges.RESOURCE
+                + "] is required, but was [" + privileges.resource + "]");
         }
         if (Strings.isNullOrEmpty(attributeNames.principal)) {
-            validation.addValidationError("field [" + Fields.ATTRIBUTES.getPreferredName() + "."
-                + Fields.Attributes.PRINCIPAL.getPreferredName() + "] is required, but was [" + attributeNames.principal + "]");
+            validation.addValidationError("field [" + Fields.ATTRIBUTES + "." + Fields.Attributes.PRINCIPAL
+                + "] is required, but was [" + attributeNames.principal + "]");
         }
         if (validation.validationErrors().isEmpty()) {
             return null;
@@ -453,7 +522,7 @@ public class SamlServiceProviderDocument implements ToXContentObject {
         return builder.endObject();
     }
 
-    interface Fields {
+    public interface Fields {
         ParseField NAME = new ParseField("name");
         ParseField ENTITY_ID = new ParseField("entity_id");
         ParseField ACS = new ParseField("acs");
@@ -488,5 +557,10 @@ public class SamlServiceProviderDocument implements ToXContentObject {
             ParseField IDP_SIGNING = new ParseField("idp_signing");
             ParseField IDP_METADATA = new ParseField("idp_metadata");
         }
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{docId=" + docId + ", name=" + name + ", entityId=" + entityId + "}@" + hashCode();
     }
 }

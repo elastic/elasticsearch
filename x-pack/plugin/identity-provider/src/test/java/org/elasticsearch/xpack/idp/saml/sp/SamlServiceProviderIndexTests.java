@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
@@ -193,9 +195,9 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     }
 
     private void writeDocument(SamlServiceProviderIndex index, SamlServiceProviderDocument doc) {
-        final PlainActionFuture<String> future = new PlainActionFuture<>();
-        index.writeDocument(doc, future);
-        doc.setDocId(future.actionGet());
+        final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
+        index.writeDocument(doc, DocWriteRequest.OpType.INDEX, future);
+        doc.setDocId(future.actionGet().getId());
     }
 
 

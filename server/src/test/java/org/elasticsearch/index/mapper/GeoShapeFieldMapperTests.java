@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,6 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -63,6 +70,25 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(geoShapeFieldMapper.docValues().explicit());
         assertTrue(geoShapeFieldMapper.docValues().value());
         assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
+    }
+
+    public void testDefaultDocValueConfigurationOnPre8() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        assertFalse(geoShapeFieldMapper.docValues().explicit());
+        assertFalse(geoShapeFieldMapper.docValues().value());
+        assertFalse(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
     /**

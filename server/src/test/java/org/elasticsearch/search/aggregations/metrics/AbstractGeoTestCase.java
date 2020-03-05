@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
@@ -64,6 +66,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static final String DATELINE_IDX_NAME = "dateline_idx";
     protected static final String HIGH_CARD_IDX_NAME = "high_card_idx";
     protected static final String IDX_ZERO_NAME = "idx_zero";
+    protected static final String IDX_NAME_7x = "idx_7x";
 
     protected static int numDocs;
     protected static int numUniqueGeoPoints;
@@ -75,11 +78,20 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point",
+                .setMapping(SINGLE_VALUED_GEOPOINT_FIELD_NAME, "type=geo_point", SINGLE_VALUED_GEOSHAPE_FIELD_NAME, "type=geo_shape",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
+
+        assertAcked(prepareCreate(IDX_NAME_7x)
+            .setSettings(settings(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0)))
+            .setMapping(SINGLE_VALUED_GEOSHAPE_FIELD_NAME, "type=geo_shape"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         singleBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
@@ -119,9 +131,16 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             singleVal = singleValues[i % numUniqueGeoPoints];
             multiVal[0] = multiValues[i % numUniqueGeoPoints];
             multiVal[1] = multiValues[(i+1) % numUniqueGeoPoints];
+            String singleValWKT = "POINT(" + singleVal.lon() + " " + singleVal.lat() + ")";
+            builders.add(client().prepareIndex(IDX_NAME_7x).setSource(jsonBuilder()
+                .startObject()
+                .field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME, singleValWKT)
+                .endObject()
+            ));
             builders.add(client().prepareIndex(IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_GEOPOINT_FIELD_NAME, singleVal.lon(), singleVal.lat())
+                    .field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME, singleValWKT)
                     .startArray(MULTI_VALUED_FIELD_NAME)
                     .startArray().value(multiVal[0].lon()).value(multiVal[0].lat()).endArray()
                     .startArray().value(multiVal[1].lon()).value(multiVal[1].lat()).endArray()

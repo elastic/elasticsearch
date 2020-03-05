@@ -31,20 +31,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(BoxplotAggregationBuilder.NAME,
-            CoreValuesSourceType.NUMERIC, new BoxplotAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        DocValueFormat formatter,
-                                        double compression,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-                    return new BoxplotAggregator(name, valuesSource, formatter, compression, context, parent,
-                        pipelineAggregators, metaData);
-                }
-            });
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.HISTOGRAM),
+            (BoxplotAggregatorSupplier) BoxplotAggregator::new);
     }
 
     BoxplotAggregatorFactory(String name,

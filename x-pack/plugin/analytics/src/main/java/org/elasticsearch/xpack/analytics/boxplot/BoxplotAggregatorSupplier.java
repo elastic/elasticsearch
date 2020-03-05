@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@FunctionalInterface
 public interface BoxplotAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      ValuesSource valuesSource,

@@ -135,7 +135,9 @@ public class CopyRestApiTask extends DefaultTask {
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
-                    c.include(includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList()));
+                    c.include(
+                        includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
+                    );
                 }
             });
         }

@@ -128,7 +128,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 project.copy(c -> {
                     c.from(project.zipTree(coreConfig.getSingleFile()));
                     c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                    c.include(includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList()));
+                    c.include(
+                        includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
+                    );
                 });
             }
         }

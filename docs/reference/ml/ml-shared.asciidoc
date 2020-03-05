@@ -365,97 +365,78 @@ tag::data-frame-analytics[]
 An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
 ascending order.
 
-`id`:::
-(string) The unique identifier of the {dfanalytics-job}.
-
-`source`:::
-(object) The configuration of how the analysis data is sourced. It has an 
-`index` parameter and optionally a `query` and a `_source`.
-  
-`index`::::
-(array) Index or indices on which to perform the analysis. It can be a single 
-index or index pattern as well as an array of indices or patterns.
-    
-`query`::::
-(object) The query that has been specified for the {dfanalytics-job}. The {es} 
-query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
-the query object in an {es} search POST body. By default, this property has the 
-following value: `{"match_all": {}}`.
-
-`_source`::::
-(object) Contains the specified `includes` and/or `excludes` patterns that 
-select which fields are present in the destination. Fields that are excluded 
-cannot be included in the analysis.
-        
-`includes`:::::
-(array) An array of strings that defines the fields that are included in the 
-destination.
-          
-`excludes`:::::
-(array) An array of strings that defines the fields that are excluded from the 
-destination.
-
-`dest`:::
-(string) The destination configuration of the analysis.
-
-`index`::::
-(string) The _destination index_ that stores the results of the 
-{dfanalytics-job}.
-
-`results_field`::::
-(string) The name of the field that stores the results of the analysis. Defaults 
-to `ml`.
-
 `analysis`:::
 (object) The type of analysis that is performed on the `source`.
 
 `analyzed_fields`:::
 (object) Contains `includes` and/or `excludes` patterns that select which fields 
 are included in the analysis.
-    
-`includes`::::
-(Optional, array) An array of strings that defines the fields that are included 
-in the analysis.
-      
-`excludes`::::
+
+`analyzed_fields`.`excludes`:::
 (Optional, array) An array of strings that defines the fields that are excluded 
 from the analysis.
 
+`analyzed_fields`.`includes`:::
+(Optional, array) An array of strings that defines the fields that are included 
+in the analysis.
+
+`dest`:::
+(string) The destination configuration of the analysis.
+
+`dest`.`index`:::
+(string) The _destination index_ that stores the results of the 
+{dfanalytics-job}.
+
+`dest`.`results_field`:::
+(string) The name of the field that stores the results of the analysis. Defaults 
+to `ml`.
+
+`id`:::
+(string) The unique identifier of the {dfanalytics-job}.
+
 `model_memory_limit`:::
 (string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+
+`source`:::
+(object) The configuration of how the analysis data is sourced. It has an 
+`index` parameter and optionally a `query` and a `_source`.
+  
+`source`.`index`:::
+(array) Index or indices on which to perform the analysis. It can be a single 
+index or index pattern as well as an array of indices or patterns.
+    
+`source`.`query`:::
+(object) The query that has been specified for the {dfanalytics-job}. The {es} 
+query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
+the query object in an {es} search POST body. By default, this property has the 
+following value: `{"match_all": {}}`.
+
+`source`.`_source`:::
+(object) Contains the specified `includes` and/or `excludes` patterns that 
+select which fields are present in the destination. Fields that are excluded 
+cannot be included in the analysis.
+
+`source`.`_source`.`excludes`:::
+(array) An array of strings that defines the fields that are excluded from the 
+destination.
+
+`source`.`_source`.`includes`:::
+(array) An array of strings that defines the fields that are included in the 
+destination.
 end::data-frame-analytics[]
 
 tag::data-frame-analytics-stats[]
 An array of statistics objects for {dfanalytics-jobs}, which are
 sorted by the `id` value in ascending order.
 
+`assignment_explanation`:::
+(string)
+For running jobs only, contains messages relating to the selection of a node to 
+run the job.
+
 `id`:::
-(string) The unique identifier of the {dfanalytics-job}.
-  
-`state`:::
-(string) Current state of the {dfanalytics-job}.
-  
-`progress`:::
-(array) The progress report of the {dfanalytics-job} by phase.
-  
-`phase`:::
-(string) Defines the phase of the {dfanalytics-job}. Possible phases: 
-`reindexing`, `loading_data`, `analyzing`, and `writing_results`.
-    
-`progress_percent`:::
-(integer) The progress that the {dfanalytics-job} has made expressed in 
-percentage.
-
-`memory_usage`:::
-(Optional, Object) An object describing memory usage of the analytics.
-It will be present only after the job has started and memory usage has
-been reported.
-
-`timestamp`::::
-(date) The timestamp when memory usage was calculated.
-
-`peak_usage_bytes`::::
-(long) The number of bytes used at the highest peak of memory usage.
+(string)
+The unique identifier of the {dfanalytics-job}.
 
 `node`:::
 (object)
@@ -483,10 +464,23 @@ The node name.
 (string)
 The host and port where transport HTTP connections are accepted.
 
-`assignment_explanation`:::
+`progress`:::
+(array)
+The progress report of the {dfanalytics-job} by phase.
+  
+`progress`.`phase`:::
 (string)
-For running jobs only, contains messages relating to the selection of a node to 
-run the job.
+Defines the phase of the {dfanalytics-job}. Possible phases: `reindexing`, 
+`loading_data`, `analyzing`, and `writing_results`.
+    
+`progress`.`progress_percent`:::
+(integer)
+The progress that the {dfanalytics-job} has made expressed in percentage.
+
+`state`:::
+(string)
+Current state of the {dfanalytics-job}.
+
 end::data-frame-analytics-stats[]
 
 tag::datafeed-id[]

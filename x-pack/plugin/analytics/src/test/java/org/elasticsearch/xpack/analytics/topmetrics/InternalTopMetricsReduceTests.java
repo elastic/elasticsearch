@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -45,7 +46,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         InternalTopMetrics winner = first.getSortOrder() == SortOrder.ASC ? min : max;
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getMetricName(), equalTo("test"));
+        assertThat(reduced.getMetricNames(), equalTo(singletonList("test")));
         assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
         assertThat(reduced.getSize(), equalTo(first.getSize()));
         assertThat(reduced.getTopMetrics(), equalTo(winner.getTopMetrics()));
@@ -60,7 +61,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         };
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getMetricName(), equalTo("test"));
+        assertThat(reduced.getMetricNames(), equalTo(singletonList("test")));
         assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
         assertThat(reduced.getSize(), equalTo(first.getSize()));
         assertThat(reduced.getTopMetrics(), equalTo(Arrays.asList(
@@ -74,14 +75,14 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         // Doubles sort first.
         InternalTopMetrics winner = doubleMetrics.getSortOrder() == SortOrder.ASC ? doubleMetrics : longMetrics; 
         assertThat(reduced.getName(), equalTo("test"));
-        assertThat(reduced.getMetricName(), equalTo("test"));
+        assertThat(reduced.getMetricNames(), equalTo(singletonList("test")));
         assertThat(reduced.getSortOrder(), equalTo(doubleMetrics.getSortOrder()));
         assertThat(reduced.getSize(), equalTo(doubleMetrics.getSize()));
         assertThat(reduced.getTopMetrics(), equalTo(winner.getTopMetrics()));
     }
 
     private InternalTopMetrics buildEmpty() {
-        return InternalTopMetrics.buildEmptyAggregation("test", "test", emptyList(), null);
+        return InternalTopMetrics.buildEmptyAggregation("test", singletonList("test"), emptyList(), null);
     }
 
     private InternalTopMetrics buildFilled(int size, InternalTopMetrics.TopMetric... metrics) {
@@ -89,12 +90,12 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     private InternalTopMetrics buildFilled(SortOrder sortOrder, int size, InternalTopMetrics.TopMetric... metrics) {
-        return new InternalTopMetrics("test", sortOrder, "test", size, Arrays.asList(metrics), emptyList(), null);
+        return new InternalTopMetrics("test", sortOrder, singletonList("test"), size, Arrays.asList(metrics), emptyList(), null);
     }
 
     private InternalTopMetrics.TopMetric top(SortValue sortValue, double metricValue) {
         DocValueFormat sortFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
-        return new InternalTopMetrics.TopMetric(sortFormat, sortValue, metricValue);
+        return new InternalTopMetrics.TopMetric(sortFormat, sortValue, new double[] {metricValue});
     }
 
     private InternalTopMetrics reduce(InternalTopMetrics... results) {

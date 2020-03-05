@@ -26,7 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NodesStatsRequestTest extends ESTestCase {
+public class NodesStatsRequestTests extends ESTestCase {
 
     /**
      * Make sure that we can set, serialize, and deserialize arbitrary sets

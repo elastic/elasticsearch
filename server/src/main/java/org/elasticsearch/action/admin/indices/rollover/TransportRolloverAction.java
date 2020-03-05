@@ -154,7 +154,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexRequest);
                                 newState = indexAliasesService.applyAliasActions(newState,
-                                    rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, rolloverRequest, explicitWriteIndex));
+                                    rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, rolloverRequest, explicitWriteIndex,
+                                        alias.isHidden()));
                                 RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
                                     threadPool.absoluteTimeInMillis());
                                 return ClusterState.builder(newState)
@@ -202,15 +203,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
      * alias pointing to multiple indices will have to be an explicit write index (ie. the old index alias has is_write_index set to true)
      * in which case, after the rollover, the new index will need to be the explicit write index.
      */
-    static List<AliasAction> rolloverAliasToNewIndex(String oldIndex, String newIndex, RolloverRequest request,
-                                                     boolean explicitWriteIndex) {
+    static List<AliasAction> rolloverAliasToNewIndex(String oldIndex, String newIndex, RolloverRequest request, boolean explicitWriteIndex,
+                                                     @Nullable Boolean isHidden) {
         if (explicitWriteIndex) {
             return List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true, null),
-                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false, null));
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true, isHidden),
+                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false, isHidden));
         } else {
             return List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null, null),
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null, isHidden),
                 new AliasAction.Remove(oldIndex, request.getAlias()));
         }
     }

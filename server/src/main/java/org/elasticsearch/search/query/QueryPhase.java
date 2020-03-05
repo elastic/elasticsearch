@@ -45,17 +45,17 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -254,60 +254,54 @@ public class QueryPhase implements SearchPhase {
                 final long startTime = searchContext.getRelativeTimeInMillis();
                 final long timeout = searchContext.timeout().millis();
                 final long maxTime = startTime + timeout;
-                timeoutRunnable = () -> {
+                timeoutRunnable = searcher.addQueryCancellation(() -> {
                     final long time = searchContext.getRelativeTimeInMillis();
                     if (time > maxTime) {
                         throw new TimeExceededException();
                     }
-                };
+                });
             } else {
                 timeoutRunnable = null;
             }
 
-            final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
                 SearchShardTask task = searchContext.getTask();
-                cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
-            } else {
-                cancellationRunnable = null;
+                searcher.addQueryCancellation(() -> {
+                    if (task.isCancelled()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
+                });
             }
 
-            final Runnable checkCancelled;
-            if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> {
-                    timeoutRunnable.run();
-                    cancellationRunnable.run();
-                };
-            } else if (timeoutRunnable != null) {
-                checkCancelled = timeoutRunnable;
-            } else if (cancellationRunnable != null) {
-                checkCancelled = cancellationRunnable;
-            } else {
-                checkCancelled = null;
-            }
-            searcher.setCheckCancelled(checkCancelled);
+            try {
+                boolean shouldRescore;
+                // if we are optimizing sort and there are no other collectors
+                if (sortAndFormatsForRewrittenNumericSort!=null && collectors.size()==0 && searchContext.getProfilers()==null) {
+                    shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
+                } else {
+                    shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                }
 
-            boolean shouldRescore;
-            // if we are optimizing sort and there are no other collectors
-            if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {
-                shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
-            } else {
-                shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
-            }
+                // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
+                if (sortAndFormatsForRewrittenNumericSort!=null) {
+                    searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
+                    restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
+                }
 
-            // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
-            if (sortAndFormatsForRewrittenNumericSort != null) {
-                searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
-                restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                if (executor instanceof QueueResizingEsThreadPoolExecutor) {
+                    QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
+                return shouldRescore;
+            } finally {
+                // Search phase has finished, no longer need to check for timeout
+                // otherwise aggregation phase might get cancelled.
+                if (timeoutRunnable!=null) {
+                    searcher.removeQueryCancellation(timeoutRunnable);
+                }
             }
-
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
-                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
-            }
-            return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }

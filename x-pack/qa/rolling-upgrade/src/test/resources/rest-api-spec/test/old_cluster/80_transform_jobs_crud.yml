@@ -23,6 +23,8 @@
         timeout: 70s
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.put_transform:
         transform_id: "old-simple-transform"
         body: >

@@ -13,8 +13,6 @@ import org.apache.lucene.index.IndexWriter;
 
 import java.io.IOException;
 
-import static org.apache.lucene.analysis.standard.StandardTokenizer.MAX_TOKEN_LENGTH_LIMIT;
-
 public class TaperedNgramTokenizer extends Tokenizer {
 
     

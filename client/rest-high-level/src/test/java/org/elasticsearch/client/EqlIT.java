@@ -23,6 +23,8 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.eql.EqlStatsRequest;
+import org.elasticsearch.client.eql.EqlStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -31,6 +33,7 @@ import org.junit.Before;
 import java.time.format.DateTimeFormatter;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class EqlIT extends ESRestHighLevelClientTestCase {
 
@@ -96,5 +99,17 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertNotNull(response);
         assertNotNull(response.hits());
         assertThat(response.hits().events().size(), equalTo(1));
+    }
+
+    // Basic test for stats
+    // TODO: add more tests once the stats are hooked up
+    public void testStats() throws Exception {
+        EqlClient eql = highLevelClient().eql();
+        EqlStatsRequest request = new EqlStatsRequest();
+        EqlStatsResponse response = execute(request, eql::stats, eql::statsAsync);
+        assertNotNull(response);
+        assertNotNull(response.getHeader());
+        assertThat(response.getHeader().getTotal(), greaterThan(0));
+        assertThat(response.getNodes().size(), greaterThan(0));
     }
 }

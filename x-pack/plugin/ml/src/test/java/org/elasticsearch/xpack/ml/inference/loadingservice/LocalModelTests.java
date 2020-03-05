@@ -137,6 +137,28 @@ public class LocalModelTests extends ESTestCase {
             equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
     }
 
+    public void testAllFieldsWrongType() throws Exception {
+        List<TrainedModelInput.InputObject> inputFields = Arrays.asList(
+            new TrainedModelInput.InputObject("foo", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("bar", ModelFieldType.SCALAR.toString()),
+            new TrainedModelInput.InputObject("categorical", ModelFieldType.CATEGORICAL.toString()));
+        TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
+            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setTrainedModel(buildRegression())
+            .build();
+        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields));
+
+        Map<String, Object> fields = new HashMap<>() {{
+            put("foo", "foo value");
+            put("bar", new double[]{10.0, 0.1});
+            put("categorical", new String[]{"boom", "bam"});
+        }};
+
+        WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, RegressionConfig.EMPTY_PARAMS);
+        assertThat(results.getWarning(),
+            equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
+    }
+
     private static SingleValueInferenceResults getSingleValue(Model model,
                                                               Map<String, Object> fields,
                                                               InferenceConfig config) throws Exception {

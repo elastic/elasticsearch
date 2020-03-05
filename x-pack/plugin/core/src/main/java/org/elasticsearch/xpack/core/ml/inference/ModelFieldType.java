@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ml.inference;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 public enum ModelFieldType {
 
@@ -16,7 +15,6 @@ public enum ModelFieldType {
     VECTOR,
     TEXT;
 
-    private static final Pattern IS_NUMBER = Pattern.compile("-?\\d+(\\.\\d+)?");
     public static ModelFieldType fromString(String value) {
         return ModelFieldType.valueOf(value.toUpperCase(Locale.ROOT));
     }
@@ -37,13 +35,22 @@ public enum ModelFieldType {
                 if (obj instanceof Number) {
                     return true;
                 }
-                return obj instanceof String && IS_NUMBER.matcher((String)obj).matches();
+                return obj instanceof String && isDouble((String)obj);
             case CATEGORICAL:
                 return obj instanceof String || obj instanceof Number;
             case TEXT:
                 return obj instanceof String;
             default:
                 return false;
+        }
+    }
+
+    private static boolean isDouble(final String value) {
+        try {
+            Double.parseDouble(value);
+            return true;
+        } catch (NumberFormatException nfe) {
+            return false;
         }
     }
 }

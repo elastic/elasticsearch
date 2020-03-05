@@ -148,8 +148,8 @@ public class SamlAuthnRequestValidator {
                         parsedQueryString.queryString), listener);
                     return;
                 }
-final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
-    if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
+                final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
+                if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
                     logAndRespond(
                         "Unable to validate signature of authentication request, " +
                             "Service Provider hasn't registered signing credentials",
@@ -160,7 +160,7 @@ final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                     logAndRespond(
                         new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
                             parsedQueryString.queryString,
-    samlFactory.describeCredentials(spSigningCredentials)), listener);
+                            samlFactory.describeCredentials(spSigningCredentials)), listener);
                     return;
                 }
             } else if (Strings.hasText(parsedQueryString.sigAlg)) {
@@ -205,15 +205,14 @@ final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
     }
 
     private boolean validateSignature(ParsedQueryString queryString, Collection<X509Credential> credentials) {
-        final String queryParam = queryString.reconstructQueryParameters();
-        final byte[] content = queryParam.getBytes(StandardCharsets.UTF_8);
         final String javaSigAlgorithm = samlFactory.getJavaAlorithmNameFromUri(queryString.sigAlg);
+        final byte[] contentBytes = queryString.reconstructQueryParameters().getBytes(StandardCharsets.UTF_8);
         final byte[] signatureBytes = Base64.getDecoder().decode(queryString.signature);
         return credentials.stream().anyMatch(credential -> {
             try {
                 Signature sig = Signature.getInstance(javaSigAlgorithm);
                 sig.initVerify(credential.getEntityCertificate().getPublicKey());
-                sig.update(content);
+                sig.update(contentBytes);
                 return sig.verify(signatureBytes);
             } catch (NoSuchAlgorithmException e) {
                 throw new ElasticsearchSecurityException("Java signature algorithm [{}] is not available for SAML/XML-Sig algorithm [{}]",

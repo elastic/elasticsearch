@@ -106,12 +106,12 @@ don't support missing values therefore fields that have data types other than
 numeric or boolean are ignored. Documents where included fields contain missing 
 values, null values, or an array are also ignored. Therefore the `dest` index 
 may contain documents that don't have an {olscore}.
-* {regression-cap} supports fields that are numeric, `boolean`, `text`, `keyword`, 
-and `ip`. It is also tolerant of missing values. Fields that are supported are 
-included in the analysis, other fields are ignored. Documents where included
-fields contain  an array with two or more values are also ignored. Documents in
-the `dest` index  that don’t contain a results field are not included in the
- {reganalysis}.
+* {regression-cap} supports fields that are numeric, `boolean`, `text`, 
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents 
+where included fields contain  an array with two or more values are also 
+ignored. Documents in the `dest` index  that don’t contain a results field are 
+not included in the {reganalysis}.
 * {classification-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
 supported are included in the analysis, other fields are ignored. Documents
@@ -144,7 +144,8 @@ of a node to run the job.
 end::assignment-explanation-anomaly-jobs[]
 
 tag::assignment-explanation-datafeeds[]
-For started {dfeeds} only, contains messages relating to the selection of a node.
+For started {dfeeds} only, contains messages relating to the selection of a 
+node.
 end::assignment-explanation-datafeeds[]
 
 tag::assignment-explanation-dfanalytics[]
@@ -323,10 +324,10 @@ If `true`, the feature influence calculation is enabled. Defaults to `true`.
 end::compute-feature-influence[]
 
 tag::chunking-config[]
-{dfeeds-cap} might be required to search over long time periods, for several months
-or years. This search is split into time chunks in order to ensure the load
-on {es} is managed. Chunking configuration controls how the size of these time
-chunks are calculated and is an advanced configuration option.
+{dfeeds-cap} might be required to search over long time periods, for several 
+months or years. This search is split into time chunks in order to ensure the 
+load on {es} is managed. Chunking configuration controls how the size of these 
+time chunks are calculated and is an advanced configuration option.
 A chunking configuration object has the following properties:
 
 `chunking_config`.`mode`:::
@@ -381,7 +382,8 @@ end::custom-rules-scope-filter-type[]
 tag::custom-rules-conditions[]
 An optional array of numeric conditions when the rule applies. A rule must
 either have a non-empty scope or at least one condition. Multiple conditions are
-combined together with a logical `AND`. A condition has the following properties:
+combined together with a logical `AND`. A condition has the following 
+properties:
 end::custom-rules-conditions[]
 
 tag::custom-rules-conditions-applies-to[]
@@ -393,7 +395,8 @@ end::custom-rules-conditions-applies-to[]
 
 tag::custom-rules-conditions-operator[]
 Specifies the condition operator. The available options are `gt` (greater than),
-`gte` (greater than or equals), `lt` (less than) and `lte` (less than or equals).
+`gte` (greater than or equals), `lt` (less than) and `lte` (less than or 
+equals).
 end::custom-rules-conditions-operator[]
 
 tag::custom-rules-conditions-value[]
@@ -432,97 +435,91 @@ tag::data-frame-analytics[]
 An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
 ascending order.
 
-`id`:::
-(string) The unique identifier of the {dfanalytics-job}.
-
-`source`:::
-(object) The configuration of how the analysis data is sourced. It has an 
-`index` parameter and optionally a `query` and a `_source`.
-  
-`index`::::
-(array) Index or indices on which to perform the analysis. It can be a single 
-index or index pattern as well as an array of indices or patterns.
-    
-`query`::::
-(object) The query that has been specified for the {dfanalytics-job}. The {es} 
-query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
-the query object in an {es} search POST body. By default, this property has the 
-following value: `{"match_all": {}}`.
-
-`_source`::::
-(object) Contains the specified `includes` and/or `excludes` patterns that 
-select which fields are present in the destination. Fields that are excluded 
-cannot be included in the analysis.
-        
-`includes`:::::
-(array) An array of strings that defines the fields that are included in the 
-destination.
-          
-`excludes`:::::
-(array) An array of strings that defines the fields that are excluded from the 
-destination.
-
-`dest`:::
-(string) The destination configuration of the analysis.
-
-`index`::::
-(string) The _destination index_ that stores the results of the 
-{dfanalytics-job}.
-
-`results_field`::::
-(string) The name of the field that stores the results of the analysis. Defaults 
-to `ml`.
-
 `analysis`:::
 (object) The type of analysis that is performed on the `source`.
 
 `analyzed_fields`:::
 (object) Contains `includes` and/or `excludes` patterns that select which fields 
 are included in the analysis.
-    
-`includes`::::
-(Optional, array) An array of strings that defines the fields that are included 
-in the analysis.
-      
-`excludes`::::
+
+`analyzed_fields`.`excludes`:::
 (Optional, array) An array of strings that defines the fields that are excluded 
 from the analysis.
+    
+`analyzed_fields`.`includes`:::
+(Optional, array) An array of strings that defines the fields that are included 
+in the analysis.
+
+`dest`:::
+(string) The destination configuration of the analysis.
+
+`dest`.`index`:::
+(string) The _destination index_ that stores the results of the 
+{dfanalytics-job}.
+
+`dest`.`results_field`:::
+(string) The name of the field that stores the results of the analysis. Defaults 
+to `ml`.
+
+`id`:::
+(string) The unique identifier of the {dfanalytics-job}.
 
 `model_memory_limit`:::
 (string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+
+`source`:::
+(object) The configuration of how the analysis data is sourced. It has an 
+`index` parameter and optionally a `query` and a `_source`.
+  
+`source`.`index`:::
+(array) Index or indices on which to perform the analysis. It can be a single 
+index or index pattern as well as an array of indices or patterns.
+    
+`source`.`query`:::
+(object) The query that has been specified for the {dfanalytics-job}. The {es} 
+query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
+the query object in an {es} search POST body. By default, this property has the 
+following value: `{"match_all": {}}`.
+
+`source`.`_source`:::
+(object) Contains the specified `includes` and/or `excludes` patterns that 
+select which fields are present in the destination. Fields that are excluded 
+cannot be included in the analysis.
+
+`source`.`_source`.`excludes`:::
+(array) An array of strings that defines the fields that are excluded from the 
+destination.
+        
+`source`.`_source`.`includes`:::
+(array) An array of strings that defines the fields that are included in the 
+destination.
 end::data-frame-analytics[]
 
 tag::data-frame-analytics-stats[]
 An array of statistics objects for {dfanalytics-jobs}, which are
 sorted by the `id` value in ascending order.
 
+`assignment_explanation`:::
+(string)
+For running jobs only, contains messages relating to the selection of a node to 
+run the job.
+
 `id`:::
-(string) The unique identifier of the {dfanalytics-job}.
-  
-`state`:::
-(string) Current state of the {dfanalytics-job}.
-  
-`progress`:::
-(array) The progress report of the {dfanalytics-job} by phase.
-  
-`phase`::::
-(string) Defines the phase of the {dfanalytics-job}. Possible phases: 
-`reindexing`, `loading_data`, `analyzing`, and `writing_results`.
-    
-`progress_percent`::::
-(integer) The progress that the {dfanalytics-job} has made expressed in 
-percentage.
+(string)
+The unique identifier of the {dfanalytics-job}.
 
 `memory_usage`:::
-(Optional, Object) An object describing memory usage of the analytics.
-It will be present only after the job has started and memory usage has
-been reported.
+(Optional, object)
+An object describing memory usage of the analytics. It is present only after the 
+job is started and memory usage is reported.
 
-`timestamp`::::
-(date) The timestamp when memory usage was calculated.
+`memory_usage`.`peak_usage_bytes`:::
+(long)
+The number of bytes used at the highest peak of memory usage.
 
-`peak_usage_bytes`::::
-(long) The number of bytes used at the highest peak of memory usage.
+`memory_usage`.`timestamp`:::
+(date)
+The timestamp when memory usage was calculated.
 
 `node`:::
 (object)
@@ -550,10 +547,19 @@ The node name.
 (string)
 The host and port where transport HTTP connections are accepted.
 
-`assignment_explanation`:::
-(string)
-For running jobs only, contains messages relating to the selection of a node to 
-run the job.
+`progress`:::
+(array) The progress report of the {dfanalytics-job} by phase.
+  
+`progress`.`phase`:::
+(string) Defines the phase of the {dfanalytics-job}. Possible phases: 
+`reindexing`, `loading_data`, `analyzing`, and `writing_results`.
+    
+`progress`.`progress_percent`:::
+(integer) The progress that the {dfanalytics-job} has made expressed in 
+percentage.
+
+`state`:::
+(string) Current state of the {dfanalytics-job}.
 end::data-frame-analytics-stats[]
 
 tag::datafeed-id[]
@@ -576,8 +582,8 @@ prior training.)
 end::dead-category-count[]
 
 tag::decompress-definition[]
-Specifies whether the included model definition should be returned as a JSON map (`true`) or 
-in a custom compressed format (`false`). Defaults to `true`.
+Specifies whether the included model definition should be returned as a JSON map 
+(`true`) or in a custom compressed format (`false`). Defaults to `true`.
 end::decompress-definition[]
 
 tag::delayed-data-check-config[]
@@ -586,10 +592,10 @@ window. For example: `{"enabled": true, "check_window": "1h"}`.
 +
 --
 The {dfeed} can optionally search over indices that have already been read in
-an effort to determine whether any data has subsequently been added to the index.
-If missing data is found, it is a good indication that the `query_delay` option
-is set too low and the data is being indexed after the {dfeed} has passed that
-moment in time. See 
+an effort to determine whether any data has subsequently been added to the 
+index. If missing data is found, it is a good indication that the `query_delay` 
+option is set too low and the data is being indexed after the {dfeed} has passed 
+that moment in time. See 
 {ml-docs}/ml-delayed-data-detection.html[Working with delayed data].
 
 This check runs only on real-time {dfeeds}.
@@ -812,7 +818,8 @@ A comma separated list of influencer field names. Typically these can be the by,
 over, or partition fields that are used in the detector configuration. You might 
 also want to use a field name that is not specifically named in a detector, but 
 is available as part of the input data. When you use multiple detectors, the use 
-of influencers is recommended as it aggregates results for each influencer entity.
+of influencers is recommended as it aggregates results for each influencer 
+entity.
 end::influencers[]
 
 tag::input-bytes[]
@@ -933,9 +940,10 @@ tag::max-empty-searches[]
 If a real-time {dfeed} has never seen any data (including during any initial
 training period) then it will automatically stop itself and close its associated
 job after this many real-time searches that return no documents. In other words,
-it will stop after `frequency` times `max_empty_searches` of real-time operation.
-If not set then a {dfeed} with no end time that sees no data will remain started
-until it is explicitly stopped. By default this setting is not set.
+it will stop after `frequency` times `max_empty_searches` of real-time 
+operation. If not set then a {dfeed} with no end time that sees no data will 
+remain started until it is explicitly stopped. By default this setting is not 
+set.
 end::max-empty-searches[]
 
 tag::maximum-number-trees[]
@@ -1092,10 +1100,10 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-Advanced configuration option. The period of time (in days) that model snapshots are retained.
-Age is calculated relative to the timestamp of the newest model snapshot.
-The default value is `1`, which means snapshots that are one day (twenty-four hours)
-older than the newest snapshot are deleted.
+Advanced configuration option. The period of time (in days) that model snapshots 
+are retained. Age is calculated relative to the timestamp of the newest model 
+snapshot. The default value is `1`, which means snapshots that are one day 
+(twenty-four hours) older than the newest snapshot are deleted.
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]
@@ -1250,10 +1258,10 @@ is `shared`, which generates an index named `.ml-anomalies-shared`.
 end::results-index-name[]
 
 tag::results-retention-days[]
-Advanced configuration option. The period of time (in days) that results are retained.
-Age is calculated relative to the timestamp of the latest bucket result.
-If this property has a non-null value, once per day at 00:30 (server time),
-results that are the specified number of days older than the latest
+Advanced configuration option. The period of time (in days) that results are 
+retained. Age is calculated relative to the timestamp of the latest bucket 
+result. If this property has a non-null value, once per day at 00:30 (server 
+time), results that are the specified number of days older than the latest 
 bucket result are deleted from {es}. The default value is null, which means all
 results are retained.
 end::results-retention-days[]
@@ -1353,11 +1361,11 @@ job must be opened before it can accept further data.
 * `closing`: The job close action is in progress and has not yet completed. A
 closing job cannot accept further data.
 * `failed`: The job did not finish successfully due to an error. This situation
-can occur due to invalid input data, a fatal error occurring during the analysis,
-or an external interaction such as the process being killed by the Linux out of
-memory (OOM) killer. If the job had irrevocably failed, it must be force closed
-and then deleted. If the {dfeed} can be corrected, the job can be closed and
-then re-opened.
+can occur due to invalid input data, a fatal error occurring during the 
+analysis, or an external interaction such as the process being killed by the 
+Linux out of memory (OOM) killer. If the job had irrevocably failed, it must be 
+force closed and then deleted. If the {dfeed} can be corrected, the job can be 
+closed and then re-opened.
 * `opened`: The job is available to receive and process data.
 * `opening`: The job open action is in progress and has not yet completed.
 --

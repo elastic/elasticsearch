@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 public class RegressionInferenceResults extends SingleValueInferenceResults {
@@ -22,14 +24,22 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     private final String resultsField;
 
     public RegressionInferenceResults(double value, InferenceConfig config) {
-        super(value);
-        assert config instanceof RegressionConfig;
-        RegressionConfig regressionConfig = (RegressionConfig)config;
+        this(value, (RegressionConfig) config, Collections.emptyMap());
+    }
+
+    public RegressionInferenceResults(double value, InferenceConfig config, Map<String, Double> featureImportance) {
+        this(value, (RegressionConfig)config, featureImportance);
+    }
+
+    private RegressionInferenceResults(double value, RegressionConfig regressionConfig, Map<String, Double> featureImportance) {
+        super(value,
+            SingleValueInferenceResults.takeTopFeatureImportances(featureImportance,
+                regressionConfig.getNumTopFeatureImportanceValues()));
         this.resultsField = regressionConfig.getResultsField();
     }
 
     public RegressionInferenceResults(StreamInput in) throws IOException {
-        super(in.readDouble());
+        super(in);
         this.resultsField = in.readString();
     }
 
@@ -44,12 +54,14 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
         RegressionInferenceResults that = (RegressionInferenceResults) object;
-        return Objects.equals(value(), that.value()) && Objects.equals(this.resultsField, that.resultsField);
+        return Objects.equals(value(), that.value())
+            && Objects.equals(this.resultsField, that.resultsField)
+            && Objects.equals(this.getFeatureImportance(), that.getFeatureImportance());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value(), resultsField);
+        return Objects.hash(value(), resultsField, getFeatureImportance());
     }
 
     @Override
@@ -57,6 +69,9 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
         document.setFieldValue(parentResultField + "." + this.resultsField, value());
+        if (getFeatureImportance().size() > 0) {
+            document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance());
+        }
     }
 
     @Override

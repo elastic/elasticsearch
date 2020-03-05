@@ -29,14 +29,13 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -76,7 +75,8 @@ class NumericHistogramAggregator extends BucketsAggregator {
         }
         this.interval = interval;
         this.offset = offset;
-        this.order = InternalOrder.validate(order, this);
+        this.order = order;
+        order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.minBound = minBound;
@@ -144,7 +144,7 @@ class NumericHistogramAggregator extends BucketsAggregator {
         }
 
         // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
+        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
         EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {

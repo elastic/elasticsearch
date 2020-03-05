@@ -43,10 +43,10 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
             EqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.eventTypeField(randomAlphaOfLength(10));
+            EqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.rule(randomAlphaOfLength(10));
+            EqlSearchRequest.query(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             EqlSearchRequest.timestampField(randomAlphaOfLength(10));
@@ -56,9 +56,9 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
         }
         if (randomBoolean()) {
             if (randomBoolean()) {
-                EqlSearchRequest.query(QueryBuilders.matchAllQuery());
+                EqlSearchRequest.filter(QueryBuilders.matchAllQuery());
             } else {
-                EqlSearchRequest.query(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
+                EqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
             }
         }
         return EqlSearchRequest;
@@ -72,11 +72,11 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
     @Override
     protected void assertInstances(org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
         clientTestInstance) {
-        assertThat(serverInstance.eventTypeField(), equalTo(clientTestInstance.eventTypeField()));
+        assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
         assertThat(serverInstance.implicitJoinKeyField(), equalTo(clientTestInstance.implicitJoinKeyField()));
         assertThat(serverInstance.timestampField(), equalTo(clientTestInstance.timestampField()));
+        assertThat(serverInstance.filter(), equalTo(clientTestInstance.filter()));
         assertThat(serverInstance.query(), equalTo(clientTestInstance.query()));
-        assertThat(serverInstance.rule(), equalTo(clientTestInstance.rule()));
         assertThat(serverInstance.searchAfter(), equalTo(clientTestInstance.searchAfter()));
         assertThat(serverInstance.indicesOptions(), equalTo(clientTestInstance.indicesOptions()));
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));

@@ -107,7 +107,7 @@ task thirdPartyTest(type: Test) {
   include '**/EncryptedGoogleCloudStorageThirdPartyTests.class'
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
-  systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
   nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }
 

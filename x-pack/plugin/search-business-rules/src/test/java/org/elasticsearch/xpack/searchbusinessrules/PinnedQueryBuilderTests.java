@@ -170,4 +170,13 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }
 
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"));
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
 }

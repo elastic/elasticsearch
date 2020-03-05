@@ -98,6 +98,11 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     }
 
     @Override
+    public Map<String, String> reverseLookup() {
+        return Collections.singletonMap(featureName, field);
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }

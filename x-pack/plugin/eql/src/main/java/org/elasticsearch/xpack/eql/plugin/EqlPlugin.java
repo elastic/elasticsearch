@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -28,6 +29,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.eql.EqlInfoTransportAction;
@@ -39,11 +41,12 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
+
+    private final boolean enabled;
 
     private static final boolean EQL_FEATURE_FLAG_REGISTERED;
 
@@ -69,30 +72,23 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
+    public EqlPlugin(final Settings settings) {
+        this.enabled = EQL_ENABLED_SETTING.get(settings);
+    }
+
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver) {
-
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
+    private Collection<Object> createComponents(Client client, String clusterName,
+                                                NamedWriteableRegistry namedWriteableRegistry) {
         IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, namedWriteableRegistry);
         return Arrays.asList(planExecutor);
-    }
-
-
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
-        );
     }
 
     /**
@@ -104,9 +100,24 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         if (isSnapshot() || EQL_FEATURE_FLAG_REGISTERED) {
             return List.of(EQL_ENABLED_SETTING);
-        } else {
-            return List.of();
         }
+        return List.of();
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (enabled) {
+            return List.of(
+                new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+                new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+                new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+                new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+            );
+        }
+        return List.of(
+            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+        );
     }
 
     boolean isSnapshot() {
@@ -127,9 +138,14 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
-        if (isEnabled(settings) == false) {
-            return Collections.emptyList();
+        if (enabled) {
+            return List.of(new RestEqlSearchAction(), new RestEqlStatsAction());
         }
-        return Arrays.asList(new RestEqlSearchAction(), new RestEqlStatsAction());
+        return List.of();
+    }
+
+    // overridable by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 }

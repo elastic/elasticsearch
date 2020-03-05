@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -174,15 +175,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     @Override
-    public void validateSortPathKey(String key) {
-        if (false == this instanceof SingleBucketAggregator) {
-            super.validateSortPathKey(key);
-            return;
+    public BucketComparator bucketComparator(String key, SortOrder order) {
+        if (key == null || false == "doc_count".equals(key)) {
+            return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }
-        if (key != null && false == "doc_count".equals(key)) {
-            throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +
-                    "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
-                    ".doc_count\")");
-        }
+        throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +
+                "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
+                ".doc_count\") or \"key\".");
     }
 }

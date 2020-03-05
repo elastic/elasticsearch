@@ -19,10 +19,11 @@
 
 package org.elasticsearch.common.lucene.store;
 
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class InputStreamIndexInputTests extends ESTestCase {
     public void testSingleReadSingleByteLimit() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
@@ -68,7 +69,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
     }
 
     public void testReadMultiSingleByteLimit1() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
@@ -106,7 +107,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
     }
 
     public void testSingleReadTwoBytesLimit() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
@@ -147,7 +148,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
     }
 
     public void testReadMultiTwoBytesLimit1() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
@@ -190,7 +191,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
     }
 
     public void testReadMultiFourBytesLimit() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);
@@ -228,7 +229,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
     }
 
     public void testMarkRest() throws Exception {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
             output.writeByte((byte) 1);

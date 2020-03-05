@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.eql.session.Configuration;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 
@@ -20,7 +21,7 @@ public final class EqlTestUtils {
     }
 
     public static final Configuration TEST_CFG = new Configuration(new String[]{"none"}, org.elasticsearch.xpack.ql.util.DateUtils.UTC,
-        "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, "");
+            "nobody", "cluster", null, TimeValue.timeValueSeconds(30), -1, false, "");
 
     public static Configuration randomConfiguration() {
         return new Configuration(new String[]{randomAlphaOfLength(16)},
@@ -29,6 +30,7 @@ public final class EqlTestUtils {
             randomAlphaOfLength(16),
             null,
             new TimeValue(randomNonNegativeLong()),
+            randomIntBetween(5, 100),
             randomBoolean(),
             randomAlphaOfLength(16));
     }

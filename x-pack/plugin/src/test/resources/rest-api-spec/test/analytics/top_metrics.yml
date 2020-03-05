@@ -23,7 +23,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -36,7 +36,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: asc
@@ -49,7 +49,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s:
@@ -92,7 +92,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -105,7 +105,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: asc
@@ -146,7 +146,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -159,7 +159,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: asc
@@ -196,7 +196,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort: s.keyword
   - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
@@ -236,7 +236,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort: _score
   - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
@@ -263,7 +263,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   _script:
@@ -303,7 +303,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   _script:
@@ -345,7 +345,7 @@
           aggs:
             pop:
               top_metrics:
-                metric:
+                metrics:
                   field: population
                 sort:
                   _geo_distance:
@@ -361,7 +361,7 @@
             pop:
               top_metrics:
                 size: 3
-                metric:
+                metrics:
                   field: population
                 sort:
                   _geo_distance:
@@ -412,7 +412,7 @@
               aggs:
                 tm:
                   top_metrics:
-                    metric:
+                    metrics:
                       field: v
                     sort:
                       date: desc
@@ -437,7 +437,7 @@
               aggs:
                 tm:
                   top_metrics:
-                    metric:
+                    metrics:
                       field: v
                     sort:
                       date: desc
@@ -483,7 +483,7 @@
             tm:
               top_metrics:
                 size: 100
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -503,7 +503,7 @@
             tm:
               top_metrics:
                 size: 100
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc

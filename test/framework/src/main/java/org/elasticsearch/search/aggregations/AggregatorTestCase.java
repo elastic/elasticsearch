@@ -243,7 +243,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext =
-            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService);
+            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
@@ -293,9 +293,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
                                                       MapperService mapperService,
                                                       IndexSettings indexSettings,
-                                                      CircuitBreakerService circuitBreakerService) {
+                                                      CircuitBreakerService circuitBreakerService,
+                                                      BigArrays bigArrays) {
 
-        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+        return new QueryShardContext(0, indexSettings, bigArrays, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true);

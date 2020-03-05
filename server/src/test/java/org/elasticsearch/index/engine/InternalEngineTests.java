@@ -4406,7 +4406,6 @@ public class InternalEngineTests extends EngineTestCase {
      * This is needed as some fields in Lucene may not exist if a segment misses operation types and this code is to check for that.
      * For example, a segment containing only no-ops does not have neither _uid or _version.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53186")
     public void testRandomOperations() throws Exception {
         int numOps = between(10, 100);
         for (int i = 0; i < numOps; i++) {

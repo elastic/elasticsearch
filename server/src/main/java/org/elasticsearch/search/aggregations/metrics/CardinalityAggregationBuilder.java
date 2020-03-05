@@ -53,7 +53,7 @@ public final class CardinalityAggregationBuilder
     private static final ObjectParser<CardinalityAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(CardinalityAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, false);
+        ValuesSourceParserHelper.declareFields(PARSER, true, false, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }

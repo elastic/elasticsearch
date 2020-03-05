@@ -32,12 +32,6 @@ public final class ValuesSourceParserHelper {
 
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
-    public static <T> void declareNonTimezoneFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-            boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false);
-    }
-
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable, boolean timezoneAware) {

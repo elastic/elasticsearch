@@ -61,7 +61,7 @@ public final class IpRangeAggregationBuilder
     private static final ObjectParser<IpRangeAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, false, false);
+        ValuesSourceParserHelper.declareFields(PARSER, false, false, false);
 
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 

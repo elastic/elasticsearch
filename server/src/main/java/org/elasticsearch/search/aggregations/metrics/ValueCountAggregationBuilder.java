@@ -46,7 +46,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     private static final ObjectParser<ValueCountAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(ValueCountAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

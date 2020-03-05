@@ -27,10 +27,10 @@ class ScrollIdForNode {
     private final SearchContextId contextId;
     private final String clusterAlias;
 
-    ScrollIdForNode(@Nullable String clusterAlias, String node, SearchContextId scrollId) {
+    ScrollIdForNode(@Nullable String clusterAlias, String node, SearchContextId contextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
-        this.contextId = scrollId;
+        this.contextId = contextId;
     }
 
     public String getNode() {

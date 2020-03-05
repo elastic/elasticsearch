@@ -70,22 +70,19 @@ final class TransportSearchHelper {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
             ByteArrayDataInput in = new ByteArrayDataInput(bytes);
-            final boolean hasContextUUID;
+            final boolean includeContextUUID;
             final String type;
             final String firstChunk = in.readString();
             if (INCLUDE_CONTEXT_UUID.equals(firstChunk)) {
-                hasContextUUID = true;
+                includeContextUUID = true;
                 type = in.readString();
             } else {
-                hasContextUUID = false;
+                includeContextUUID = false;
                 type = firstChunk;
             }
             ScrollIdForNode[] context = new ScrollIdForNode[in.readVInt()];
             for (int i = 0; i < context.length; ++i) {
-                String contextUUID = "";
-                if (hasContextUUID) {
-                    contextUUID = in.readString();
-                }
+                final String contextUUID = includeContextUUID ? in.readString() : "";
                 long id = in.readLong();
                 String target = in.readString();
                 String clusterAlias;

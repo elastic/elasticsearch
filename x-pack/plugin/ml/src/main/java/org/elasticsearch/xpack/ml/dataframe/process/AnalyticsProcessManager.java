@@ -103,6 +103,8 @@ public class AnalyticsProcessManager {
             ProcessContext processContext = new ProcessContext(config);
             synchronized (processContextByAllocation) {
                 if (task.isStopping()) {
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before creating process context.",
+                        task.getParams().getId());
                     // The task was requested to stop before we created the process context
                     auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
                     task.markAsCompleted();
@@ -329,7 +331,6 @@ public class AnalyticsProcessManager {
             processContext.stop();
         } else {
             LOGGER.debug("[{}] No process context to stop", task.getParams().getId());
-            task.markAsCompleted();
         }
     }
 

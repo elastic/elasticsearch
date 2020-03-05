@@ -16,20 +16,22 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     
     private final String[] indices;
     private final TimeValue requestTimeout;
+    private final int size;
     private final String clientId;
     private final boolean includeFrozenIndices;
 
     @Nullable
     private QueryBuilder filter;
 
-    public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
-            TimeValue requestTimeout, boolean includeFrozen, String clientId) {
+    public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
+                         int size, boolean includeFrozen, String clientId) {
 
         super(zi, username, clusterName);
 
         this.indices = indices;
         this.filter = filter;
         this.requestTimeout = requestTimeout;
+        this.size = size;
         this.clientId = clientId;
         this.includeFrozenIndices = includeFrozen;
     }
@@ -44,6 +46,10 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
 
     public QueryBuilder filter() {
         return filter;
+    }
+
+    public int size() {
+        return size;
     }
 
     public String clientId() {

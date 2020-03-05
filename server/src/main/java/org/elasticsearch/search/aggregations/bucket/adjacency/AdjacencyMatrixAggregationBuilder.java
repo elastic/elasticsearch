@@ -58,15 +58,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, Void> PARSER = new ObjectParser<>(
-            AdjacencyMatrixAggregationBuilder.NAME);
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, AdjacencyMatrixAggregationBuilder::new);
     static {
         PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, new AdjacencyMatrixAggregationBuilder(aggregationName), null);
+    public static AggregationBuilder parse(XContentParser parser, String name) throws IOException {
+        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, name);
         result.checkConsistency();
         return result;
     }
@@ -76,7 +76,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
             throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
         }
     }
-
 
     protected void setFiltersAsMap(Map<String, QueryBuilder> filters) {
         // Convert uniquely named objects into internal KeyedFilters

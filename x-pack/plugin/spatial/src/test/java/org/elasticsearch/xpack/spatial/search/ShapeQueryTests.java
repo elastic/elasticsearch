@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -297,10 +298,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             assertEquals(0, response.getHits().getTotalHits().value);
         }
         {
-            // A geometry collection that is partially within the indexed shape
-            GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
-            builder.shape(new PointBuilder(1, 2));
-            builder.shape(new PointBuilder(20, 30));
+            // A geometry collection (as multi point) that is partially within the indexed shape
+            MultiPointBuilder builder = new MultiPointBuilder();
+            builder.coordinate(1, 2);
+            builder.coordinate(20, 30);
             SearchResponse response = client().prepareSearch("test_collections")
                 .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();
@@ -317,8 +318,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         {
             // A geometry collection that is disjoint with the indexed shape
             GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
-            builder.shape(new PointBuilder(-20, -30));
-            builder.shape(new PointBuilder(20, 30));
+            MultiPointBuilder innerBuilder = new MultiPointBuilder();
+            innerBuilder.coordinate(-20, -30);
+            innerBuilder.coordinate(20, 30);
+            builder.shape(innerBuilder);
             SearchResponse response = client().prepareSearch("test_collections")
                 .setQuery(new ShapeQueryBuilder("geometry", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();

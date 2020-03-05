@@ -54,7 +54,7 @@ final class PSubCallInvoke extends AExpression {
             expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
             expression.analyze(scriptRoot, scope);
-            arguments.set(argument, expression.cast(scriptRoot, scope));
+            expression.cast();
         }
 
         statement = true;
@@ -66,7 +66,7 @@ final class PSubCallInvoke extends AExpression {
         CallSubNode callSubNode = new CallSubNode();
 
         for (AExpression argument : arguments) {
-            callSubNode.addArgumentNode(argument.write(classNode));
+            callSubNode.addArgumentNode(argument.cast(argument.write(classNode)));
         }
 
         callSubNode.setLocation(location);

@@ -67,7 +67,9 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -206,6 +208,54 @@ public class LoggingAuditTrailTests extends ESTestCase {
     @After
     public void clearLog() throws Exception {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+    }
+
+    public void testEventsSettingValidation() {
+        final String prefix = "xpack.security.audit.logfile.events.";
+        Settings settings = Settings.builder().putList(prefix + "include", Arrays.asList("access_granted", "bogus")).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.get(settings));
+        assertThat(e, hasToString(containsString("invalid event name specified [bogus]")));
+
+        Settings settings2 = Settings.builder().putList(prefix + "exclude", Arrays.asList("access_denied", "foo")).build();
+        e = expectThrows(IllegalArgumentException.class, () -> LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.get(settings2));
+        assertThat(e, hasToString(containsString("invalid event name specified [foo]")));
+    }
+
+    public void testAuditFilterSettingValidation() {
+        final String prefix = "xpack.security.audit.logfile.events.";
+        Settings settings =
+                Settings.builder().putList(prefix + "ignore_filters.filter1.users", Arrays.asList("mickey", "/bogus")).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace("filter1").get(settings));
+        assertThat(e, hasToString(containsString("invalid pattern [/bogus]")));
+
+        Settings settings2 = Settings.builder()
+                .putList(prefix + "ignore_filters.filter2.users", Arrays.asList("tom", "cruise"))
+                .putList(prefix + "ignore_filters.filter2.realms", Arrays.asList("native", "/foo")).build();
+        assertThat(LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace("filter2").get(settings2),
+                containsInAnyOrder("tom", "cruise"));
+        e = expectThrows(IllegalArgumentException.class,
+                () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace("filter2").get(settings2));
+        assertThat(e, hasToString(containsString("invalid pattern [/foo]")));
+
+        Settings settings3 = Settings.builder()
+                .putList(prefix + "ignore_filters.filter3.realms", Arrays.asList("native", "oidc1"))
+                .putList(prefix + "ignore_filters.filter3.roles", Arrays.asList("kibana", "/wrong")).build();
+        assertThat(LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace("filter3").get(settings3),
+                containsInAnyOrder("native", "oidc1"));
+        e = expectThrows(IllegalArgumentException.class,
+                () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace("filter3").get(settings3));
+        assertThat(e, hasToString(containsString("invalid pattern [/wrong]")));
+
+        Settings settings4 = Settings.builder()
+                .putList(prefix + "ignore_filters.filter4.roles", Arrays.asList("kibana", "elastic"))
+                .putList(prefix + "ignore_filters.filter4.indices", Arrays.asList("index-1", "/no-inspiration")).build();
+        assertThat(LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace("filter4").get(settings4),
+                containsInAnyOrder("kibana", "elastic"));
+        e = expectThrows(IllegalArgumentException.class,
+                () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace("filter4").get(settings4));
+        assertThat(e, hasToString(containsString("invalid pattern [/no-inspiration]")));
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

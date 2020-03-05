@@ -35,9 +35,25 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                                           String classificationLabel,
                                           List<TopClassEntry> topClasses,
                                           InferenceConfig config) {
-        super(value);
-        assert config instanceof ClassificationConfig;
-        ClassificationConfig classificationConfig = (ClassificationConfig)config;
+        this(value, classificationLabel, topClasses, Collections.emptyMap(), (ClassificationConfig)config);
+    }
+
+    public ClassificationInferenceResults(double value,
+                                          String classificationLabel,
+                                          List<TopClassEntry> topClasses,
+                                          Map<String, Double> featureImportance,
+                                          InferenceConfig config) {
+        this(value, classificationLabel, topClasses, featureImportance, (ClassificationConfig)config);
+    }
+
+    private ClassificationInferenceResults(double value,
+                                           String classificationLabel,
+                                           List<TopClassEntry> topClasses,
+                                           Map<String, Double> featureImportance,
+                                           ClassificationConfig classificationConfig) {
+        super(value,
+            SingleValueInferenceResults.takeTopFeatureImportances(featureImportance,
+                classificationConfig.getNumTopFeatureImportanceValues()));
         this.classificationLabel = classificationLabel;
         this.topClasses = topClasses == null ? Collections.emptyList() : Collections.unmodifiableList(topClasses);
         this.topNumClassesField = classificationConfig.getTopClassesResultsField();
@@ -74,16 +90,17 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
         ClassificationInferenceResults that = (ClassificationInferenceResults) object;
-        return Objects.equals(value(), that.value()) &&
-            Objects.equals(classificationLabel, that.classificationLabel) &&
-            Objects.equals(resultsField, that.resultsField) &&
-            Objects.equals(topNumClassesField, that.topNumClassesField) &&
-            Objects.equals(topClasses, that.topClasses);
+        return Objects.equals(value(), that.value())
+            && Objects.equals(classificationLabel, that.classificationLabel)
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(topNumClassesField, that.topNumClassesField)
+            && Objects.equals(topClasses, that.topClasses)
+            && Objects.equals(getFeatureImportance(), that.getFeatureImportance());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value(), classificationLabel, topClasses, resultsField, topNumClassesField);
+        return Objects.hash(value(), classificationLabel, topClasses, resultsField, topNumClassesField, getFeatureImportance());
     }
 
     @Override
@@ -99,6 +116,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (topClasses.size() > 0) {
             document.setFieldValue(parentResultField + "." + topNumClassesField,
                 topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+        }
+        if (getFeatureImportance().size() > 0) {
+            document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance());
         }
     }
 

@@ -545,21 +545,24 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 final String checksumLine = checksumReader.readLine();
                 final String[] fields = checksumLine.split(" {2}");
-                if (fields.length != 2) {
+                if (officialPlugin && fields.length != 2 || officialPlugin == false && fields.length > 2) {
                     throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
                 }
                 expectedChecksum = fields[0];
-                final String[] segments = URI.create(urlString).getPath().split("/");
-                final String expectedFile = segments[segments.length - 1];
-                if (fields[1].equals(expectedFile) == false) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
-                        checksumUrl,
-                        expectedFile,
-                        fields[1]
-                    );
-                    throw new UserException(ExitCodes.IO_ERROR, message);
+                if (fields.length == 2) {
+                    // checksum line contains filename as well
+                    final String[] segments = URI.create(urlString).getPath().split("/");
+                    final String expectedFile = segments[segments.length - 1];
+                    if (fields[1].equals(expectedFile) == false) {
+                        final String message = String.format(
+                            Locale.ROOT,
+                            "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
+                            checksumUrl,
+                            expectedFile,
+                            fields[1]
+                        );
+                        throw new UserException(ExitCodes.IO_ERROR, message);
+                    }
                 }
                 if (checksumReader.readLine() != null) {
                     throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);

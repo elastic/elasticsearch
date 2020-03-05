@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -17,31 +19,38 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiValue {
-    private final DocValueFormat sortFormat;
-    private final SortOrder sortOrder;
-    private final SortValue sortValue;
-    private final String metricName;
-    private final double metricValue;
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
+import static  org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
-    public InternalTopMetrics(String name, DocValueFormat sortFormat, @Nullable SortOrder sortOrder, SortValue sortValue, String metricName,
-            double metricValue, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+
+public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiValue {
+    private final SortOrder sortOrder;
+    private final int size;
+    private final List<String> metricNames;
+    private final List<TopMetric> topMetrics;
+
+    public InternalTopMetrics(String name, @Nullable SortOrder sortOrder, List<String> metricNames,
+            int size, List<TopMetric> topMetrics, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        this.sortFormat = sortFormat;
         this.sortOrder = sortOrder;
-        this.sortValue = sortValue;
-        this.metricName = metricName;
-        this.metricValue = metricValue;
+        this.metricNames = metricNames;
+        /*
+         * topMetrics.size won't be size when the bucket doesn't have size docs!
+         */
+        this.size = size;
+        this.topMetrics = topMetrics;
     }
 
-    static InternalTopMetrics buildEmptyAggregation(String name, String metricField,
+    static InternalTopMetrics buildEmptyAggregation(String name, List<String> metricNames,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTopMetrics(name, DocValueFormat.RAW, SortOrder.ASC, null, metricField, Double.NaN, pipelineAggregators,
-                metaData);
+        return new InternalTopMetrics(name, SortOrder.ASC, metricNames, 0, emptyList(), pipelineAggregators, metaData);
     }
 
     /**
@@ -49,20 +58,18 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
      */
     public InternalTopMetrics(StreamInput in) throws IOException {
         super(in);
-        sortFormat = in.readNamedWriteable(DocValueFormat.class);
         sortOrder = SortOrder.readFromStream(in);
-        sortValue = in.readOptionalNamedWriteable(SortValue.class);
-        metricName = in.readString();
-        metricValue = in.readDouble();
+        metricNames = in.readStringList();
+        size = in.readVInt();
+        topMetrics = in.readList(TopMetric::new);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(sortFormat);
         sortOrder.writeTo(out);
-        out.writeOptionalNamedWriteable(sortValue);
-        out.writeString(metricName);
-        out.writeDouble(metricValue);
+        out.writeStringCollection(metricNames);
+        out.writeVInt(size);
+        out.writeList(topMetrics);
     }
 
     @Override
@@ -75,10 +82,19 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         if (path.isEmpty()) {
             return this;
         }
-        if (path.size() == 1 && metricName.contentEquals(path.get(1))) {
-            return metricValue;
+        if (path.size() != 1) {
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-        throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+        int index = metricNames.indexOf(path.get(0));
+        if (index < 0) {
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+        }
+        if (topMetrics.isEmpty()) {
+            // Unmapped.
+            return null;
+        }
+        assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
+        return topMetrics.get(0).metricValues[index];
     }
 
     @Override
@@ -86,43 +102,41 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         if (false == isMapped()) {
             return this;
         }
-        DocValueFormat bestSortFormat = sortFormat;
-        SortValue bestSortValue = sortValue;
-        double bestMetricValue = metricValue;
-        int reverseMul = sortOrder.reverseMul();
+        List<TopMetric> merged = new ArrayList<>(size);
+        PriorityQueue<ReduceState> queue = new PriorityQueue<ReduceState>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(ReduceState lhs, ReduceState rhs) {
+                return sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0; 
+            }
+        };
         for (InternalAggregation agg : aggregations) {
             InternalTopMetrics result = (InternalTopMetrics) agg;
-            if (result.sortValue != null && reverseMul * bestSortValue.compareTo(result.sortValue) > 0) {
-                bestSortFormat = result.sortFormat;
-                bestSortValue = result.sortValue;
-                bestMetricValue = result.metricValue;
+            if (result.isMapped()) {
+                queue.add(new ReduceState(result));
             }
         }
-        return new InternalTopMetrics(getName(), bestSortFormat, sortOrder, bestSortValue, metricName, bestMetricValue,
-                pipelineAggregators(), getMetaData());
+        while (queue.size() > 0 && merged.size() < size) {
+            merged.add(queue.top().topMetric());
+            queue.top().index++;
+            if (queue.top().result.topMetrics.size() <= queue.top().index) {
+                queue.pop();
+            } else {
+                queue.updateTop();
+            }
+        }
+        return new InternalTopMetrics(getName(), sortOrder, metricNames, size, merged, pipelineAggregators(), getMetaData());
     }
 
     @Override
     public boolean isMapped() {
-        return sortValue != null;
+        return false == topMetrics.isEmpty();
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("top");
-        if (sortValue != null) {
-            builder.startObject();
-            {
-                builder.startArray("sort");
-                sortValue.toXContent(builder, sortFormat);
-                builder.endArray();
-                builder.startObject("metrics");
-                {
-                    builder.field(metricName, Double.isNaN(metricValue) ? null : metricValue);
-                }
-                builder.endObject();
-            }
-            builder.endObject();
+        for (TopMetric top : topMetrics) {
+            top.toXContent(builder, metricNames);
         }
         builder.endArray();
         return builder;
@@ -130,49 +144,142 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sortFormat, sortOrder, sortValue, metricName, metricValue);
+        return Objects.hash(super.hashCode(), sortOrder, metricNames, size, topMetrics);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj) == false) return false;
         InternalTopMetrics other = (InternalTopMetrics) obj;
-        return sortFormat.equals(other.sortFormat) &&
-            sortOrder.equals(other.sortOrder) &&
-            Objects.equals(sortValue, other.sortValue) &&
-            metricName.equals(other.metricName) &&
-            metricValue == other.metricValue;
+        return sortOrder.equals(other.sortOrder) &&
+            metricNames.equals(other.metricNames) &&
+            size == other.size &&
+            topMetrics.equals(other.topMetrics);
     }
 
     @Override
     public double value(String name) {
-        if (metricName.equals(name)) {
-            return metricValue;
+        int index = metricNames.indexOf(name);
+        if (index < 0) {
+            throw new IllegalArgumentException("unknown metric [" + name + "]");            
         }
-        throw new IllegalArgumentException("known metric [" + name + "]");
-    }
-
-    DocValueFormat getSortFormat() {
-        return sortFormat;
+        if (topMetrics.isEmpty()) {
+            return Double.NaN;
+        }
+        assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
+        return topMetrics.get(0).metricValues[index];
     }
 
     SortOrder getSortOrder() {
         return sortOrder;
     }
 
-    SortValue getSortValue() {
-        return sortValue;
+    int getSize() {
+        return size;
     }
 
-    String getFormattedSortValue() {
-        return sortValue.format(sortFormat);
+    List<String> getMetricNames() {
+        return metricNames;
     }
 
-    String getMetricName() {
-        return metricName;
+    List<TopMetric> getTopMetrics() {
+        return topMetrics;
     }
 
-    double getMetricValue() {
-        return metricValue;
+    private class ReduceState {
+        private final InternalTopMetrics result;
+        private int index = 0;
+
+        ReduceState(InternalTopMetrics result) {
+            this.result = result;
+        }
+
+        SortValue sortValue() {
+            return topMetric().sortValue;
+        }
+
+        TopMetric topMetric() {
+            return result.topMetrics.get(index);
+        }
+    }
+
+    static class TopMetric implements Writeable, Comparable<TopMetric> {
+        private final DocValueFormat sortFormat;
+        private final SortValue sortValue;
+        private final double[] metricValues;
+
+        TopMetric(DocValueFormat sortFormat, SortValue sortValue, double[] metricValues) {
+            this.sortFormat = sortFormat;
+            this.sortValue = sortValue;
+            this.metricValues = metricValues;
+        }
+
+        TopMetric(StreamInput in) throws IOException {
+            sortFormat = in.readNamedWriteable(DocValueFormat.class);
+            sortValue = in.readNamedWriteable(SortValue.class);
+            metricValues = in.readDoubleArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeNamedWriteable(sortFormat);
+            out.writeNamedWriteable(sortValue);
+            out.writeDoubleArray(metricValues);
+        }
+
+        DocValueFormat getSortFormat() {
+            return sortFormat;
+        }
+
+        SortValue getSortValue() {
+            return sortValue;
+        }
+
+        double[] getMetricValues() {
+            return metricValues;
+        }
+
+        public XContentBuilder toXContent(XContentBuilder builder, List<String> metricNames) throws IOException {
+            builder.startObject();
+            {
+                builder.startArray(SORT_FIELD.getPreferredName());
+                sortValue.toXContent(builder, sortFormat);
+                builder.endArray();
+                builder.startObject(METRIC_FIELD.getPreferredName());
+                {
+                    for (int i = 0; i < metricValues.length; i++) {
+                        builder.field(metricNames.get(i), Double.isNaN(metricValues[i]) ? null : metricValues[i]);
+                    }
+                }
+                builder.endObject();
+            }
+            return builder.endObject();
+        }
+
+        @Override
+        public int compareTo(TopMetric o) {
+            return sortValue.compareTo(o.sortValue);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            TopMetric other = (TopMetric) obj;
+            return sortFormat.equals(other.sortFormat)
+                    && sortValue.equals(other.sortValue)
+                    && Arrays.equals(metricValues, other.metricValues);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sortFormat, sortValue, Arrays.hashCode(metricValues));
+        }
+
+        @Override
+        public String toString() {
+            return "TopMetric[" + sortFormat + "," + sortValue + "," + Arrays.toString(metricValues) + "]"; 
+        }
     }
 }

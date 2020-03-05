@@ -23,7 +23,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -104,14 +103,15 @@ public class AnalyticsProcessManager {
             ProcessContext processContext = new ProcessContext(config);
             synchronized (processContextByAllocation) {
                 if (task.isStopping()) {
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before creating process context.",
+                        task.getParams().getId());
                     // The task was requested to stop before we created the process context
                     auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
                     task.markAsCompleted();
                     return;
                 }
                 if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
-                    task.updateState(
-                        DataFrameAnalyticsState.FAILED, "[" + config.getId() + "] Could not create process as one already exists");
+                    task.setFailed("[" + config.getId() + "] Could not create process as one already exists");
                     return;
                 }
             }
@@ -193,7 +193,7 @@ public class AnalyticsProcessManager {
                 task.markAsCompleted();
             } else {
                 LOGGER.error("[{}] Marking task failed; {}", config.getId(), processContext.getFailureReason());
-                task.updateState(DataFrameAnalyticsState.FAILED, processContext.getFailureReason());
+                task.setFailed(processContext.getFailureReason());
                 // Note: We are not marking the task as failed here as we want the user to be able to inspect the failure reason.
             }
         }
@@ -265,7 +265,7 @@ public class AnalyticsProcessManager {
             process.restoreState(state);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
-            task.updateState(DataFrameAnalyticsState.FAILED, "Failed to restore state: " + e.getMessage());
+            task.setFailed("Failed to restore state: " + e.getMessage());
         }
     }
 
@@ -331,7 +331,6 @@ public class AnalyticsProcessManager {
             processContext.stop();
         } else {
             LOGGER.debug("[{}] No process context to stop", task.getParams().getId());
-            task.markAsCompleted();
         }
     }
 
@@ -428,7 +427,8 @@ public class AnalyticsProcessManager {
             DataFrameRowsJoiner dataFrameRowsJoiner =
                 new DataFrameRowsJoiner(config.getId(), dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
-                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, dataExtractor.get().getFieldNames());
+                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, resultsPersisterService,
+                dataExtractor.get().getFieldNames());
         }
     }
 }

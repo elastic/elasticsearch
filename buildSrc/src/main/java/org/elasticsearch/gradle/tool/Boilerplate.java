@@ -38,6 +38,10 @@ import java.util.Optional;
 
 public abstract class Boilerplate {
 
+    public static <T> Action<T> noop() {
+        return t -> {};
+    }
+
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
     }

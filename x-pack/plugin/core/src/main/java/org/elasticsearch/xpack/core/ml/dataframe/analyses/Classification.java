@@ -204,9 +204,7 @@ public class Classification implements DataFrameAnalysis {
         builder.startObject();
         builder.field(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         boostedTreeParams.toXContent(builder, params);
-        if (version.onOrAfter(Version.V_8_0_0)) {
-            builder.field(CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(), classAssignmentObjective);
-        }
+        builder.field(CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(), classAssignmentObjective);
         builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         if (predictionFieldName != null) {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);

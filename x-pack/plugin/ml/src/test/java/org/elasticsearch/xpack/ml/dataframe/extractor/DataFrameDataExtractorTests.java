@@ -377,7 +377,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(rows.get().size(), equalTo(3));
 
         assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
-        assertThat(rows.get().get(1).getValues(), equalTo(new String[] {"", "22"}));
+        assertThat(rows.get().get(1).getValues()[0], equalTo(DataFrameDataExtractor.NULL_VALUE));
+        assertThat(rows.get().get(1).getValues()[1], equalTo("22"));
         assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"13", "23"}));
 
         assertThat(rows.get().get(0).shouldSkip(), is(false));

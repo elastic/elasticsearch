@@ -1759,6 +1759,7 @@ public class InternalEngineTests extends EngineTestCase {
         return opsPerformed;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53182")
     public void testNonInternalVersioningOnPrimary() throws IOException {
         final Set<VersionType> nonInternalVersioning = new HashSet<>(Arrays.asList(VersionType.values()));
         nonInternalVersioning.remove(VersionType.INTERNAL);

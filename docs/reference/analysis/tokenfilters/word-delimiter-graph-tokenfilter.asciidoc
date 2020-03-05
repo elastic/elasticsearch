@@ -156,8 +156,8 @@ instead.
 +
 --
 (Optional, boolean)
-If `true`, adjust the offsets of split or catenated tokens to better reflect
-their actual position in the token stream. Defaults to `true`.
+If `true`, the filter adjusts the offsets of split or catenated tokens to better
+reflect their actual position in the token stream. Defaults to `true`.
 
 [WARNING]
 ====
@@ -171,40 +171,43 @@ could produce tokens with illegal offsets.
 [[word-delimiter-graph-tokenfilter-catenate-all]]
 `catenate_all`::
 (Optional, boolean)
-If `true`, produce catenated tokens for chains of alphanumeric characters
-separated by non-alphabetic delimiters. For example: `wi-fi-232-enabled` -> [
-**`wifi232enabled`**, `wi`, `fi`, `232`, `enabled` ]. Defaults to `false`.
+If `true`, the filter produces catenated tokens for chains of alphanumeric
+characters separated by non-alphabetic delimiters. For example:
+`wi-fi-232-enabled` -> [**`wifi232enabled`**, `wi`, `fi`, `232`, `enabled` ].
+Defaults to `false`.
 
 [[word-delimiter-graph-tokenfilter-catenate-numbers]]
 `catenate_numbers`::
 (Optional, boolean)
-If `true`, produce additional catenated tokens for chains of numeric characters
+If `true`, the filter produces catenated tokens for chains of numeric characters
 separated by non-alphabetic delimiters. For example: `01-02-03` ->
 [**`010203`**, `01`, `02`, `03` ]. Defaults to `false`.
 
 [[word-delimiter-graph-tokenfilter-catenate-words]]
 `catenate_words`::
 (Optional, boolean)
-If `true`, produce catenated tokens for chains of alphabetical characters
-separated by non-alphabetic delimiters. For example: `wi-fi-enabled` -> [
-**`wifienabled`**, `wi`, `fi`, `enabled`]. Defaults to `false`.
+If `true`, the filter produces catenated tokens for chains of alphabetical
+characters separated by non-alphabetic delimiters. For example: `wi-fi-enabled`
+-> [**`wifienabled`**, `wi`, `fi`, `enabled`]. Defaults to `false`.
 
 `generate_number_parts`::
 (Optional, boolean)
-If `true`, include tokens consisting of only numeric characters in the output.
-If `false`, exclude these tokens from the output. Defaults to `true`.
+If `true`, the filter includes tokens consisting of only numeric characters in
+the output. If `false`, the filter excludes these tokens from the output.
+Defaults to `true`.
 
 `generate_word_parts`::
 (Optional, boolean)
-If `true`, include tokens consisting of only alphabetical characters in the
-output. If `false`, exclude these tokens from the output. Defaults to `true`.
+If `true`, the filter includes tokens consisting of only alphabetical characters
+in the output. If `false`, the filter excludes these tokens from the output.
+Defaults to `true`.
 
 [[word-delimiter-graph-tokenfilter-preserve-original]]
 `preserve_original`::
 (Optional, boolean)
-If `true`, include the original version of any split tokens in the output. This
-original version includes non-alphanumeric delimiters. For example: `wi-fi-232`
--> [**`wi-fi-232`**, `wi`, `fi`, `232` ]. Defaults to `false`.
+If `true`, the filter includes the original version of any split tokens in the
+output. This original version includes non-alphanumeric delimiters. For example:
+`wi-fi-232` -> [**`wi-fi-232`**, `wi`, `fi`, `232` ]. Defaults to `false`.
 
 `protected_words`::
 (Optional, array of strings)
@@ -223,18 +226,18 @@ break.
 
 `split_on_case_change`::
 (Optional, boolean)
-If `true`, split tokens at letter case transitions. For example: `camelCase` ->
-[ `camel`, `Case`]. Defaults to `true`.
+If `true`, the filter splits tokens at letter case transitions. For example:
+`camelCase` -> [ `camel`, `Case`]. Defaults to `true`.
 
 `split_on_numerics`::
 (Optional, boolean)
-If `true`, split tokens at letter-number transitions. For example: `j2se` ->
-[ `j`, `2`, `se` ]. Defaults to `true`.
+If `true`, the filter splits tokens at letter-number transitions. For example:
+`j2se` -> [ `j`, `2`, `se` ]. Defaults to `true`.
 
 `stem_english_possessive`::
 (Optional, boolean)
-If `true`, remove the English possessive (`'s`) from the end of each token.
-For example: `O'Neil's` -> `[ `O`, `Neil` ]. Defaults to `true`.
+If `true`, the filter removes the English possessive (`'s`) from the end of each
+token. For example: `O'Neil's` -> `[ `O`, `Neil` ]. Defaults to `true`.
 
 `type_table`::
 +

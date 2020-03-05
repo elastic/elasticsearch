@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +147,15 @@ public final class DiffableUtils {
     public static <K, T extends Diffable<T>> MapDiff<K, T, ImmutableOpenMap<K, T>> readImmutableOpenMapDiff(StreamInput in,
             KeySerializer<K> keySerializer, Reader<T> reader, Reader<Diff<T>> diffReader) throws IOException {
         return new ImmutableOpenMapDiff<>(in, keySerializer, new DiffableValueReader<>(reader, diffReader));
+    }
+
+    /**
+     * Returns an empty diff for the given key and value serializers
+     */
+    public static <K, T extends Diffable<T>> MapDiff<K, T, ImmutableOpenMap<K, T>> emptyOpenMapDiff(KeySerializer<K> keySerializer,
+                                                                                                    ValueSerializer<K, T> valueSerializer) {
+        return new ImmutableOpenMapDiff<>(keySerializer, valueSerializer, Collections.emptyList(),
+            Collections.emptyMap(), Collections.emptyMap());
     }
 
     /**

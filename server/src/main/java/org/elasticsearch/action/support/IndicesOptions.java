@@ -410,8 +410,8 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
-     * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, and includes
-     *         hidden indices and allows that no indices are resolved from wildcard expressions (not returning an error).
+     * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, includes
+     *         hidden indices, and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandHidden() {
         return STRICT_EXPAND_OPEN_CLOSED_HIDDEN;

@@ -31,6 +31,8 @@ public class NodesStatsRequestTests extends ESTestCase {
     /**
      * Make sure that we can set, serialize, and deserialize arbitrary sets
      * of metrics.
+     *
+     * TODO: Use a looping construct rather than direct API calls
      */
     public void testMetricsSetters() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest(randomAlphaOfLength(8));
@@ -67,6 +69,8 @@ public class NodesStatsRequestTests extends ESTestCase {
     /**
      * Test that the {@link NodesStatsRequest#all()} method sets all of the
      * metrics to {@code true}.
+     *
+     * TODO: Use a looping construct rather than direct API calls
      */
     public void testNodesInfoRequestAll() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("node");
@@ -90,6 +94,8 @@ public class NodesStatsRequestTests extends ESTestCase {
     /**
      * Test that the {@link NodesStatsRequest#clear()} method sets all of the
      * metrics to {@code false}.
+     *
+     * TODO: Use a looping construct rather than direct API calls
      */
     public void testNodesInfoRequestClear() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("node");
@@ -125,6 +131,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     }
 
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
+        // TODO: Use a looping construct rather than direct API calls
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
         assertThat(request1.os(), equalTo(request2.os()));
         assertThat(request1.process(), equalTo(request2.process()));

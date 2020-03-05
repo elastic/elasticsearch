@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,18 +47,23 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         super(in);
 
         indices = new CommonStatsFlags(in);
-        addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.FS.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.HTTP.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.BREAKER.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.SCRIPT.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.DISCOVERY.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.INGEST.metricName());
-        addOrRemoveMetric(in.readBoolean(), Metrics.ADAPTIVE_SELECTION.metricName());
+        requestedMetrics.clear();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.FS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.HTTP.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.BREAKER.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.SCRIPT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.DISCOVERY.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.INGEST.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metrics.ADAPTIVE_SELECTION.metricName());
+        } else {
+            requestedMetrics.addAll(in.readStringList());
+        }
     }
 
     /**
@@ -287,18 +293,22 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.THREAD_POOL.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.FS.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.TRANSPORT.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.HTTP.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.BREAKER.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.SCRIPT.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.DISCOVERY.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
-        out.writeBoolean(Metrics.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.THREAD_POOL.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.FS.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.TRANSPORT.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.HTTP.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.BREAKER.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.SCRIPT.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.DISCOVERY.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
+            out.writeBoolean(Metrics.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
+        } else {
+            out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        }
     }
 
     /**

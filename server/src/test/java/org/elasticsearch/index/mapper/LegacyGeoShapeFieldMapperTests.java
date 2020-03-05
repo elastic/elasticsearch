@@ -717,9 +717,8 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
 
-        // was hardcoded to pass term?
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> geoShapeFieldMapper.fieldType().geoQuery(
+                () -> geoShapeFieldMapper.fieldType().spatialQuery(
                         new Point(-10, 10), "location", ShapeRelation.INTERSECTS, queryShardContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());

@@ -34,6 +34,9 @@ public class NodesInfoRequestTests extends ESTestCase {
     /**
      * Make sure that we can set, serialize, and deserialize arbitrary sets
      * of metrics.
+     *
+     * TODO: Once we can set values by string, use a collection rather than
+     *   checking each and every setter in the public API
      */
     public void testMetricsSetters() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
@@ -48,7 +51,7 @@ public class NodesInfoRequestTests extends ESTestCase {
         request.ingest(randomBoolean());
         request.indices(randomBoolean());
         NodesInfoRequest deserializedRequest = roundTripRequest(request);
-        assertThat(request.settings(), equalTo(deserializedRequest.settings()));
+        assertRequestsEqual(request, deserializedRequest);
     }
 
     /**
@@ -66,6 +69,9 @@ public class NodesInfoRequestTests extends ESTestCase {
     /**
      * Test that the {@link NodesInfoRequest#all()} method sets all of the
      * metrics to {@code true}.
+     *
+     * TODO: Once we can check values by string, use a collection rather than
+     *   checking each and every getter in the public API
      */
     public void testNodesInfoRequestAll() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
@@ -86,6 +92,9 @@ public class NodesInfoRequestTests extends ESTestCase {
     /**
      * Test that the {@link NodesInfoRequest#clear()} method sets all of the
      * metrics to {@code false}.
+     *
+     * TODO: Once we can check values by string, use a collection rather than
+     *   checking each and every getter in the public API
      */
     public void testNodesInfoRequestClear() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
@@ -118,6 +127,9 @@ public class NodesInfoRequestTests extends ESTestCase {
     }
 
     private static void assertRequestsEqual(NodesInfoRequest request1, NodesInfoRequest request2) {
+
+        // TODO: Once we can check values by string, use a collection rather than
+        //   checking each and every getter in the public API
         assertThat(request1.settings(), equalTo(request2.settings()));
         assertThat(request1.os(), equalTo(request2.os()));
         assertThat(request1.process(), equalTo(request2.process()));

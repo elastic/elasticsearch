@@ -183,6 +183,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         retainAllSnapshots("snapshots-retention-with-retain");
 
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountBeforeDelete =
@@ -231,6 +232,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
         long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountAfterDelete =

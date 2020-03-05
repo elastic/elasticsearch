@@ -523,6 +523,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        boolean success = false;
         try {
             final long start = out.position();
             out.skip(Integer.BYTES);
@@ -542,7 +543,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     throw new IllegalArgumentException("Operation term is newer than the current term; "
                         + "current term[" + current.getPrimaryTerm() + "], operation term[" + operation + "]");
                 }
-                return current.add(bytes, operation.seqNo());
+                final Location location = current.add(bytes, operation.seqNo());
+                success = true;
+                return location;
             }
         } catch (final AlreadyClosedException | IOException ex) {
             closeOnTragicEvent(ex);
@@ -551,7 +554,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
         } finally {
-            Releasables.close(out);
+            if (success == false) {
+                Releasables.close(out);
+            }
         }
     }
 

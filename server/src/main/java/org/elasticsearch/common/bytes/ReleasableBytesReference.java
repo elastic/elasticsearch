@@ -38,6 +38,10 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     private final BytesReference delegate;
     private final Releasable releasable;
 
+    public ReleasableBytesReference(BytesReference delegate) {
+        this(delegate, () -> {});
+    }
+
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this.delegate = delegate;
         this.releasable = releasable;

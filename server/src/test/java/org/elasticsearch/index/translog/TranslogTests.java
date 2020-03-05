@@ -42,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1107,7 +1108,7 @@ public class TranslogTests extends ESTestCase {
                 assertTrue("at least one operation pending", translog.syncNeeded());
                 assertTrue("this operation has not been synced", translog.ensureSynced(location));
                 // we are the last location so everything should be synced
-                assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded());
+                assertFalse("the last call to ensureSynced synced all previous ops", translog.syncNeeded());
                 seqNo = ++count;
                 translog.add(new Translog.Index("" + op, seqNo, primaryTerm.get(),
                     Integer.toString(seqNo).getBytes(Charset.forName("UTF-8"))));
@@ -1266,7 +1267,7 @@ public class TranslogTests extends ESTestCase {
             if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 seenSeqNos.add(seqNo);
             }
-            writer.add(new BytesArray(bytes), seqNo);
+            writer.add(new ReleasableBytesReference(new BytesArray(bytes)), seqNo);
         }
         assertThat(persistedSeqNos, empty());
         writer.sync();
@@ -1289,7 +1290,7 @@ public class TranslogTests extends ESTestCase {
 
         out.reset(bytes);
         out.writeInt(2048);
-        writer.add(new BytesArray(bytes), randomNonNegativeLong());
+        writer.add(new ReleasableBytesReference(new BytesArray(bytes)), randomNonNegativeLong());
 
         if (reader instanceof TranslogReader) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1320,7 +1321,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < numOps; i++) {
                 out.reset(bytes);
                 out.writeInt(i);
-                writer.add(new BytesArray(bytes), randomNonNegativeLong());
+                writer.add(new ReleasableBytesReference(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();
             final Checkpoint writerCheckpoint = writer.getCheckpoint();

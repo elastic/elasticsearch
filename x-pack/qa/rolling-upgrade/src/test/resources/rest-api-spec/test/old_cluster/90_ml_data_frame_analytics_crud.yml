@@ -20,6 +20,16 @@ setup:
           }
 
   - do:
+      index:
+        index: bwc_ml_classification_job_source
+        body: >
+          {
+            "numeric_field_1": 1.0,
+            "foo": "a",
+            "user": "Kimchy"
+          }
+
+  - do:
       indices.refresh:
         index: bwc_ml_*
 

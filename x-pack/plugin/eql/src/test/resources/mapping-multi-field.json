@@ -1,7 +1,14 @@
 {
     "properties" : {
-        "event_type" : {
-            "type" : "keyword"
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
         },
         "multi_field" : {
             "type" : "text",

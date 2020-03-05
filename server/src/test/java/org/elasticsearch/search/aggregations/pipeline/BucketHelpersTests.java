@@ -88,7 +88,7 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public InternalAggregations getAggregations() {
+            public Aggregations getAggregations() {
                 return null;
             }
 
@@ -161,7 +161,7 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public InternalAggregations getAggregations() {
+            public Aggregations getAggregations() {
                 return null;
             }
 

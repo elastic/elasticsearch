@@ -98,7 +98,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
      * of bytes reads.
      */
     protected final BufferedChecksumStreamInput checksummedStream(ByteBuffer reusableBuffer, long position, int opSize,
-                                                                        BufferedChecksumStreamInput reuse) throws IOException {
+                                                                  BufferedChecksumStreamInput reuse) throws IOException {
         final ByteBuffer buffer;
         if (reusableBuffer.capacity() >= opSize) {
             buffer = reusableBuffer;

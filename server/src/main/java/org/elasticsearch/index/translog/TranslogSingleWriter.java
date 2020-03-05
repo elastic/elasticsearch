@@ -276,7 +276,7 @@ public class TranslogSingleWriter extends BaseTranslogReader implements Closeabl
 
     /**
      * write all buffered ops to disk and fsync file.
-     *
+     * <p>
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
      * raising the exception.
      */
@@ -301,7 +301,17 @@ public class TranslogSingleWriter extends BaseTranslogReader implements Closeabl
 
     @Override
     synchronized Checkpoint getCheckpoint() {
-        return new Checkpoint(oldTotalOffset, operationCounter, generation, minSeqNo, maxSeqNo,
+        long minSeqNo = lastSyncedCheckpoint.minSeqNo;
+        long maxSeqNo = lastSyncedCheckpoint.maxSeqNo;
+        int numOps = lastSyncedCheckpoint.numOps;
+        for (Operation operation : buffer) {
+            long seqNo = operation.seqNo;
+            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+            ++numOps;
+        }
+
+        return new Checkpoint(oldTotalOffset, numOps, generation, minSeqNo, maxSeqNo,
             globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
             SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
@@ -313,6 +323,7 @@ public class TranslogSingleWriter extends BaseTranslogReader implements Closeabl
 
     /**
      * Closes this writer and transfers its underlying file channel to a new immutable {@link TranslogReader}
+     *
      * @return a new {@link TranslogReader}
      * @throws IOException if any of the file operations resulted in an I/O exception
      */
@@ -407,30 +418,76 @@ public class TranslogSingleWriter extends BaseTranslogReader implements Closeabl
         return false;
     }
 
+    /**
+     * Syncs the translog up to at least the given offset unless already synced
+     *
+     * @return <code>true</code> if this call caused an actual sync operation
+     */
+    final boolean syncUpTo2(long offset) throws IOException {
+        if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+            synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
+                ensureOpen();
+                if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+                    writeOperationsToFile();
+
+                    // double checked locking - we don't want to fsync unless we have to and now that we have
+                    // the lock we should check again since if this code is busy we might have fsynced enough already
+                    final Checkpoint checkpointToSync = getCheckpoint();
+                    final LongArrayList flushedSequenceNumbers = nonFsyncedSequenceNumbers;
+                    nonFsyncedSequenceNumbers = new LongArrayList(64);
+                    // now do the actual fsync outside of the synchronized block such that
+                    // we can continue writing to the buffer etc.
+                    try {
+                        channel.force(false);
+                        writeCheckpoint(channelFactory, path.getParent(), checkpointToSync);
+                    } catch (final Exception ex) {
+                        closeWithTragicEvent(ex);
+                        throw ex;
+                    }
+                    flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
+                        "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
+                    lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private final ByteBuffer ioBuffer = ByteBuffer.allocate(512 * 1024 * 1024);
+
     private void writeOperationsToFile() throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(512 * 1024 * 1024);
         synchronized (syncLock) {
             ensureOpen();
 
             Operation operation;
             while ((operation = this.buffer.pollFirst()) != null) {
-                nonFsyncedSequenceNumbers.add(operation.seqNo);
-                ReleasableBytesReference data = operation.data;
-                BytesRefIterator iterator = data.iterator();
-                BytesRef scratch;
-                while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
-                    // TODO: Handle bounds checking
-                    buffer.put(scratch.bytes, scratch.offset, scratch.length);
+                try (Releasable toClose = operation) {
+                    nonFsyncedSequenceNumbers.add(operation.seqNo);
+                    ReleasableBytesReference data = operation.data;
+                    BytesRefIterator iterator = data.iterator();
+                    BytesRef scratch;
+                    while ((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
+                        // TODO: Handle bounds checking
+                        ioBuffer.put(scratch.bytes, scratch.offset, scratch.length);
+                        if (ioBuffer.hasRemaining() == false) {
+                            write();
+                        }
+                    }
                 }
-                operation.close();
             }
 
-            try {
-                channel.write(buffer);
-            } catch (final Exception ex) {
-                closeWithTragicEvent(ex);
-                throw ex;
-            }
+            write();
+        }
+    }
+
+    private void write() throws IOException {
+        try {
+            channel.write(ioBuffer);
+        } catch (final Exception ex) {
+            closeWithTragicEvent(ex);
+            throw ex;
         }
     }
 

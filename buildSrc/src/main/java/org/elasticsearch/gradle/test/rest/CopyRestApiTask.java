@@ -132,7 +132,11 @@ public class CopyRestApiTask extends DefaultTask {
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
                 c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
+                if (includeCore.get().isEmpty()) {
+                    c.include(COPY_TO + "/**");
+                } else {
+                    c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
+                }
             });
         }
         // only copy x-pack specs if explicitly instructed

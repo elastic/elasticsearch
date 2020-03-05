@@ -327,6 +327,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53193")
     public void testDataOnlyNodePersistence() throws Exception {
         DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);

@@ -860,8 +860,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {
 
-        public TestSearchContextWithRewriteAndCancellation(QueryShardContext queryShardContext, IndexShard indexShard,
-                                                           ContextIndexSearcher searcher) {
+        private TestSearchContextWithRewriteAndCancellation(QueryShardContext queryShardContext,
+                                                            IndexShard indexShard,
+                                                            ContextIndexSearcher searcher) {
             super(queryShardContext, indexShard, searcher);
         }
 

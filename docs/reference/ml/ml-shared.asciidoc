@@ -411,16 +411,16 @@ query domain-specific language (<<query-dsl,DSL>>). This value corresponds to
 the query object in an {es} search POST body. By default, this property has the 
 following value: `{"match_all": {}}`.
 
-`source``_source`:::
+`source`.`_source`:::
 (object) Contains the specified `includes` and/or `excludes` patterns that 
 select which fields are present in the destination. Fields that are excluded 
 cannot be included in the analysis.
 
-`source``_source`.`excludes`:::
+`source`.`_source`.`excludes`:::
 (array) An array of strings that defines the fields that are excluded from the 
 destination.
 
-`source``_source`.`includes`:::
+`source`.`_source`.`includes`:::
 (array) An array of strings that defines the fields that are included in the 
 destination.
 end::data-frame-analytics[]

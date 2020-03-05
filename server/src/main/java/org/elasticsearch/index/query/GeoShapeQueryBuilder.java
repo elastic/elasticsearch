@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -200,7 +201,8 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
         }
-        return ((SpatialFieldType)fieldType).spatialQuery(shape, fieldName, relation, context);
+        // wrap geometry Query as a ConstantScoreQuery
+        return new ConstantScoreQuery(((SpatialFieldType)fieldType).spatialQuery(shape, fieldName, relation, context));
     }
 
     @Override

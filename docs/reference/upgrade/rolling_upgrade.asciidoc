@@ -7,8 +7,8 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
-We strongly recommend you upgrade you divide your cluster's nodes into the
-following two groups and upgrade the groups in this order:
+We strongly recommend that when you upgrade you divide your cluster's nodes
+into the following two groups and upgrade the groups in this order:
 
 . Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
 of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes

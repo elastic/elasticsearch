@@ -44,7 +44,7 @@ public class CompositeValuesSourceParserHelper {
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
         objectParser.declareField(VB::valueType, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
+            ValueType valueType = ValueType.lenientParse(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["

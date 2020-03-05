@@ -37,7 +37,7 @@ public final class MultiValuesSourceParseHelper {
             ValueType expectedValueType) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
+            ValueType valueType = ValueType.lenientParse(p.text());
             if (expectedValueTypes.contains(valueType) == false) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["

@@ -24,16 +24,16 @@ import org.elasticsearch.test.ESTestCase;
 public class ValueTypeTests extends ESTestCase {
 
     public void testResolve() {
-        assertEquals(ValueType.STRING, ValueType.resolveForScript("string"));
-        assertEquals(ValueType.DOUBLE, ValueType.resolveForScript("float"));
-        assertEquals(ValueType.DOUBLE, ValueType.resolveForScript("double"));
-        assertEquals(ValueType.LONG, ValueType.resolveForScript("byte"));
-        assertEquals(ValueType.LONG, ValueType.resolveForScript("short"));
-        assertEquals(ValueType.LONG, ValueType.resolveForScript("integer"));
-        assertEquals(ValueType.LONG, ValueType.resolveForScript("long"));
-        assertEquals(ValueType.DATE, ValueType.resolveForScript("date"));
-        assertEquals(ValueType.IP, ValueType.resolveForScript("ip"));
-        assertEquals(ValueType.BOOLEAN, ValueType.resolveForScript("boolean"));
+        assertEquals(ValueType.STRING, ValueType.lenientParse("string"));
+        assertEquals(ValueType.DOUBLE, ValueType.lenientParse("float"));
+        assertEquals(ValueType.DOUBLE, ValueType.lenientParse("double"));
+        assertEquals(ValueType.LONG, ValueType.lenientParse("byte"));
+        assertEquals(ValueType.LONG, ValueType.lenientParse("short"));
+        assertEquals(ValueType.LONG, ValueType.lenientParse("integer"));
+        assertEquals(ValueType.LONG, ValueType.lenientParse("long"));
+        assertEquals(ValueType.DATE, ValueType.lenientParse("date"));
+        assertEquals(ValueType.IP, ValueType.lenientParse("ip"));
+        assertEquals(ValueType.BOOLEAN, ValueType.lenientParse("boolean"));
     }
 
     public void testCompatibility() {

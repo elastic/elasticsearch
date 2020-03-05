@@ -84,7 +84,7 @@ public enum ValueType implements Writeable {
         return defaultFormat;
     }
 
-    public static ValueType resolveForScript(String type) {
+    public static ValueType lenientParse(String type) {
         switch (type) {
             case "string":  return STRING;
             case "double":

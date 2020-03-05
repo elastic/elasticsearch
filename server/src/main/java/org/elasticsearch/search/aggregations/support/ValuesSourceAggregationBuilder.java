@@ -53,7 +53,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
-        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> ValueType.resolveForScript(p.text()),
+        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> ValueType.lenientParse(p.text()),
             ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {

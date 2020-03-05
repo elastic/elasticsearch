@@ -28,9 +28,9 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
@@ -67,8 +67,14 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52906")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
+
+    private static void assumeNotJava8() {
+        assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
+            "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
+            "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
+            "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
+    }
 
     @Override
     protected String repositoryType() {
@@ -117,6 +123,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     public void testDeleteSingleItem() {
+        assumeNotJava8();
         final String repoName = createRepository(randomName());
         final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
@@ -163,7 +170,62 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
     }
 
+    @Override
+    public void testSnapshotAndRestore() throws Exception {
+        assumeNotJava8();
+        super.testSnapshotAndRestore();
+    }
+
+    @Override
+    public void testList() throws IOException {
+        assumeNotJava8();
+        super.testList();
+    }
+
+    @Override
+    public void testIndicesDeletedFromRepository() throws Exception {
+        assumeNotJava8();
+        super.testIndicesDeletedFromRepository();
+    }
+
+    @Override
+    public void testDeleteBlobs() throws IOException {
+        assumeNotJava8();
+        super.testDeleteBlobs();
+    }
+
+    @Override
+    public void testWriteRead() throws IOException {
+        assumeNotJava8();
+        super.testWriteRead();
+    }
+
+    @Override
+    public void testReadNonExistingPath() throws IOException {
+        assumeNotJava8();
+        super.testReadNonExistingPath();
+    }
+
+    @Override
+    public void testContainerCreationAndDeletion() throws IOException {
+        assumeNotJava8();
+        super.testContainerCreationAndDeletion();
+    }
+
+    @Override
+    public void testMultipleSnapshotAndRollback() throws Exception {
+        assumeNotJava8();
+        super.testMultipleSnapshotAndRollback();
+    }
+
+    @Override
+    public void testSnapshotWithLargeSegmentFiles() throws Exception {
+        assumeNotJava8();
+        super.testSnapshotWithLargeSegmentFiles();
+    }
+
     public void testWriteReadLarge() throws IOException {
+        assumeNotJava8();
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE + 1);

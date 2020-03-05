@@ -98,7 +98,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
-        assertThat(req.settings().get("index.lifecycle.name"), equalTo("state_index_ilm_policy"));
+        assertThat(req.settings().get("index.lifecycle.name"), equalTo("ml-state-ilm-policy"));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
     }
 

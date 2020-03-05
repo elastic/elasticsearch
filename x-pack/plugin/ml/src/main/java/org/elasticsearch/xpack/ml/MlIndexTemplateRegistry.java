@@ -58,8 +58,9 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final IndexTemplateConfig STATS_TEMPLATE = statsTemplate();
 
-    private static final LifecyclePolicyConfig ANOMALY_DETECTION_STATE_ILM_POLICY =
-        new LifecyclePolicyConfig("state_index_ilm_policy", ANOMALY_DETECTION_PATH + "state_index_ilm_policy.json");
+    private static final String ML_STATE_ILM_POLICY_NAME = "ml-state-ilm-policy";
+    private static final LifecyclePolicyConfig ML_STATE_ILM_POLICY =
+        new LifecyclePolicyConfig(ML_STATE_ILM_POLICY_NAME, ANOMALY_DETECTION_PATH + "state_index_ilm_policy.json");
 
     private static IndexTemplateConfig configTemplate() {
         Map<String, String> variables = new HashMap<>();
@@ -80,8 +81,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         variables.put(
             "xpack.ml.index.lifecycle.settings",
             ilmEnabled
-                ? ",\"index.lifecycle.name\": \"state_index_ilm_policy\"\n" +
-                  ",\"index.lifecycle.rollover_alias\": \".ml-state-write\"\n"
+                ? ",\"index.lifecycle.name\": \"" + ML_STATE_ILM_POLICY_NAME + "\"\n" +
+                  ",\"index.lifecycle.rollover_alias\": \"" + AnomalyDetectorsIndex.jobStateIndexWriteAlias() + "\"\n"
                 : "");
 
         return new IndexTemplateConfig(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
@@ -140,7 +141,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        return Collections.singletonList(ANOMALY_DETECTION_STATE_ILM_POLICY);
+        return Collections.singletonList(ML_STATE_ILM_POLICY);
     }
 
     @Override

@@ -43,7 +43,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     private static final ObjectParser<DateRangeAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DateRangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {

@@ -44,7 +44,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     private static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

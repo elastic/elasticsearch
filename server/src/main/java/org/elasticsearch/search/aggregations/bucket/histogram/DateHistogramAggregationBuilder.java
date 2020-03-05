@@ -93,7 +93,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, true);
 
         DateIntervalWrapper.declareIntervalFields(PARSER);
 

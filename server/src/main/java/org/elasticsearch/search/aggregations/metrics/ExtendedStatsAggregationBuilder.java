@@ -46,7 +46,7 @@ public class ExtendedStatsAggregationBuilder
     private static final ObjectParser<ExtendedStatsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(ExtendedStatsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 

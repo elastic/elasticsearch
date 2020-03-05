@@ -45,7 +45,7 @@ public class GeoCentroidAggregationBuilder
     private static final ObjectParser<GeoCentroidAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoCentroidAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,39 +32,15 @@ public final class ValuesSourceParserHelper {
 
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
-    public static <T> void declareAnyFields(
-        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-        boolean scriptable, boolean formattable) {
-        declareAnyFields(objectParser, scriptable, formattable, false);
+    public static <T> void declareNonTimezoneFields(
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
+            boolean scriptable, boolean formattable) {
+        declareFields(objectParser, scriptable, formattable, false);
     }
 
-    public static <T> void declareAnyFields(
+    public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable, boolean timezoneAware) {
-        declareFields(objectParser, scriptable, formattable, timezoneAware, null);
-    }
-
-    public static <T> void declareNumericFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-            boolean scriptable, boolean formattable, boolean timezoneAware) {
-        declareFields(objectParser, scriptable, formattable, timezoneAware, ValueType.NUMERIC);
-    }
-
-    public static <T> void declareBytesFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-            boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
-    }
-
-    public static <T> void declareGeoFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-            boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
-    }
-
-    private static <VS extends ValuesSource, T> void declareFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-            boolean scriptable, boolean formattable, boolean timezoneAware, ValueType expectedInputType) {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
@@ -74,16 +49,8 @@ public final class ValuesSourceParserHelper {
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
-        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
-            if (expectedInputType != null && valueType.isNotA(expectedInputType)) {
-                throw new ParsingException(p.getTokenLocation(),
-                    "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                            + valueType + "].  It can only work on value off type ["
-                            + expectedInputType + "]");
-            }
-            return valueType;
-        }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
+        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> ValueType.resolveForScript(p.text()),
+            ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,

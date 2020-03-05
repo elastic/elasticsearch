@@ -105,7 +105,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             return ctor.apply(name, values, percentilesConfig);
         });
 
-        ValuesSourceParserHelper.declareAnyFields(parser, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(parser, true, true);
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), valuesField);
         parser.declareBoolean(T::keyed, KEYED_FIELD);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,

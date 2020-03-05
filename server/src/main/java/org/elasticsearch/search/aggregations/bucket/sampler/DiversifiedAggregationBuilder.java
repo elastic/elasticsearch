@@ -47,7 +47,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     private static final ObjectParser<DiversifiedAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DiversifiedAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, false);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, false);
         PARSER.declareInt(DiversifiedAggregationBuilder::shardSize, SamplerAggregator.SHARD_SIZE_FIELD);
         PARSER.declareInt(DiversifiedAggregationBuilder::maxDocsPerValue, SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD);
         PARSER.declareString(DiversifiedAggregationBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);

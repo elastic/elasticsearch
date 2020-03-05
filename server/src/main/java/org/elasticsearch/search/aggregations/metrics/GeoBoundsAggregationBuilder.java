@@ -44,7 +44,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private static final ObjectParser<GeoBoundsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 

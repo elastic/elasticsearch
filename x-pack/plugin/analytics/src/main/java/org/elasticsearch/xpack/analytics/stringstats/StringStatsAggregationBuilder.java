@@ -33,7 +33,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, StringStatsAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareBytesFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
         PARSER.declareBoolean(StringStatsAggregationBuilder::showDistribution, StringStatsAggregationBuilder.SHOW_DISTRIBUTION_FIELD);
     }
 

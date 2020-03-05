@@ -60,7 +60,7 @@ public class AutoDateHistogramAggregationBuilder
     private static final ObjectParser<AutoDateHistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(AutoDateHistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, true);
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }

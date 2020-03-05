@@ -51,7 +51,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private static final ObjectParser<RareTermsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(RareTermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
         PARSER.declareLong(RareTermsAggregationBuilder::maxDocCount, MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),

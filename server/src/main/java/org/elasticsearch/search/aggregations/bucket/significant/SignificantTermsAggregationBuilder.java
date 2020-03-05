@@ -67,7 +67,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         SignificantTermsAggregationBuilder.NAME,
         SignificanceHeuristic.class, SignificantTermsAggregationBuilder::significanceHeuristic, null);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
 
         PARSER.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
 

@@ -68,7 +68,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private static final ObjectParser<TermsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(TermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
 
         PARSER.declareBoolean(TermsAggregationBuilder::showTermDocCountError,
                 TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);

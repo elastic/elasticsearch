@@ -45,7 +45,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     private static final ObjectParser<MaxAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(MaxAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

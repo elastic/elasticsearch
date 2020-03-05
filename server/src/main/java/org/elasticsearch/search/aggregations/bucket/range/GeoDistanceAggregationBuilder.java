@@ -61,7 +61,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     private static final ObjectParser<GeoDistanceAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoDistanceAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, false);
 
         PARSER.declareBoolean(GeoDistanceAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 

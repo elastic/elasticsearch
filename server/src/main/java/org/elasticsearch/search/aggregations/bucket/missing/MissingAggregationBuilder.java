@@ -45,7 +45,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     private static final ObjectParser<MissingAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(MissingAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
     }
 
     public static MissingAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

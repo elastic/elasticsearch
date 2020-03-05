@@ -41,7 +41,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     private static final ObjectParser<RangeAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(RangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {

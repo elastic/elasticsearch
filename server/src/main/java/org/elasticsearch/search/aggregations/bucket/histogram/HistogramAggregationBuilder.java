@@ -65,7 +65,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     private static final ObjectParser<HistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
 
         PARSER.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);
 

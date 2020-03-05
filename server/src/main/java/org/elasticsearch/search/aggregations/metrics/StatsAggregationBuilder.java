@@ -45,7 +45,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     private static final ObjectParser<StatsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(StatsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareFields(PARSER, true, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

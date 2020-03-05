@@ -35,7 +35,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareNonTimezoneFields(PARSER, true, true);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
     }
 

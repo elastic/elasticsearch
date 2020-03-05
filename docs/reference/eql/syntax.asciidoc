@@ -14,19 +14,43 @@ experimental::[]
 [[eql-basic-syntax]]
 === Basic syntax
 
-EQL queries require an event type and a matching condition. The `where` keyword connects them.
+EQL queries require an event category and a matching condition. The `where`
+keyword connects them.
 
 [source,eql]
 ----
-event.category where condition
+event_category where condition
 ----
 
-For example, the following EQL query matches `process` events with a `process.name`
-field value of `svchost.exe`:
+For example, the following EQL query matches `process` events with a
+`process.name` field value of `svchost.exe`:
 
 [source,eql]
 ----
 process where process.name == "svchost.exe"
+----
+
+[discrete]
+[[eql-syntax-event-categories]]
+==== Event categories
+
+In {es}, an event category is a valid, indexed value of the
+<<eql-required-fields,event category field>>. You can set the event category
+field using the `event_category_field` parameter of the EQL search API.
+
+[discrete]
+[[eql-syntax-match-any-event-category]]
+===== Match any event category
+
+To match events of any category, use the `any` keyword. You can also use the
+`any` keyword to search for documents without a event category field.
+
+For example, the following EQL query matches any documents with a
+`network.protocol` field value of `http`:
+
+[source,eql]
+----
+any where network.protocol == "http"
 ----
 
 [discrete]
@@ -159,7 +183,7 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 
 [discrete]
 [[eql-syntax-wildcards]]
-===== Wildcards 
+===== Wildcards
 
 You can use the wildcard operator (`*`) within a string to match specific
 patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
@@ -172,8 +196,29 @@ field != "example*wildcard"
 ----
 
 [discrete]
+[[eql-syntax-match-any-condition]]
+===== Match any condition
+
+To match events solely on event category, use the `where true` condition.
+
+For example, the following EQL query matches any `file` events:
+
+[source,eql]
+----
+file where true
+----
+
+To match any event, you can combine the `any` keyword with the `where true`
+condition:
+
+[source,eql]
+----
+any where true
+----
+
+[discrete]
 [[eql-syntax-escaped-characters]]
-===== Escaped characters 
+===== Escaped characters
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).

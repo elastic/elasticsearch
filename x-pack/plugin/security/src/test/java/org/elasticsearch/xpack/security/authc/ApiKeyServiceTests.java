@@ -447,7 +447,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             () -> service.getApiKeys(randomAlphaOfLength(6), randomAlphaOfLength(8), null, null, new PlainActionFuture<>()));
 
         assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        // Older Kibana version looked for this exact text:
         assertThat(e, throwableWithMessage("api keys are not enabled"));
+        // Newer Kibana versions will check the metadata for this string literal:
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("api_keys"));
     }
 

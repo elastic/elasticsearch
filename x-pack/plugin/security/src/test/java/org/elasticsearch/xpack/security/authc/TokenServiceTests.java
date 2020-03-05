@@ -568,6 +568,7 @@ public class TokenServiceTests extends ESTestCase {
             () -> tokenService.createOAuth2Tokens(null, null, null, true, null));
         assertThat(e, throwableWithMessage("security tokens are not enabled"));
         assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        // Client can check the metadata for this value, and depend on an exact string match:
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
 
         PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -578,6 +579,7 @@ public class TokenServiceTests extends ESTestCase {
         e = expectThrows(ElasticsearchException.class, () -> tokenService.invalidateAccessToken((String) null, invalidateFuture));
         assertThat(e, throwableWithMessage("security tokens are not enabled"));
         assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        // Client can check the metadata for this value, and depend on an exact string match:
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("security_tokens"));
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.Booleans;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -63,11 +64,12 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 Response resp = client().performRequest(createTestIndex);
                 assertEquals(HttpStatus.SC_OK, resp.getStatusLine().getStatusCode());
 
-                postNewDoc("joda_time");
+                postNewDoc("joda_time", 1);
 
                 break;
             case MIXED:
-                postNewDoc("joda_time");
+                int minute = Booleans.parseBoolean(System.getProperty("tests.first_round")) ? 2 : 3;
+                postNewDoc("joda_time", minute);
 
                 Request search = dateRangeSearch("joda_time");
                 search.setOptions(ignoreWarnings());
@@ -76,13 +78,13 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
-                postNewDoc("joda_time");
+                postNewDoc("joda_time", 4);
 
                 search = searchWithAgg("joda_time");
                 search.setOptions(ignoreWarnings());
                 //making sure all nodes were used for search
                 searchResp = client().performRequest(search,3);
-                assertSearchResponse(searchResp, 4);
+                assertSearchResponse(searchResp);
                 break;
         }
     }
@@ -94,23 +96,24 @@ public class DateFieldsIT extends AbstractRollingTestCase {
                 Response resp = client().performRequest(createTestIndex);
                 assertEquals(HttpStatus.SC_OK, resp.getStatusLine().getStatusCode());
 
-                postNewDoc("java_time");
+                postNewDoc("java_time", 1);
 
                 break;
             case MIXED:
-                postNewDoc("java_time");
+                int minute = Booleans.parseBoolean(System.getProperty("tests.first_round")) ? 2 : 3;
+                postNewDoc("java_time", minute);
 
                 Request search = dateRangeSearch("java_time");
                 Response searchResp = client().performRequest(search);
                 assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
                 break;
             case UPGRADED:
-                postNewDoc("java_time");
+                postNewDoc("java_time", 4);
 
                 search = searchWithAgg("java_time");
                 //making sure all nodes were used for search
                 searchResp = client().performRequest(search,3);
-                assertSearchResponse(searchResp, 4);
+                assertSearchResponse(searchResp);
                 break;
         }
     }
@@ -121,16 +124,47 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         return options.build();
     }
 
-    private void assertSearchResponse(Response searchResp, int count) throws IOException {
+    private void assertSearchResponse(Response searchResp) throws IOException {
         assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+        System.out.println(searchResp.getEntity());
+        assertEquals(removeWhiteSpace("{\n" +
+                "  \"hits\": {\n" +
+                "    \"total\": 4,\n" +
+                "    \"hits\": [\n" +
+                "      {\n" +
+                "        \"_source\": {\n" +
+                "          \"datetime\": \"2020-01-01T00:00:01+01:00\"\n" +
+                "        }\n" +
+                "      },\n" +
+                "      {\n" +
+                "        \"_source\": {\n" +
+                "          \"datetime\": \"2020-01-01T00:00:02+01:00\"\n" +
+                "        }\n" +
+                "      },\n" +
+                "      {\n" +
+                "        \"_source\": {\n" +
+                "          \"datetime\": \"2020-01-01T00:00:03+01:00\"\n" +
+                "        }\n" +
+                "      },\n" +
+                "      {\n" +
+                "        \"_source\": {\n" +
+                "          \"datetime\": \"2020-01-01T00:00:04+01:00\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    ]\n" +
+                "  }\n" +
+                "}"),
         EntityUtils.toString(searchResp.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    private String removeWhiteSpace(String input) {
+        return input.replaceAll("[\\n\\r\\t\\ ]", "");
     }
 
     private Request dateRangeSearch(String endpoint) {
         Request search = new Request("GET", endpoint+"/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        search.addParameter("filter_path", "hits.total");
+        search.addParameter("filter_path", "hits.total,hits.hits._source.datetime");
         search.setJsonEntity("" +
                 "{\n" +
                 "  \"track_total_hits\": true,\n" +
@@ -151,7 +185,7 @@ public class DateFieldsIT extends AbstractRollingTestCase {
     private Request searchWithAgg(String endpoint) throws IOException {
         Request search = new Request("GET", endpoint+"/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        search.addParameter("filter_path", "hits.total");
+        search.addParameter("filter_path", "hits.total,hits.hits._source.datetime");
 
         search.setJsonEntity("{\n" +
             "  \"track_total_hits\": true,\n" +
@@ -196,10 +230,10 @@ public class DateFieldsIT extends AbstractRollingTestCase {
         return createTestIndex;
     }
 
-    private void postNewDoc(String endpoint) throws IOException {
+    private void postNewDoc(String endpoint, int minute) throws IOException {
         Request putDoc = new Request("POST", endpoint+"/_doc");
         putDoc.setJsonEntity("{\n" +
-            "  \"datetime\": \"2020-01-01T01:01:01+01:00\"\n" +
+            "  \"datetime\": \"2020-01-01T00:00:0" + minute + "+01:00\"\n" +
             "}"
         );
         Response resp = client().performRequest(putDoc);

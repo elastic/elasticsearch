@@ -92,17 +92,17 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox, Geohash::longEncode);
-
-        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, cellIdSource, requiredSize, shardSize,
-            searchContext, parent, pipelineAggregators, metaData);
+        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
+            requiredSize, shardSize, searchContext, parent, pipelineAggregators, metaData);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoHashGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoGridAggregatorSupplier) (name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent,
-                                         pipelineAggregators, metaData) -> new GeoHashGridAggregator(name, factories,
-                (CellIdSource) valuesSource, requiredSize, shardSize, aggregationContext,
-                parent, pipelineAggregators, metaData));
+            (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
+                                         aggregationContext, parent, pipelineAggregators, metaData) -> {
+            CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox, Geohash::longEncode);
+            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
+                    parent, pipelineAggregators, metaData);
+            });
     }
 }

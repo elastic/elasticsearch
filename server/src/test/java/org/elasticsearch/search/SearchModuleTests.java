@@ -144,7 +144,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
-                        TermsAggregationBuilder::parse));
+                        TermsAggregationBuilder.PARSER));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeAggregation));

@@ -222,7 +222,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 IndexSettings indexSettings,
                                                 Query query,
                                                 MultiBucketConsumer bucketConsumer,
-                                                MappedFieldType... fieldTypes) {
+                                                MappedFieldType... fieldTypes) throws IOException {
         return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
     }
 
@@ -231,7 +231,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 Query query,
                                                 MultiBucketConsumer bucketConsumer,
                                                 CircuitBreakerService circuitBreakerService,
-                                                MappedFieldType... fieldTypes) {
+                                                MappedFieldType... fieldTypes) throws IOException {
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -245,7 +245,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         };
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexSearcher.getIndexReader(),
-            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy);
+            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy, null);
 
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);

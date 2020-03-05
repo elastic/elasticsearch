@@ -62,6 +62,9 @@ setup:
 
 ---
 "Term query":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/53131"
 
   - do:
       search:
@@ -91,6 +94,9 @@ setup:
 
 ---
 "Terms query":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/53131"
 
   - do:
       search:
@@ -107,6 +113,9 @@ setup:
 
 ---
 "Prefix query":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/53131"
 
   - do:
       search:
@@ -123,7 +132,7 @@ setup:
       search:
         index: test*
         pre_filter_shard_size: 1
-        body: 
+        body:
           size: 0
           query:
             prefix:
@@ -134,12 +143,15 @@ setup:
 
 ---
 "Wildcard query":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/53131"
 
   - do:
       search:
         index: test*
         pre_filter_shard_size: 1
-        body: 
+        body:
           size: 0
           query:
             wildcard:

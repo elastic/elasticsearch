@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.wildcard.mapper;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.index.IndexWriter;
 
 import java.io.IOException;
+
+import static org.apache.lucene.analysis.standard.StandardTokenizer.MAX_TOKEN_LENGTH_LIMIT;
 
 public class TaperedNgramTokenizer extends Tokenizer {
 
@@ -28,12 +31,15 @@ public class TaperedNgramTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
     
+    /** Default read buffer size */ 
+    public static final int DEFAULT_BUFFER_SIZE = 256;    
 
     public TaperedNgramTokenizer(int maxGram) {
         if (maxGram < 1) {
             throw new IllegalArgumentException("maxGram must be greater than zero");
         }
         this.maxGram = maxGram;
+        termAtt.resizeBuffer(DEFAULT_BUFFER_SIZE);
     }    
     
     @Override
@@ -77,6 +83,9 @@ public class TaperedNgramTokenizer extends Tokenizer {
           final int length = input.read(curTermBuffer, upto, curTermBuffer.length-upto);
           if (length == -1) break;
           upto += length;
+          if (upto > IndexWriter.MAX_TERM_LENGTH) {
+              throw new IllegalArgumentException("Provided value longer than Lucene maximum term length of " + IndexWriter.MAX_TERM_LENGTH );
+          }
           if (upto == curTermBuffer.length)
               curTermBuffer = termAtt.resizeBuffer(1+curTermBuffer.length);
         }

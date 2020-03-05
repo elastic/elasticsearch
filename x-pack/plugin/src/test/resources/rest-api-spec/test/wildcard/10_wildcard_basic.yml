@@ -33,161 +33,139 @@ setup:
 ---
 "Short prefix query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "hel*" }
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Long prefix query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "hello wor*" }
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Short unrooted query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "*ello*" }
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Long unrooted query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "*ello worl*" }
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Short suffix query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "*ld" }
 
 
-  - match: {hits.total: 2}
+  - match: {hits.total.value: 2}
 
 ---
 "Long suffix query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "*ello world" }
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "No wildcard wildcard query":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "hello world" }
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Term query on wildcard field":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             term:
               my_wildcard: "hello world"
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Terms query on wildcard field":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             terms:
               my_wildcard: ["hello world", "does not exist"]
 
 
-  - match: {hits.total: 1}
+  - match: {hits.total.value: 1}
 
 ---
 "Sequence fail":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "*world*hello*" }
 
 
-  - match: {hits.total: 0}
+  - match: {hits.total.value: 0}
 
 ---
 "Aggs work":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           query:
             wildcard:
               my_wildcard: {value: "*world*" }
@@ -196,33 +174,29 @@ setup:
               terms: {field: "my_wildcard" }
 
 
-  - match: {hits.total: 2}
+  - match: {hits.total.value: 2}
   - length: { aggregations.top_vals.buckets: 2 }
 
 ---
 "Sort works":
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           sort: [ { "my_wildcard": "desc" } ]
 
-  - match: { hits.total: 2 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits.value: 2 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "2" }
 
   - do:
-      headers:
-        Content-Type: application/json
       search:
-        rest_total_hits_as_int: true
         body:
+          track_total_hits: true
           sort: [ { "my_wildcard": "asc" } ]
 
-  - match: { hits.total: 2 }
+  - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "1" }

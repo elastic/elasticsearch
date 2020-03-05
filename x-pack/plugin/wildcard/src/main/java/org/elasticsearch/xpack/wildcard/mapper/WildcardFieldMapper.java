@@ -74,10 +74,11 @@ public class WildcardFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;        
+        public static final int NUM_CHARS = 3;        
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, WildcardFieldMapper> {
-        private int numChars = 3;
+        private int numChars = Defaults.NUM_CHARS;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
@@ -459,13 +460,11 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     private int ignoreAbove;
-    private int numChars;
 
     private WildcardFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                 int ignoreAbove, int numChars, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreAbove = ignoreAbove;
-        this.numChars = numChars;
         assert fieldType.indexOptions() == IndexOptions.DOCS;
     }
 
@@ -490,7 +489,9 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        builder.field("num_chars", fieldType().numChars());
+        if (includeDefaults || fieldType().numChars() != Defaults.NUM_CHARS) {
+            builder.field("num_chars", fieldType().numChars());
+        }
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
@@ -517,7 +518,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return;
         }
         TaperedNgramTokenizer tokenizer = new TaperedNgramTokenizer(fieldType().numChars);
-        tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR+ value +TOKEN_START_OR_END_CHAR));
+        tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR));
         
         Field field = new Field(fieldType().name(), tokenizer, fieldType());
         fields.add(field);
@@ -536,6 +537,5 @@ public class WildcardFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         this.ignoreAbove = ((WildcardFieldMapper) mergeWith).ignoreAbove;
-        this.numChars = ((WildcardFieldMapper) mergeWith).numChars;
     }    
 }

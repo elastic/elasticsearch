@@ -54,7 +54,7 @@ public class AutomatonQueryOnBinaryDv extends Query {
                     @Override
                     public boolean matches() throws IOException {
                         BytesRef value = values.binaryValue();
-                        return  bytesMatcher.run(value.bytes, value.offset, value.length);
+                        return bytesMatcher.run(value.bytes, value.offset, value.length);
                     }
 
                     @Override

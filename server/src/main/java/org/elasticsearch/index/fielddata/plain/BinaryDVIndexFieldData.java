@@ -53,7 +53,7 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
             boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
                 sortMode, nested);
-            return new SortField(getFieldName(), source, reverse);
+        return new SortField(getFieldName(), source, reverse);
     }
 
     @Override

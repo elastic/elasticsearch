@@ -6,19 +6,15 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 
 import java.io.IOException;
 
-/**
- * Variation on Lucene's NGramTokenFilter that uses smaller (1 character) ngrams for the final few characters in a string. Helps improve
- * performance of short suffix queries e.g. "*.exe"
- */
-public final class TaperedNgramTokenFilter extends TokenFilter {
+public class TaperedNgramTokenizer extends Tokenizer {
 
+    
     private final int maxGram;
 
     private char[] curTermBuffer;
@@ -31,34 +27,21 @@ public final class TaperedNgramTokenFilter extends TokenFilter {
 
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
+    
 
-    /**
-     * Creates a TaperedNgramTokenFilter that, for a given input term, produces all contained n-grams with length = maxGram. Will generate
-     * small ngrams from maxGram down to 1 for the end of the input token.
-     * 
-     * Note: Care must be taken when choosing maxGram; depending on the input token size, this filter potentially produces a huge number of
-     * unique terms in the index.
-     * 
-     * @param input
-     *            {@link TokenStream} holding the input to be tokenized
-     * @param maxGram
-     *            the maximum length of the generated n-grams (apart from those at tail)
-     */
-    public TaperedNgramTokenFilter(TokenStream input, int maxGram) {
-        super(input);
+    public TaperedNgramTokenizer(int maxGram) {
         if (maxGram < 1) {
             throw new IllegalArgumentException("maxGram must be greater than zero");
         }
         this.maxGram = maxGram;
-    }
-
+    }    
+    
     @Override
-    public boolean incrementToken() throws IOException {
+    public final boolean incrementToken() throws IOException {
+        clearAttributes();        
         while (true) {
-            if (curTermBuffer == null) {
-                if (!input.incrementToken()) {
-                    return false;
-                }
+            if (curTermBuffer == null) {                
+                loadBufferFromReader();
                 state = captureState();
 
                 curTermLength = termAtt.length();
@@ -83,12 +66,23 @@ public final class TaperedNgramTokenFilter extends TokenFilter {
                 posIncrAtt.setPositionIncrement(curPosIncr);
                 return true;
             }
-
-            // Done with this input token, get next token on next iteration.
-            curTermBuffer = null;
+            return false;
         }
     }
-
+    
+    void loadBufferFromReader() throws IOException {
+        int upto = 0;
+        curTermBuffer = termAtt.buffer();
+        while (true) {
+          final int length = input.read(curTermBuffer, upto, curTermBuffer.length-upto);
+          if (length == -1) break;
+          upto += length;
+          if (upto == curTermBuffer.length)
+              curTermBuffer = termAtt.resizeBuffer(1+curTermBuffer.length);
+        }
+        termAtt.setLength(upto);
+    }
+    
     @Override
     public void reset() throws IOException {
         super.reset();
@@ -100,5 +94,6 @@ public final class TaperedNgramTokenFilter extends TokenFilter {
     public void end() throws IOException {
         super.end();
         posIncrAtt.setPositionIncrement(curPosIncr);
-    }
+    }    
+
 }

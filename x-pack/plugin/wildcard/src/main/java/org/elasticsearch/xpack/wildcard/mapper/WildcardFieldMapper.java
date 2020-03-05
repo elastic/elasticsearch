@@ -401,7 +401,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
                 Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-                verifyingBuilder.add(new BooleanClause(new WildcardOnBinaryDvQuery(name(), wildcardPattern, automaton), Occur.MUST));
+                verifyingBuilder.add(new BooleanClause(new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton), Occur.MUST));
                 return verifyingBuilder.build();
             }
             return approximation;
@@ -516,11 +516,10 @@ public class WildcardFieldMapper extends FieldMapper {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
-        KeywordTokenizer kt = new KeywordTokenizer(256);
-        kt.setReader(new StringReader(TOKEN_START_OR_END_CHAR+ value +TOKEN_START_OR_END_CHAR));
-        TokenFilter filter = new TaperedNgramTokenFilter(kt, fieldType().numChars);
+        TaperedNgramTokenizer tokenizer = new TaperedNgramTokenizer(fieldType().numChars);
+        tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR+ value +TOKEN_START_OR_END_CHAR));
         
-        Field field = new Field(fieldType().name(), filter, fieldType());
+        Field field = new Field(fieldType().name(), tokenizer, fieldType());
         fields.add(field);
         
         Field dvField = new BinaryDocValuesField(fieldType().name(), new BytesRef(value));        

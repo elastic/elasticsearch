@@ -25,18 +25,18 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Query that runs a wildcard pattern across all binary doc values. 
+ * Query that runs an Automaton across all binary doc values. 
  * Expensive to run so normally used in conjunction with more selective query clauses.
  */
-public class WildcardOnBinaryDvQuery extends Query {
+public class AutomatonQueryOnBinaryDv extends Query {
 
     private final String field;
-    private final String wildcardPattern;
+    private final String matchPattern;
     private Automaton automaton;
 
-    public WildcardOnBinaryDvQuery(String field, String wildcardPattern, Automaton automaton) {
+    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
         this.field = field;
-        this.wildcardPattern = wildcardPattern;
+        this.matchPattern = matchPattern;
         this.automaton = automaton;
     }
 
@@ -74,18 +74,18 @@ public class WildcardOnBinaryDvQuery extends Query {
     }
     @Override
     public String toString(String field) {
-        return field+":"+wildcardPattern;
+        return field+":"+matchPattern;
     }
 
     @Override
     public boolean equals(Object obj) {
-        WildcardOnBinaryDvQuery other = (WildcardOnBinaryDvQuery) obj;
-        return Objects.equals(field, other.field)  && Objects.equals(wildcardPattern, other.wildcardPattern);
+        AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
+        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, wildcardPattern);
+        return Objects.hash(field, matchPattern);
     }
 
 }

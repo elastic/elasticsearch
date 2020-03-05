@@ -49,8 +49,9 @@ public final class Features {
             "yaml",
             "contains",
             "transform_and_set",
-            "arbitrary_key"
-    ));
+            "arbitrary_key",
+            "allowed_warnings"));
+
     private static final String SPI_ON_CLASSPATH_SINCE_JDK_9 = "spi_on_classpath_jdk9";
 
     private Features() {

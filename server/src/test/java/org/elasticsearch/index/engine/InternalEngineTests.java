@@ -1913,6 +1913,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53185")
     public void testVersionOnPrimaryWithConcurrentRefresh() throws Exception {
         List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.INTERNAL,
             2, 10, 100, "1");

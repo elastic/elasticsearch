@@ -294,7 +294,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertEquals(Set.of(new VotingConfigExclusion("_absent_", "absent_node")),
+        assertEquals(Set.of(new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, "absent_node")),
                     clusterService.getClusterApplierService().state().getVotingConfigExclusions());
     }
 

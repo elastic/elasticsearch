@@ -37,8 +37,12 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -124,6 +128,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // we only enforce major version transitions on a fully formed clusters
         final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
+        Map<String, String> joiniedNodeNameIds = new HashMap<>();
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {
                 // noop
@@ -143,6 +148,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
+                    // TODO do we need to check node.isMasterNode here for eligibility? I think since in the checks later master
+                    // eligibility will be taken into account anyway, here we may not need the check?
+                    joiniedNodeNameIds.put(node.getName(), node.getId());
                 } catch (IllegalArgumentException | IllegalStateException e) {
                     results.failure(joinTask, e);
                     continue;
@@ -150,12 +158,33 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             }
             results.success(joinTask);
         }
+
         if (nodesChanged) {
             rerouteService.reroute("post-join reroute", Priority.HIGH, ActionListener.wrap(
                 r -> logger.trace("post-join reroute completed"),
                 e -> logger.debug("post-join reroute failed", e)));
 
-            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
+            if (joiniedNodeNameIds.isEmpty() == false) {
+                Set<CoordinationMetaData.VotingConfigExclusion> currentVotingConfigExclusions = currentState.getVotingConfigExclusions();
+                Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusions = currentVotingConfigExclusions.stream()
+                    .map(e -> {
+                        // Update nodeId in VotingConfigExclusion when a new node with excluded node name joins
+                        if (CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER.equals(e.getNodeId()) &&
+                            joiniedNodeNameIds.containsKey(e.getNodeName())) {
+                            return new CoordinationMetaData.VotingConfigExclusion(joiniedNodeNameIds.get(e.getNodeName()), e.getNodeName());
+                        } else {
+                            return e;
+                        }
+                    }).collect(Collectors.toSet());
+
+                CoordinationMetaData.Builder coordMetaDataBuilder = CoordinationMetaData.builder(currentState.coordinationMetaData())
+                    .clearVotingConfigExclusions();
+                newVotingConfigExclusions.forEach(coordMetaDataBuilder::addVotingConfigExclusion);
+                MetaData newMetaData = MetaData.builder(currentState.metaData()).coordinationMetaData(coordMetaDataBuilder.build()).build();
+                return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metaData(newMetaData).build()));
+            } else {
+                return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
+            }
         } else {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master

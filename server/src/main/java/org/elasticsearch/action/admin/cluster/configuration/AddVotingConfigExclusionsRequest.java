@@ -129,7 +129,8 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                 }
 
                 unresolvedVotingConfigExclusions = unresolvedNodes.stream()
-                    .map(nodeId -> new VotingConfigExclusion(nodeId, "_absent_")).collect(Collectors.toSet());
+                    .map(nodeId -> new VotingConfigExclusion(nodeId, VotingConfigExclusion.MISSING_VALUE_MARKER))
+                    .collect(Collectors.toSet());
             }
             else {
                 Map<String, String> existingNodesNameId = new HashMap<>();
@@ -149,7 +150,8 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                 }
 
                 unresolvedVotingConfigExclusions = unresolvedNodes.stream()
-                    .map(nodeName -> new VotingConfigExclusion("_absent_", nodeName)).collect(Collectors.toSet());
+                    .map(nodeName -> new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, nodeName))
+                    .collect(Collectors.toSet());
             }
 
             resolvedVotingConfigExclusions = resolvedNodes.stream()

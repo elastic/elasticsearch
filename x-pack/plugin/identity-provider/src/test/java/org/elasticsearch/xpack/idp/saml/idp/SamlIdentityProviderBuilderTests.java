@@ -23,25 +23,26 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_CONTACT_EMAIL;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_CONTACT_GIVEN_NAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_CONTACT_SURNAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ENTITY_ID;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ORGANIZATION_DISPLAY_NAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ORGANIZATION_NAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ORGANIZATION_URL;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SLO_POST_ENDPOINT;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SLO_REDIRECT_ENDPOINT;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_POST_ENDPOINT;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_REDIRECT_ENDPOINT;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_EMAIL;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_GIVEN_NAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_SURNAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_DISPLAY_NAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_NAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_URL;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SLO_POST_ENDPOINT;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SLO_REDIRECT_ENDPOINT;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_POST_ENDPOINT;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 
-public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
+public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
 
-    public void testAllSettings() throws Exception{
+    public void testAllSettings() throws Exception {
         Settings settings = Settings.builder()
             .put("path.home", LuceneTestCase.createTempDir())
             .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
@@ -57,13 +58,13 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        CloudIdp idp = new CloudIdp(env, settings);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(env).build();
         assertThat(idp.getEntityId(), equalTo("urn:elastic:cloud:idp"));
         assertThat(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/sso/redirect"));
         assertThat(idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/sso/post"));
         assertThat(idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/slo/redirect"));
         assertThat(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/slo/post"));
-        assertThat(idp.getOrganization(), equalTo(new SamlIdPMetadataBuilder.OrganizationInfo("organization_name",
+        assertThat(idp.getOrganization(), equalTo(new SamlIdentityProvider.OrganizationInfo("organization_name",
             "organization_display_name", "https://idp.org")));
     }
 
@@ -74,7 +75,8 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
             .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "not a url")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> new CloudIdp(env, settings));
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
+            () -> SamlIdentityProvider.builder().fromSettings(env).build());
         assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
     }
@@ -88,7 +90,8 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> new CloudIdp(env, settings));
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
+            () -> SamlIdentityProvider.builder().fromSettings(env).build());
         assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("is required"));
     }
@@ -103,7 +106,8 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
             .put(IDP_ORGANIZATION_NAME.getKey(), "The Organization")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> new CloudIdp(env, settings));
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
+            () -> SamlIdentityProvider.builder().fromSettings(env).build());
         assertThat(e.getMessage(), Matchers.containsString(IDP_ORGANIZATION_URL.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
     }
@@ -127,7 +131,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         builder.put("xpack.idp.signing.certificate", destSigningCertPath);
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings, "xpack.idp.signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.signing.");
 
         assertThat(credential, notNullValue());
         assertThat(credential.getPrivateKey(), equalTo(signingKey));
@@ -151,7 +155,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         builder.setSecureSettings(secureSettings);
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings, "xpack.idp.signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.signing.");
         final Path signingKeyPath = getDataPath("signing1.key");
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
 
@@ -179,7 +183,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final Path signingKeyPath = getDataPath("signing1.key");
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings,"xpack.idp.signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.signing.");
         assertThat(credential, notNullValue());
         assertThat(credential.getPrivateKey(), equalTo(signingKey));
     }
@@ -203,10 +207,10 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CloudIdp.buildSigningCredential(env, settings, "xpack.idp.signing."));
-        assertThat(e.getMessage(),
-            equalTo("The configured keystore for [xpack.idp.signing.keystore] does not have a private key associated" +
-                " with alias [some-other]"));
+            () -> SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.signing."));
+        assertThat(e, throwableWithMessage(
+            "The configured credential [xpack.idp.signing.keystore] with alias [some-other] is not a valid signing key"
+                + " - There is no private key available for this credential"));
     }
 
     public void testCreateSigningCredentialFromKeyStoreWithMultipleEntriesAndConfiguredAlias() throws Exception {
@@ -228,7 +232,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         builder.setSecureSettings(secureSettings);
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings, "xpack.idp.signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.signing.");
         final Path signingKeyPath = getDataPath(alias + ".key");
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
 
@@ -255,10 +259,10 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CloudIdp.buildSigningCredential(env, settings, "xpack.idp.signing."));
-        assertThat(e.getMessage(),
-            equalTo("The configured keystore for [xpack.idp.signing.keystore] does not have a private key associated" +
-                " with alias [some-other]"));
+            () -> SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.signing."));
+        assertThat(e, throwableWithMessage(
+            "The configured credential [xpack.idp.signing.keystore] with alias [some-other] is not a valid signing key"
+                + " - There is no private key available for this credential"));
     }
 
     public void testCreateMetadataSigningCredentialFromΚeystoreWithSingleEntry() throws Exception {
@@ -278,7 +282,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         builder.setSecureSettings(secureSettings);
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
         final Path signingKeyPath = getDataPath("signing1.key");
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
 
@@ -306,7 +310,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final Path signingKeyPath = getDataPath("signing1.key");
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings,"xpack.idp.metadata_signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
         assertThat(credential, notNullValue());
         assertThat(credential.getPrivateKey(), equalTo(signingKey));
     }
@@ -330,10 +334,10 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CloudIdp.buildSigningCredential(env, settings, "xpack.idp.metadata_signing."));
-        assertThat(e.getMessage(),
-            equalTo("The configured keystore for [xpack.idp.metadata_signing.keystore] does not have a private key associated" +
-                " with alias [some-other]"));
+            () -> SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.metadata_signing."));
+        assertThat(e, throwableWithMessage(
+            "The configured credential [xpack.idp.metadata_signing.keystore] with alias [some-other] is not a valid signing key"
+                + " - There is no private key available for this credential"));
     }
 
     public void testCreateMetadataSigningCredentialFromKeyStoreWithMultipleEntriesAndConfiguredAlias() throws Exception {
@@ -355,7 +359,7 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         builder.setSecureSettings(secureSettings);
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final X509Credential credential = CloudIdp.buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
+        final X509Credential credential = SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
         final Path signingKeyPath = getDataPath(alias + ".key");
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
 
@@ -382,10 +386,10 @@ public class IdentityProviderPluginConfigurationTests extends IdpSamlTestCase {
         final Settings settings = builder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CloudIdp.buildSigningCredential(env, settings, "xpack.idp.metadata_signing."));
-        assertThat(e.getMessage(),
-            equalTo("The configured keystore for [xpack.idp.metadata_signing.keystore] does not have a private key associated" +
-                " with alias [some-other]"));
+            () -> SamlIdentityProviderBuilder.buildSigningCredential(env, settings, "xpack.idp.metadata_signing."));
+        assertThat(e, throwableWithMessage(
+            "The configured credential [xpack.idp.metadata_signing.keystore] with alias [some-other] is not a valid signing key"
+                + " - There is no private key available for this credential"));
     }
 
 }

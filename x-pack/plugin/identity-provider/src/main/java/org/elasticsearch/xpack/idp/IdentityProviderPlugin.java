@@ -35,20 +35,20 @@ import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlMetadataAction;
+import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
-import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
-import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
-import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
-import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
+import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -62,36 +62,6 @@ import java.util.function.Supplier;
 public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
-    public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "https:",
-        value -> parseUrl("xpack.idp.sso_endpoint.redirect", value), Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SSO_POST_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.post", "https:",
-        value -> parseUrl("xpack.idp.sso_endpoint.post", value), Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SLO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.redirect", "https:",
-        value -> parseUrl("xpack.idp.slo_endpoint.redirect", value), Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "https:",
-        value -> parseUrl("xpack.idp.slo_endpoint.post", value), Setting.Property.NodeScope);
-    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
-        Setting.Property.NodeScope);
-    public static final Setting<String> IDP_METADATA_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.metadata.signing.keystore.alias",
-        Setting.Property.NodeScope);
-    public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString("xpack.idp.organization.name",
-        Setting.Property.NodeScope);
-
-    public static final Setting<String> IDP_ORGANIZATION_DISPLAY_NAME = Setting.simpleString("xpack.idp.organization.display_name",
-        IDP_ORGANIZATION_NAME, Setting.Property.NodeScope);
-
-    public static final Setting<URL> IDP_ORGANIZATION_URL = new Setting<>("xpack.idp.organization.url", "http:",
-        value -> parseUrl("xpack.idp.organization.url", value), Setting.Property.NodeScope);
-
-    public static final Setting<String> IDP_CONTACT_GIVEN_NAME = Setting.simpleString("xpack.idp.contact.given_name",
-        Setting.Property.NodeScope);
-
-    public static final Setting<String> IDP_CONTACT_SURNAME = Setting.simpleString("xpack.idp.contact.surname",
-        Setting.Property.NodeScope);
-
-    public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email", Setting.Property.NodeScope);
-
 
     private final Logger logger = LogManager.getLogger();
     private boolean enabled;
@@ -110,9 +80,14 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         }
 
         SamlInit.initialize();
-        CloudIdp idp = new CloudIdp(environment, settings);
-        SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
-        return List.of(index);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(environment).build();
+        final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
+        final SamlFactory factory = new SamlFactory();
+        return List.of(
+            idp,
+            index,
+            factory
+        );
     }
 
     @Override
@@ -147,20 +122,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(List.of(ENABLED_SETTING, IDP_ENTITY_ID, IDP_SLO_REDIRECT_ENDPOINT, IDP_SLO_POST_ENDPOINT,
-            IDP_SSO_REDIRECT_ENDPOINT, IDP_SSO_POST_ENDPOINT, IDP_SIGNING_KEY_ALIAS, IDP_METADATA_SIGNING_KEY_ALIAS,
-            IDP_ORGANIZATION_NAME, IDP_ORGANIZATION_DISPLAY_NAME, IDP_ORGANIZATION_URL, IDP_CONTACT_GIVEN_NAME, IDP_CONTACT_SURNAME,
-            IDP_CONTACT_EMAIL));
+        settings.add(ENABLED_SETTING);
+        settings.addAll(SamlIdentityProviderBuilder.getSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
     }
 
-    private static URL parseUrl(String key, String value) {
-        try {
-            return new URL(value);
-        } catch (MalformedURLException e) {
-            throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Not a valid URL", e);
-        }
-    }
 }

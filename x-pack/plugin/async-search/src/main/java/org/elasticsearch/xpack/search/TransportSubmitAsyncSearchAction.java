@@ -87,12 +87,17 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
-                                            try {
-                                                // store the final response on completion unless the submit is cancelled
-                                                searchTask.addCompletionListener(finalResponse ->
-                                                    onFinalResponse(submitTask, searchTask, finalResponse));
-                                            } finally {
-                                                submitListener.onResponse(searchResponse);
+                                            if (searchResponse.isRunning()) {
+                                                try {
+                                                    // store the final response on completion unless the submit is cancelled
+                                                    searchTask.addCompletionListener(finalResponse ->
+                                                        onFinalResponse(submitTask, searchTask, finalResponse, () -> {}));
+                                                } finally {
+                                                    submitListener.onResponse(searchResponse);
+                                                }
+                                            } else {
+                                                onFinalResponse(submitTask, searchTask, searchResponse,
+                                                    () -> submitListener.onResponse(searchResponse));
                                             }
                                         }
 
@@ -153,10 +158,16 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
     }
 
-    private void onFinalResponse(CancellableTask submitTask, AsyncSearchTask searchTask, AsyncSearchResponse response) {
+    private void onFinalResponse(CancellableTask submitTask,
+                                 AsyncSearchTask searchTask,
+                                 AsyncSearchResponse response,
+                                 Runnable nextAction) {
         if (submitTask.isCancelled() || searchTask.isCancelled()) {
             // the user cancelled the submit so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getSearchId(), ActionListener.wrap(() -> taskManager.unregister(searchTask)));
+            store.deleteResponse(searchTask.getSearchId(), ActionListener.wrap(() -> {
+                taskManager.unregister(searchTask);
+                nextAction.run();
+            }));
             return;
         }
 
@@ -165,6 +176,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 @Override
                 public void onResponse(UpdateResponse updateResponse) {
                     taskManager.unregister(searchTask);
+                    nextAction.run();
                 }
 
                 @Override
@@ -174,11 +186,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             searchTask.getSearchId().getEncoded()), exc);
                     }
                     taskManager.unregister(searchTask);
+                    nextAction.run();
                 }
             });
         } catch (Exception exc) {
             logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getSearchId().getEncoded()), exc);
             taskManager.unregister(searchTask);
+            nextAction.run();
         }
     }
 }

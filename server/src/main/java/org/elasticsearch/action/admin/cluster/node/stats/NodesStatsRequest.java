@@ -25,6 +25,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A request to get node (cluster) level stats.
@@ -32,18 +36,7 @@ import java.io.IOException;
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
-    private boolean os;
-    private boolean process;
-    private boolean jvm;
-    private boolean threadPool;
-    private boolean fs;
-    private boolean transport;
-    private boolean http;
-    private boolean breaker;
-    private boolean script;
-    private boolean discovery;
-    private boolean ingest;
-    private boolean adaptiveSelection;
+    private final Set<String> requestedMetrics = new HashSet<>();
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -51,19 +44,20 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     public NodesStatsRequest(StreamInput in) throws IOException {
         super(in);
+
         indices = new CommonStatsFlags(in);
-        os = in.readBoolean();
-        process = in.readBoolean();
-        jvm = in.readBoolean();
-        threadPool = in.readBoolean();
-        fs = in.readBoolean();
-        transport = in.readBoolean();
-        http = in.readBoolean();
-        breaker = in.readBoolean();
-        script = in.readBoolean();
-        discovery = in.readBoolean();
-        ingest = in.readBoolean();
-        adaptiveSelection = in.readBoolean();
+        addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.FS.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.HTTP.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.BREAKER.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.SCRIPT.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.DISCOVERY.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.INGEST.metricName());
+        addOrRemoveMetric(in.readBoolean(), Metrics.ADAPTIVE_SELECTION.metricName());
     }
 
     /**
@@ -79,18 +73,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest all() {
         this.indices.all();
-        this.os = true;
-        this.process = true;
-        this.jvm = true;
-        this.threadPool = true;
-        this.fs = true;
-        this.transport = true;
-        this.http = true;
-        this.breaker = true;
-        this.script = true;
-        this.discovery = true;
-        this.ingest = true;
-        this.adaptiveSelection = true;
+        this.requestedMetrics.addAll(Metrics.allMetrics());
         return this;
     }
 
@@ -99,18 +82,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest clear() {
         this.indices.clear();
-        this.os = false;
-        this.process = false;
-        this.jvm = false;
-        this.threadPool = false;
-        this.fs = false;
-        this.transport = false;
-        this.http = false;
-        this.breaker = false;
-        this.script = false;
-        this.discovery = false;
-        this.ingest = false;
-        this.adaptiveSelection = false;
+        this.requestedMetrics.clear();
         return this;
     }
 
@@ -139,14 +111,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node OS be returned.
      */
     public boolean os() {
-        return this.os;
+        return Metrics.OS.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node OS be returned.
      */
     public NodesStatsRequest os(boolean os) {
-        this.os = os;
+        addOrRemoveMetric(os, Metrics.OS.metricName());
         return this;
     }
 
@@ -154,14 +126,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node Process be returned.
      */
     public boolean process() {
-        return this.process;
+        return Metrics.PROCESS.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node Process be returned.
      */
     public NodesStatsRequest process(boolean process) {
-        this.process = process;
+        addOrRemoveMetric(process, Metrics.PROCESS.metricName());
         return this;
     }
 
@@ -169,14 +141,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node JVM be returned.
      */
     public boolean jvm() {
-        return this.jvm;
+        return Metrics.JVM.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node JVM be returned.
      */
     public NodesStatsRequest jvm(boolean jvm) {
-        this.jvm = jvm;
+        addOrRemoveMetric(jvm, Metrics.JVM.metricName());
         return this;
     }
 
@@ -184,14 +156,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node Thread Pool be returned.
      */
     public boolean threadPool() {
-        return this.threadPool;
+        return Metrics.THREAD_POOL.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node Thread Pool be returned.
      */
     public NodesStatsRequest threadPool(boolean threadPool) {
-        this.threadPool = threadPool;
+        addOrRemoveMetric(threadPool, Metrics.THREAD_POOL.metricName());
         return this;
     }
 
@@ -199,14 +171,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node file system stats be returned.
      */
     public boolean fs() {
-        return this.fs;
+        return Metrics.FS.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node file system stats be returned.
      */
     public NodesStatsRequest fs(boolean fs) {
-        this.fs = fs;
+        addOrRemoveMetric(fs, Metrics.FS.metricName());
         return this;
     }
 
@@ -214,14 +186,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node Transport be returned.
      */
     public boolean transport() {
-        return this.transport;
+        return Metrics.TRANSPORT.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node Transport be returned.
      */
     public NodesStatsRequest transport(boolean transport) {
-        this.transport = transport;
+        addOrRemoveMetric(transport, Metrics.TRANSPORT.metricName());
         return this;
     }
 
@@ -229,90 +201,140 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node HTTP be returned.
      */
     public boolean http() {
-        return this.http;
+        return Metrics.HTTP.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node HTTP be returned.
      */
     public NodesStatsRequest http(boolean http) {
-        this.http = http;
+        addOrRemoveMetric(http, Metrics.HTTP.metricName());
         return this;
     }
 
     public boolean breaker() {
-        return this.breaker;
+        return Metrics.BREAKER.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node's circuit breaker stats be returned.
      */
     public NodesStatsRequest breaker(boolean breaker) {
-        this.breaker = breaker;
+        addOrRemoveMetric(breaker, Metrics.BREAKER.metricName());
         return this;
     }
 
     public boolean script() {
-        return script;
+        return Metrics.SCRIPT.containedIn(requestedMetrics);
     }
 
     public NodesStatsRequest script(boolean script) {
-        this.script = script;
+        addOrRemoveMetric(script, Metrics.SCRIPT.metricName());
         return this;
     }
 
 
     public boolean discovery() {
-        return this.discovery;
+        return Metrics.DISCOVERY.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node's discovery stats be returned.
      */
     public NodesStatsRequest discovery(boolean discovery) {
-        this.discovery = discovery;
+        addOrRemoveMetric(discovery, Metrics.DISCOVERY.metricName());
         return this;
     }
 
     public boolean ingest() {
-        return ingest;
+        return Metrics.INGEST.containedIn(requestedMetrics);
     }
 
     /**
      * Should ingest statistics be returned.
      */
     public NodesStatsRequest ingest(boolean ingest) {
-        this.ingest = ingest;
+        addOrRemoveMetric(ingest, Metrics.INGEST.metricName());
         return this;
     }
 
     public boolean adaptiveSelection() {
-        return adaptiveSelection;
+        return Metrics.ADAPTIVE_SELECTION.containedIn(requestedMetrics);
     }
 
     /**
      * Should adaptiveSelection statistics be returned.
      */
     public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
-        this.adaptiveSelection = adaptiveSelection;
+        addOrRemoveMetric(adaptiveSelection, Metrics.ADAPTIVE_SELECTION.metricName());
         return this;
+    }
+
+    /**
+     * Helper method for adding and removing metrics.
+     * @param includeMetric Whether or not to include a metric.
+     * @param metricName Name of the metric to include or remove.
+     */
+    private void addOrRemoveMetric(boolean includeMetric, String metricName) {
+        if (includeMetric) {
+            requestedMetrics.add(metricName);
+        } else {
+            requestedMetrics.remove(metricName);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeBoolean(os);
-        out.writeBoolean(process);
-        out.writeBoolean(jvm);
-        out.writeBoolean(threadPool);
-        out.writeBoolean(fs);
-        out.writeBoolean(transport);
-        out.writeBoolean(http);
-        out.writeBoolean(breaker);
-        out.writeBoolean(script);
-        out.writeBoolean(discovery);
-        out.writeBoolean(ingest);
-        out.writeBoolean(adaptiveSelection);
+        out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.THREAD_POOL.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.FS.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.TRANSPORT.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.HTTP.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.BREAKER.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.SCRIPT.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.DISCOVERY.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
+        out.writeBoolean(Metrics.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
+    }
+
+    /**
+     * An enumeration of the "core" sections of metrics that may be requested
+     * from the nodes stats endpoint. Eventually this list will be pluggable.
+     */
+    private enum Metrics {
+        OS("os"),
+        PROCESS("process"),
+        JVM("jvm"),
+        THREAD_POOL("threadPool"),
+        FS("fs"),
+        TRANSPORT("transport"),
+        HTTP("http"),
+        BREAKER("breaker"),
+        SCRIPT("script"),
+        DISCOVERY("discovery"),
+        INGEST("ingest"),
+        ADAPTIVE_SELECTION("adaptiveSelection");
+
+        private String metricName;
+
+        Metrics(String name) {
+            this.metricName = name;
+        }
+
+        String metricName() {
+            return this.metricName;
+        }
+
+        boolean containedIn(Set<String> metricNames) {
+            return metricNames.contains(this.metricName());
+        }
+
+        static Set<String> allMetrics() {
+            return Arrays.stream(values()).map(Metrics::metricName).collect(Collectors.toSet());
+        }
     }
 }

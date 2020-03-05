@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ENTITY_ID;
 import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_REDIRECT_ENDPOINT;
@@ -179,7 +181,10 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> getAllDocs(SamlServiceProviderIndex index) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        index.findAll(future);
+        index.findAll(ActionListener.wrap(
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            future::onFailure
+        ));
         return future.actionGet();
     }
 
@@ -198,7 +203,10 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private SamlServiceProviderDocument findByEntityId(SamlServiceProviderIndex index, String entityId) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        index.findByEntityId(entityId, future);
+        index.findByEntityId(entityId, ActionListener.wrap(
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            future::onFailure
+        ));
         final Set<SamlServiceProviderDocument> docs = future.actionGet();
         assertThat(docs, iterableWithSize(1));
         return docs.iterator().next();
@@ -211,7 +219,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     }
 
     public static SamlServiceProviderDocument randomDocument() {
-        return randomDocument(randomInt());
+        return randomDocument(randomIntBetween(1, 999_999));
     }
 
     public static SamlServiceProviderDocument randomDocument(int index) {

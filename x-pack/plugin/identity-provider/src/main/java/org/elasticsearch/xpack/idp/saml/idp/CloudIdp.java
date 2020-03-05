@@ -15,11 +15,14 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.joda.time.Duration;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
 import javax.net.ssl.X509KeyManager;
+import java.io.UncheckedIOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.PrivateKey;
 import java.util.ArrayList;
@@ -54,11 +57,15 @@ public class CloudIdp implements SamlIdentityProvider {
     private final String entityId;
     private final HashMap<String, URL> ssoEndpoints = new HashMap<>();
     private final HashMap<String, URL> sloEndpoints = new HashMap<>();
-    private Map<String, SamlServiceProvider> registeredServiceProviders;
+    private final ServiceProviderDefaults serviceProviderDefaults;
+
     private final X509Credential signingCredential;
     private final X509Credential metadataSigningCredential;
+
     private SamlIdPMetadataBuilder.ContactInfo technicalContact;
     private SamlIdPMetadataBuilder.OrganizationInfo organization;
+
+    private Map<String, SamlServiceProvider> registeredServiceProviders;
 
     public CloudIdp(Environment env, Settings settings) {
         this.entityId = require(settings, IDP_ENTITY_ID);
@@ -73,6 +80,7 @@ public class CloudIdp implements SamlIdentityProvider {
             this.sloEndpoints.put(SAML2_REDIRECT_BINDING_URI, IDP_SLO_REDIRECT_ENDPOINT.get(settings));
         }
         this.registeredServiceProviders = gatherRegisteredServiceProviders();
+        this.serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5));
         this.signingCredential = buildSigningCredential(env, settings, "xpack.idp.signing.");
         this.metadataSigningCredential = buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
         this.technicalContact = buildContactInfo(settings);
@@ -103,6 +111,11 @@ public class CloudIdp implements SamlIdentityProvider {
     @Override
     public void getRegisteredServiceProvider(String spEntityId, ActionListener<SamlServiceProvider> listener) {
         listener.onResponse(registeredServiceProviders.get(spEntityId));
+    }
+
+    @Override
+    public ServiceProviderDefaults getServiceProviderDefaults() {
+        return serviceProviderDefaults;
     }
 
     @Override
@@ -219,9 +232,19 @@ public class CloudIdp implements SamlIdentityProvider {
         // TODO Fetch all the registered service providers from the index (?) they are persisted.
         // For now hardcode something to use.
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
-        registeredSps.put("https://sp.some.org",
-            new CloudServiceProvider("https://sp.some.org", "https://sp.some.org/api/security/v1/saml", Set.of(TRANSIENT), null, false,
-                false, null));
+        try {
+            registeredSps.put("https://sp.some.org",
+                new CloudServiceProvider("https://sp.some.org", new URL("https://sp.some.org/api/security/v1/saml"), Set.of(TRANSIENT),
+                    Duration.standardMinutes(5), null,
+                    new SamlServiceProvider.AttributeNames(
+                        "https://saml.elasticsearch.org/attributes/principal",
+                        "https://saml.elasticsearch.org/attributes/name",
+                        "https://saml.elasticsearch.org/attributes/email",
+                        "https://saml.elasticsearch.org/attributes/groups"),
+                    null, false, false));
+        } catch (MalformedURLException e) {
+            throw new UncheckedIOException(e);
+        }
         return registeredSps;
     }
 

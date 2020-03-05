@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTests;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -25,6 +26,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -126,6 +128,11 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void mockExistingDocuments(String expectedEntityId, Set<SamlServiceProviderDocument> documents) {
+        final Set<SamlServiceProviderIndex.DocumentSupplier> documentSuppliers = documents.stream()
+            .map(doc -> new SamlServiceProviderIndex.DocumentSupplier(
+                new DocumentVersion(randomAlphaOfLength(24), randomLong(), randomLong()),
+                () -> doc))
+            .collect(Collectors.toUnmodifiableSet());
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, Matchers.arrayWithSize(2));
@@ -133,8 +140,8 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             String entityId = (String) args[0];
             assertThat(entityId, equalTo(expectedEntityId));
 
-            ActionListener listener = (ActionListener) args[args.length - 1];
-            listener.onResponse(documents);
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener) args[args.length - 1];
+            listener.onResponse(documentSuppliers);
 
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));

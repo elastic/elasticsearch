@@ -44,6 +44,9 @@
         "name_id_format": {
           "type": "keyword"
         },
+        "sign_messages": {
+          "type": "keyword"
+        },
         "authn_expiry_ms": {
           "type": "long"
         },

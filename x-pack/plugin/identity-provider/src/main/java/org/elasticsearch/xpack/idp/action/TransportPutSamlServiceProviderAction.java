@@ -63,7 +63,7 @@ public class TransportPutSamlServiceProviderAction
                 // the same time, one will fail. That's not ideal, but it's better than having 1 silently overwrite the other.
                 writeDocument(document, DocWriteRequest.OpType.CREATE, listener);
             } else if (matchingDocuments.size() == 1) {
-                SamlServiceProviderDocument existingDoc = Iterables.get(matchingDocuments, 0);
+                final SamlServiceProviderDocument existingDoc = Iterables.get(matchingDocuments, 0).getDocument();
                 assert existingDoc.docId != null : "Loaded document with no doc id";
                 assert existingDoc.entityId.equals(document.entityId) : "Loaded document with non-matching entity-id";
                 document.setDocId(existingDoc.docId);
@@ -71,7 +71,7 @@ public class TransportPutSamlServiceProviderAction
                 writeDocument(document, DocWriteRequest.OpType.INDEX, listener);
             } else {
                 logger.warn("Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
-                    index, document.entityId, matchingDocuments.stream().map(d -> d.docId).collect(Collectors.joining(",")));
+                    index, document.entityId, matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(",")));
                 listener.onFailure(new IllegalStateException(
                     "Multiple service providers already exist with entity id [" + document.entityId + "]"));
             }

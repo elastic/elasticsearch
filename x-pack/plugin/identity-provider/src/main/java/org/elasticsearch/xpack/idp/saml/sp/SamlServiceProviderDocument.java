@@ -14,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,6 +46,10 @@ import java.util.stream.Collectors;
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
  */
 public class SamlServiceProviderDocument implements ToXContentObject, Writeable {
+
+    public static final String SIGN_AUTHN = "authn";
+    public static final String SIGN_LOGOUT = "logout";
+    private static final Set<String> ALLOWED_SIGN_MESSAGES = Set.of(SIGN_AUTHN, SIGN_LOGOUT);
 
     public static class Privileges {
         @Nullable
@@ -242,6 +247,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public Instant lastModified;
 
     public Set<String> nameIdFormats = Set.of();
+    public Set<String> signMessages = Set.of();
 
     @Nullable
     public Long authenticationExpiryMillis;
@@ -352,16 +358,20 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         this.nameIdFormats = nameIdFormats == null ? Set.of() : Set.copyOf(nameIdFormats);
     }
 
+    public void setSignMessages(Collection<String> signMessages) {
+        this.signMessages = signMessages == null ? Set.of() : Set.copyOf(signMessages);
+    }
+
     public void setAuthenticationExpiryMillis(Long authenticationExpiryMillis) {
         this.authenticationExpiryMillis = authenticationExpiryMillis;
     }
 
     public void setAuthenticationExpiry(ReadableDuration authnExpiry) {
-        this.authenticationExpiryMillis = authnExpiry.getMillis();
+        this.authenticationExpiryMillis = authnExpiry == null ? null : authnExpiry.getMillis();
     }
 
-    public ReadableDuration getAuthenticationExpiryMillis() {
-        return Duration.millis(this.authenticationExpiryMillis);
+    public ReadableDuration getAuthenticationExpiry() {
+        return authenticationExpiryMillis == null ? null : Duration.millis(this.authenticationExpiryMillis);
     }
 
     @Override
@@ -406,6 +416,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setCreatedMillis, Fields.CREATED_DATE);
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setLastModifiedMillis, Fields.LAST_MODIFIED);
         DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setNameIdFormats, Fields.NAME_ID);
+        DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setSignMessages, Fields.SIGN_MSGS);
         DOC_PARSER.declareField(SamlServiceProviderDocument::setAuthenticationExpiryMillis,
             parser -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.longValue(),
             Fields.AUTHN_EXPIRY, ObjectParser.ValueType.LONG_OR_NULL);
@@ -453,6 +464,13 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         if (lastModified == null) {
             validation.addValidationError("field [" + Fields.LAST_MODIFIED + "] is required, but was [" + lastModified + "]");
         }
+
+        final Set<String> invalidSignOptions = Sets.difference(signMessages, ALLOWED_SIGN_MESSAGES);
+        if (invalidSignOptions.isEmpty() == false) {
+            validation.addValidationError("the values [" + invalidSignOptions + "] are not permitted for [" + Fields.SIGN_MSGS
+                + "] - permitted values are [" + ALLOWED_SIGN_MESSAGES + "]");
+        }
+
         if (Strings.isNullOrEmpty(privileges.resource)) {
             validation.addValidationError("field [" + Fields.PRIVILEGES + "." + Fields.Privileges.RESOURCE
                 + "] is required, but was [" + privileges.resource + "]");
@@ -478,6 +496,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.CREATED_DATE.getPreferredName(), created == null ? null : created.toEpochMilli());
         builder.field(Fields.LAST_MODIFIED.getPreferredName(), lastModified == null ? null : lastModified.toEpochMilli());
         builder.field(Fields.NAME_ID.getPreferredName(), nameIdFormats == null ? List.of() : nameIdFormats);
+        builder.field(Fields.SIGN_MSGS.getPreferredName(), signMessages == null ? List.of() : signMessages);
         builder.field(Fields.AUTHN_EXPIRY.getPreferredName(), authenticationExpiryMillis);
 
         builder.startObject(Fields.PRIVILEGES.getPreferredName());
@@ -509,6 +528,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         ParseField ACS = new ParseField("acs");
         ParseField ENABLED = new ParseField("enabled");
         ParseField NAME_ID = new ParseField("name_id_format");
+        ParseField SIGN_MSGS = new ParseField("sign_messages");
         ParseField AUTHN_EXPIRY = new ParseField("authn_expiry_ms");
 
         ParseField CREATED_DATE = new ParseField("created");

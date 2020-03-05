@@ -116,8 +116,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 iterators.add(iterator);
             }
         }
-        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators, false);
-        this.shardsIts = new GroupShardsIterator<>(iterators, false);
+        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
+        this.shardsIts = new GroupShardsIterator<>(iterators);
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
@@ -611,7 +611,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get());
+        // Note that, we have to disable this shortcut for scroll queries.
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && request.scroll() == null);
         return shardRequest;
     }
 

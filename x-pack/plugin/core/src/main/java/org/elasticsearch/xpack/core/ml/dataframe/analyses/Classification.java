@@ -150,8 +150,7 @@ public class Classification implements DataFrameAnalysis {
         return trainingPercent;
     }
 
-    @Nullable
-    public Long getRandomizeSeed() {
+    public long getRandomizeSeed() {
         return randomizeSeed;
     }
 

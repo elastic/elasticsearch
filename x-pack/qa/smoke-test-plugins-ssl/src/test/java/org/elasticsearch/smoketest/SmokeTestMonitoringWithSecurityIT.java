@@ -199,6 +199,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         return exporters != null && exporters.isEmpty() == false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testHTTPExporterWithSSL() throws Exception {
         // Ensures that the exporter is actually on
         assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));
@@ -245,6 +246,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testSettingsFilter() throws IOException {
         final Request request = new Request("GET", "/_cluster/settings");
         final Response response = client().performRequest(request);

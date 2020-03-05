@@ -47,7 +47,7 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new TestDeprecationHeaderRestAction(settings, restController));
+        return Collections.singletonList(new TestDeprecationHeaderRestAction(settings));
     }
 
     @Override

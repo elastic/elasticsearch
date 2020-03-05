@@ -114,7 +114,6 @@ import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -1400,7 +1399,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         latch.await();
                         for (int i = 0; i < 10000; i++) {
                             semaphore.acquire();
-                            shard.sync(TranslogTests.randomTranslogLocation(), (ex) -> semaphore.release());
+                            shard.sync(new Translog.Location(randomLong(), randomLong(), randomInt()), (ex) -> semaphore.release());
                         }
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
@@ -2022,17 +2021,20 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.sync(); // advance local checkpoint
 
         final int translogOps;
+        final int replayedOps;
         if (randomBoolean()) {
             // Advance the global checkpoint to remove the 1st commit; this shard will recover the 2nd commit.
             shard.updateGlobalCheckpointOnReplica(3, "test");
             logger.info("--> flushing shard");
             shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             translogOps = 4; // delete #1 won't be replayed.
-        } else if (randomBoolean())  {
-            shard.getEngine().rollTranslogGeneration();
-            translogOps = 5;
+            replayedOps = 3;
         } else {
+            if (randomBoolean()) {
+                shard.getEngine().rollTranslogGeneration();
+            }
             translogOps = 5;
+            replayedOps = 5;
         }
 
         final ShardRouting replicaRouting = shard.routingEntry();
@@ -2042,10 +2044,9 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
-        assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(replayedOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
-        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
         updateRoutingEntry(newShard, ShardRoutingHelper.moveToStarted(newShard.routingEntry()));
         assertDocCount(newShard, 3);
         closeShards(newShard);
@@ -2327,7 +2328,8 @@ public class IndexShardTests extends IndexShardTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
         routing = ShardRoutingHelper.newWithRestoreSource(routing,
-            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
+            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT,
+                new IndexId("test", UUIDs.randomBase64UUID(random()))));
         target = reinitShard(target, routing);
         Store sourceStore = source.store();
         Store targetStore = target.store();
@@ -2435,7 +2437,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.refresh("created segment 2");
 
         // test global ordinals are evicted
-        MappedFieldType foo = shard.mapperService().fullName("foo");
+        MappedFieldType foo = shard.mapperService().fieldType("foo");
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(shard.indexSettings.getNodeSettings(),
             new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,

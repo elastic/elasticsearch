@@ -1,0 +1,47 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-meta"
+  ],
+  "settings" : {
+    "index" : {
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1"
+    }
+  },
+  "mappings" : {
+    "_doc": {
+      "_meta": {
+        "version": "${xpack.ml.version}"
+      },
+      "dynamic_templates": [
+        {
+          "strings_as_keywords": {
+            "match": "*",
+            "mapping": {
+              "type": "keyword"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "calendar_id": {
+          "type": "keyword"
+        },
+        "job_ids": {
+          "type": "keyword"
+        },
+        "description": {
+          "type": "keyword"
+        },
+        "start_time": {
+          "type": "date"
+        },
+        "end_time": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}

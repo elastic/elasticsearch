@@ -202,21 +202,17 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
             Map<String, String> userData = new HashMap<>(replica.store().readLastCommittedSegmentsInfo().getUserData());
             final String translogUUIDtoUse;
-            final long translogGenToUse;
             final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
                 translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs,
                     replica.shardId(), replica.getPendingPrimaryTerm());
-                translogGenToUse = 1;
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
-                translogGenToUse = translogGeneration.translogFileGeneration;
             }
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
                 userData.put(Engine.HISTORY_UUID_KEY, historyUUIDtoUse);
                 userData.put(Translog.TRANSLOG_UUID_KEY, translogUUIDtoUse);
-                userData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGenToUse));
                 writer.setLiveCommitData(userData.entrySet());
                 writer.commit();
             }

@@ -74,7 +74,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name,
                 Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.mapperService().fullName(NAME));
+            return new Builder(parserContext.mapperService().fieldType(NAME));
         }
 
         @Override

@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSingleNodeAllocateStep> {
@@ -563,22 +565,23 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+        SetOnce<Exception> actionCompleted = new SetOnce<>();
 
         step.performAction(indexMetaData, clusterState, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
+                throw new AssertionError("Unexpected method call");
             }
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
+                actionCompleted.set(e);
             }
         });
 
-        assertEquals(false, actionCompleted.get());
+        Exception failure = actionCompleted.get();
+        assertThat(failure, instanceOf(NoNodeAvailableException.class));
 
         Mockito.verifyZeroInteractions(client);
     }

@@ -36,14 +36,12 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -130,7 +128,7 @@ public class NoOpEngineTests extends EngineTestCase {
                     }
                 }
                 engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
-                flushAndTrimTranslog(engine);
+                engine.flush(true, true);
             }
 
             final DocsStats expectedDocStats;
@@ -168,49 +166,32 @@ public class NoOpEngineTests extends EngineTestCase {
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
 
-        boolean softDeleteEnabled = engine.config().getIndexSettings().isSoftDeleteEnabled();
         final int numDocs = scaledRandomIntBetween(10, 3000);
+        int totalTranslogOps = 0;
         for (int i = 0; i < numDocs; i++) {
+            totalTranslogOps++;
             engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
             if (rarely()) {
+                totalTranslogOps = 0;
                 engine.flush();
             }
+            if (randomBoolean()) {
+                engine.rollTranslogGeneration();
+            }
         }
+        // prevent translog from trimming so we can test trimUnreferencedFiles in NoOpEngine.
+        final Translog.Snapshot snapshot = engine.getTranslog().newSnapshot();
         engine.flush(true, true);
-
-        final String translogUuid = engine.getTranslog().getTranslogUUID();
-        final long minFileGeneration = engine.getTranslog().getMinFileGeneration();
-        final long currentFileGeneration = engine.getTranslog().currentFileGeneration();
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        final Path translogPath = noOpEngine.config().getTranslogConfig().getTranslogPath();
-
-        final long lastCommitedTranslogGeneration;
-        try (Engine.IndexCommitRef indexCommitRef = noOpEngine.acquireLastIndexCommit(false)) {
-            Map<String, String> lastCommittedUserData = indexCommitRef.getIndexCommit().getUserData();
-            lastCommitedTranslogGeneration = Long.parseLong(lastCommittedUserData.get(Translog.TRANSLOG_GENERATION_KEY));
-            assertThat(lastCommitedTranslogGeneration, equalTo(currentFileGeneration));
-        }
-
-        assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(minFileGeneration));
-        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeleteEnabled ? 0 : numDocs));
-        assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
-
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(totalTranslogOps));
         noOpEngine.trimUnreferencedTranslogFiles();
-
-        assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(lastCommitedTranslogGeneration));
         assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
         assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
-
+        assertThat(noOpEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long)Translog.DEFAULT_HEADER_SIZE_IN_BYTES));
+        snapshot.close();
         noOpEngine.close();
-    }
-
-    private void flushAndTrimTranslog(final InternalEngine engine) {
-        engine.flush(true, true);
-        final TranslogDeletionPolicy deletionPolicy = engine.getTranslog().getDeletionPolicy();
-        deletionPolicy.setMinTranslogGenerationForRecovery(engine.getTranslog().getGeneration().translogFileGeneration);
-        engine.flush(true, true);
     }
 }

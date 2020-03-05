@@ -70,7 +70,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -98,17 +97,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class QueryPhaseTests extends IndexShardTestCase {
 
     private IndexShard indexShard;
-
-    @Override
-    public Settings threadPoolSettings() {
-        return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.search.min_queue_size", 10).build();
-    }
 
     @Override
     public void setUp() throws Exception {
@@ -640,8 +634,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(mapperService.fullName(fieldNameDate)).thenReturn(fieldTypeDate);
+        when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
 
         final int numDocs = 7000;
         Directory dir = newDirectory();

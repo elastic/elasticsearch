@@ -83,14 +83,6 @@ public final class Cursors {
         }
     }
 
-
-    /**
-     * Read a {@linkplain Cursor} from a string.
-     */
-    public static Cursor decodeFromString(String base64) {
-        return decodeFromStringWithZone(base64).v1();
-    }
-
     /**
      * Read a {@linkplain Cursor} from a string.
      */

@@ -56,7 +56,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -212,37 +211,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that environment variables can be populated by setting variables with the suffix "_FILE",
-     * which point to files that hold the required values.
-     */
-    public void test080SetEnvironmentVariablesUsingFiles() throws Exception {
-        final String optionsFilename = "esJavaOpts.txt";
-
-        // ES_JAVA_OPTS_FILE
-        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
-
-        Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
-
-        // File permissions need to be secured in order for the ES wrapper to accept
-        // them for populating env var values
-        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
-
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
-        // Restart the container
-        runContainer(distribution(), volumes, envVars);
-
-        waitForElasticsearch(installation);
-
-        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-
-        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
-    }
-
-    /**
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
-    public void test081ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
+    public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
 
@@ -289,7 +260,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed.
      */
-    public void test082SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
+    public void test081SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
         // Test relies on symlinks
@@ -329,22 +300,18 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that environment variables cannot be used with _FILE environment variables.
      */
-    public void test083CannotUseEnvVarsAndFiles() throws Exception {
-        final String optionsFilename = "esJavaOpts.txt";
+    public void test082CannotUseEnvVarsAndFiles() throws Exception {
+        final String passwordFilename = "password.txt";
 
-        // ES_JAVA_OPTS_FILE
-        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+        Files.writeString(tempDir.resolve(passwordFilename), "other_hunter2\n");
 
-        Map<String, String> envVars = Map.of(
-            "ES_JAVA_OPTS",
-            "-XX:+UseCompressedOops",
-            "ES_JAVA_OPTS_FILE",
-            "/run/secrets/" + optionsFilename
-        );
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ELASTIC_PASSWORD", "hunter2");
+        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
-        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
@@ -352,7 +319,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: Both ES_JAVA_OPTS_FILE and ES_JAVA_OPTS are set. These are mutually exclusive.")
+            containsString("ERROR: Both ELASTIC_PASSWORD_FILE and ELASTIC_PASSWORD are set. These are mutually exclusive.")
         );
     }
 
@@ -360,16 +327,15 @@ public class DockerTests extends PackagingTestCase {
      * Check that when populating environment variables by setting variables with the suffix "_FILE",
      * the files' permissions are checked.
      */
-    public void test084EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
-        final String optionsFilename = "esJavaOpts.txt";
+    public void test083EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+        final String passwordFilename = "password.txt";
 
-        // ES_JAVA_OPTS_FILE
-        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+        Files.writeString(tempDir.resolve(passwordFilename), "hunter2\n");
 
-        Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // Set invalid file permissions
-        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p660);
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
@@ -378,7 +344,9 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600")
+            containsString(
+                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
+            )
         );
     }
 
@@ -386,7 +354,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed, and that invalid target permissions are detected.
      */
-    public void test085SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
+    public void test084SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
         // Test relies on symlinks
@@ -435,7 +403,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    public void test086EnvironmentVariablesAreRespectedUnderDockerExec() {
+    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());

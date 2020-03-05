@@ -803,7 +803,7 @@ final class DocumentParser {
         }
         final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fullName(path);
+        final MappedFieldType existingFieldType = context.mapperService().fieldType(path);
         final Mapper.Builder builder;
         if (existingFieldType != null) {
             // create a builder of the same type

@@ -103,7 +103,7 @@ public class Ensemble implements TrainedModel {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (featureNames != null) {
+        if (featureNames != null && featureNames.isEmpty() == false) {
             builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         }
         if (models != null) {
@@ -157,7 +157,7 @@ public class Ensemble implements TrainedModel {
     }
 
     public static class Builder {
-        private List<String> featureNames;
+        private List<String> featureNames = Collections.emptyList();
         private List<TrainedModel> trainedModels;
         private OutputAggregator outputAggregator;
         private TargetType targetType;

@@ -898,4 +898,35 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             latch.await();
         }
     }
+
+    public void testDeleteIndexWhileSearch() throws Exception {
+        createIndex("test");
+        int numDocs = randomIntBetween(1, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setSource("f", "v").get();
+        }
+        client().admin().indices().prepareRefresh("test").get();
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        Thread[] searchers = new Thread[randomIntBetween(1, 4)];
+        CountDownLatch latch = new CountDownLatch(searchers.length);
+        for (int i = 0; i < searchers.length; i++) {
+            searchers[i] = new Thread(() -> {
+                latch.countDown();
+                while (stopped.get() == false) {
+                    try {
+                        client().prepareSearch("test").setRequestCache(false).get();
+                    } catch (Exception ignored) {
+                        return;
+                    }
+                }
+            });
+            searchers[i].start();
+        }
+        latch.await();
+        client().admin().indices().prepareDelete("test").get();
+        stopped.set(true);
+        for (Thread searcher : searchers) {
+            searcher.join();
+        }
+    }
 }

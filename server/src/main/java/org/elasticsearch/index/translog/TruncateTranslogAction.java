@@ -129,30 +129,25 @@ public class TruncateTranslogAction {
 
         // Retrieve the generation and UUID from the existing data
         commitData = commits.get(commits.size() - 1).getUserData();
-        final String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
         final String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
-        if (translogGeneration == null || translogUUID == null) {
-            throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
-                translogGeneration, translogUUID);
+        if (translogUUID == null) {
+            throw new ElasticsearchException("shard must have a valid translog UUID");
         }
 
         final long globalCheckpoint = commitData.containsKey(SequenceNumbers.MAX_SEQ_NO)
             ? Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO))
             : SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-        terminal.println("Translog Generation: " + translogGeneration);
         terminal.println("Translog UUID      : " + translogUUID);
         terminal.println("History UUID       : " + historyUUID);
 
         Path tempEmptyCheckpoint = translogPath.resolve("temp-" + Translog.CHECKPOINT_FILE_NAME);
         Path realEmptyCheckpoint = translogPath.resolve(Translog.CHECKPOINT_FILE_NAME);
-        Path tempEmptyTranslog = translogPath.resolve("temp-" + Translog.TRANSLOG_FILE_PREFIX +
-            translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
-        Path realEmptyTranslog = translogPath.resolve(Translog.TRANSLOG_FILE_PREFIX +
-            translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
+        final long gen = 1;
+        Path tempEmptyTranslog = translogPath.resolve("temp-" + Translog.TRANSLOG_FILE_PREFIX + gen + Translog.TRANSLOG_FILE_SUFFIX);
+        Path realEmptyTranslog = translogPath.resolve(Translog.TRANSLOG_FILE_PREFIX + gen + Translog.TRANSLOG_FILE_SUFFIX);
 
         // Write empty checkpoint and translog to empty files
-        long gen = Long.parseLong(translogGeneration);
         int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
         writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, globalCheckpoint);
 
@@ -181,13 +176,10 @@ public class TruncateTranslogAction {
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
             try (Translog translog = new Translog(translogConfig, translogUUID,
                 translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
-                 Translog.Snapshot snapshot = translog.newSnapshot()) {
+                 Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)) {
                 //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
                 }
-                // We open translog to check for corruption, do not clean anything.
-                translogDeletionPolicy.setTranslogGenerationOfLastCommit(translog.getMinFileGeneration());
-                translogDeletionPolicy.setMinTranslogGenerationForRecovery(translog.getMinFileGeneration());
             }
             return true;
         } catch (TranslogCorruptedException e) {

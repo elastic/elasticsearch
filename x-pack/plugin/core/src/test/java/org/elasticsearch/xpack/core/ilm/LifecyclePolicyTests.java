@@ -190,6 +190,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+
+            // If the hot phase contains a forcemerge, also make sure to add a rollover, or else the policy will not validate
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) && actionNames.contains(ForceMergeAction.NAME)) {
+                actionNames.add(RolloverAction.NAME);
+            }
+
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }

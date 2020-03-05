@@ -118,11 +118,6 @@ public class MetaDataCreateIndexService {
      * These index patterns will be converted to hidden indices, at which point they should be removed from this list.
      */
     private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
-        ".slm-history-*",
-        ".watch-history-*",
-        ".ml-anomalies-*",
-        ".ml-notifications-*",
-        ".ml-annotations*",
         ".data-frame-notifications-*",
         ".transform-notifications-*"
     ));
@@ -167,12 +162,32 @@ public class MetaDataCreateIndexService {
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
-    public void validateIndexName(String index, ClusterState state, @Nullable Boolean isHidden) {
+    public void validateIndexName(String index, ClusterState state) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
 
+        // NOTE: dot-prefixed index names are validated after template application, not here
+
+        if (state.routingTable().hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
+        }
+        if (state.metaData().hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
+        }
+        if (state.metaData().hasAlias(index)) {
+            throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+    }
+
+    /**
+     * Validates (if this index has a dot-prefixed name) whether it follows the rules for dot-prefixed indices.
+     * @param index The name of the index in question
+     * @param state The current cluster state
+     * @param isHidden Whether or not this is a hidden index
+     */
+    public void validateDotIndex(String index, ClusterState state, @Nullable Boolean isHidden) {
         if (index.charAt(0) == '.') {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
@@ -197,15 +212,6 @@ public class MetaDataCreateIndexService {
                 assert false : errorMessage.toString();
                 throw new IllegalStateException(errorMessage.toString());
             }
-        }
-        if (state.routingTable().hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
-        }
-        if (state.metaData().hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
-        }
-        if (state.metaData().hasAlias(index)) {
-            throw new InvalidIndexNameException(index, "already exists as alias");
         }
     }
 
@@ -326,10 +332,12 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
-        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+        final Boolean isHiddenFromRequest = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
             IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHidden)) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(),
+                request.index(),
+                isHiddenFromRequest)) :
             List.of();
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates, xContentRegistry));
@@ -337,6 +345,9 @@ public class MetaDataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, templates, mappings, sourceMetaData, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetaData);
+
+        final boolean isHiddenAfterTemplates = IndexMetaData.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
+        validateDotIndex(request.index(), currentState, isHiddenAfterTemplates);
 
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
@@ -403,15 +414,11 @@ public class MetaDataCreateIndexService {
         Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
         // apply templates, merging the mappings into the request mapping if exists
         for (IndexTemplateMetaData template : templates) {
-            for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
-                String mappingString = cursor.value.string();
-                // Templates are wrapped with their _type names, which for pre-8x templates may not
-                // be _doc.  For now, we unwrap them based on the _type name, and then re-wrap with
-                // _doc
-                // TODO in 9x these will all have a _type of _doc so no re-wrapping will be necessary
-                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
+            CompressedXContent mapping = template.mappings();
+            if (mapping != null) {
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
                 assert templateMapping.size() == 1 : templateMapping;
-                assert cursor.key.equals(templateMapping.keySet().iterator().next()) : cursor.key + " != " + templateMapping;
+                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
                 templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME,
                     templateMapping.values().iterator().next());
                 if (mappings.isEmpty()) {
@@ -541,7 +548,8 @@ public class MetaDataCreateIndexService {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
             }
             AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
+                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
+                .isHidden(alias.isHidden()).build();
             resolvedAliases.add(aliasMetaData);
         }
 
@@ -704,8 +712,7 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings());
-        validateIndexName(request.index(), state, isHidden);
+        validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -153,5 +155,56 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             .get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "3", "2", "1");
+    }
+
+    public void testDisallowExpensiveQueries() {
+        try {
+            assertAcked(
+                    prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double")
+            );
+            int docCount = 10;
+            for (int i = 1; i <= docCount; i++) {
+                client().prepareIndex("test-index").setId("" + i)
+                        .setSource("field1", "text" + (i % 2), "field2", i)
+                        .get();
+            }
+            refresh();
+
+            // Execute with search.allow_expensive_queries = null => default value = true => success
+            Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1",
+                    Map.of("param1", 0.1));
+            SearchResponse resp = client()
+                    .prepareSearch("test-index")
+                    .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
+                    .get();
+            assertNoFailures(resp);
+
+            // Set search.allow_expensive_queries to "false" => assert failure
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                    () -> client()
+                            .prepareSearch("test-index")
+                            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
+                            .get());
+            assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                    e.getCause().getMessage());
+
+            // Set search.allow_expensive_queries to "true" => success
+            updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            resp = client()
+                    .prepareSearch("test-index")
+                    .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
+                    .get();
+            assertNoFailures(resp);
+        } finally {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
 }

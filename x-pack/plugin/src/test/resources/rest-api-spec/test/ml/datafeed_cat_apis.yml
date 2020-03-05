@@ -82,24 +82,24 @@ setup:
 "Test cat datafeeds":
 
   - do:
-      cat.ml.datafeeds:
+      cat.ml_datafeeds:
         datafeed_id: datafeed-job-stats-test
   - match:
       $body: |
-        / #id                             state    bucket.count     search.count
+        / #id                             state    buckets.count     search.count
         ^ (datafeed\-job\-stats\-test \s+ \w+ \s+  \d+         \s+  \d+         \n)+  $/
 
   - do:
-      cat.ml.datafeeds:
+      cat.ml_datafeeds:
         v: true
         datafeed_id: datafeed-job-stats-test
   - match:
       $body: |
-        /^  id                          \s+  state \s+ bucket\.count \s+ search\.count \n
+        /^  id                          \s+  state \s+ buckets\.count \s+ search\.count \n
            (datafeed\-job\-stats\-test  \s+  \w+   \s+ \d+           \s+ \d+           \n)+  $/
 
   - do:
-      cat.ml.datafeeds:
+      cat.ml_datafeeds:
         h: id,search.count,search.time,search.bucket_avg
         v: true
   - match:

@@ -78,22 +78,22 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                  * TODO bizybot we need to think on how we can propagate appropriate error message to the end user when username, realm name
                  *   is missing. This is similar to the problem of propagating right error messages in case of access denied.
                  */
-                if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+                if (authentication.getSourceRealm().getType().equals(API_KEY_REALM_TYPE)) {
                     // API key cannot own any other API key so deny access
                     return false;
                 } else if (ownedByAuthenticatedUser) {
                     return true;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
-                    final String authenticatedUserPrincipal = authentication.getUser().principal();
-                    final String authenticatedUserRealm = authentication.getAuthenticatedBy().getName();
-                    return username.equals(authenticatedUserPrincipal) && realmName.equals(authenticatedUserRealm);
+                    final String sourceUserPrincipal = authentication.getUser().principal();
+                    final String sourceRealmName = authentication.getSourceRealm().getName();
+                    return username.equals(sourceUserPrincipal) && realmName.equals(sourceRealmName);
                 }
             }
             return false;
         }
 
         private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
-            if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+            if (authentication.getSourceRealm().getType().equals(API_KEY_REALM_TYPE)) {
                 // API key id from authentication must match the id from request
                 final String authenticatedApiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {

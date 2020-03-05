@@ -1,0 +1,18 @@
+{
+  "autoscaling.get_autoscaling_decision":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-get-autoscaling-decision.html"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_autoscaling/decision",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

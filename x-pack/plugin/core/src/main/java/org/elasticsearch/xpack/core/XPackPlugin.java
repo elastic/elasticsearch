@@ -229,7 +229,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = new SSLService(environment);
@@ -288,9 +289,9 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestXPackInfoAction(restController));
-        handlers.add(new RestXPackUsageAction(restController));
-        handlers.add(new RestReloadAnalyzersAction(restController));
+        handlers.add(new RestXPackInfoAction());
+        handlers.add(new RestXPackUsageAction());
+        handlers.add(new RestReloadAnalyzersAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;

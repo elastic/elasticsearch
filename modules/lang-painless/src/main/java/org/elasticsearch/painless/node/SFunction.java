@@ -21,8 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope.FunctionScope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.NullNode;
+import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -64,7 +69,6 @@ public final class SFunction extends ANode {
 
     org.objectweb.asm.commons.Method method;
 
-    private ScriptRoot scriptRoot;
     private boolean methodEscape;
 
     public SFunction(Location location, String rtnType, String name,
@@ -116,7 +120,6 @@ public final class SFunction extends ANode {
     }
 
     void analyze(ScriptRoot scriptRoot) {
-        this.scriptRoot = scriptRoot;
         FunctionScope functionScope = newFunctionScope(returnType);
 
         for (int index = 0; index < typeParameters.size(); ++index) {
@@ -124,20 +127,6 @@ public final class SFunction extends ANode {
             String parameterName = paramNameStrs.get(index);
             functionScope.defineVariable(location, typeParameter, parameterName, false);
         }
-
-        // TODO: do not specialize for execute
-        // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        if ("execute".equals(name)) {
-            for (int get = 0; get < scriptRoot.getScriptClassInfo().getGetMethods().size(); ++get) {
-                org.objectweb.asm.commons.Method method = scriptRoot.getScriptClassInfo().getGetMethods().get(get);
-                String name = method.getName().substring(3);
-                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-                Class<?> rtn = scriptRoot.getScriptClassInfo().getGetReturns().get(get);
-                functionScope.defineVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
-            }
-        }
-        // TODO: end
 
         maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
@@ -164,20 +153,68 @@ public final class SFunction extends ANode {
 
     @Override
     public FunctionNode write(ClassNode classNode) {
+        BlockNode blockNode = block.write(classNode);
+
+        if (methodEscape == false) {
+            ExpressionNode expressionNode;
+
+            if (returnType == void.class) {
+                expressionNode = null;
+            } else if (isAutoReturnEnabled) {
+                if (returnType.isPrimitive()) {
+                    ConstantNode constantNode = new ConstantNode();
+                    constantNode.setLocation(location);
+                    constantNode.setExpressionType(returnType);
+
+                    if (returnType == boolean.class) {
+                        constantNode.setConstant(false);
+                    } else if (returnType == byte.class
+                            || returnType == char.class
+                            || returnType == short.class
+                            || returnType == int.class) {
+                        constantNode.setConstant(0);
+                    } else if (returnType == long.class) {
+                        constantNode.setConstant(0L);
+                    } else if (returnType == float.class) {
+                        constantNode.setConstant(0f);
+                    } else if (returnType == double.class) {
+                        constantNode.setConstant(0d);
+                    } else {
+                        throw createError(new IllegalStateException("unexpected automatic return type " +
+                                "[" + PainlessLookupUtility.typeToCanonicalTypeName(returnType) + "] " +
+                                "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+                    }
+
+                    expressionNode = constantNode;
+                } else {
+                    expressionNode = new NullNode();
+                    expressionNode.setLocation(location);
+                    expressionNode.setExpressionType(returnType);
+                }
+            } else {
+                throw createError(new IllegalStateException("not all paths provide a return value " +
+                        "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+            }
+
+            ReturnNode returnNode = new ReturnNode();
+            returnNode.setLocation(location);
+            returnNode.setExpressionNode(expressionNode);
+
+            blockNode.addStatementNode(returnNode);
+        }
+
         FunctionNode functionNode = new FunctionNode();
 
-        functionNode.setBlockNode(block.write(classNode));
+        functionNode.setBlockNode(blockNode);
 
         functionNode.setLocation(location);
-        functionNode.setScriptRoot(scriptRoot);
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
         functionNode.getParameterNames().addAll(paramNameStrs);
         functionNode.setStatic(isStatic);
+        functionNode.setVarArgs(false);
         functionNode.setSynthetic(synthetic);
-        functionNode.setAutoReturnEnabled(isAutoReturnEnabled);
-        functionNode.setMethodEscape(methodEscape);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 
         return functionNode;

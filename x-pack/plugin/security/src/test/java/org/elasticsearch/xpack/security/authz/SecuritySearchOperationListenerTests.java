@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -47,11 +48,12 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(false);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.scrollContext()).thenReturn(new ScrollContext());
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
+        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         listener.onNewScrollContext(searchContext);
         listener.validateSearchContext(searchContext, Empty.INSTANCE);
         verify(licenseState, times(2)).isAuthAllowed();
@@ -66,11 +68,12 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
         Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
         authentication.writeToContext(threadContext);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
+        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         listener.onNewScrollContext(testSearchContext);
 
         Authentication contextAuth = testSearchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
@@ -90,9 +93,10 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
+        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         try (StoredContext ignore = threadContext.newStoredContext(false)) {
             Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
             authentication.writeToContext(threadContext);

@@ -124,7 +124,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(rolloverRequest.getCreateIndexRequest().settings()) ?
             IndexMetaData.INDEX_HIDDEN_SETTING.get(rolloverRequest.getCreateIndexRequest().settings()) : null;
-        createIndexService.validateIndexName(rolloverIndexName, state, isHidden); // fails if the index already exists
+        createIndexService.validateIndexName(rolloverIndexName, state); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias(), isHidden);
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAlias())
             .clear()
@@ -206,11 +206,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                                      boolean explicitWriteIndex) {
         if (explicitWriteIndex) {
             return List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
-                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false));
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true, null),
+                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false, null));
         } else {
             return List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null, null),
                 new AliasAction.Remove(oldIndex, request.getAlias()));
         }
     }

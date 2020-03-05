@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -30,9 +30,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestEqlSearchAction extends BaseRestHandler {
     private static final String SEARCH_PATH = "/{index}/_eql/search";
 
-    public RestEqlSearchAction(RestController controller) {
-        controller.registerHandler(GET, SEARCH_PATH, this);
-        controller.registerHandler(POST, SEARCH_PATH, this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, SEARCH_PATH),
+            new Route(POST, SEARCH_PATH));
     }
 
     @Override
@@ -43,6 +45,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             eqlRequest = EqlSearchRequest.fromXContent(parser);
             eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+            eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
         }
 
         return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {

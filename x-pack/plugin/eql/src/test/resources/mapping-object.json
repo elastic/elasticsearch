@@ -1,0 +1,24 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "endgame" : {
+            "properties" : {
+                "pid" : {
+                    "type" : "long"
+                },
+                "user_name" : {
+                    "type" : "keyword"
+                }
+            }
+        }
+    }
+}

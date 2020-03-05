@@ -74,9 +74,6 @@ public class AutodetectResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
-    static final long EARLY_BUCKET_THRESHOLD = 100;
-    static final int EXCESSIVE_EARLY_CATEGORY_COUNT = 1000;
-
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
     private final String jobId;
@@ -90,9 +87,8 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
-    private long priorRunsBucketCount;
+    private final long priorRunsBucketCount;
     private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
-    private boolean excessiveCategoryWarningIssued; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
 
@@ -230,7 +226,7 @@ public class AutodetectResultProcessor {
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            processCategoryDefinition(categoryDefinition);
+            persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
@@ -314,22 +310,6 @@ public class AutodetectResultProcessor {
         }
     }
 
-    private void processCategoryDefinition(CategoryDefinition categoryDefinition) {
-        persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
-        if (categoryDefinition.getCategoryId() == EXCESSIVE_EARLY_CATEGORY_COUNT &&
-            priorRunsBucketCount + currentRunBucketCount < EARLY_BUCKET_THRESHOLD &&
-            excessiveCategoryWarningIssued == false) {
-            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES, EXCESSIVE_EARLY_CATEGORY_COUNT,
-                // Add 1 because category definitions are written before buckets
-                1L + priorRunsBucketCount + currentRunBucketCount));
-            // This flag won't be retained if the job is closed and reopened, or if the job migrates to another node.
-            // This means it's possible the audit message is generated multiple times.  However, that's not a
-            // disaster, and is also very unlikely in the the (best practice) cases where initial lookback covers
-            // more than 100 buckets.
-            excessiveCategoryWarningIssued = true;
-        }
-    }
-
     private void processModelSizeStats(ModelSizeStats modelSizeStats) {
         LOGGER.trace("[{}] Parsed ModelSizeStats: {} / {} / {} / {} / {} / {}",
                 jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
@@ -338,6 +318,8 @@ public class AutodetectResultProcessor {
 
         persister.persistModelSizeStats(modelSizeStats, this::isAlive);
         notifyModelMemoryStatusChange(modelSizeStats);
+        notifyCategorizationStatusChange(modelSizeStats);
+
         latestModelSizeStats = modelSizeStats;
     }
 
@@ -355,6 +337,16 @@ public class AutodetectResultProcessor {
                         new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit(), ByteSizeUnit.BYTES).toString(),
                         new ByteSizeValue(modelSizeStats.getModelBytesExceeded(), ByteSizeUnit.BYTES).toString()));
                 }
+            }
+        }
+    }
+
+    private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
+        ModelSizeStats.CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
+        if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
+            if (categorizationStatus == ModelSizeStats.CategorizationStatus.WARN) {
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
+                    priorRunsBucketCount + currentRunBucketCount));
             }
         }
     }

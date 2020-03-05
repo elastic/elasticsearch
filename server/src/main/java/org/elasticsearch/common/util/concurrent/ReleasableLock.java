@@ -57,6 +57,15 @@ public class ReleasableLock implements Releasable {
         return this;
     }
 
+    public ReleasableLock tryAcquire() throws EngineException {
+        if (lock.tryLock()) {
+            assert addCurrentThread();
+            return this;
+        } else {
+            return null;
+        }
+    }
+
     private boolean addCurrentThread() {
         final Integer current = holdingThreads.get();
         holdingThreads.set(current == null ? 1 : current + 1);

@@ -1636,7 +1636,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53190")
     public void testForceMergeWithSoftDeletesRetentionAndRecoverySource() throws Exception {
         final long retainedExtraOps = randomLongBetween(0, 10);
         Settings.Builder settings = Settings.builder()

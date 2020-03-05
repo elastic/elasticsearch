@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -122,7 +123,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         validate(metaData, rolloverRequest);
         final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = alias.getWriteIndex();
-        final boolean explicitWriteIndex = Boolean.TRUE.equals(indexMetaData.getAliases().get(alias.getAliasName()).writeIndex());
+        final AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias.getAliasName());
+        final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex());
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();
@@ -162,7 +164,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexRequest);
                                 newState = indexAliasesService.applyAliasActions(newState,
-                                    rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, rolloverRequest, explicitWriteIndex));
+                                    rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, rolloverRequest, explicitWriteIndex,
+                                        aliasMetaData.isHidden()));
                                 RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
                                     threadPool.absoluteTimeInMillis());
                                 return ClusterState.builder(newState)
@@ -210,15 +213,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
      * alias pointing to multiple indices will have to be an explicit write index (ie. the old index alias has is_write_index set to true)
      * in which case, after the rollover, the new index will need to be the explicit write index.
      */
-    static List<AliasAction> rolloverAliasToNewIndex(String oldIndex, String newIndex, RolloverRequest request,
-                                                     boolean explicitWriteIndex) {
+    static List<AliasAction> rolloverAliasToNewIndex(String oldIndex, String newIndex, RolloverRequest request, boolean explicitWriteIndex,
+                                                     @Nullable Boolean isHidden) {
         if (explicitWriteIndex) {
             return unmodifiableList(Arrays.asList(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true, null),
-                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false, null)));
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true, isHidden),
+                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false, isHidden)));
         } else {
             return unmodifiableList(Arrays.asList(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null, null),
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null, isHidden),
                 new AliasAction.Remove(oldIndex, request.getAlias())));
         }
     }

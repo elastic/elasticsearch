@@ -1400,14 +1400,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeAtomic(indexBlob,
                 BytesReference.bytes(filteredRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), writeShardGens)), true);
             // write the current generation to the index-latest file
-            final BytesReference genBytes;
-            try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-                bStream.writeLong(newGen);
-                genBytes = bStream.bytes();
-            }
             logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
-
-            writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
+            writeSnapshotIndexLatestBlob(newGen);
 
             // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask("set safe repository generation [" + metadata.name() + "][" + newGen + "]",
@@ -1499,9 +1493,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    // package private for testing
-    long readSnapshotIndexLatestBlob() throws IOException {
+    protected long readSnapshotIndexLatestBlob() throws IOException {
         return Numbers.bytesToLong(Streams.readFully(blobContainer().readBlob(INDEX_LATEST_BLOB)).toBytesRef());
+    }
+
+    protected void writeSnapshotIndexLatestBlob(long newGen) throws IOException {
+        final BytesReference genBytes;
+        try (BytesStreamOutput baos = new BytesStreamOutput()) {
+            baos.writeLong(newGen);
+            genBytes = baos.bytes();
+        }
+        writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {

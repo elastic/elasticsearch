@@ -42,7 +42,7 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
         when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn(new URL("https://idp.org/sso/redirect"));
         when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn(new URL("https://idp.org/slo/post"));
-        when(idp.getRegisteredServiceProvider("https://sp.org")).thenReturn(sp);
+        mockRegisteredServiceProvider(idp, "https://sp.org", sp);
 
         SamlFactory factory = new SamlFactory();
         SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
@@ -111,7 +111,7 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
         when(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI)).thenReturn(new URL("https://idp.org/sso/redirect"));
         when(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI)).thenReturn(new URL("https://idp.org/slo/post"));
-        when(idp.getRegisteredServiceProvider("https://sp.org")).thenReturn(sp);
+        mockRegisteredServiceProvider(idp, "https://sp.org", sp);
 
         X509Credential signingCredential = readCredentials("RSA", 4096);
         SamlFactory factory = new SamlFactory();

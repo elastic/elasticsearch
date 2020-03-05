@@ -115,6 +115,7 @@ subprojects {
       ':distribution:tools:launchers',
       ':distribution:tools:plugin-cli',
       ':qa:os',
+      ':qa:wildfly',
       ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]

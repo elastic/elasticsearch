@@ -73,6 +73,7 @@ class SimulateExecutionService {
             if (request.getDocuments().isEmpty()) {
                 l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
                     request.isVerbose(), responses));
+                return;
             }
 
             int iter = 0;

@@ -229,7 +229,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e1 = expectThrows(IllegalArgumentException.class,
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
-        assertThat(e1.getMessage(), equalTo("must specify at least one doc"));
+        assertThat(e1.getMessage(), equalTo("must specify at least one document in [docs]"));
 
         List<String> stringList = new ArrayList<>();
         stringList.add("test");
@@ -238,7 +238,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e2 = expectThrows(IllegalArgumentException.class,
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
-        assertThat(e2.getMessage(), equalTo("expected map in docs but found not"));
+        assertThat(e2.getMessage(), equalTo("malformed [docs] section, should include an inner object"));
 
         docs.add(new HashMap<>());
         requestContent.put(Fields.DOCS, docs);

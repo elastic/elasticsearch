@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -137,14 +138,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         }
 
         List<Expression> container = expressions(predicate.expression());
-
-        // TODO: Add IN to QL and use that directly
-        Expression checkInSet = null;
-
-        for (Expression inner : container) {
-            Expression termCheck = new Equals(source, expr, inner);
-            checkInSet = checkInSet == null ? termCheck : new Or(source, checkInSet, termCheck);
-        }
+        Expression checkInSet = new In(source, expr, container);
 
         return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
     }

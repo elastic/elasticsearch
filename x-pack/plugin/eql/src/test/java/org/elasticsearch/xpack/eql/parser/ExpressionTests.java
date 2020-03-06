@@ -156,19 +156,19 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testInSet() {
-        assertEquals(
+        assertNotEquals(
             expr("name in ('net.exe')"),
             expr("name == 'net.exe'")
         );
 
-        assertEquals(
+        assertNotEquals(
             expr("name in ('net.exe', 'whoami.exe', 'hostname.exe')"),
             expr("name == 'net.exe' or name == 'whoami.exe' or name == 'hostname.exe'")
         );
 
         assertEquals(
             expr("name not in ('net.exe', 'whoami.exe', 'hostname.exe')"),
-            expr("not (name == 'net.exe' or name == 'whoami.exe' or name == 'hostname.exe')")
+            expr("not (name in ('net.exe', 'whoami.exe', 'hostname.exe'))")
         );
     }
 }

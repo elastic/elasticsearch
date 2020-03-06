@@ -185,10 +185,10 @@ public class ILMHistoryStore implements Closeable {
 
             client.admin().indices().prepareCreate(initialHistoryIndexName)
                 .setSettings((Map<String, ?>) templateAsMap.get("settings"))
-                .setMapping((Map<String, Object>) templateAsMap.get("mappings"))
+                .addMapping("_doc", (Map<String, Object>) templateAsMap.get("mappings"))
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true))
-                .execute(new ActionListener<>() {
+                .execute(new ActionListener<CreateIndexResponse>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {
                         listener.onResponse(true);

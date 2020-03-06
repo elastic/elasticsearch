@@ -1563,7 +1563,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                                         @Nullable String phase, @Nullable String action, String stepName) throws IOException {
         logger.info("--> checking for history item [{}], [{}], success: [{}], phase: [{}], action: [{}], step: [{}]",
             policyName, indexName, success, phase, action, stepName);
-        final Request historySearchRequest = new Request("GET", "ilm-history*/_search");
+        final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
         historySearchRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
             "    \"bool\": {\n" +
@@ -1640,7 +1640,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-1-000001");
+        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-2-000001");
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());

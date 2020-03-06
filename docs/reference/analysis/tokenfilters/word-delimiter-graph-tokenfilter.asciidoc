@@ -4,8 +4,6 @@
 <titleabbrev>Word delimiter graph</titleabbrev>
 ++++
 
-experimental::["The `word_delimiter_graph` filter uses Lucene's {lucene-analysis-docs}/miscellaneous/WordDelimiterGraphFilter.html[WordDelimiterGraphFilter], which is marked as experimental in Lucene."]
-
 Splits tokens at non-alphanumeric characters. The `word_delimiter_graph` filter
 also performs optional token normalization based on a set of rules. By default,
 the filter uses the following rules:
@@ -21,6 +19,9 @@ the filter uses the following rules:
   For example: `SD500` -> `SD`, `500`
 * Remove the English possessive (`'s`) from the end of each token.
   For example: `Neil's` -> `Neil`
+
+The `word_delimiter_graph` filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/WordDelimiterGraphFilter.html[WordDelimiterGraphFilter]
 
 [[analysis-word-delimiter-graph-tokenfilter-analyze-ex]]
 ==== Example

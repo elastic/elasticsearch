@@ -45,13 +45,13 @@ PUT _ml/anomaly_detectors/farequote
     "bucket_span": "60m",
     "detectors": [{
       "function": "mean",
-      "field_name": "responsetime",  <!--1-->
-      "by_field_name": "airline"  <!--1-->
+      "field_name": "responsetime",  <1>
+      "by_field_name": "airline"  <1>
     }],
     "summary_count_field_name": "doc_count"
   },
   "data_description": {
-    "time_field":"time"  <!--1-->
+    "time_field":"time"  <1>
   }
 }
 ----------------------------------
@@ -82,16 +82,16 @@ PUT _ml/datafeeds/datafeed-farequote
         "time_zone": "UTC"
       },
       "aggregations": {
-        "time": {  <!--1-->
+        "time": {  <1>
           "max": {"field": "time"}
         },
-        "airline": {  <!--1-->
+        "airline": {  <1>
           "terms": {
             "field": "airline",
             "size": 100
           },
           "aggregations": {
-            "responsetime": {  <!--1-->
+            "responsetime": {  <1>
               "avg": {
                 "field": "responsetime"
               }

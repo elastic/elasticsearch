@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -114,19 +112,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Filter filter) {
 
             return filter.transformExpressionsUp(e -> {
-                if (e instanceof Equals) {
-                    Equals eq = (Equals) e;
-                    if (Expressions.isNull(eq.right())) {
-                        return new IsNull(e.source(), eq.left());
+                // expr == null || expr != null
+                if (e instanceof Equals || e instanceof NotEquals) {
+                    BinaryComparison cmp = (BinaryComparison) e;
+
+                    if (cmp.right().foldable() && cmp.right().fold() == null) {
+                        if (e instanceof Equals) {
+                            e = new IsNull(e.source(), cmp.left());
+                        } else {
+                            e = new IsNotNull(e.source(), cmp.left());
+                        }
                     }
                 }
 
-                else if (e instanceof NotEquals) {
-                    NotEquals eq = (NotEquals) e;
-                    if (Expressions.isNull(eq.right())) {
-                        return new IsNotNull(e.source(), eq.left());
-                    }
-                }
                 return e;
             });
         }

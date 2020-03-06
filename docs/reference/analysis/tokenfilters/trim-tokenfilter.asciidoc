@@ -4,7 +4,9 @@
 <titleabbrev>Trim</titleabbrev>
 ++++
 
-Removes leading and trailing whitespace from each token in a stream.
+Removes leading and trailing whitespace from each token in a stream. While this
+can change the length of a token, the `trim` filter does _not_ change a token's
+offsets.
 
 The `trim` filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/TrimFilter.html[TrimFilter].
@@ -37,8 +39,9 @@ GET _analyze
 }
 ----
 
-The API returns the following response. Note the `" fox "` token contains
-the original text's whitespace.
+The API returns the following response. Note the `" fox "` token contains the
+original text's whitespace. Note that despite changing the token's length, the
+`start_offset` and `end_offset` remain the same.
 
 [source,console-result]
 ----

@@ -53,6 +53,8 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state");
                 case "started":
+                    int watcherCount = (int) response.evaluate("stats.0.watch_count");
+                    assertThat(watcherCount, equalTo(0));
                     // all good here, we are done
                     break;
                 default:
@@ -70,8 +72,6 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
             String state = (String) response.evaluate("stats.0.watcher_state");
             switch (state) {
                 case "stopped":
-                    int watcherCount = (int) response.evaluate("stats.0.watch_count");
-                    assertThat(watcherCount, equalTo(0));
                     // all good here, we are done
                     break;
                 case "stopping":

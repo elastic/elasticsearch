@@ -272,8 +272,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final Request request = new Request(HttpPost.METHOD_NAME, mountIndexName + "/_searchable_snapshots/mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
         request.setJsonEntity(Strings.toString(new MountSearchableSnapshotRequest(mountIndexName, repository, snapshot,
-            snapshotIndexName.equals(mountIndexName) && randomBoolean() ? null : snapshotIndexName,
-            indexSettings, Strings.EMPTY_ARRAY, waitForCompletion)));
+            snapshotIndexName, indexSettings, Strings.EMPTY_ARRAY, waitForCompletion)));
 
         final Response response = client().performRequest(request);
         assertThat("Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,

@@ -31,7 +31,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> implements ToXContentObject {
 
-    /** @noinspection RedundantCast to suppress bogus warnings -- these casts are not redundant at all */
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RequestParams> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot", true,
         (a, p) -> new MountSearchableSnapshotRequest(p.mountedIndexName,

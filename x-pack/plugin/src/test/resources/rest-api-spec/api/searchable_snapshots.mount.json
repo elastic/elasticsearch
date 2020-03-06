@@ -13,7 +13,7 @@
           ],
           "parts": {
             "index": {
-              "type": "list",
+              "type": "string",
               "description": "A single index to be created when mounting the snapshot as searchable"
             }
           }

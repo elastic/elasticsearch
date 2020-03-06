@@ -34,8 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 public abstract class AbstractTransportSearchableSnapshotsAction
     <Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardOperationResult extends Writeable>

@@ -45,7 +45,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -125,7 +125,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(restoredIndexName, fsRepoName,
             snapshotInfo.snapshotId().getName(), indexName,
             Settings.builder()
-                .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
                 .build(), Strings.EMPTY_ARRAY, true);
 
@@ -134,12 +134,12 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         final Settings settings
             = client().admin().indices().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
-        assertThat(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(fsRepoName));
-        assertThat(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
+        assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(fsRepoName));
+        assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_DIRECTORY_FACTORY_KEY));
         assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(settings));
-        assertTrue(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
-        assertTrue(SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
+        assertTrue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
+        assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
 

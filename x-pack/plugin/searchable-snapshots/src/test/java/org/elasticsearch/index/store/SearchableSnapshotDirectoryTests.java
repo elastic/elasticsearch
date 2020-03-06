@@ -323,7 +323,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                 final String repositoryName = randomAlphaOfLength(10);
                 final RepositoryMetaData repositoryMetaData =
-                    new RepositoryMetaData(repositoryName, "fs", repositorySettings.build());
+                    new RepositoryMetaData(repositoryName, FsRepository.TYPE, repositorySettings.build());
 
                 final BlobStoreRepository repository = new FsRepository(
                     repositoryMetaData,

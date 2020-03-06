@@ -31,7 +31,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.io.IOException;
 import java.util.Map;
@@ -81,11 +81,11 @@ public class TransportMountSearchableSnapshotAction
      */
     private static Settings getIndexSettings(String repoName, SnapshotId snapshotId, IndexId indexId) {
         return Settings.builder()
-            .put(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING.getKey(), repoName)
-            .put(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
-            .put(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
-            .put(SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
-            .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY)
+            .put(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.getKey(), repoName)
+            .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
+            .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
+            .put(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
+            .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY)
             .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)
             .build();
     }

@@ -57,15 +57,24 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
 /**
  * Plugin for Searchable Snapshots feature
  */
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin, EnginePlugin, ActionPlugin {
+
+    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING =
+        Setting.simpleString("index.store.snapshot.repository_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+    public static final Setting<String> SNAPSHOT_SNAPSHOT_NAME_SETTING =
+        Setting.simpleString("index.store.snapshot.snapshot_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+    public static final Setting<String> SNAPSHOT_SNAPSHOT_ID_SETTING =
+        Setting.simpleString("index.store.snapshot.snapshot_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+    public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING =
+        Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+    public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
+        Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
+
+    public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
     private final SetOnce<RepositoriesService> repositoriesService;
     private final SetOnce<CacheService> cacheService;
@@ -79,7 +88,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING,
+        return List.of(SNAPSHOT_REPOSITORY_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
@@ -115,7 +124,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
-        return Map.of(SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
+        return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
             assert repositories != null;
             final CacheService cache = cacheService.get();
@@ -126,7 +135,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))
+        if (SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
         }

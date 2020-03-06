@@ -28,7 +28,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
@@ -42,10 +41,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
 /**
  * Implementation of {@link Directory} that exposes files from a snapshot as a Lucene directory. Because snapshot are immutable this
@@ -63,7 +63,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final BlobStoreIndexShardSnapshot snapshot;
     private final BlobContainer blobContainer;
 
-    public SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
+    SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
         super(new SingleInstanceLockFactory());
         this.snapshot = Objects.requireNonNull(snapshot);
         this.blobContainer = Objects.requireNonNull(blobContainer);
@@ -153,8 +153,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                    ShardPath shardPath,
                                    LongSupplier currentTimeNanosSupplier) throws IOException {
 
-        final Repository repository = repositories.repository(
-            SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
+        final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }

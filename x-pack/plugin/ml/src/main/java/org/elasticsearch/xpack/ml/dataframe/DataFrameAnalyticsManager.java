@@ -213,7 +213,8 @@ public class DataFrameAnalyticsManager {
                 task.setReindexingFinished();
                 auditor.info(
                     config.getId(),
-                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
+                        reindexResponse.getTook()));
                 startAnalytics(task, config);
             },
             error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
@@ -233,9 +234,12 @@ public class DataFrameAnalyticsManager {
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
+                    LOGGER.info("[{}] Started reindexing", config.getId());
                     Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
                         new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
                     task.setReindexingTaskId(reindexTask.getId());
+                    auditor.info(config.getId(),
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING, config.getDest().getIndex()));
                 }
             },
             reindexCompletedListener::onFailure

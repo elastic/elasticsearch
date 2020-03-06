@@ -20,7 +20,11 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
@@ -61,6 +65,50 @@ public class ValuesSourceConfig {
                                              String format,
                                              ValuesSourceType defaultValueSourceType,
                                              String aggregationName) {
+
+        return internalResolve(context, userValueTypeHint, field, script, missing, timeZone, format, defaultValueSourceType,
+            aggregationName, ValuesSourceConfig::getMappingFromRegistry);
+    }
+
+    /**
+     * AKA legacy resolve.  This method should be called by aggregations not supported by the {@link ValuesSourceRegistry}, to use the
+     * pre-registry logic to decide on the {@link ValuesSourceType}.  New aggregations which extend from
+     * {@link ValuesSourceAggregationBuilder} should not use this method, preferring {@link ValuesSourceConfig#resolve} instead.
+     *
+     * @param context - the query context
+     * @param userValueTypeHint - User specified value type; used for missing values and scripts
+     * @param field - The field being aggregated over.  At least one of field and script must not be null
+     * @param script - The script the user specified.  At least one of field and script must not be null
+     * @param missing - A user specified value to apply when the field is missing.  Should be of type userValueTypeHint
+     * @param timeZone - Used to generate a format for dates
+     * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
+     *               See https://github.com/elastic/elasticsearch/issues/47469
+     * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
+     * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
+     */
+    public static ValuesSourceConfig resolveUnregistered(QueryShardContext context,
+                                                         ValueType userValueTypeHint,
+                                                         String field,
+                                                         Script script,
+                                                         Object missing,
+                                                         ZoneId timeZone,
+                                                         String format,
+                                                         ValuesSourceType defaultValueSourceType) {
+        return internalResolve(context, userValueTypeHint, field, script, missing, timeZone, format, defaultValueSourceType, null,
+            ValuesSourceConfig::getLegacyMapping);
+    }
+
+    private static ValuesSourceConfig internalResolve(QueryShardContext context,
+                                                     ValueType userValueTypeHint,
+                                                     String field,
+                                                     Script script,
+                                                     Object missing,
+                                                     ZoneId timeZone,
+                                                     String format,
+                                                     ValuesSourceType defaultValueSourceType,
+                                                     String aggregationName,
+                                                     FieldResolver fieldResolver
+                                                     ) {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
         ValuesSourceType valuesSourceType;
@@ -105,10 +153,8 @@ public class ValuesSourceConfig {
                     scriptValueType = userValueTypeHint;
                 }
             } else {
-                IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                valuesSourceType = context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
-                    userValueTypeHint, script, defaultValueSourceType);
-
+                valuesSourceType = fieldResolver.getValuesSourceType(context, fieldType, aggregationName, userValueTypeHint,
+                    defaultValueSourceType);
                 aggregationScript = createScript(script, context);
             }
         }
@@ -117,6 +163,53 @@ public class ValuesSourceConfig {
         config.missing(missing);
         config.timezone(timeZone);
         return config;
+    }
+
+    @FunctionalInterface
+    private interface FieldResolver {
+        ValuesSourceType getValuesSourceType(
+            QueryShardContext context,
+            MappedFieldType fieldType,
+            String aggregationName,
+            ValueType userValueTypeHint,
+            ValuesSourceType defaultValuesSourceType);
+
+    }
+
+    private static ValuesSourceType getMappingFromRegistry(
+            QueryShardContext context,
+            MappedFieldType fieldType,
+            String aggregationName,
+            ValueType userValueTypeHint,
+            ValuesSourceType defaultValuesSourceType) {
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+         return context.getValuesSourceRegistry().getValuesSourceType(fieldType, aggregationName, indexFieldData,
+            userValueTypeHint, defaultValuesSourceType);
+    }
+
+    private static ValuesSourceType getLegacyMapping(
+            QueryShardContext context,
+            MappedFieldType fieldType,
+            String aggregationName,
+            ValueType userValueTypeHint,
+            ValuesSourceType defaultValuesSourceType) {
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+        if (indexFieldData instanceof IndexNumericFieldData) {
+            return CoreValuesSourceType.NUMERIC;
+        } else if (indexFieldData instanceof IndexGeoPointFieldData) {
+            return CoreValuesSourceType.GEOPOINT;
+        } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+            return CoreValuesSourceType.RANGE;
+        } else if (indexFieldData instanceof IndexHistogramFieldData) {
+            return CoreValuesSourceType.HISTOGRAM;
+        } else {
+            if (userValueTypeHint == null) {
+                return defaultValuesSourceType;
+            } else {
+                return userValueTypeHint.getValuesSourceType();
+            }
+        }
+
     }
 
     private static AggregationScript.LeafFactory createScript(Script script, QueryShardContext context) {

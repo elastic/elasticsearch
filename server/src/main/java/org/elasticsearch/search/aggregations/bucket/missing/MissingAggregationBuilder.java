@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -42,14 +41,10 @@ import java.util.Map;
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<MissingAggregationBuilder> {
     public static final String NAME = "missing";
 
-    private static final ObjectParser<MissingAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<MissingAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(MissingAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
-    }
-
-    public static MissingAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new MissingAggregationBuilder(aggregationName), null);
     }
 
     public MissingAggregationBuilder(String name) {

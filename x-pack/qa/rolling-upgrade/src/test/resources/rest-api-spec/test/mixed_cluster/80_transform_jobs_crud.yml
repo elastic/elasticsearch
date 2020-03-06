@@ -1,5 +1,8 @@
 ---
 "Test put batch transform on mixed cluster":
+  - skip:
+      features: allowed_warnings
+
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -7,6 +10,8 @@
         timeout: 70s
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.put_transform:
         transform_id: "mixed-simple-transform"
         body: >
@@ -21,10 +26,14 @@
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.start_transform:
         transform_id: "mixed-simple-transform"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
@@ -32,12 +41,16 @@
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.stop_transform:
         transform_id: "mixed-simple-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
@@ -45,6 +58,8 @@
   - match: { transforms.0.state: "stopped" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.put_transform:
         transform_id: "mixed-complex-transform"
         body: >
@@ -73,6 +88,8 @@
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform:
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
@@ -81,10 +98,14 @@
   - is_true: transforms.0.create_time
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.start_transform:
         transform_id: "mixed-complex-transform"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
@@ -92,12 +113,16 @@
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.stop_transform:
         transform_id: "mixed-complex-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
@@ -106,6 +131,9 @@
 
 ---
 "Test put continuous transform on mixed cluster":
+  - skip:
+      features: allowed_warnings
+
   - do:
       cluster.health:
         index: "transform-airline-data-cont"
@@ -113,6 +141,8 @@
         timeout: 70s
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.put_transform:
         transform_id: "mixed-simple-continuous-transform"
         body: >
@@ -133,6 +163,8 @@
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform:
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
@@ -143,10 +175,14 @@
   - is_true: transforms.0.create_time
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.start_transform:
         transform_id: "mixed-simple-continuous-transform"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
@@ -154,12 +190,16 @@
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.stop_transform:
         transform_id: "mixed-simple-continuous-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
@@ -168,6 +208,9 @@
 
 ---
 "Test GET, start, and stop old cluster batch transforms":
+  - skip:
+      features: allowed_warnings
+
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -175,6 +218,8 @@
         timeout: 70s
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
@@ -185,10 +230,14 @@
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.start_transform:
         transform_id: "old-simple-transform"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
@@ -196,11 +245,15 @@
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.stop_transform:
         transform_id: "old-simple-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
@@ -208,6 +261,8 @@
   - match: { transforms.0.state: "stopped" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
@@ -221,10 +276,14 @@
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.start_transform:
         transform_id: "old-complex-transform"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
@@ -232,11 +291,15 @@
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.stop_transform:
         transform_id: "old-complex-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
@@ -245,6 +308,9 @@
 
 ---
 "Test GET, stop, start, old continuous transforms":
+  - skip:
+      features: allowed_warnings
+
   - do:
       cluster.health:
         index: "transform-airline-data-cont"
@@ -252,6 +318,8 @@
         timeout: 70s
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
@@ -262,10 +330,14 @@
   - is_true: transforms.0.create_time
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.start_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
@@ -273,12 +345,16 @@
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.stop_transform:
         transform_id: "old-simple-continuous-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
       data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }

@@ -55,9 +55,9 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
-            stream.setVersion(version);
+            assert stream.getVersion().equals(version) :
+                "Stream version [" + stream.getVersion() + "] does not match version [" + version + "]";
             stream.setFeatures(bytesStream.getFeatures());
-
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }

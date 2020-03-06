@@ -83,6 +83,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
@@ -497,9 +498,13 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
         if (randomBoolean()) {
-            int slices = randomInt(100);
+            int slices = randomIntBetween(0,4);
             reindexRequest.setSlices(slices);
-            expectedParams.put("slices", String.valueOf(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
         } else {
             expectedParams.put("slices", "1");
         }
@@ -567,7 +572,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int slices = randomIntBetween(0, 4);
-            expectedParams.put("slices", Integer.toString(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
             updateByQueryRequest.setSlices(slices);
         } else {
             expectedParams.put("slices", "1");
@@ -632,7 +641,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int slices = randomIntBetween(0, 4);
-            expectedParams.put("slices", Integer.toString(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
             deleteByQueryRequest.setSlices(slices);
         } else {
             expectedParams.put("slices", "1");

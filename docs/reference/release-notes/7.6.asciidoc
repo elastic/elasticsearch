@@ -1,3 +1,72 @@
+[[release-notes-7.6.1]]
+== {es} version 7.6.1
+
+Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
+
+[[bug-7.6.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Decode max and min optimization more carefully {pull}52336[#52336] (issue: {issue}52220[#52220])
+* Fix a DST error in date_histogram {pull}52016[#52016] (issue: {issue}50265[#50265])
+
+Audit::
+* Logfile audit settings validation {pull}52537[#52537] (issues: {issue}47038[#47038], {issue}47711[#47711], {issue}52357[#52357])
+
+CCR::
+* Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
+
+Features/cat APIs::
+* Fix NPE in RestPluginsAction {pull}52620[#52620] (issue: {issue}45321[#45321])
+
+Features/ILM+SLM::
+* ILM fix the init step to actually be retryable {pull}52076[#52076]
+
+Features/Ingest::
+* Handle errors when evaluating if conditions in processors {pull}52543[#52543] (issue: {issue}52339[#52339])
+
+Features/Monitoring::
+* Fix NPE in cluster state collector for monitoring {pull}52371[#52371] (issue: {issue}52317[#52317])
+
+Features/Stats::
+* Switch to AtomicLong for "IngestCurrent" metric to prevent negative values {pull}52581[#52581] (issues: {issue}52406[#52406], {issue}52411[#52411])
+
+Infra/Packaging::
+* Limit _FILE env var support to specific vars {pull}52525[#52525] (issue: {issue}52503[#52503])
+
+Machine Learning::
+* Don't return inflated definition when storing trained models {pull}52573[#52573]
+* Validate tree feature index is within range {pull}52460[#52460]
+
+Network::
+* Remove seeds dependency for remote cluster settings {pull}52796[#52796]
+
+Reindex::
+* Allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
+
+SQL::
+* Supplement input checks on received request parameters {pull}52229[#52229]
+* Fix issue with timezone when paginating {pull}52101[#52101] (issue: {issue}51258[#51258])
+* Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
+* Fix milliseconds handling in intervals {pull}51675[#51675] (issue: {issue}41635[#41635])
+* Selecting a literal from grouped by query generates error {pull}41964[#41964] (issues: {issue}41413[#41413], {issue}41951[#41951])
+
+Snapshot/Restore::
+* Fix Non-Verbose Snapshot List Missing Empty Snapshots {pull}52433[#52433]
+
+Store::
+* Fix synchronization in ByteSizeCachingDirectory {pull}52512[#52512]
+
+
+
+[[upgrade-7.6.1]]
+[float]
+=== Upgrades
+
+Authentication::
+* Update oauth2-oidc-sdk to 7.0 {pull}52489[#52489] (issue: {issue}48409[#48409])
+
 [[release-notes-7.6.0]]
 == {es} version 7.6.0
 
@@ -79,7 +148,7 @@ Machine Learning::
 * Explain data frame analytics API {pull}49455[#49455]
 * Machine learning model inference ingest processor {pull}49052[#49052]
 * Implement accuracy metric for multi-class classification {pull}47772[#47772] (issue: {issue}48759[#48759])
-* Add feature importance values to classification and regression results (using tree 
+* Add feature importance values to classification and regression results (using tree
 SHapley Additive exPlanation, or SHAP) {ml-pull}857[#857]
 
 Mapping::
@@ -243,24 +312,24 @@ Machine Learning::
 estimating maximum memory usage {ml-pull}781[#781]
 * Stratified fractional cross validation for regression {ml-pull}784[#784]
 * Added `geo_point` supported output for `lat_long` function records {ml-pull}809[#809], {pull}47050[#47050]
-* Use a random bag of the data to compute the loss function derivatives for each 
+* Use a random bag of the data to compute the loss function derivatives for each
 new tree which is trained for both regression and classification {ml-pull}811[#811]
 * Emit `prediction_probability` field alongside prediction field in ml results {ml-pull}818[#818]
 * Reduce memory usage of {ml} native processes on Windows {ml-pull}844[#844]
 * Reduce runtime of classification and regression {ml-pull}863[#863]
-* Stop early training a classification and regression forest when the validation 
+* Stop early training a classification and regression forest when the validation
 error is no longer decreasing {ml-pull}875[#875]
-* Emit `prediction_field_name` in data frame analytics results using the type 
+* Emit `prediction_field_name` in data frame analytics results using the type
 provided as `prediction_field_type` parameter {ml-pull}877[#877]
 * Improve performance updating quantile estimates {ml-pull}881[#881]
-* Migrate to use Bayesian optimisation for initial hyperparameter value line 
+* Migrate to use Bayesian optimisation for initial hyperparameter value line
 searches and stop early if the expected improvement is too small {ml-pull}903[#903]
-* Stop cross-validation early if the predicted test loss has a small chance of 
+* Stop cross-validation early if the predicted test loss has a small chance of
 being smaller than for the best parameter values found so far {ml-pull}915[#915]
 * Optimize decision threshold for classification to maximize minimum class recall {ml-pull}926[#926]
-* Include categorization memory usage in the `model_bytes` field in 
-`model_size_stats`, so that it is taken into account in node assignment 
-decisions {ml-pull}927[#927] (issue:{ml-issue}724[#724])
+* Include categorization memory usage in the `model_bytes` field in
+`model_size_stats`, so that it is taken into account in node assignment
+decisions {ml-pull}927[#927] (issue: {ml-issue}724[#724])
 
 Mapping::
 * Add telemetry for flattened fields. {pull}48972[#48972]
@@ -483,7 +552,7 @@ Machine Learning::
 * Make data frame analytics more robust for very short-lived analyses {pull}49282[#49282] (issue: {issue}49095[#49095])
 * Fixes potential memory corruption when determining seasonality {ml-pull}852[#852]
 * Prevent `prediction_field_name` clashing with other fields in {ml} results {ml-pull}861[#861]
-* Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue:{ml-issue}949[#949])
+* Include out-of-order as well as in-order terms in categorization reverse searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
 
 Mapping::
 * Ensure that field collapsing works with field aliases. {pull}50722[#50722] (issues: {issue}32648[#32648], {issue}50121[#50121])

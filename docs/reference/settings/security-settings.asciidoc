@@ -525,7 +525,6 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
-//TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -778,7 +777,6 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server.
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
-//TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 

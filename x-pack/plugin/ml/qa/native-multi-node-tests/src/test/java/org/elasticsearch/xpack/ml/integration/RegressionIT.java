@@ -12,6 +12,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +47,12 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     @After
     public void cleanup() {
         cleanUp();
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.action")
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe"))
+            .get();
     }
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
@@ -313,6 +320,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     public void testDeleteExpiredData_RemovesUnusedState() throws Exception {
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.action", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG"))
+            .get();
+
         initialize("regression_delete_expired_data");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
         indexData(sourceIndex, 100, 0);

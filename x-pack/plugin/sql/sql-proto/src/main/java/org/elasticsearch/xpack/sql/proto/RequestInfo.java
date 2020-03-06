@@ -35,7 +35,7 @@ public class RequestInfo {
     
     private Mode mode;
     private String clientId;
-    private Version version;
+    private SqlVersion version;
 
     public RequestInfo(Mode mode) {
         this(mode, null, null);
@@ -51,8 +51,8 @@ public class RequestInfo {
         version(version);
     }
 
-    public RequestInfo(Mode mode, Version version) {
-        this(mode);
+    public RequestInfo(Mode mode, SqlVersion version) {
+        mode(mode);
         this.version = version;
     }
     
@@ -79,10 +79,10 @@ public class RequestInfo {
     }
 
     public void version(String clientVersion) {
-        this.version = Version.fromString(clientVersion);
+        this.version = SqlVersion.fromString(clientVersion);
     }
 
-    public Version version() {
+    public SqlVersion version() {
         return version;
     }
 

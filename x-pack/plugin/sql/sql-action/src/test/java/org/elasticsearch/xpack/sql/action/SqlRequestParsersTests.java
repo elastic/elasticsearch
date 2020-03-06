@@ -49,7 +49,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         Mode randomMode = randomFrom(Mode.values());
         
         SqlClearCursorRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \""
-                + randomMode.toString() + "\", \"client_id\" : \"bla\", \"client_version\": \"1.2.3\"}",
+                + randomMode.toString() + "\", \"client_id\" : \"bla\", \"version\": \"1.2.3\"}",
                 SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
         assertNull(request.version());
@@ -69,7 +69,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
 
-        request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\", \"client_version\": \"1.2.3\"}",
+        request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\", \"version\": \"1.2.3\"}",
                 SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
         assertNull(request.version());
@@ -104,7 +104,7 @@ public class SqlRequestParsersTests extends ESTestCase {
                 SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"client_id\":123}", "client_id doesn't support values of type: VALUE_NUMBER",
                 SqlQueryRequest::fromXContent);
-        assertParsingErrorMessage("{\"client_version\":123}", "client_version doesn't support values of type: VALUE_NUMBER",
+        assertParsingErrorMessage("{\"version\":123}", "version doesn't support values of type: VALUE_NUMBER",
             SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"params\":[{\"value\":123}]}", "failed to parse field [params]", SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"time_zone\":12}", "time_zone doesn't support values of type: VALUE_NUMBER",
@@ -114,15 +114,13 @@ public class SqlRequestParsersTests extends ESTestCase {
         String params;
         List<SqlTypedParamValue> list = new ArrayList<>(1);
 
-        String clientVersion = "";
+        final String clientVersion = Mode.isDedicatedClient(randomMode)
+            ? "\"version\": \"" + Version.CURRENT.toString() + "\","
+            : "";
         if (Mode.isDriver(randomMode)) {
             params = "{\"value\":123, \"type\":\"whatever\"}";
             list.add(new SqlTypedParamValue("whatever", 123, true));
-            clientVersion = "\"client_version\": \"" + Version.CURRENT.toString() + "\",";
         } else {
-            if (Mode.isCli(randomMode)) {
-                clientVersion = "\"client_version\": \"" + Version.CURRENT.toString() + "\",";
-            }
             params = "123";
             list.add(new SqlTypedParamValue("integer", 123, false));
         }

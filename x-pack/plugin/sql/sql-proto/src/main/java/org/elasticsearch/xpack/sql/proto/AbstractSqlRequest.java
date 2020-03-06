@@ -34,7 +34,7 @@ public abstract class AbstractSqlRequest implements ToXContentFragment {
         return requestInfo.clientId();
     }
 
-    public Version version() {
+    public SqlVersion version() {
         return requestInfo.version();
     }
 

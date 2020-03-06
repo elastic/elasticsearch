@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
-import org.elasticsearch.xpack.sql.proto.Version;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -93,7 +93,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         requestInfo.version(clientVersion);
     }
 
-    public Version version() {
+    public SqlVersion version() {
         return requestInfo.version();
     }
 

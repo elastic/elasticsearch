@@ -181,7 +181,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             builder.field("client_id", clientId());
         }
         if (version() != null) {
-            builder.field("client_version", version().toString());
+            builder.field("version", version().toString());
         }
         if (this.params != null && this.params.isEmpty() == false) {
             builder.startArray("params");

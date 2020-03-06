@@ -34,8 +34,7 @@ public enum Mode {
         return mode == JDBC || mode == ODBC;
     }
 
-    // TODO: replace all "== Mode.CLI"?
-    public static boolean isCli(Mode mode) {
-        return mode == CLI;
+    public static boolean isDedicatedClient(Mode mode) {
+        return mode == JDBC || mode == ODBC || mode == CLI;
     }
 }

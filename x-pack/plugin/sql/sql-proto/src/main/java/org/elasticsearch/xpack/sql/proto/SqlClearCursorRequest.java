@@ -48,7 +48,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
             builder.field("client_id", clientId());
         }
         if (version() != null) {
-            builder.field("client_version", version().toString());
+            builder.field("version", version().toString());
         }
         return builder;
     }

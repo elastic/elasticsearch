@@ -63,7 +63,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     static final ParseField FILTER = new ParseField("filter");
     static final ParseField MODE = new ParseField("mode");
     static final ParseField CLIENT_ID = new ParseField("client_id");
-    static final ParseField CLIENT_VERSION = new ParseField("client_version");
+    static final ParseField CLIENT_VERSION = new ParseField("version");
 
     public AbstractSqlQueryRequest() {
         super();
@@ -218,10 +218,10 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         ActionRequestValidationException validationException = null;
         // the version field is mandatory for drivers and CLI
         Mode mode = requestInfo().mode();
-        if (mode != null && (Mode.isDriver(mode) || Mode.isCli(mode))) {
+        if (mode != null && (Mode.isDedicatedClient(mode))) {
             if (requestInfo().version() == null) {
                 if (Strings.hasText(query())) {
-                    validationException = addValidationError("[client_version] is required for the [" + mode.toString() + "] client",
+                    validationException = addValidationError("[version] is required for the [" + mode.toString() + "] client",
                         validationException);
                 }
             } else if (requestInfo().version().equals(Version.CURRENT.toString()) == false) {

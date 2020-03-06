@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.proto;
 
 import java.security.InvalidParameterException;
 
-public class Version implements Comparable<Version>{
+public class SqlVersion implements Comparable<SqlVersion>{
 
     public final int id;
     public final String version; // originally provided String representation
@@ -20,20 +20,20 @@ public class Version implements Comparable<Version>{
     public static final int MINOR_MULTIPLIER = REVISION_MULTIPLIER * REVISION_MULTIPLIER;
     public static final int MAJOR_MULTIPLIER = REVISION_MULTIPLIER * MINOR_MULTIPLIER;
 
-    public static final Version V_7_7_0 = new Version(7, 7, 0);
+    private static final SqlVersion V_7_7_0 = new SqlVersion(7, 7, 0);
 
-    public Version(byte major, byte minor, byte revision) {
+    public SqlVersion(byte major, byte minor, byte revision) {
         this(toString(major, minor, revision), major, minor, revision);
     }
 
-    public Version(Integer major, Integer minor, Integer revision) {
+    public SqlVersion(Integer major, Integer minor, Integer revision) {
         this(major.byteValue(), minor.byteValue(), revision.byteValue());
         if (major > Byte.MAX_VALUE || minor > Byte.MAX_VALUE || revision > Byte.MAX_VALUE) {
             throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + "]");
         }
     }
 
-    protected Version(String version, byte... parts) {
+    protected SqlVersion(String version, byte... parts) {
         this.version = version;
 
         assert parts.length >= 3 : "Version must be initialized with all Major.Minor.Revision components";
@@ -50,11 +50,11 @@ public class Version implements Comparable<Version>{
             + Integer.valueOf(revision) * REVISION_MULTIPLIER;
     }
 
-    public static Version fromString(String version) {
+    public static SqlVersion fromString(String version) {
         if (version == null || version.isEmpty()) {
             return null;
         }
-        return new Version(version, from(version));
+        return new SqlVersion(version, from(version));
     }
 
     protected static byte[] from(String ver) {
@@ -104,11 +104,11 @@ public class Version implements Comparable<Version>{
             return false;
         }
         if (o.getClass() == getClass()) {
-            return ((Version) o).id == id;
+            return ((SqlVersion) o).id == id;
         }
         if (o.getClass() == String.class) {
             try {
-                Version v = fromString((String) o);
+                SqlVersion v = fromString((String) o);
                 return this.equals(v);
             } catch (IllegalArgumentException e) {
                 return false;
@@ -118,15 +118,19 @@ public class Version implements Comparable<Version>{
     }
 
     @Override
-    public int compareTo(Version o) {
+    public int compareTo(SqlVersion o) {
         return id - o.id;
     }
 
-    public static int majorMinorId(Version v) {
+    public static int majorMinorId(SqlVersion v) {
         return v.major * MAJOR_MULTIPLIER + v.minor * MINOR_MULTIPLIER;
     }
 
-    public int compareToMajorMinor(Version o) {
+    public int compareToMajorMinor(SqlVersion o) {
         return majorMinorId(this) - majorMinorId(o);
+    }
+
+    public static boolean hasVersionCompatibility(SqlVersion version) {
+        return version.compareTo(V_7_7_0) >= 0;
     }
 }

@@ -257,9 +257,9 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             // set it explicitly or leave the default (null) as is
             requestContent = new StringBuilder(requestContent)
                     .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
-            binaryCommunication = ((Mode.isDriver(mode) || Mode.isCli(mode)) && binaryCommunication);
+            binaryCommunication = Mode.isDedicatedClient(mode) && binaryCommunication;
         } else {
-            binaryCommunication = Mode.isDriver(mode) || Mode.isCli(mode);
+            binaryCommunication = Mode.isDedicatedClient(mode);
         }
         
         // send the query either as body or as request parameter

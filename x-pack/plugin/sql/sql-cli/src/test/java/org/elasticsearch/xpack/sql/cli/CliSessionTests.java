@@ -10,9 +10,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.ClientException;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
 
@@ -26,7 +27,7 @@ public class CliSessionTests extends ESTestCase {
 
     public void testProperConnection() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), Version.CURRENT.toString(),
+        when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), ClientVersion.CURRENT.toString(),
                 ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();
@@ -53,23 +54,23 @@ public class CliSessionTests extends ESTestCase {
         byte minor;
         byte major;
         if (randomBoolean()) {
-            if (Version.CURRENT.minor <= 0) {
-                minor = Version.REVISION_MULTIPLIER - 1;
-                major = (byte)(Version.CURRENT.major - 1);
+            if (ClientVersion.CURRENT.minor <= 0) {
+                minor = SqlVersion.REVISION_MULTIPLIER - 1;
+                major = (byte)(ClientVersion.CURRENT.major - 1);
             } else {
-                minor = (byte) (Version.CURRENT.minor - 1);
-                major = Version.CURRENT.major;
+                minor = (byte) (ClientVersion.CURRENT.minor - 1);
+                major = ClientVersion.CURRENT.major;
             }
         } else {
-            minor = Version.CURRENT.minor;
-            major = (byte) (Version.CURRENT.major - 1);
+            minor = ClientVersion.CURRENT.minor;
+            major = (byte) (ClientVersion.CURRENT.major - 1);
         }
-        Version version = Version.fromString(major + "." + minor + ".23");
+        SqlVersion version = SqlVersion.fromString(major + "." + minor + ".23");
         when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), version.toString(),
                 ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);
         expectThrows(ClientException.class, cliSession::checkConnection, "This version of the CLI is only compatible "
-            + "with Elasticsearch version " + Version.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server "
+            + "with Elasticsearch version " + ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server "
             + "version " + version.toString());
         verify(httpClient, times(1)).serverInfo();
         verifyNoMoreInteractions(httpClient);
@@ -80,15 +81,15 @@ public class CliSessionTests extends ESTestCase {
         byte minor;
         byte major;
         if (randomBoolean()) {
-            minor = Version.CURRENT.minor;
-            major = (byte) (Version.CURRENT.major + 1);
+            minor = ClientVersion.CURRENT.minor;
+            major = (byte) (ClientVersion.CURRENT.major + 1);
         } else {
-            minor = (byte) (Version.CURRENT.minor + 1);
-            major = Version.CURRENT.major;
+            minor = (byte) (ClientVersion.CURRENT.minor + 1);
+            major = ClientVersion.CURRENT.major;
 
         }
         when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5),
-            Version.fromString(major + "." + minor + ".23").toString(),
+            SqlVersion.fromString(major + "." + minor + ".23").toString(),
             ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();

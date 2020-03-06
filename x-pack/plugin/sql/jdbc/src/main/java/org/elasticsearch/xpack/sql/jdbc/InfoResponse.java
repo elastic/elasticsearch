@@ -6,16 +6,16 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 
-import org.elasticsearch.xpack.sql.client.Version;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 /**
  * General information about the server.
  */
 class InfoResponse {
     final String cluster;
-    final Version version;
+    final SqlVersion version;
 
-    InfoResponse(String clusterName, Version version) {
+    InfoResponse(String clusterName, SqlVersion version) {
         this.cluster = clusterName;
         this.version = version;
     }

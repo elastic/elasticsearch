@@ -177,7 +177,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             builder.field("client_id", request.clientId());
         }
         if (request.version() != null) {
-            builder.field("client_version", request.version().toString());
+            builder.field("version", request.version().toString());
         }
         if (request.params() != null && request.params().isEmpty() == false) {
             builder.startArray("params");

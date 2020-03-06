@@ -41,8 +41,8 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
     public static String version(String mode) {
         Mode m = Mode.fromString(mode);
-        if (Mode.isDriver(m) || Mode.isCli(m)) {
-            return ",\"client_version\":" + "\"" + Version.CURRENT.toString() + "\"";
+        if (Mode.isDedicatedClient(m)) {
+            return ",\"version\":" + "\"" + Version.CURRENT.toString() + "\"";
         }
         return StringUtils.EMPTY;
     }
@@ -58,7 +58,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     public static Number xContentDependentFloatingNumberValue(String mode, Number value) {
         Mode m = Mode.fromString(mode);
         // for drivers and the CLI return the number as is, while for REST cast it implicitly to Double (the JSON standard).
-        if (Mode.isDriver(m) || Mode.isCli(m)) {
+        if (Mode.isDedicatedClient(m)) {
             return value;
         } else {
             return value.doubleValue();

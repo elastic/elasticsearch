@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.ClientException;
-import org.elasticsearch.xpack.sql.client.Version;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
 
@@ -73,10 +74,10 @@ public class CliSession {
         } catch (SQLException ex) {
             throw new ClientException(ex);
         }
-        Version version = Version.fromString(response.getVersion());
-        if (Version.isServerCompatible(version) == false) {
+        SqlVersion version = SqlVersion.fromString(response.getVersion());
+        if (ClientVersion.isServerCompatible(version) == false) {
             throw new ClientException("This version of the CLI is only compatible with Elasticsearch version " +
-                Version.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
+                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
                 version.toString());
         }
     }

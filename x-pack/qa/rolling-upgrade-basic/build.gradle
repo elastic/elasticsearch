@@ -3,14 +3,10 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   testCompile project(':x-pack:qa')
-}
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
@@ -79,24 +75,9 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn("${baseName}#bwcTest")
-  }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-check.dependsOn(bwcTestSnapshots)
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
-test.enabled = false

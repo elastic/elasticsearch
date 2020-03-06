@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;

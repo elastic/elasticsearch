@@ -71,17 +71,9 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "constant_keyword" : {
-         "available" : true,
-         "enabled" : true
-      },
       "enrich" : {
           "available" : true,
           "enabled" : true
-      },
-      "flattened" : {
-         "available" : true,
-         "enabled" : true
       },
       "frozen_indices" : {
          "available" : true,

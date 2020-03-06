@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -120,6 +121,10 @@ public class AnalyticsResultProcessor {
                 AnalyticsResult result = iterator.next();
                 processResult(result, resultsJoiner);
                 if (result.getRowResults() != null) {
+                    if (processedRows == 0) {
+                        LOGGER.info("[{}] Started writing results", analytics.getId());
+                        auditor.info(analytics.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_WRITING_RESULTS));
+                    }
                     processedRows++;
                     updateResultsProgress(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
                 }

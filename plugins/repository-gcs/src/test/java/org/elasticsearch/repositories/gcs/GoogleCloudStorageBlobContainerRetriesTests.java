@@ -132,6 +132,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                                                 final HttpTransportOptions httpTransportOptions) {
                 StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
                 return options.toBuilder()
+                    .setHost(options.getHost())
+                    .setCredentials(options.getCredentials())
                     .setRetrySettings(RetrySettings.newBuilder()
                         .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                         .setInitialRetryDelay(Duration.ofMillis(10L))
@@ -331,7 +333,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
 
     public void testWriteLargeBlob() throws IOException {
         // See {@link BaseWriteChannel#DEFAULT_CHUNK_SIZE}
-        final int defaultChunkSize = 8 * 256 * 1024;
+        final int defaultChunkSize = 60 * 256 * 1024;
         final int nbChunks = randomIntBetween(3, 5);
         final int lastChunkSize = randomIntBetween(1, defaultChunkSize - 1);
         final int totalChunks = nbChunks + 1;

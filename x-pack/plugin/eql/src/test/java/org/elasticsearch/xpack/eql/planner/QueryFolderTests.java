@@ -45,11 +45,11 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("process where true");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(22, eqe.output().size());
+        assertEquals(23, eqe.output().size());
         assertEquals(KEYWORD, eqe.output().get(0).dataType());
         String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
         // test query term
-        assertThat(query, containsString("\"term\":{\"event_type\":{\"value\":\"process\""));
+        assertThat(query, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));
         // test field source extraction
         assertThat(query, containsString("\"_source\":{\"includes\":[],\"excludes\":[]"));
     }

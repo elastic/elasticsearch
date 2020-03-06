@@ -233,7 +233,6 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         assertBusy(() -> assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX)));
-        client().admin().indices().prepareRefresh(".ml-notifications*").get();
 
         @SuppressWarnings("unchecked")
         Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);

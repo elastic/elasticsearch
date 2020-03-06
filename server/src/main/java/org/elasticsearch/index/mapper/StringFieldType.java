@@ -101,31 +101,36 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
-        // is a char_filter that would otherwise remove them
-        Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
-        BytesRefBuilder sb = new BytesRefBuilder();
-        int last = 0;
+        Term term;
+        if (searchAnalyzer() != null) {
+            // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
+            // is a char_filter that would otherwise remove them
+            Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
+            BytesRefBuilder sb = new BytesRefBuilder();
+            int last = 0;
 
-        while (wildcardMatcher.find()) {
-            if (wildcardMatcher.start() > 0) {
-                String chunk = value.substring(last, wildcardMatcher.start());
+            while (wildcardMatcher.find()) {
+                if (wildcardMatcher.start() > 0) {
+                    String chunk = value.substring(last, wildcardMatcher.start());
 
+                    BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
+                    sb.append(normalized);
+                }
+                // append the matched group - without normalizing
+                sb.append(new BytesRef(wildcardMatcher.group()));
+
+                last = wildcardMatcher.end();
+            }
+            if (last < value.length()) {
+                String chunk = value.substring(last);
                 BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
                 sb.append(normalized);
             }
-            // append the matched group - without normalizing
-            sb.append(new BytesRef(wildcardMatcher.group()));
-
-            last = wildcardMatcher.end();
-        }
-        if (last < value.length()) {
-            String chunk = value.substring(last);
-            BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
-            sb.append(normalized);
+            term = new Term(name(), sb.toBytesRef());
+        } else {
+            term = new Term(name(), indexedValueForSearch(value));
         }
 
-        Term term = new Term(name(), sb.toBytesRef());
         WildcardQuery query = new WildcardQuery(term);
         QueryParsers.setRewriteMethod(query, method);
         return query;

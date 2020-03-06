@@ -100,16 +100,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Collection<Object> createComponents(
-        final Client client,
-        final ClusterService clusterService,
-        final ThreadPool threadPool,
-        final ResourceWatcherService resourceWatcherService,
-        final ScriptService scriptService,
-        final NamedXContentRegistry xContentRegistry,
-        final Environment environment,
-        final NodeEnvironment nodeEnvironment,
-        final NamedWriteableRegistry registry,
-        final IndexNameExpressionResolver resolver) {
+            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final ResourceWatcherService resourceWatcherService,
+            final ScriptService scriptService,
+            final NamedXContentRegistry xContentRegistry,
+            final Environment environment,
+            final NodeEnvironment nodeEnvironment,
+            final NamedWriteableRegistry registry,
+            final IndexNameExpressionResolver resolver) {
 
         final CacheService cacheService = new CacheService(settings);
         this.cacheService.set(cacheService);
@@ -136,7 +136,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))
-            && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
+                && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
         }
         return Optional.empty();

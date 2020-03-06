@@ -347,16 +347,18 @@ public class SearchModule {
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder::parse)
-                .addResultReader(InternalMin::new)
-                .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators));
+            .addResultReader(InternalMin::new)
+            .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder::parse)
-                .addResultReader(InternalMax::new)
-                .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
+            .addResultReader(InternalMax::new)
+            .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(StatsAggregationBuilder.NAME, StatsAggregationBuilder::new, StatsAggregationBuilder::parse)
             .addResultReader(InternalStats::new)
             .setAggregatorRegistrar(StatsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
-                ExtendedStatsAggregationBuilder::parse).addResultReader(InternalExtendedStats::new));
+            ExtendedStatsAggregationBuilder::parse)
+            .addResultReader(InternalExtendedStats::new)
+            .setAggregatorRegistrar(ExtendedStatsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,
                 ValueCountAggregationBuilder::parse)
                     .addResultReader(InternalValueCount::new)

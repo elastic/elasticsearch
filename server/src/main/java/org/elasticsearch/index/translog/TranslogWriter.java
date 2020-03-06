@@ -21,8 +21,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.procedures.LongProcedure;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -61,8 +59,6 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
-
-    private static final Logger logger = LogManager.getLogger(TranslogWriter.class);
 
     private static final long FORCE_WRITE_THRESHOLD = 1024 * 1024 * 16;
 
@@ -304,21 +300,22 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     @Override
     Checkpoint getCheckpoint() {
         // This can be called concurrently with `put` because we will just read all available ops from the concurrent buffer
-
-        long minSeqNo = lastSyncedCheckpoint.minSeqNo;
-        long maxSeqNo = lastSyncedCheckpoint.maxSeqNo;
-        long offset = lastSyncedCheckpoint.offset;
-        int numOps = lastSyncedCheckpoint.numOps;
-        for (Operation operation : buffer) {
-            long seqNo = operation.seqNo;
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            offset = Math.max(offset, operation.translogLocation + operation.data.length());
-            ++numOps;
+        try (ReleasableLock lock = writeLock.acquire()) {
+            final Checkpoint lastWrittenCheckpoint = this.lastWrittenCheckpoint;
+            long minSeqNo = lastWrittenCheckpoint.minSeqNo;
+            long maxSeqNo = lastWrittenCheckpoint.maxSeqNo;
+            long offset = lastWrittenCheckpoint.offset;
+            int numOps = lastWrittenCheckpoint.numOps;
+            for (Operation operation : buffer) {
+                long seqNo = operation.seqNo;
+                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+                offset = Math.max(offset, operation.translogLocation + operation.data.length());
+                ++numOps;
+            }
+            return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpointSupplier.getAsLong(),
+                minTranslogGenerationSupplier.getAsLong(), SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
-
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpointSupplier.getAsLong(),
-            minTranslogGenerationSupplier.getAsLong(), SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     @Override
@@ -360,8 +357,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     @Override
     public TranslogSnapshot newSnapshot() {
-        // TODO: Currently not safe due to size in bytes, etc
-
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         synchronized (syncLock) {
@@ -372,7 +367,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 } catch (IOException e) {
                     throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                 }
-                return super.newSnapshot();
+                final Checkpoint checkpoint = this.lastSyncedCheckpoint;
+                return new TranslogSnapshot(generation, channel, path, header, checkpoint, getFirstOperationOffset());
             }
         }
     }
@@ -404,7 +400,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
                         "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
-                    lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
+                    lastSyncedCheckpoint = checkpointToSync;
                     return true;
                 }
             }
@@ -447,7 +443,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                 ReleasableBytesReference data = operation.data;
                                 BytesRefIterator iterator = data.iterator();
                                 BytesRef current;
-                                while ((current = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
+                                while ((current = iterator.next()) != null) {
                                     int currentBytesConsumed = 0;
                                     while (currentBytesConsumed != current.length) {
                                         int nBytesToWrite = Math.min(current.length - currentBytesConsumed, ioBuffer.remaining());
@@ -469,6 +465,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         lastWrittenCheckpoint = new Checkpoint(writtenOffset.get(), numOps, generation, minSeqNo, maxSeqNo,
                             globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
                             SequenceNumbers.UNASSIGNED_SEQ_NO);
+                        assert operationSorter.isEmpty();
                     } finally {
                         Releasables.closeWhileHandlingException(operationSorter);
                         operationSorter.clear();
@@ -497,7 +494,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private void writeToFile(ByteBuffer ioBuffer) throws IOException {
         try {
-            channel.write(ioBuffer);
+            while (ioBuffer.remaining() > 0) {
+                channel.write(ioBuffer);
+            }
         } catch (final Exception ex) {
             closeWithTragicEvent(ex);
             throw ex;

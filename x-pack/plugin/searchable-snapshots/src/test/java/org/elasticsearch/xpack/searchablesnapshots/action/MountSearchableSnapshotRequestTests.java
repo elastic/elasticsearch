@@ -41,7 +41,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomBoolean() ? instance.mountedIndexName() : mutateString(instance.mountedIndexName()),
             randomBoolean() ? instance.repositoryName() : mutateString(instance.repositoryName()),
             randomBoolean() ? instance.snapshotName() : mutateString(instance.snapshotName()),
-            randomBoolean() ? instance.snapshotIndexName() : mutateNullableString(instance.snapshotIndexName()),
+            randomBoolean() ? instance.snapshotIndexName() : mutateString(instance.snapshotIndexName()),
             randomBoolean() ? instance.indexSettings() : mutateSettings(instance.indexSettings()),
             randomBoolean() ? instance.ignoreIndexSettings() : mutateStringArray(instance.ignoreIndexSettings()),
             randomBoolean())
@@ -76,7 +76,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
             case 3:
                 return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
-                    mutateNullableString(req.snapshotIndexName()), req.indexSettings(), req.ignoreIndexSettings(),
+                    mutateString(req.snapshotIndexName()), req.indexSettings(), req.ignoreIndexSettings(),
                     req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
             case 4:
                 return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
@@ -106,16 +106,6 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
 
     private static String mutateString(String string) {
         return randomAlphaOfLength(11 - string.length());
-    }
-
-    private static String mutateNullableString(String string) {
-        if (string == null) {
-            return randomAlphaOfLength(5);
-        } else if (randomBoolean()) {
-            return null;
-        } else {
-            return mutateString(string);
-        }
     }
 
     private static Settings mutateSettings(Settings settings) {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,10 +31,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> implements ToXContentObject {
 
+    /** @noinspection RedundantCast to suppress bogus warnings -- these casts are not redundant at all */
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RequestParams> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot", true,
-        (a, p) -> new MountSearchableSnapshotRequest(p.mountedIndexName, (String) a[0], (String) a[1], (String) a[2],
-            (Settings) a[3], (String[]) a[4], p.waitForCompletion));
+        (a, p) -> new MountSearchableSnapshotRequest(p.mountedIndexName,
+            (String) a[0],
+            (String) a[1],
+            Objects.requireNonNullElse((String)a[2], p.mountedIndexName),
+            Objects.requireNonNullElse((Settings)a[3], Settings.EMPTY),
+            Objects.requireNonNullElse((String[])a[4], Strings.EMPTY_ARRAY),
+            p.waitForCompletion));
 
     private static final ParseField REPOSITORY_FIELD = new ParseField("repository");
     private static final ParseField SNAPSHOT_FIELD = new ParseField("snapshot");
@@ -74,15 +79,14 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     /**
      * Constructs a new mount searchable snapshot request, restoring an index with the settings needed to make it a searchable snapshot.
      */
-    public MountSearchableSnapshotRequest(String mountedIndexName,
-                                          String repositoryName, String snapshotName, @Nullable String snapshotIndexName,
+    public MountSearchableSnapshotRequest(String mountedIndexName, String repositoryName, String snapshotName, String snapshotIndexName,
                                           Settings indexSettings, String[] ignoredIndexSettings, boolean waitForCompletion) {
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
         this.repositoryName = Objects.requireNonNull(repositoryName);
         this.snapshotName = Objects.requireNonNull(snapshotName);
-        this.snapshotIndexName = snapshotIndexName;
-        this.indexSettings = Objects.requireNonNullElse(indexSettings, Settings.EMPTY);
-        this.ignoredIndexSettings = Objects.requireNonNullElse(ignoredIndexSettings, Strings.EMPTY_ARRAY);
+        this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
+        this.indexSettings = Objects.requireNonNull(indexSettings);
+        this.ignoredIndexSettings = Objects.requireNonNull(ignoredIndexSettings);
         this.waitForCompletion = waitForCompletion;
     }
 
@@ -168,9 +172,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         builder.startObject();
         builder.field(REPOSITORY_FIELD.getPreferredName(), repositoryName);
         builder.field(SNAPSHOT_FIELD.getPreferredName(), snapshotName);
-        if (snapshotIndexName != null) {
-            builder.field(SNAPSHOT_INDEX_FIELD.getPreferredName(), snapshotIndexName);
-        }
+        builder.field(SNAPSHOT_INDEX_FIELD.getPreferredName(), snapshotIndexName);
         if (indexSettings.isEmpty() == false) {
             builder.startObject(INDEX_SETTINGS_FIELD.getPreferredName());
             indexSettings.toXContent(builder, params);

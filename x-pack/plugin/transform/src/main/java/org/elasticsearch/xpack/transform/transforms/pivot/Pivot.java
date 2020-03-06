@@ -134,7 +134,7 @@ public class Pivot {
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
-        logger.info("Running query {}", searchRequest);
+        logger.trace("Search request: {}", searchRequest);
         return searchRequest;
     }
 

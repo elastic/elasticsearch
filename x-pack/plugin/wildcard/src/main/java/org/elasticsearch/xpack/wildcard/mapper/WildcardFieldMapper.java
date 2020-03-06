@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -67,7 +68,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public static final MappedFieldType FIELD_TYPE = new WildcardFieldType();
 
         static {
-            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setStoreTermVectorOffsets(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -127,6 +128,7 @@ public class WildcardFieldMapper extends FieldMapper {
             super.setupFieldType(context);
             fieldType().setNumChars(numChars);
             fieldType().setHasDocValues(true);
+            fieldType().setTokenized(false);
             fieldType().setIndexOptions(IndexOptions.DOCS);                
         }
 
@@ -441,6 +443,11 @@ public class WildcardFieldMapper extends FieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
         }
+        
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            return wildcardQuery(value + "*", method, context);
+        }        
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
@@ -513,14 +520,25 @@ public class WildcardFieldMapper extends FieldMapper {
         createFields(value, fields);        
     }   
     
+    // For internal use by Lucene only - used to define ngram index
+    FieldType ngramFieldType = null;
+    
     void createFields(String value, List<IndexableField>fields) {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
         TaperedNgramTokenizer tokenizer = new TaperedNgramTokenizer(fieldType().numChars);
         tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR));
+    
+        if (ngramFieldType == null) {            
+            ngramFieldType = new FieldType();
+            ngramFieldType.setTokenized(true);            
+            ngramFieldType.setIndexOptions(IndexOptions.DOCS);
+            ngramFieldType.setOmitNorms(true);
+            ngramFieldType.freeze();
+        }
         
-        Field field = new Field(fieldType().name(), tokenizer, fieldType());
+        Field field = new Field(fieldType().name(), tokenizer, ngramFieldType);
         fields.add(field);
         
         Field dvField = new BinaryDocValuesField(fieldType().name(), new BytesRef(value));        

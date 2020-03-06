@@ -159,12 +159,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
-        IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
-        BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
+        final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
+        final BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
 
-        SnapshotId snapshotId = new SnapshotId(SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
+        final SnapshotId snapshotId = new SnapshotId(SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()));
-        BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
+        final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
 
         Directory directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
         if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {

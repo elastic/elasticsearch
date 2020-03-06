@@ -647,6 +647,33 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
     }
 
+    public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
+                                         "WHERE c > 10 GROUP BY c HAVING m > '2020-01-01'::date");
+        assertTrue(p instanceof EsQueryExec);
+        EsQueryExec esQExec = (EsQueryExec) p;
+        assertEquals(2, esQExec.output().size());
+        AggregationBuilder aggBuilder = esQExec.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
+                ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
+                "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
+                "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
+                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
+                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+        assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
+        ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+                sq.script().toString());
+        assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
+    }
+
     public void testTranslateInExpression_WhereClause() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);

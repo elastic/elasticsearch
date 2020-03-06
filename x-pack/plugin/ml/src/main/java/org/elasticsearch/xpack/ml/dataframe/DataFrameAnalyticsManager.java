@@ -134,6 +134,11 @@ public class DataFrameAnalyticsManager {
     }
 
     private void executeStartingJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            LOGGER.debug("[{}] task is stopping. Marking as complete before starting job.", task.getParams().getId());
+            task.markAsCompleted();
+            return;
+        }
         DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
             task.getAllocationId(), null);
         DataFrameAnalyticsTask.StartingState startingState = DataFrameAnalyticsTask.determineStartingState(
@@ -163,6 +168,11 @@ public class DataFrameAnalyticsManager {
     }
 
     private void executeJobInMiddleOfReindexing(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            LOGGER.debug("[{}] task is stopping. Marking as complete before restarting reindexing.", task.getParams().getId());
+            task.markAsCompleted();
+            return;
+        }
         ClientHelper.executeAsyncWithOrigin(client,
             ML_ORIGIN,
             DeleteIndexAction.INSTANCE,
@@ -182,7 +192,8 @@ public class DataFrameAnalyticsManager {
 
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         if (task.isStopping()) {
-            // The task was requested to stop before we started reindexing
+            LOGGER.debug("[{}] task is stopping. Marking as complete before starting reindexing and analysis.",
+                task.getParams().getId());
             task.markAsCompleted();
             return;
         }
@@ -190,8 +201,12 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             reindexResponse -> {
+                // If the reindex task is canceled, this listener is called.
+                // Consequently, we should not signal reindex completion.
                 if (task.isStopping()) {
-                    LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before marking reindex as finished.",
+                        task.getParams().getId());
+                    task.markAsCompleted();
                     return;
                 }
                 task.setReindexingTaskId(null);
@@ -256,13 +271,26 @@ public class DataFrameAnalyticsManager {
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            LOGGER.debug("[{}] task is stopping. Marking as complete before starting analysis.", task.getParams().getId());
+            task.markAsCompleted();
+            return;
+        }
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
+                    updatedTask -> {
+                        if (task.isStopping()) {
+                            LOGGER.debug("[{}] task is stopping. Marking as complete before starting native process.",
+                                task.getParams().getId());
+                            task.markAsCompleted();
+                            return;
+                        }
+                        processManager.runJob(task, config, dataExtractorFactory);
+                    },
                     error -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(error);
                         if (cause instanceof ResourceNotFoundException) {

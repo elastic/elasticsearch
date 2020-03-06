@@ -846,7 +846,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
-                doc.add(new StringField("foo", "a".repeat(i), Store.NO));
+                StringBuilder sb = new StringBuilder();
+                for (int j = 0; j < i; j++) {
+                    sb.append('a');
+                }
+                doc.add(new StringField("foo", sb.toString(), Store.NO));
                 w.addDocument(doc);
             }
             w.flush();

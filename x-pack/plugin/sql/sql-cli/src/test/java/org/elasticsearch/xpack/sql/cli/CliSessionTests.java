@@ -51,21 +51,7 @@ public class CliSessionTests extends ESTestCase {
 
     public void testWrongServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        byte minor;
-        byte major;
-        if (randomBoolean()) {
-            if (ClientVersion.CURRENT.minor <= 0) {
-                minor = SqlVersion.REVISION_MULTIPLIER - 1;
-                major = (byte)(ClientVersion.CURRENT.major - 1);
-            } else {
-                minor = (byte) (ClientVersion.CURRENT.minor - 1);
-                major = ClientVersion.CURRENT.major;
-            }
-        } else {
-            minor = ClientVersion.CURRENT.minor;
-            major = (byte) (ClientVersion.CURRENT.major - 1);
-        }
-        SqlVersion version = SqlVersion.fromString(major + "." + minor + ".23");
+        SqlVersion version = new SqlVersion((int)SqlVersion.V_7_7_0.major, SqlVersion.V_7_7_0.minor - 1, 0);
         when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), version.toString(),
                 ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);

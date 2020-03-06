@@ -54,6 +54,7 @@ public class InferencePhase implements FetchSubPhase {
 
         modelLoadingService.get().getModel(infBuilder.getModelId(), listener);
         try {
+            // Eeek blocking on a latch we can't be doing that
             latch.await();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

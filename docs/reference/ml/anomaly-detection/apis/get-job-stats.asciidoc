@@ -147,6 +147,11 @@ not the number of {es} documents.
 expected number of data points. If your data contains many sparse buckets,
 consider using a longer `bucket_span`.
 
+`deleting`::
+(boolean)
+Indicates that the process of deleting the job is in progress but not yet 
+completed. It is only reported when `true`.
+
 [[forecastsstats]]`forecasts_stats`::
 (object) An object that provides statistical information about forecasts 
 belonging to this job. Some statistics are omitted if no forecasts have been 

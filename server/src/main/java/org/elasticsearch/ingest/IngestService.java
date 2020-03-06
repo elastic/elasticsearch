@@ -101,9 +101,10 @@ public class IngestService implements ClusterStateApplier {
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
                     command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
-                ), this, client
+                ), this, client, threadPool.generic()::execute
             )
         );
+
         this.threadPool = threadPool;
     }
 

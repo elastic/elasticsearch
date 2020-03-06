@@ -43,7 +43,10 @@ import static org.elasticsearch.packaging.util.FileUtils.getPosixFileAttributes;
  */
 public class FileMatcher extends TypeSafeMatcher<Path> {
 
-    public enum Fileness { File, Directory }
+    public enum Fileness {
+        File,
+        Directory
+    }
 
     public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
     public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
@@ -62,7 +65,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     public FileMatcher(Fileness fileness, String owner, String group, Set<PosixFilePermission> posixPermissions) {
         this.fileness = Objects.requireNonNull(fileness);
-        this.owner = Objects.requireNonNull(owner);
+        this.owner = owner;
         this.group = group;
         this.posixPermissions = posixPermissions;
     }
@@ -76,16 +79,18 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
         if (Platforms.WINDOWS) {
             final BasicFileAttributes attributes = getBasicFileAttributes(path);
-            final String attributeViewOwner = getFileOwner(path);
 
             if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
                 mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
                 return false;
             }
 
-            if (attributeViewOwner.contains(owner) == false) {
-                mismatch = "Owned by " + attributeViewOwner;
-                return false;
+            if (owner != null) {
+                final String attributeViewOwner = getFileOwner(path);
+                if (attributeViewOwner.contains(owner) == false) {
+                    mismatch = "Owned by " + attributeViewOwner;
+                    return false;
+                }
             }
         } else {
             final PosixFileAttributes attributes = getPosixFileAttributes(path);
@@ -95,7 +100,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
                 return false;
             }
 
-            if (owner.equals(attributes.owner().getName()) == false) {
+            if (owner != null && owner.equals(attributes.owner().getName()) == false) {
                 mismatch = "Owned by " + attributes.owner().getName();
                 return false;
             }
@@ -124,10 +129,14 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     @Override
     public void describeTo(Description description) {
-        description.appendValue("file/directory: ").appendValue(fileness)
-            .appendText(" with owner ").appendValue(owner)
-            .appendText(" with group ").appendValue(group)
-            .appendText(" with posix permissions ").appendValueList("[", ",", "]", posixPermissions);
+        description.appendValue("file/directory: ")
+            .appendValue(fileness)
+            .appendText(" with owner ")
+            .appendValue(owner)
+            .appendText(" with group ")
+            .appendValue(group)
+            .appendText(" with posix permissions ")
+            .appendValueList("[", ",", "]", posixPermissions);
     }
 
     public static FileMatcher file(Fileness fileness, String owner) {

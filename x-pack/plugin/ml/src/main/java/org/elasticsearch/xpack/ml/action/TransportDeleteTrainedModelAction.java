@@ -47,7 +47,7 @@ import java.util.Set;
 public class TransportDeleteTrainedModelAction
     extends TransportMasterNodeAction<DeleteTrainedModelAction.Request, AcknowledgedResponse> {
 
-    private static final Logger LOGGER = LogManager.getLogger(TransportDeleteTrainedModelAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteTrainedModelAction.class);
 
     private final TrainedModelProvider trainedModelProvider;
     private final InferenceAuditor auditor;
@@ -120,7 +120,7 @@ public class TransportDeleteTrainedModelAction
                     .map(InferenceProcessor::getModelId)
                     .forEach(allReferencedModelKeys::add);
             } catch (Exception ex) {
-                LOGGER.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
+                logger.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
             }
         }
         return allReferencedModelKeys;

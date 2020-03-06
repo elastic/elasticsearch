@@ -75,7 +75,7 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
     }
 
 
-    public interface MiscContext extends ScriptFactory {
+    public interface MiscContext {
         void execute();
         Object newInstance();
     }

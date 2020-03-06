@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -119,9 +118,9 @@ public class SimpleSortIT extends ESIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type1")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("str_value")
                                         .field("type", "keyword")
@@ -225,7 +224,6 @@ public class SimpleSortIT extends ESIntegTestCase {
     public void testSortMinValueScript() throws IOException {
         String mapping = Strings.toString(jsonBuilder()
                 .startObject()
-                    .startObject("type1")
                         .startObject("properties")
                             .startObject("lvalue")
                                 .field("type", "long")
@@ -240,10 +238,9 @@ public class SimpleSortIT extends ESIntegTestCase {
                                 .field("type", "geo_point")
                             .endObject()
                         .endObject()
-                    .endObject()
                 .endObject());
 
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
@@ -344,7 +341,6 @@ public class SimpleSortIT extends ESIntegTestCase {
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = Strings.toString(jsonBuilder()
                 .startObject()
-                    .startObject("type1")
                         .startObject("properties")
                             .startObject("id")
                                 .field("type", "keyword")
@@ -353,9 +349,8 @@ public class SimpleSortIT extends ESIntegTestCase {
                                 .field("type", "keyword")
                             .endObject()
                         .endObject()
-                    .endObject()
                 .endObject());
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -450,9 +445,9 @@ public class SimpleSortIT extends ESIntegTestCase {
 
     public void test2920() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("value")
                                         .field("type", "keyword")

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -189,7 +190,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             && derivedState.equals(TransformStats.State.STOPPED) == false
             && derivedState.equals(TransformStats.State.FAILED) == false) {
             derivedState = TransformStats.State.STOPPING;
-            reason = reason.isEmpty() ? "transform is set to stop at the next checkpoint" : reason;
+            reason = Strings.isNullOrEmpty(reason) ? "transform is set to stop at the next checkpoint" : reason;
         }
         return new TransformStats(
             task.getTransformId(),
@@ -207,7 +208,6 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             listener.onResponse(response);
             return;
         }
-
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
         transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId).collect(Collectors.toList()));
 
@@ -252,7 +252,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getPosition(),
             transform.getTransformState().getProgress(),
-            ActionListener.wrap(listener::onResponse, e -> {
+            ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
                 logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
                 listener.onResponse(TransformCheckpointingInfo.EMPTY);
             })

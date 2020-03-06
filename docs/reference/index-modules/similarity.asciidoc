@@ -22,23 +22,23 @@ settings.
 --------------------------------------------------
 PUT /index
 {
-    "settings" : {
-        "index" : {
-            "similarity" : {
-              "my_similarity" : {
-                "type" : "DFR",
-                "basic_model" : "g",
-                "after_effect" : "l",
-                "normalization" : "h2",
-                "normalization.h2.c" : "3.0"
-              }
-            }
+  "settings": {
+    "index": {
+      "similarity": {
+        "my_similarity": {
+          "type": "DFR",
+          "basic_model": "g",
+          "after_effect": "l",
+          "normalization": "h2",
+          "normalization.h2.c": "3.0"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-Here we configure the DFRSimilarity so it can be referenced as
+Here we configure the DFR similarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
 [source,console]

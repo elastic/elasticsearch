@@ -131,7 +131,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         // Date Histogram
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        parent = new DateHistogramAggregatorFactory("name", valuesSource, 0L,
+        parent = new DateHistogramAggregatorFactory("name", valuesSource,
             mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
             mock(ExtendedBounds.class), mock(QueryShardContext.class), mock(AggregatorFactory.class),
             new AggregatorFactories.Builder(), Collections.emptyMap());

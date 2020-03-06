@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -56,12 +58,34 @@ task writeTestJavaPolicy {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
     final File javaPolicy = file("${tmp}/java.policy")
-    javaPolicy.write(
-      [
-        "grant {",
-        "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
-        "};"
-      ].join("\n"))
+    if (BuildParams.inFipsJvm) {
+      javaPolicy.write(
+        [
+          "grant {",
+          "permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
+          "permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
+          "permission java.lang.RuntimePermission \"getProtectionDomain\";",
+          "permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
+          "permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
+          "permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
+          "permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
+          "permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
+          "permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
+          "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
+          "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
+          "permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
+          "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "};"
+        ].join("\n")
+      )
+    } else {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "};"
+        ].join("\n"))
+    }
   }
 }
 
@@ -72,7 +96,11 @@ test {
 
   // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+  if (BuildParams.inFipsJvm){
+    systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
+  } else {
+    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+  }
 }
 
 check {

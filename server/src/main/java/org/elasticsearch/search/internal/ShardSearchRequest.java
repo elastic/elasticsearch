@@ -47,6 +47,7 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -75,7 +76,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final String preference;
     private final OriginalIndices originalIndices;
 
-    //these are the only two mutable fields, as they are subject to rewriting
+    private boolean canReturnNullResponseIfMatchNoDocs;
+
+    //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
 
@@ -167,6 +170,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        } else {
+            canReturnNullResponseIfMatchNoDocs = false;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -200,6 +208,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (asKey == false) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
         }
     }
 
@@ -273,6 +284,19 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public String preference() {
         return preference;
+    }
+
+    /**
+     * Returns true if the caller can handle null response {@link QuerySearchResult#nullInstance()}.
+     * Defaults to false since the coordinator node needs at least one shard response to build the global
+     * response.
+     */
+    public boolean canReturnNullResponseIfMatchNoDocs() {
+        return canReturnNullResponseIfMatchNoDocs;
+    }
+
+    public void canReturnNullResponseIfMatchNoDocs(boolean value) {
+        this.canReturnNullResponseIfMatchNoDocs = value;
     }
 
     /**

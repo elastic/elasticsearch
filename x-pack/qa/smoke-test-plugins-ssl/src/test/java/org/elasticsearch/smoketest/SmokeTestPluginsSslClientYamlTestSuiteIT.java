@@ -43,6 +43,11 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
     static Path keyStore;
 
     @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
+    }
+
+    @BeforeClass
     public static void getKeyStore() {
       try {
           keyStore = PathUtils.get(SmokeTestPluginsSslClientYamlTestSuiteIT.class.getResource("/testnode.jks").toURI());

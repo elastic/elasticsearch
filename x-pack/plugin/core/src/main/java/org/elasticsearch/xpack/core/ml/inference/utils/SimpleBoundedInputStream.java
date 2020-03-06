@@ -28,17 +28,16 @@ public final class SimpleBoundedInputStream extends InputStream {
         this.maxBytes = maxBytes;
     }
 
-
     /**
      * A simple wrapper around the injected input stream that restricts the total number of bytes able to be read.
-     * @return The byte read. -1 on internal stream completion or when maxBytes is exceeded.
-     * @throws IOException on failure
+     * @return The byte read.
+     * @throws IOException on failure or when byte limit is exceeded
      */
     @Override
     public int read() throws IOException {
         // We have reached the maximum, signal stream completion.
         if (numBytes >= maxBytes) {
-            return -1;
+            throw new IOException("input stream exceeded maximum bytes of [" + maxBytes + "]");
         }
         numBytes++;
         return in.read();

@@ -376,3 +376,59 @@ teardown:
         index: airline-data-time-alias
   - match: { airline-data-time-alias.mappings.properties.time.type: date }
   - match: { airline-data-time-alias.mappings.properties.avg_response.type: double }
+---
+"Test start transform with missing pipeline":
+  - do:
+      transform.put_transform:
+        defer_validation: true
+        transform_id: "airline-transform-with-missing-pipeline"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-pipeline", "pipeline": "missing-transform-pipeline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+  - match: {acknowledged: true}
+  - do:
+      catch: /Pipeline with id \[missing-transform-pipeline\] could not be found/
+      transform.start_transform:
+        transform_id: "airline-transform-with-missing-pipeline"
+---
+"Test start transform with pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "transform-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "some_field",
+                  "value" : 42
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-with-pipeline"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-pipeline", "pipeline": "transform-pipeline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+  - match: {acknowledged: true}
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-with-pipeline"

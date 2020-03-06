@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -20,10 +19,8 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
@@ -38,8 +35,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     public void testFollowIndex() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
         setupRemoteCluster();
@@ -96,7 +92,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         List<RemoteConnectionInfo> infos =
             followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
         assertThat(infos.size(), equalTo(1));
-        assertThat(infos.get(0).getNumNodesConnected(), greaterThanOrEqualTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     private void cleanRemoteCluster() throws Exception {

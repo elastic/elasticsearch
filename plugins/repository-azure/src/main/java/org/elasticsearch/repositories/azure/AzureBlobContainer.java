@@ -110,22 +110,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        logger.trace("deleteBlob({})", blobName);
-
-        try {
-            blobStore.deleteBlob(buildKey(blobName));
-        } catch (StorageException e) {
-            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-                throw new NoSuchFileException(e.getMessage());
-            }
-            throw new IOException(e);
-        } catch (URISyntaxException e) {
-            throw new IOException(e);
-        }
-    }
-
-    @Override
     public DeleteResult delete() throws IOException {
         try {
             return blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
@@ -146,7 +130,18 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint
             // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.
             for (String blobName : blobNames) {
-                executor.execute(ActionRunnable.run(listener, () -> deleteBlobIgnoringIfNotExists(blobName)));
+                executor.execute(ActionRunnable.run(listener, () -> {
+                    logger.trace("deleteBlob({})", blobName);
+                    try {
+                        blobStore.deleteBlob(buildKey(blobName));
+                    } catch (StorageException e) {
+                        if (e.getHttpStatusCode() != HttpURLConnection.HTTP_NOT_FOUND) {
+                            throw new IOException(e);
+                        }
+                    } catch (URISyntaxException e) {
+                        throw new IOException(e);
+                    }
+                }));
             }
         }
         try {

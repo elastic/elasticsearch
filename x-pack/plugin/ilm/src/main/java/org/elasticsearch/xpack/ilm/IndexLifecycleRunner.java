@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
@@ -23,10 +24,13 @@ import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.function.LongSupplier;
 
@@ -35,13 +39,15 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGI
 class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
     private final ThreadPool threadPool;
-    private PolicyStepsRegistry stepRegistry;
-    private ClusterService clusterService;
-    private LongSupplier nowSupplier;
+    private final ClusterService clusterService;
+    private final PolicyStepsRegistry stepRegistry;
+    private final ILMHistoryStore ilmHistoryStore;
+    private final LongSupplier nowSupplier;
 
-    IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService,
+    IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ILMHistoryStore ilmHistoryStore, ClusterService clusterService,
                          ThreadPool threadPool, LongSupplier nowSupplier) {
         this.stepRegistry = stepRegistry;
+        this.ilmHistoryStore = ilmHistoryStore;
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
         this.threadPool = threadPool;
@@ -62,17 +68,29 @@ class IndexLifecycleRunner {
     }
 
     /**
-     * Return true or false depending on whether the index is ready to be in {@code phase}
+     * Calculate the index's origination time (in milliseconds) based on its
+     * metadata. Returns null if there is no lifecycle date and the origination
+     * date is not set.
      */
-    boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
+    @Nullable
+    private static Long calculateOriginationMillis(final IndexMetaData indexMetaData) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         Long originationDate = indexMetaData.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
         if (lifecycleState.getLifecycleDate() == null && originationDate == -1L) {
-            logger.trace("no index creation or origination date has been set yet");
+            return null;
+        }
+        return originationDate == -1L ? lifecycleState.getLifecycleDate() : originationDate;
+    }
+
+    /**
+     * Return true or false depending on whether the index is ready to be in {@code phase}
+     */
+    boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
+        final Long lifecycleDate = calculateOriginationMillis(indexMetaData);
+        if (lifecycleDate == null) {
+            logger.trace("[{}] no index creation or origination date has been set yet", indexMetaData.getIndex().getName());
             return true;
         }
-        final Long lifecycleDate = originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate();
-        assert lifecycleDate != null && lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
         final TimeValue age = new TimeValue(now - lifecycleDate);
@@ -125,6 +143,11 @@ class IndexLifecycleRunner {
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
         // Only phase changing and async wait steps should be run through periodic polling
         if (currentStep instanceof PhaseCompleteStep) {
+            if (currentStep.getNextStepKey() == null) {
+                logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
+                    index, currentStep.getKey().getPhase());
+                return;
+            }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
@@ -147,7 +170,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                 }
-            });
+            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -185,6 +208,20 @@ class IndexLifecycleRunner {
                     logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
                         failedStep.getKey().getName(), index), e);
                 }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (oldState.equals(newState) == false) {
+                        IndexMetaData newIndexMeta = newState.metaData().index(index);
+                        Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
+                        StepKey stepKey = indexMetaCurrentStep.getKey();
+                        if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
+                            logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
+                                "retry. Attempting to execute the failed step [{}] if it's an async action", policy, index, stepKey);
+                            maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
+                        }
+                    }
+                }
             });
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -221,19 +258,26 @@ class IndexLifecycleRunner {
             ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState,
                 new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new AsyncActionStep.Listener() {
 
-                @Override
-                public void onResponse(boolean complete) {
-                    logger.trace("cs-change-async-action-callback, [{}], current-step: {}", index, currentStep.getKey());
-                    if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
-                        moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                    @Override
+                    public void onResponse(boolean complete) {
+                        logger.trace("cs-change-async-action-callback, [{}], current-step: {}", index, currentStep.getKey());
+                        if (complete) {
+                            if (((AsyncActionStep) currentStep).indexSurvives()) {
+                                moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                            } else {
+                                // Delete needs special handling, because after this step we
+                                // will no longer have access to any information about the
+                                // index since it will be... deleted.
+                                registerDeleteOperation(indexMetaData);
+                            }
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
+                    }
+                });
         } else {
             logger.trace("[{}] ignoring non async action step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -275,6 +319,11 @@ class IndexLifecycleRunner {
         logger.trace("[{}] maybe running step ({}) after state change: {}",
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
         if (currentStep instanceof PhaseCompleteStep) {
+            if (currentStep.getNextStepKey() == null) {
+                logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
+                    index, currentStep.getKey().getPhase());
+                return;
+            }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
@@ -298,6 +347,7 @@ class IndexLifecycleRunner {
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
             {
                 IndexMetaData indexMetaData = clusterState.metaData().index(index);
+                registerSuccessfulOperation(indexMetaData);
                 if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetaData != null) {
                     maybeRunAsyncAction(clusterState, indexMetaData, policy, newStepKey);
                 }
@@ -311,7 +361,10 @@ class IndexLifecycleRunner {
         logger.error(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
             policy, index.getName(), currentStepKey), e);
         clusterService.submitStateUpdateTask("ilm-move-to-error-step",
-            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep));
+            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
+                IndexMetaData indexMetaData = clusterState.metaData().index(index);
+                registerFailedOperation(indexMetaData, e);
+            }));
     }
 
     /**
@@ -342,5 +395,62 @@ class IndexLifecycleRunner {
                 policyName, index.getName()), e);
         setStepInfo(index, policyName, LifecycleExecutionState.getCurrentStepKey(executionState),
             new SetStepInfoUpdateTask.ExceptionWrapper(e));
+    }
+
+    /**
+     * For the given index metadata, register (index a document) that the index has transitioned
+     * successfully into this new state using the {@link ILMHistoryStore}
+     */
+    void registerSuccessfulOperation(IndexMetaData indexMetaData) {
+        if (indexMetaData == null) {
+            // This index may have been deleted and has no metadata, so ignore it
+            return;
+        }
+        Long origination = calculateOriginationMillis(indexMetaData);
+        ilmHistoryStore.putAsync(
+            ILMHistoryItem.success(indexMetaData.getIndex().getName(),
+                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings()),
+                nowSupplier.getAsLong(),
+                origination == null ? null : (nowSupplier.getAsLong() - origination),
+                LifecycleExecutionState.fromIndexMetadata(indexMetaData)));
+    }
+
+    /**
+     * For the given index metadata, register (index a document) that the index
+     * has been deleted by ILM using the {@link ILMHistoryStore}
+     */
+    void registerDeleteOperation(IndexMetaData metadataBeforeDeletion) {
+        if (metadataBeforeDeletion == null) {
+            throw new IllegalStateException("cannot register deletion of an index that did not previously exist");
+        }
+        Long origination = calculateOriginationMillis(metadataBeforeDeletion);
+        ilmHistoryStore.putAsync(
+            ILMHistoryItem.success(metadataBeforeDeletion.getIndex().getName(),
+                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadataBeforeDeletion.getSettings()),
+                nowSupplier.getAsLong(),
+                origination == null ? null : (nowSupplier.getAsLong() - origination),
+                LifecycleExecutionState.builder(LifecycleExecutionState.fromIndexMetadata(metadataBeforeDeletion))
+                    // Register that the delete phase is now "complete"
+                    .setStep(PhaseCompleteStep.NAME)
+                    .build()));
+    }
+
+    /**
+     * For the given index metadata, register (index a document) that the index has transitioned
+     * into the ERROR state using the {@link ILMHistoryStore}
+     */
+    void registerFailedOperation(IndexMetaData indexMetaData, Exception failure) {
+        if (indexMetaData == null) {
+            // This index may have been deleted and has no metadata, so ignore it
+            return;
+        }
+        Long origination = calculateOriginationMillis(indexMetaData);
+        ilmHistoryStore.putAsync(
+            ILMHistoryItem.failure(indexMetaData.getIndex().getName(),
+                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings()),
+                nowSupplier.getAsLong(),
+                origination == null ? null : (nowSupplier.getAsLong() - origination),
+                LifecycleExecutionState.fromIndexMetadata(indexMetaData),
+                failure));
     }
 }

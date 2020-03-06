@@ -202,7 +202,7 @@ public class TransportStopDataFrameAnalyticsAction
     private void redirectToMasterNode(DiscoveryNode masterNode, StopDataFrameAnalyticsAction.Request request,
                                       ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+            listener.onFailure(new MasterNotDiscoveredException());
         } else {
             transportService.sendRequest(masterNode, actionName, request,
                 new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new));

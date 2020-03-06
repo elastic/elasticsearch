@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,6 +16,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -22,9 +25,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric.actualIsTrueQuery;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification.actualIsTrueQuery;
 
-abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric {
+abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
 
     public static final ParseField AT = new ParseField("at");
 
@@ -62,11 +65,11 @@ abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric
     }
 
     @Override
-    public final List<AggregationBuilder> aggs(String actualField, String predictedProbabilityField) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedProbabilityField) {
         if (result != null) {
-            return List.of();
+            return Tuple.tuple(List.of(), List.of());
         }
-        return aggsAt(actualField, predictedProbabilityField);
+        return Tuple.tuple(aggsAt(actualField, predictedProbabilityField), List.of());
     }
 
     @Override

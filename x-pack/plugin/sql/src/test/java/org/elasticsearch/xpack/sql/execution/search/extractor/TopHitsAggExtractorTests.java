@@ -15,9 +15,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZoneId;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase<TopHitsAggExtractor> {
 
     public static TopHitsAggExtractor randomTopHitsAggExtractor() {
-        return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(DataType.values()), randomZone());
+        return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(SqlDataTypes.types()), randomZone());
     }
 
     @Override
@@ -53,14 +54,14 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
     protected TopHitsAggExtractor mutateInstance(TopHitsAggExtractor instance) {
         return new TopHitsAggExtractor(
             instance.name() + "mutated",
-            randomValueOtherThan(instance.fieldDataType(), () -> randomFrom(DataType.values())),
+                randomValueOtherThan(instance.fieldDataType(), () -> randomFrom(SqlDataTypes.types())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
     public void testNoAggs() {
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(emptyList()));
         TopHitsAggExtractor extractor = randomTopHitsAggExtractor();
-        SqlException exception = expectThrows(SqlException.class, () -> extractor.extract(bucket));
+        SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class, () -> extractor.extract(bucket));
         assertEquals("Cannot find an aggregation named " + extractor.name(), exception.getMessage());
     }
 
@@ -74,7 +75,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
     }
 
     public void testExtractValue() {
-        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.KEYWORD, UTC);
+        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.KEYWORD, UTC);
 
         String value = "Str_Value";
         Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
@@ -84,7 +85,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
 
     public void testExtractDateValue() {
         ZoneId zoneId = randomZone();
-        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.DATETIME, zoneId);
+        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.DATETIME, zoneId);
 
         long value = 123456789L;
         Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);

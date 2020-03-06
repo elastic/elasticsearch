@@ -6,13 +6,16 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.Result;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,9 +26,9 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregati
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFiltersBucket;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTermsBucket;
+import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<MulticlassConfusionMatrix> {
@@ -52,62 +55,65 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
 
     public static MulticlassConfusionMatrix createRandom() {
         Integer size = randomBoolean() ? null : randomIntBetween(1, 1000);
-        return new MulticlassConfusionMatrix(size);
+        return new MulticlassConfusionMatrix(size, null);
     }
 
     public void testConstructor_SizeValidationFailures() {
         {
-            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new MulticlassConfusionMatrix(-1));
+            ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> new MulticlassConfusionMatrix(-1, null));
             assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
         }
         {
-            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new MulticlassConfusionMatrix(0));
+            ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> new MulticlassConfusionMatrix(0, null));
             assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
         }
         {
-            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new MulticlassConfusionMatrix(1001));
+            ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> new MulticlassConfusionMatrix(1001, null));
             assertThat(e.getMessage(), equalTo("[size] must be an integer in [1, 1000]"));
         }
     }
 
     public void testAggs() {
         MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix();
-        List<AggregationBuilder> aggs = confusionMatrix.aggs("act", "pred");
-        assertThat(aggs, is(not(empty())));
+        Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs = confusionMatrix.aggs("act", "pred");
+        assertThat(aggs, isTuple(not(empty()), empty()));
         assertThat(confusionMatrix.getResult(), isEmpty());
     }
 
     public void testEvaluate() {
         Aggregations aggs = new Aggregations(List.of(
             mockTerms(
-                "multiclass_confusion_matrix_step_1_by_actual_class",
+                MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
                 List.of(
                     mockTermsBucket("dog", new Aggregations(List.of())),
                     mockTermsBucket("cat", new Aggregations(List.of()))),
                 0L),
             mockFilters(
-                "multiclass_confusion_matrix_step_2_by_actual_class",
+                MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
                 List.of(
                     mockFiltersBucket(
                         "dog",
                         30,
                         new Aggregations(List.of(mockFilters(
-                            "multiclass_confusion_matrix_step_2_by_predicted_class",
+                            MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
                             List.of(mockFiltersBucket("cat", 10L), mockFiltersBucket("dog", 20L), mockFiltersBucket("_other_", 0L)))))),
                     mockFiltersBucket(
                         "cat",
                         70,
                         new Aggregations(List.of(mockFilters(
-                            "multiclass_confusion_matrix_step_2_by_predicted_class",
+                            MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
                             List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 0L)))))))),
-            mockCardinality("multiclass_confusion_matrix_step_2_cardinality_of_actual_class", 2L)));
+            mockCardinality(MulticlassConfusionMatrix.STEP_2_CARDINALITY_OF_ACTUAL_CLASS, 2L)));
 
-        MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix(2);
+        MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix(2, null);
         confusionMatrix.process(aggs);
 
-        assertThat(confusionMatrix.aggs("act", "pred"), is(empty()));
-        MulticlassConfusionMatrix.Result result = (MulticlassConfusionMatrix.Result) confusionMatrix.getResult().get();
-        assertThat(result.getMetricName(), equalTo("multiclass_confusion_matrix"));
+        assertThat(confusionMatrix.aggs("act", "pred"), isTuple(empty(), empty()));
+        Result result = confusionMatrix.getResult().get();
+        assertThat(result.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             result.getConfusionMatrix(),
             equalTo(
@@ -120,34 +126,34 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
     public void testEvaluate_OtherClassesCountGreaterThanZero() {
         Aggregations aggs = new Aggregations(List.of(
             mockTerms(
-                "multiclass_confusion_matrix_step_1_by_actual_class",
+                MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
                 List.of(
                     mockTermsBucket("dog", new Aggregations(List.of())),
                     mockTermsBucket("cat", new Aggregations(List.of()))),
                 100L),
             mockFilters(
-                "multiclass_confusion_matrix_step_2_by_actual_class",
+                MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
                 List.of(
                     mockFiltersBucket(
                         "dog",
                         30,
                         new Aggregations(List.of(mockFilters(
-                            "multiclass_confusion_matrix_step_2_by_predicted_class",
+                            MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
                             List.of(mockFiltersBucket("cat", 10L), mockFiltersBucket("dog", 20L), mockFiltersBucket("_other_", 0L)))))),
                     mockFiltersBucket(
                         "cat",
                         85,
                         new Aggregations(List.of(mockFilters(
-                            "multiclass_confusion_matrix_step_2_by_predicted_class",
+                            MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
                             List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 15L)))))))),
-            mockCardinality("multiclass_confusion_matrix_step_2_cardinality_of_actual_class", 5L)));
+            mockCardinality(MulticlassConfusionMatrix.STEP_2_CARDINALITY_OF_ACTUAL_CLASS, 5L)));
 
-        MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix(2);
+        MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix(2, null);
         confusionMatrix.process(aggs);
 
-        assertThat(confusionMatrix.aggs("act", "pred"), is(empty()));
-        MulticlassConfusionMatrix.Result result = (MulticlassConfusionMatrix.Result) confusionMatrix.getResult().get();
-        assertThat(result.getMetricName(), equalTo("multiclass_confusion_matrix"));
+        assertThat(confusionMatrix.aggs("act", "pred"), isTuple(empty(), empty()));
+        Result result = confusionMatrix.getResult().get();
+        assertThat(result.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             result.getConfusionMatrix(),
             equalTo(

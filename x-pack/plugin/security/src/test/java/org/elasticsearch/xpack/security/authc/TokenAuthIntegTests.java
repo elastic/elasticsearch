@@ -55,7 +55,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -256,19 +255,20 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
         assertNotNull(response.getRefreshToken());
-        // get cluster health with token
-        assertNoTimeout(client()
-                .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + response.getAccessToken()))
-                .admin().cluster().prepareHealth().get());
-
+        // Assert that we can authenticate with the access token
+        AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            "Bearer " + response.getAccessToken()).build());
+        assertThat(authResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
         CreateTokenResponse refreshResponse = restClient.security()
             .createToken(CreateTokenRequest.refreshTokenGrant(response.getRefreshToken()), SECURITY_REQUEST_OPTIONS);
         assertNotNull(refreshResponse.getRefreshToken());
         assertNotEquals(refreshResponse.getRefreshToken(), response.getRefreshToken());
         assertNotEquals(refreshResponse.getAccessToken(), response.getAccessToken());
 
-        assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getAccessToken()))
-                .admin().cluster().prepareHealth().get());
+        // Assert that we can authenticate with the refreshed access token
+        authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            "Bearer " + refreshResponse.getAccessToken()).build());
+        assertThat(authResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
     }
 
     public void testRefreshingInvalidatedToken() throws IOException {
@@ -466,10 +466,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
         assertNotNull(response.getRefreshToken());
-        // First check that the correct access token works by getting cluster health with token
-        assertNoTimeout(client()
-            .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + response.getAccessToken()))
-            .admin().cluster().prepareHealth().get());
+        // Assert that we can authenticate with the access token
+        AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+            "Bearer " + response.getAccessToken()).build());
+        assertThat(authResponse.getUser().getUsername(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
         // Now attempt to authenticate with an invalid access token string
         RequestOptions wrongAuthOptions =
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(0, 128)).build();

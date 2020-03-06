@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,7 +29,8 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             randomBoolean() ? null :
                 Stream.generate(ClassificationInferenceResultsTests::createRandomClassEntry)
                     .limit(randomIntBetween(0, 10))
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList()),
+            ClassificationConfigTests.randomClassificationConfig());
     }
 
     private static ClassificationInferenceResults.TopClassEntry createRandomClassEntry() {
@@ -36,19 +38,23 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     }
 
     public void testWriteResultsWithClassificationLabel() {
-        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, "foo", Collections.emptyList());
+        ClassificationInferenceResults result =
+            new ClassificationInferenceResults(1.0, "foo", Collections.emptyList(), ClassificationConfig.EMPTY_PARAMS);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field", ClassificationConfig.EMPTY_PARAMS);
+        result.writeResult(document, "result_field");
 
-        assertThat(document.getFieldValue("result_field", String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
     }
 
     public void testWriteResultsWithoutClassificationLabel() {
-        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, null, Collections.emptyList());
+        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
+            null,
+            Collections.emptyList(),
+            ClassificationConfig.EMPTY_PARAMS);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field", ClassificationConfig.EMPTY_PARAMS);
+        result.writeResult(document, "result_field");
 
-        assertThat(document.getFieldValue("result_field", String.class), equalTo("1.0"));
+        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("1.0"));
     }
 
     @SuppressWarnings("unchecked")
@@ -59,11 +65,12 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             new ClassificationInferenceResults.TopClassEntry("baz", 0.1));
         ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
             "foo",
-            entries);
+            entries,
+            new ClassificationConfig(3, "my_results", "bar"));
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field", new ClassificationConfig(3, "bar"));
+        result.writeResult(document, "result_field");
 
-        List<?> list = document.getFieldValue("bar", List.class);
+        List<?> list = document.getFieldValue("result_field.bar", List.class);
         assertThat(list.size(), equalTo(3));
 
         for(int i = 0; i < 3; i++) {
@@ -71,7 +78,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             assertThat(map, equalTo(entries.get(i).asValueMap()));
         }
 
-        assertThat(document.getFieldValue("result_field", String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("result_field.my_results", String.class), equalTo("foo"));
     }
 
     @Override

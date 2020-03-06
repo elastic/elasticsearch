@@ -606,7 +606,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testParsingWithGeoFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("type1")
+            .startObject("_doc")
                 .startObject("properties")
                     .startObject("completion")
                         .field("type", "completion")
@@ -627,7 +627,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("completion");
 
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",

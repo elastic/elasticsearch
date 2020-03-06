@@ -81,7 +81,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         super.setUp();
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("type",
+                .setMapping(
                         "decade", "type=keyword",
                         "people", "type=keyword",
                         "description", "type=text,fielddata=true"));

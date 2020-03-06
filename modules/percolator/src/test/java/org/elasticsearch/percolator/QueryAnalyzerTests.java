@@ -1209,6 +1209,43 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "a"));
     }
 
+    public void testRangeAndTermWithNestedMSM() {
+
+        Query q1 = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("f", "v3")), Occur.SHOULD)
+            .add(new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("f", "n1")), Occur.SHOULD)
+                .build(), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v4")), Occur.SHOULD)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result r1 = analyze(q1, Version.CURRENT);
+        assertEquals(2, r1.minimumShouldMatch);
+        assertThat(r1.extractions, hasSize(3));
+        assertFalse(r1.matchAllDocs);
+        assertTrue(r1.verified);
+
+        Query q = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 0, 10), Occur.FILTER)
+            .add(new TermQuery(new Term("f", "v1")), Occur.MUST)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .add(IntPoint.newRangeQuery("i", 2, 20), Occur.FILTER)
+            .add(new TermQuery(new Term("f", "v3")), Occur.SHOULD)
+            .add(new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("f", "n1")), Occur.SHOULD)
+                .build(), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v4")), Occur.SHOULD)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result r = analyze(q, Version.CURRENT);
+        assertThat(r.minimumShouldMatch, equalTo(5));
+        assertThat(r.extractions, hasSize(7));
+        assertFalse(r.matchAllDocs);
+        assertFalse(r.verified);
+    }
+
     public void testCombinedRangeAndTermWithMinimumShouldMatch() {
 
         Query disj = new BooleanQuery.Builder()

@@ -69,7 +69,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
         List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
         assertThat(infos.size(), equalTo(1));
-        assertThat(infos.get(0).getNumNodesConnected(), equalTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     @Before

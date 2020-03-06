@@ -84,27 +84,26 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
-        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
-        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES));
-        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS));
     }
 
     public void testRemoteClusterSeedSetting() {
         // simple validation
         Settings settings = Settings.builder()
-            .put("cluster.remote.foo.sniff.seeds", "192.168.0.1:8080")
-            .put("cluster.remote.bar.sniff.seed", "[::1]:9090").build();
+            .put("cluster.remote.foo.seeds", "192.168.0.1:8080")
+            .put("cluster.remote.bar.seeds", "[::1]:9090").build();
         SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
 
         Settings brokenSettings = Settings.builder()
-            .put("cluster.remote.foo.sniff.seeds", "192.168.0.1").build();
+            .put("cluster.remote.foo.seeds", "192.168.0.1").build();
         expectThrows(IllegalArgumentException.class, () ->
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
                 .getAllConcreteSettings(brokenSettings).forEach(setting -> setting.get(brokenSettings)));
 
         Settings brokenPortSettings = Settings.builder()
-            .put("cluster.remote.foo.sniff.seeds", "192.168.0.1:123456789123456789").build();
+            .put("cluster.remote.foo.seeds", "192.168.0.1:123456789123456789").build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getAllConcreteSettings(brokenSettings)
@@ -128,8 +127,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.sniff.seeds", cluster2Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -354,7 +353,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     service.initializeRemoteClusters();
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
@@ -363,7 +362,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     settingsChange.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule);
                     boolean compressionEnabled = true;
                     settingsChange.put("cluster.remote.cluster_1.transport.compress", compressionEnabled);
-                    settingsChange.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
+                    settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                     service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
                     assertBusy(remoteClusterConnection::isClosed);
 
@@ -408,9 +407,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 final Settings.Builder builder = Settings.builder();
                 builder.putList(
-                        "cluster.remote.cluster_1.sniff.seeds", c1N1Node.getAddress().toString());
+                        "cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
                 builder.putList(
-                        "cluster.remote.cluster_2.sniff.seeds", c2N1Node.getAddress().toString());
+                        "cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service =
                              new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -475,8 +474,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 final Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.sniff.seeds", c1N1Node.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.sniff.seeds", c2N1Node.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -546,9 +545,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 final Settings.Builder builder = Settings.builder();
                 builder.putList(
-                    "cluster.remote.cluster_1.sniff.seeds", c1N1Node.getAddress().toString());
+                    "cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
                 builder.putList(
-                    "cluster.remote.cluster_2.sniff.seeds", c2N1Node.getAddress().toString());
+                    "cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service =
                          new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -665,39 +664,71 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testRemoteClusterSkipIfDisconnectedSetting() {
         {
             Settings settings = Settings.builder()
-                    .put("cluster.remote.foo.skip_unavailable", true)
-                    .put("cluster.remote.bar.skip_unavailable", false).build();
+                    .put("cluster.remote.foo.seeds", "127.0.0.1:9300")
+                    .put("cluster.remote.foo.skip_unavailable", true).build();
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
         }
         {
-            Settings brokenSettings = Settings.builder()
+            Settings brokenSettingsDependency = Settings.builder()
+                .put("cluster.remote.foo.skip_unavailable", true).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettingsDependency)
+                    .forEach(setting -> setting.get(brokenSettingsDependency)));
+            assertEquals("Cannot configure setting [cluster.remote.foo.skip_unavailable] if remote cluster is not enabled.",
+                iae.getMessage());
+        }
+        {
+            Settings brokenSettingsType = Settings.builder()
                     .put("cluster.remote.foo.skip_unavailable", "broken").build();
-            expectThrows(IllegalArgumentException.class, () ->
-                    RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
-                            .forEach(setting -> setting.get(brokenSettings)));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettingsType)
+                    .forEach(setting -> setting.get(brokenSettingsType)));
+        }
+
+        {
+            Settings settings = Settings.builder()
+                .put("cluster.remote.foo.mode", "proxy")
+                .put("cluster.remote.foo.proxy_address", "127.0.0.1:9300")
+                .put("cluster.remote.foo.transport.ping_schedule", "5s").build();
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        }
+        {
+            Settings brokenSettingsDependency = Settings.builder()
+                .put("cluster.remote.foo.proxy_address", "127.0.0.1:9300")
+                .put("cluster.remote.foo.transport.ping_schedule", "5s").build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getAllConcreteSettings(brokenSettingsDependency)
+                    .forEach(setting -> setting.get(brokenSettingsDependency)));
+            assertEquals("Cannot configure setting [cluster.remote.foo.transport.ping_schedule] if remote cluster is not enabled.",
+                iae.getMessage());
+        }
+
+        {
+            Settings settings = Settings.builder()
+                .put("cluster.remote.foo.seeds", "127.0.0.1:9300")
+                .put("cluster.remote.foo.transport.compress", false).build();
+            RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        }
+        {
+            Settings brokenSettingsDependency = Settings.builder()
+                .put("cluster.remote.foo.proxy_address", "127.0.0.1:9300")
+                .put("cluster.remote.foo.transport.compress", true).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getAllConcreteSettings(brokenSettingsDependency)
+                    .forEach(setting -> setting.get(brokenSettingsDependency)));
+            assertEquals("Cannot configure setting [cluster.remote.foo.transport.compress] if remote cluster is not enabled.",
+                iae.getMessage());
         }
 
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
-                        RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
+                new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
+                    RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
         {
-            Settings settings = Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean()).build();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(settings, true));
-            assertEquals("missing required setting [cluster.remote.foo.sniff.seeds] for setting [cluster.remote.foo.skip_unavailable]",
+            Settings brokenSettingsDependency = Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean()).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> service.validate(brokenSettingsDependency, true));
+            assertEquals("Cannot configure setting [cluster.remote.foo.skip_unavailable] if remote cluster is not enabled.",
                     iae.getMessage());
-        }
-        {
-            try (MockTransportService remoteSeedTransport = startTransport("seed", new CopyOnWriteArrayList<>(), Version.CURRENT)) {
-                String seed = remoteSeedTransport.getLocalDiscoNode().getAddress().toString();
-                service.validate(Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean())
-                        .put("cluster.remote.foo.seeds", seed).build(), true);
-                service.validate(Settings.builder().put("cluster.remote.foo.sniff.seeds", seed).build(), true);
-
-                AbstractScopedSettings service2 = new ClusterSettings(Settings.builder().put("cluster.remote.foo.seeds", seed).build(),
-                        new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
-                                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
-                service2.validate(Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean()).build(), false);
-            }
         }
     }
 
@@ -718,7 +749,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
 
                 final Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_test.sniff.seeds", Collections.singletonList(node0.getAddress().toString()));
+                builder.putList("cluster.remote.cluster_test.seeds", Collections.singletonList(node0.getAddress().toString()));
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -814,13 +845,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     private static Settings createSettings(String clusterAlias, List<String> seeds) {
         Settings.Builder builder = Settings.builder();
-        if (randomBoolean()) {
-            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                Strings.collectionToCommaDelimitedString(seeds));
-        } else {
-            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                Strings.collectionToCommaDelimitedString(seeds));
-        }
+        builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(seeds));
         return builder.build();
     }
 }

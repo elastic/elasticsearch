@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 
 import java.io.IOException;
@@ -23,29 +25,36 @@ public class AnalyticsResult implements ToXContentObject {
 
     public static final ParseField TYPE = new ParseField("analytics_result");
 
-    public static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
-    public static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
+    private static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
+    private static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
+    private static final ParseField ANALYTICS_MEMORY_USAGE = new ParseField("analytics_memory_usage");
 
     public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1], (TrainedModelDefinition.Builder) a[2]));
+            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1], (TrainedModelDefinition.Builder) a[2], (MemoryUsage) a[3]));
 
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
         PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
         // TODO change back to STRICT_PARSER once native side is aligned
         PARSER.declareObject(optionalConstructorArg(), TrainedModelDefinition.LENIENT_PARSER, INFERENCE_MODEL);
+        PARSER.declareObject(optionalConstructorArg(), MemoryUsage.STRICT_PARSER, ANALYTICS_MEMORY_USAGE);
     }
 
     private final RowResults rowResults;
     private final Integer progressPercent;
     private final TrainedModelDefinition.Builder inferenceModelBuilder;
     private final TrainedModelDefinition inferenceModel;
+    private final MemoryUsage memoryUsage;
 
-    public AnalyticsResult(RowResults rowResults, Integer progressPercent, TrainedModelDefinition.Builder inferenceModelBuilder) {
+    public AnalyticsResult(@Nullable RowResults rowResults,
+                           @Nullable Integer progressPercent,
+                           @Nullable TrainedModelDefinition.Builder inferenceModelBuilder,
+                           @Nullable MemoryUsage memoryUsage) {
         this.rowResults = rowResults;
         this.progressPercent = progressPercent;
         this.inferenceModelBuilder = inferenceModelBuilder;
         this.inferenceModel = inferenceModelBuilder == null ? null : inferenceModelBuilder.build();
+        this.memoryUsage = memoryUsage;
     }
 
     public RowResults getRowResults() {
@@ -58,6 +67,10 @@ public class AnalyticsResult implements ToXContentObject {
 
     public TrainedModelDefinition.Builder getInferenceModelBuilder() {
         return inferenceModelBuilder;
+    }
+
+    public MemoryUsage getMemoryUsage() {
+        return memoryUsage;
     }
 
     @Override
@@ -73,6 +86,9 @@ public class AnalyticsResult implements ToXContentObject {
             builder.field(INFERENCE_MODEL.getPreferredName(),
                 inferenceModel,
                 new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true")));
+        }
+        if (memoryUsage != null) {
+            builder.field(ANALYTICS_MEMORY_USAGE.getPreferredName(), memoryUsage, params);
         }
         builder.endObject();
         return builder;
@@ -90,11 +106,12 @@ public class AnalyticsResult implements ToXContentObject {
         AnalyticsResult that = (AnalyticsResult) other;
         return Objects.equals(rowResults, that.rowResults)
             && Objects.equals(progressPercent, that.progressPercent)
-            && Objects.equals(inferenceModel, that.inferenceModel);
+            && Objects.equals(inferenceModel, that.inferenceModel)
+            && Objects.equals(memoryUsage, that.memoryUsage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rowResults, progressPercent, inferenceModel);
+        return Objects.hash(rowResults, progressPercent, inferenceModel, memoryUsage);
     }
 }

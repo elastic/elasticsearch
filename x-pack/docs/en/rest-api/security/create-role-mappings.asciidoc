@@ -32,8 +32,8 @@ The create or update role mappings API cannot update role mappings that are defi
 in role mapping files.
 
 NOTE: This API does not create roles. Rather, it maps users to existing roles.
-Roles can be created by using <<security-api-roles, Role Management APIs>> or
-<<roles-management-file,roles files>>.
+Roles can be created by using the <<security-api-put-role,create or update
+roles API>> or <<roles-management-file,roles files>>.
 
 For more information, see <<mapping-roles>>.
 

@@ -91,7 +91,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     (string) The name of the cluster.
 
 `status`::
-    (string) The health status of the cluster.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
     (boolean) If `false` the response returned within the period of 

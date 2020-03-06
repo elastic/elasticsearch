@@ -100,7 +100,7 @@ setup:
   - match:  { responses.1.error.root_cause.0.reason: "/Unexpected.end.of.input/" }
   - match:  { responses.2.hits.total:     1  }
   - match:  { responses.3.error.root_cause.0.type: parsing_exception }
-  - match:  { responses.3.error.root_cause.0.reason: "/no.\\[query\\].registered.for.\\[unknown\\]/" }
+  - match:  { responses.3.error.root_cause.0.reason: "/unknown.query.\\[unknown\\]/" }
 
 ---
 "Multi-search template with invalid request":

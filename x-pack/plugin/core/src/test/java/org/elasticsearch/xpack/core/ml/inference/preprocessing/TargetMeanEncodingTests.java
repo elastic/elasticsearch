@@ -68,4 +68,24 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         testProcess(encoding, fieldValues, matchers);
     }
 
+    public void testProcessWithNestedField() {
+        String field = "categorical.child";
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
+        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
+            v -> randomDoubleBetween(0.0, 1.0, false)));
+        String encodedFeatureName = "encoded";
+        Double defaultvalue = randomDouble();
+        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
+
+        Map<String, Object> fieldValues = new HashMap<>() {{
+            put("categorical", new HashMap<>(){{
+                put("child", "farequote");
+            }});
+        }};
+
+        encoding.process(fieldValues);
+
+        assertThat(fieldValues.get("encoded"), equalTo(valueMap.get("farequote")));
+    }
+
 }

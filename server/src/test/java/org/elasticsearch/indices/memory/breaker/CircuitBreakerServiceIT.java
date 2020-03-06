@@ -129,7 +129,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             return;
         }
         assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
-                .addMapping("type", "test", "type=text,fielddata=true"));
+                .setMapping("test", "type=text,fielddata=true"));
         final Client client = client();
 
         // index some different terms so we have some field data for loading

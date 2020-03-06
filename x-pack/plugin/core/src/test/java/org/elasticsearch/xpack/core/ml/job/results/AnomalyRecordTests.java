@@ -14,17 +14,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
 
@@ -174,28 +177,23 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         String overFieldValue = null;
         String partitionFieldValue = null;
 
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("test-job_record_1000_60_0_" + valuesHash + "_0", record.getId());
+        assertEquals("test-job_record_1000_60_0_0_0", record.getId());
 
-        int length = 0;
         if (randomBoolean()) {
             byFieldValue = randomAlphaOfLength(10);
-            length += byFieldValue.length();
             record.setByFieldValue(byFieldValue);
         }
         if (randomBoolean()) {
             overFieldValue = randomAlphaOfLength(10);
-            length += overFieldValue.length();
             record.setOverFieldValue(overFieldValue);
         }
         if (randomBoolean()) {
             partitionFieldValue = randomAlphaOfLength(10);
-            length += partitionFieldValue.length();
             record.setPartitionFieldValue(partitionFieldValue);
         }
 
-        valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("test-job_record_1000_60_0_" + valuesHash + "_" + length, record.getId());
+        String valuesPart = MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
+        assertEquals("test-job_record_1000_60_0_" + valuesPart, record.getId());
     }
 
     public void testStrictParser_IsLenientOnTopLevelFields() throws IOException {
@@ -221,5 +219,19 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testIdLength() {
+        String jobId = randomAlphaOfLength(MlStrings.ID_LENGTH_LIMIT);
+        Date timestamp = new Date(Long.MAX_VALUE);
+        long bucketSpan = Long.MAX_VALUE;
+        int detectorIndex = Integer.MAX_VALUE;
+        String byFieldValue = randomAlphaOfLength(randomIntBetween(100, 1000));
+        String overFieldValue = randomAlphaOfLength(randomIntBetween(100, 1000));
+        String partitionFieldValue = randomAlphaOfLength(randomIntBetween(100, 1000));
+
+        String id = AnomalyRecord.buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
+        // 512 comes from IndexRequest.validate()
+        assertThat(id.getBytes(StandardCharsets.UTF_8).length, lessThanOrEqualTo(512));
     }
 }

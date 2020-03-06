@@ -112,7 +112,7 @@ You can use this parameter to query multiple indices that may not contain the
 [[has-parent-query-performance]]
 ===== Sorting
 You cannot sort the results of a `has_parent` query using standard
-<<search-request-sort,sort options>>.
+<<request-body-search-sort,sort options>>.
 
 If you need to sort returned documents by a field in their parent documents, use
 a `function_score` query and sort by `_score`. For example, the following query

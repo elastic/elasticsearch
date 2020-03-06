@@ -81,7 +81,8 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 long requestId = streamInput.readLong();
                 byte status = streamInput.readByte();
-                Version remoteVersion = Version.fromId(streamInput.readInt());
+                final Version remoteVersion = Version.fromId(streamInput.readInt());
+                streamInput.setVersion(remoteVersion);
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
 
@@ -89,10 +90,11 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                     // Consume the variable header size
                     streamInput.readInt();
                 } else {
-                    streamInput = decompressingStream(status, remoteVersion, streamInput);
+                    streamInput = decompressingStream(status, streamInput);
+                    assertRemoteVersion(streamInput, remoteVersion);
                 }
 
-                threadContext.readHeaders(streamInput);
+                threadContext.readFrom(streamInput);
 
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {
@@ -103,17 +105,22 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                     final String action = streamInput.readString();
 
                     if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                        streamInput = decompressingStream(status, remoteVersion, streamInput);
+                        streamInput = decompressingStream(status, streamInput);
+                        assertRemoteVersion(streamInput, remoteVersion);
                     }
                     streamInput = new ReleasableArraysStreamInput(streamInput, bigArrays, managedResources);
-                    streamInput.setVersion(remoteVersion);
                     streamInput = namedWriteableStream(streamInput, remoteVersion);
+                    assertRemoteVersion(streamInput, remoteVersion);
                     message = new Request(threadContext, remoteVersion, status, requestId, action, managedResources, streamInput);
+
+
                 } else {
                     if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                        streamInput = decompressingStream(status, remoteVersion, streamInput);
+                        streamInput = decompressingStream(status, streamInput);
+                        assertRemoteVersion(streamInput, remoteVersion);
                     }
                     streamInput = namedWriteableStream(streamInput, remoteVersion);
+                    assertRemoteVersion(streamInput, remoteVersion);
                     message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
                 }
                 success = true;
@@ -126,12 +133,10 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             }
         }
 
-        static StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
+        static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
             if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
                 try {
-                    StreamInput decompressor = CompressorFactory.COMPRESSOR.streamInput(streamInput);
-                    decompressor.setVersion(remoteVersion);
-                    return decompressor;
+                    return CompressorFactory.COMPRESSOR.streamInput(streamInput);
                 } catch (IllegalArgumentException e) {
                     throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
                 }
@@ -144,6 +149,10 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
             streamInput.setVersion(remoteVersion);
             return streamInput;
+        }
+
+        static void assertRemoteVersion(StreamInput in, Version version) {
+            assert version.equals(in.getVersion()) : "Stream version [" + in.getVersion() + "] does not match version [" + version + "]";
         }
     }
 

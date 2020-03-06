@@ -56,8 +56,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-delete-job-example]]
 ==== {api-examples-title}
 
-The following example deletes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests

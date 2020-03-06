@@ -59,7 +59,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     @Before
     public void beforeEachTest() throws IOException {
-        prepareCreate("idx2").addMapping("type", "date", "type=date").get();
+        prepareCreate("idx2").setMapping("date", "type=date").get();
     }
 
     @After

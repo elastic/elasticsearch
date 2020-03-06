@@ -11,20 +11,16 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 // Typed object holding properties for a given query
-public class Configuration {
-    private final ZoneId zoneId;
+public class Configuration extends org.elasticsearch.xpack.ql.session.Configuration {
+    
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     private final Mode mode;
     private final String clientId;
-    private final String username;
-    private final String clusterName;
     private final boolean multiValueFieldLeniency;
-    private final ZonedDateTime now;
     private final boolean includeFrozenIndices;
 
     @Nullable
@@ -35,22 +31,17 @@ public class Configuration {
                          String username, String clusterName,
                          boolean multiValueFieldLeniency,
                          boolean includeFrozen) {
-        this.zoneId = zi.normalized();
+
+        super(zi, username, clusterName);
+
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
         this.filter = filter;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
-        this.username = username;
-        this.clusterName = clusterName;
         this.multiValueFieldLeniency = multiValueFieldLeniency;
-        this.now = ZonedDateTime.now(zoneId);
         this.includeFrozenIndices = includeFrozen;
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
     }
 
     public int pageSize() {
@@ -76,18 +67,6 @@ public class Configuration {
         return clientId;
     }
 
-    public String username() {
-        return username;
-    }
-
-    public String clusterName() {
-        return clusterName;
-    }
-
-    public ZonedDateTime now() {
-        return now;
-    }
-    
     public boolean multiValueFieldLeniency() {
         return multiValueFieldLeniency;
     }

@@ -11,21 +11,32 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
@@ -33,6 +44,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import static java.util.stream.Collectors.toList;
 
 public class AnalyticsResultProcessor {
 
@@ -52,22 +66,25 @@ public class AnalyticsResultProcessor {
 
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
-    private final ProgressTracker progressTracker;
+    private final StatsHolder statsHolder;
     private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
+    private final ResultsPersisterService resultsPersisterService;
     private final List<String> fieldNames;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
     private volatile boolean isCancelled;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
-                                    ProgressTracker progressTracker, TrainedModelProvider trainedModelProvider,
-                                    DataFrameAnalyticsAuditor auditor, List<String> fieldNames) {
+                                    StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
+                                    DataFrameAnalyticsAuditor auditor, ResultsPersisterService resultsPersisterService,
+                                    List<String> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
-        this.progressTracker = Objects.requireNonNull(progressTracker);
+        this.statsHolder = Objects.requireNonNull(statsHolder);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
+        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.fieldNames = Collections.unmodifiableList(Objects.requireNonNull(fieldNames));
     }
 
@@ -123,11 +140,11 @@ public class AnalyticsResultProcessor {
     }
 
     private void updateResultsProgress(int progress) {
-        progressTracker.writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
+        statsHolder.getProgressTracker().writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
     }
 
     private void completeResultsProgress() {
-        progressTracker.writingResultsPercent.set(100);
+        statsHolder.getProgressTracker().writingResultsPercent.set(100);
     }
 
     private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
@@ -137,11 +154,16 @@ public class AnalyticsResultProcessor {
         }
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {
-            progressTracker.analyzingPercent.set(progressPercent);
+            statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
         }
         TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
         if (inferenceModelBuilder != null) {
             createAndIndexInferenceModel(inferenceModelBuilder);
+        }
+        MemoryUsage memoryUsage = result.getMemoryUsage();
+        if (memoryUsage != null) {
+            statsHolder.setMemoryUsage(memoryUsage);
+            indexStatsResult(memoryUsage, memoryUsage::documentId);
         }
     }
 
@@ -163,11 +185,16 @@ public class AnalyticsResultProcessor {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         TrainedModelDefinition definition = inferenceModel.build();
+        String dependentVariable = getDependentVariable();
+        List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
+            .filter(f -> f.equals(dependentVariable) == false)
+            .collect(toList());
         return TrainedModelConfig.builder()
             .setModelId(modelId)
-            .setCreatedBy("data-frame-analytics")
+            .setCreatedBy(XPackUser.NAME)
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)
+            // NOTE: GET _cat/ml/trained_models relies on the creating analytics ID being in the tags
             .setTags(Collections.singletonList(analytics.getId()))
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",
@@ -175,9 +202,19 @@ public class AnalyticsResultProcessor {
             .setEstimatedHeapMemory(definition.ramBytesUsed())
             .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
             .setParsedDefinition(inferenceModel)
-            .setInput(new TrainedModelInput(fieldNames))
+            .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .build();
+    }
+
+    private String getDependentVariable() {
+        if (analytics.getAnalysis() instanceof Classification) {
+            return ((Classification)analytics.getAnalysis()).getDependentVariable();
+        }
+        if (analytics.getAnalysis() instanceof Regression) {
+            return ((Regression)analytics.getAnalysis()).getDependentVariable();
+        }
+        return null;
     }
 
     private CountDownLatch storeTrainedModel(TrainedModelConfig trainedModelConfig) {
@@ -203,5 +240,24 @@ public class AnalyticsResultProcessor {
         LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
         failure = "error processing results; " + e.getMessage();
         auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
+    }
+
+    private void indexStatsResult(ToXContentObject result, Function<String, String> docIdSupplier) {
+        try {
+            resultsPersisterService.indexWithRetry(analytics.getId(),
+                MlStatsIndex.writeAlias(),
+                result,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                docIdSupplier.apply(analytics.getId()),
+                () -> true,
+                errorMsg -> auditor.error(analytics.getId(),
+                    "failed to persist result with id [" + docIdSupplier.apply(analytics.getId()) + "]; " + errorMsg)
+            );
+        } catch (IOException ioe) {
+            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", analytics.getId()), ioe);
+        } catch (Exception e) {
+            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", analytics.getId()), e);
+        }
     }
 }

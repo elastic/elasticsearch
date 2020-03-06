@@ -64,6 +64,8 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
                 metrics = randomSubsetOf(
                     Arrays.asList(
                         AccuracyMetricResultTests.randomResult(),
+                        org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
+                        org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
                         MulticlassConfusionMatrixMetricResultTests.randomResult()));
                 break;
             default:

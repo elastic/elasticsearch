@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.TemplateScript;
 
@@ -647,8 +646,14 @@ public final class IngestDocument {
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
         if (executedPipelines.add(pipeline.getId())) {
+            Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
                 executedPipelines.remove(pipeline.getId());
+                if (previousPipeline != null) {
+                    ingestMetadata.put("pipeline", previousPipeline);
+                } else {
+                    ingestMetadata.remove("pipeline");
+                }
                 handler.accept(result, e);
             });
         } else {
@@ -692,7 +697,6 @@ public final class IngestDocument {
 
     public enum MetaData {
         INDEX(IndexFieldMapper.NAME),
-        TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),

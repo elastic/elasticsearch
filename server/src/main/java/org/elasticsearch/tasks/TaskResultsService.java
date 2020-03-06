@@ -67,8 +67,6 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
 
-    public static final String TASK_TYPE = "task";
-
     public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-index-mapping.json";
 
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
@@ -103,7 +101,7 @@ public class TaskResultsService {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(taskResultIndexSettings());
             createIndexRequest.index(TASK_INDEX);
-            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
+            createIndexRequest.mapping(taskResultIndexMapping());
             createIndexRequest.cause("auto(task api)");
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {

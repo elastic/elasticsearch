@@ -232,7 +232,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * Wrap a {@link HttpHandler} to log any thrown exception using the given {@link Logger}.
      */
-    private static HttpHandler wrap(final HttpHandler handler, final Logger logger) {
+    public static HttpHandler wrap(final HttpHandler handler, final Logger logger) {
         return exchange -> {
             try {
                 handler.handle(exchange);

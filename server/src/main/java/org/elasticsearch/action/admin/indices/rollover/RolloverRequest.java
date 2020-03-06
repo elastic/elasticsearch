@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -74,7 +75,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
-            request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappings);
+            request.createIndexRequest.mapping(mappings);
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
             CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
@@ -157,6 +158,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      */
     public void dryRun(boolean dryRun) {
         this.dryRun = dryRun;
+    }
+
+    /**
+     * Sets the wait for active shards configuration for the rolled index that gets created.
+     */
+    public void setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        createIndexRequest.waitForActiveShards(waitForActiveShards);
     }
 
     /**

@@ -85,9 +85,9 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -768,6 +768,13 @@ public class TasksIT extends ESIntegTestCase {
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
+
+        // run it again to check that the tasks index has been successfully created and can be re-used
+        client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
+
+        events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
+
+        assertEquals(2, events.size());
     }
 
     public void testTaskStoringFailureResult() throws Exception {
@@ -779,7 +786,7 @@ public class TasksIT extends ESIntegTestCase {
         request.setShouldBlock(false);
 
         // Start non-blocking test task that should fail
-        assertThrows(
+        assertFutureThrows(
             client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request),
             IllegalStateException.class
         );

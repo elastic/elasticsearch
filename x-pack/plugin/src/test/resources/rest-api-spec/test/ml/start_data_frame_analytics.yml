@@ -31,7 +31,7 @@
         index: missing
 
   - do:
-      catch: /No index matches source index \[missing]/
+      catch: /.*Validation Failed.* no such index \[missing\]/
       ml.start_data_frame_analytics:
         id: "missing_index"
 
@@ -142,7 +142,7 @@
         id: "start_given_empty_dest_index"
 
 ---
-"Test start classification analysis when the dependent variable cardinality is too high":
+"Test start classification analysis when the dependent variable cardinality is too low or too high":
   - do:
       indices.create:
         index: index-with-dep-var-with-too-high-card
@@ -153,9 +153,32 @@
               keyword_field: { type: "keyword" }
 
   - do:
+      ml.put_data_frame_analytics:
+        id: "classification-cardinality-limits"
+        body: >
+          {
+            "source": {
+              "index": "index-with-dep-var-with-too-high-card"
+            },
+            "dest": {
+              "index": "index-with-dep-var-with-too-high-card-dest"
+            },
+            "analysis": { "classification": { "dependent_variable": "keyword_field" } }
+          }
+
+  - do:
       index:
         index: index-with-dep-var-with-too-high-card
         body: { numeric_field: 1.0, keyword_field: "class_a" }
+
+  - do:
+      indices.refresh:
+        index: index-with-dep-var-with-too-high-card
+
+  - do:
+      catch: /Field \[keyword_field\] must have at least \[2\] distinct values but there were \[1\]/
+      ml.start_data_frame_analytics:
+        id: "classification-cardinality-limits"
 
   - do:
       index:
@@ -172,20 +195,6 @@
         index: index-with-dep-var-with-too-high-card
 
   - do:
-      ml.put_data_frame_analytics:
-        id: "too-high-card"
-        body: >
-          {
-            "source": {
-              "index": "index-with-dep-var-with-too-high-card"
-            },
-            "dest": {
-              "index": "index-with-dep-var-with-too-high-card-dest"
-            },
-            "analysis": { "classification": { "dependent_variable": "keyword_field" } }
-          }
-
-  - do:
       catch: /Field \[keyword_field\] must have at most \[2\] distinct values but there were at least \[3\]/
       ml.start_data_frame_analytics:
-        id: "too-high-card"
+        id: "classification-cardinality-limits"

@@ -60,9 +60,6 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                 final LeafBucketCollector sub) throws IOException {
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        if (subCollectors == null) {
-            subCollectors = sub;
-        }
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -84,7 +81,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                             continue;
                         }
 
-                        doCollect(bytes, docId);
+                        doCollect(sub, bytes, docId);
                         previous.copyBytes(bytes);
                     }
                 }
@@ -158,7 +155,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
         }
 
-        CollectionUtil.introSort(buckets, ORDER.comparator(this));
+        CollectionUtil.introSort(buckets, ORDER.comparator());
         return new StringRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
     }
 

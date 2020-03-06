@@ -71,7 +71,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -145,7 +145,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(0, 1), new GeoPoint(0, 4), new GeoPoint(0, 10)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -210,7 +210,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -258,7 +258,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     }
 
     public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("index").addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        assertAcked(prepareCreate("index").setMapping(LOCATION_FIELD, "type=geo_point"));
         indexRandom(true,
                 client().prepareIndex("index").setId("d1")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
@@ -330,8 +330,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     }
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
-        assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field", "type=keyword",
+        assertAcked(prepareCreate("test1").setMapping(
+                "str_field", "type=keyword",
                 "long_field", "type=long",
                 "double_field", "type=double").get());
         assertAcked(prepareCreate("test2").get());

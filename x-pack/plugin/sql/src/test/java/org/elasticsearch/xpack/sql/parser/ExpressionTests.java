@@ -6,22 +6,21 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.literal.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.Duration;
 import java.time.Period;
@@ -29,6 +28,10 @@ import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
@@ -47,7 +50,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Boolean.TRUE, l.value());
-        assertEquals(DataType.BOOLEAN, l.dataType());
+        assertEquals(BOOLEAN, l.dataType());
     }
 
     public void testLiteralDouble() {
@@ -55,7 +58,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Double.MAX_VALUE, l.value());
-        assertEquals(DataType.DOUBLE, l.dataType());
+        assertEquals(DOUBLE, l.dataType());
     }
 
     public void testLiteralDoubleNegative() {
@@ -63,7 +66,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Double.MIN_VALUE, l.value());
-        assertEquals(DataType.DOUBLE, l.dataType());
+        assertEquals(DOUBLE, l.dataType());
     }
 
     public void testLiteralDoublePositive() {
@@ -71,7 +74,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Double.MAX_VALUE, l.value());
-        assertEquals(DataType.DOUBLE, l.dataType());
+        assertEquals(DOUBLE, l.dataType());
     }
 
     public void testLiteralLong() {
@@ -79,14 +82,14 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Long.MAX_VALUE, l.value());
-        assertEquals(DataType.LONG, l.dataType());
+        assertEquals(LONG, l.dataType());
     }
 
     public void testLiteralLongNegative() {
         Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
         assertTrue(lt.foldable());
         assertEquals(Long.MIN_VALUE, lt.fold());
-        assertEquals(DataType.LONG, lt.dataType());
+        assertEquals(LONG, lt.dataType());
     }
 
     public void testLiteralLongPositive() {
@@ -94,7 +97,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Long.MAX_VALUE, l.value());
-        assertEquals(DataType.LONG, l.dataType());
+        assertEquals(LONG, l.dataType());
     }
 
     public void testLiteralInteger() {
@@ -102,7 +105,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Integer.MAX_VALUE, l.value());
-        assertEquals(DataType.INTEGER, l.dataType());
+        assertEquals(INTEGER, l.dataType());
     }
 
     public void testLiteralIntegerWithShortValue() {
@@ -110,7 +113,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals((int) Short.MAX_VALUE, l.value());
-        assertEquals(DataType.INTEGER, l.dataType());
+        assertEquals(INTEGER, l.dataType());
     }
 
     public void testLiteralIntegerWithByteValue() {
@@ -118,7 +121,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals((int) Byte.MAX_VALUE, l.value());
-        assertEquals(DataType.INTEGER, l.dataType());
+        assertEquals(INTEGER, l.dataType());
     }
 
     public void testLiteralIntegerInvalid() {
@@ -156,7 +159,7 @@ public class ExpressionTests extends ESTestCase {
         int randomSecond = randomInt(59);
         int randomMilli = randomInt(999);
 
-        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%03d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
         assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
                 .plusMillis(randomMilli), intervalOf(value));
@@ -169,7 +172,7 @@ public class ExpressionTests extends ESTestCase {
         int randomSecond = randomInt(59);
         int randomMilli = randomInt(999);
 
-        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%03d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
         assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
                 .plusMillis(randomMilli).negated(), intervalOf(value));
@@ -189,7 +192,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Mul.class, expr.getClass());
         Mul mul = (Mul) expr;
         assertEquals("10 *2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testFunctionTimesLiteral() {
@@ -219,13 +222,13 @@ public class ExpressionTests extends ESTestCase {
         double value = randomDouble();
         StringBuilder sb = new StringBuilder("-");
         for (int i = 0; i < numberOfParentheses; i++) {
-            sb.append("(").append(TestUtils.randomWhitespaces());
+            sb.append("(").append(SqlTestUtils.randomWhitespaces());
         }
         sb.append(value);
         for (int i = 0; i < numberOfParentheses; i++) {
             sb.append(")");
             if (i < numberOfParentheses - 1) {
-                sb.append(TestUtils.randomWhitespaces());
+                sb.append(SqlTestUtils.randomWhitespaces());
             }
         }
         expr = parser.createExpression(sb.toString());
@@ -288,26 +291,26 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("CAST(10* 2 AS long)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
         assertEquals("10* 2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testCastWithQuotedDataType() {
         Expression expr = parser.createExpression("CAST(10*2 AS \"LonG\")");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
         assertEquals("10*2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testCastWithInvalidDataType() {
@@ -319,39 +322,39 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("(10* 2::long)");
         assertEquals(Mul.class, expr.getClass());
         Mul mul = (Mul) expr;
-        assertEquals(DataType.LONG, mul.dataType());
-        assertEquals(DataType.INTEGER, mul.left().dataType());
+        assertEquals(LONG, mul.dataType());
+        assertEquals(INTEGER, mul.left().dataType());
         assertEquals(Cast.class, mul.right().getClass());
         Cast cast = (Cast) mul.right();
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
     }
 
     public void testCastOperatorWithUnquotedDataType() {
         Expression expr = parser.createExpression("(10* 2)::long");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
         assertEquals("10* 2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testCastOperatorWithQuotedDataType() {
         Expression expr = parser.createExpression("(10*2)::\"LonG\"");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
         assertEquals("10*2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testCastOperatorWithInvalidDataType() {
@@ -363,13 +366,13 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("CONVERT(10*2, long)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
         assertEquals("10*2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testConvertWithQuotedDataType() {
@@ -378,31 +381,31 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
         assertEquals(e, cast.sourceText());
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
         assertEquals("10*2", mul.sourceText());
-        assertEquals(DataType.INTEGER, mul.dataType());
+        assertEquals(INTEGER, mul.dataType());
     }
 
     public void testConvertWithUnquotedODBCDataType() {
         Expression expr = parser.createExpression("CONVERT(1, Sql_BigInt)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
     }
 
     public void testConvertWithQuotedODBCDataType() {
         Expression expr = parser.createExpression("CONVERT(1, \"sql_BIGint\")");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
-        assertEquals(DataType.INTEGER, cast.from());
-        assertEquals(DataType.LONG, cast.to());
-        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(INTEGER, cast.from());
+        assertEquals(LONG, cast.to());
+        assertEquals(LONG, cast.dataType());
     }
 
     public void testConvertWithInvalidODBCDataType() {

@@ -39,7 +39,7 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public <T extends ScriptFactory> T compile(String name, String script, ScriptContext<T> context, Map<String, String> params) {
+    public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> params) {
         if (script.contains("{{") && script.contains("}}")) {
             throw new IllegalArgumentException("Fix your test to not rely on mustache");
         }

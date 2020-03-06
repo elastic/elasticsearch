@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,10 +22,12 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -37,24 +42,28 @@ import java.util.stream.Collectors;
 import static java.util.Comparator.comparing;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * {@link MulticlassConfusionMatrix} is a metric that answers the question:
- *   "How many examples belonging to class X were classified as Y by the classifier?"
+ *   "How many documents belonging to class X were classified as Y by the classifier?"
  * for all the possible class pairs {X, Y}.
  */
-public class MulticlassConfusionMatrix implements ClassificationMetric {
+public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("multiclass_confusion_matrix");
 
     public static final ParseField SIZE = new ParseField("size");
+    public static final ParseField AGG_NAME_PREFIX = new ParseField("agg_name_prefix");
 
     private static final ConstructingObjectParser<MulticlassConfusionMatrix, Void> PARSER = createParser();
 
     private static ConstructingObjectParser<MulticlassConfusionMatrix, Void> createParser() {
         ConstructingObjectParser<MulticlassConfusionMatrix, Void>  parser =
-            new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new MulticlassConfusionMatrix((Integer) args[0]));
+            new ConstructingObjectParser<>(
+                NAME.getPreferredName(), true, args -> new MulticlassConfusionMatrix((Integer) args[0], (String) args[1]));
         parser.declareInt(optionalConstructorArg(), SIZE);
+        parser.declareString(optionalConstructorArg(), AGG_NAME_PREFIX);
         return parser;
     }
 
@@ -62,36 +71,44 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final String STEP_1_AGGREGATE_BY_ACTUAL_CLASS = NAME.getPreferredName() + "_step_1_by_actual_class";
-    private static final String STEP_2_AGGREGATE_BY_ACTUAL_CLASS = NAME.getPreferredName() + "_step_2_by_actual_class";
-    private static final String STEP_2_AGGREGATE_BY_PREDICTED_CLASS = NAME.getPreferredName() + "_step_2_by_predicted_class";
-    private static final String STEP_2_CARDINALITY_OF_ACTUAL_CLASS = NAME.getPreferredName() + "_step_2_cardinality_of_actual_class";
+    static final String STEP_1_AGGREGATE_BY_ACTUAL_CLASS = NAME.getPreferredName() + "_step_1_by_actual_class";
+    static final String STEP_2_AGGREGATE_BY_ACTUAL_CLASS = NAME.getPreferredName() + "_step_2_by_actual_class";
+    static final String STEP_2_AGGREGATE_BY_PREDICTED_CLASS = NAME.getPreferredName() + "_step_2_by_predicted_class";
+    static final String STEP_2_CARDINALITY_OF_ACTUAL_CLASS = NAME.getPreferredName() + "_step_2_cardinality_of_actual_class";
     private static final String OTHER_BUCKET_KEY = "_other_";
+    private static final String DEFAULT_AGG_NAME_PREFIX = "";
     private static final int DEFAULT_SIZE = 10;
     private static final int MAX_SIZE = 1000;
 
     private final int size;
-    private List<String> topActualClassNames;
-    private Result result;
+    private final String aggNamePrefix;
+    private final SetOnce<List<String>> topActualClassNames = new SetOnce<>();
+    private final SetOnce<Result> result = new SetOnce<>();
 
     public MulticlassConfusionMatrix() {
-        this((Integer) null);
+        this(null, null);
     }
 
-    public MulticlassConfusionMatrix(@Nullable Integer size) {
+    public MulticlassConfusionMatrix(@Nullable Integer size, @Nullable String aggNamePrefix) {
         if (size != null && (size <= 0 || size > MAX_SIZE)) {
             throw ExceptionsHelper.badRequestException("[{}] must be an integer in [1, {}]", SIZE.getPreferredName(), MAX_SIZE);
         }
         this.size = size != null ? size : DEFAULT_SIZE;
+        this.aggNamePrefix = aggNamePrefix != null ? aggNamePrefix : DEFAULT_AGG_NAME_PREFIX;
     }
 
     public MulticlassConfusionMatrix(StreamInput in) throws IOException {
         this.size = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            this.aggNamePrefix = in.readString();
+        } else {
+            this.aggNamePrefix = DEFAULT_AGG_NAME_PREFIX;
+        }
     }
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(Classification.NAME, NAME);
     }
 
     @Override
@@ -104,48 +121,52 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     }
 
     @Override
-    public final List<AggregationBuilder> aggs(String actualField, String predictedField) {
-        if (topActualClassNames == null) {  // This is step 1
-            return List.of(
-                AggregationBuilders.terms(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)
-                    .field(actualField)
-                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                    .size(size));
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+        if (topActualClassNames.get() == null) {  // This is step 1
+            return Tuple.tuple(
+                List.of(
+                    AggregationBuilders.terms(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS))
+                        .field(actualField)
+                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                        .size(size)),
+                List.of());
         }
-        if (result == null) {  // This is step 2
+        if (result.get() == null) {  // This is step 2
             KeyedFilter[] keyedFiltersActual =
-                topActualClassNames.stream()
+                topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(actualField, className)))
                     .toArray(KeyedFilter[]::new);
             KeyedFilter[] keyedFiltersPredicted =
-                topActualClassNames.stream()
+                topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
-            return List.of(
-                AggregationBuilders.cardinality(STEP_2_CARDINALITY_OF_ACTUAL_CLASS)
-                    .field(actualField),
-                AggregationBuilders.filters(STEP_2_AGGREGATE_BY_ACTUAL_CLASS, keyedFiltersActual)
-                    .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFiltersPredicted)
-                        .otherBucket(true)
-                        .otherBucketKey(OTHER_BUCKET_KEY)));
+            return Tuple.tuple(
+                List.of(
+                    AggregationBuilders.cardinality(aggName(STEP_2_CARDINALITY_OF_ACTUAL_CLASS))
+                        .field(actualField),
+                    AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS), keyedFiltersActual)
+                        .subAggregation(AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_PREDICTED_CLASS), keyedFiltersPredicted)
+                            .otherBucket(true)
+                            .otherBucketKey(OTHER_BUCKET_KEY))),
+                List.of());
         }
-        return List.of();
+        return Tuple.tuple(List.of(), List.of());
     }
 
     @Override
     public void process(Aggregations aggs) {
-        if (topActualClassNames == null && aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS) != null) {
-            Terms termsAgg = aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS);
-            topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
+        if (topActualClassNames.get() == null && aggs.get(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
+            Terms termsAgg = aggs.get(aggName(STEP_1_AGGREGATE_BY_ACTUAL_CLASS));
+            topActualClassNames.set(termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList()));
         }
-        if (result == null && aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS) != null) {
-            Cardinality cardinalityAgg = aggs.get(STEP_2_CARDINALITY_OF_ACTUAL_CLASS);
-            Filters filtersAgg = aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS);
+        if (result.get() == null && aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS)) != null) {
+            Cardinality cardinalityAgg = aggs.get(aggName(STEP_2_CARDINALITY_OF_ACTUAL_CLASS));
+            Filters filtersAgg = aggs.get(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS));
             List<ActualClass> actualClasses = new ArrayList<>(filtersAgg.getBuckets().size());
             for (Filters.Bucket bucket : filtersAgg.getBuckets()) {
                 String actualClass = bucket.getKeyAsString();
                 long actualClassDocCount = bucket.getDocCount();
-                Filters subAgg = bucket.getAggregations().get(STEP_2_AGGREGATE_BY_PREDICTED_CLASS);
+                Filters subAgg = bucket.getAggregations().get(aggName(STEP_2_AGGREGATE_BY_PREDICTED_CLASS));
                 List<PredictedClass> predictedClasses = new ArrayList<>();
                 long otherPredictedClassDocCount = 0;
                 for (Filters.Bucket subBucket : subAgg.getBuckets()) {
@@ -160,18 +181,25 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
                 predictedClasses.sort(comparing(PredictedClass::getPredictedClass));
                 actualClasses.add(new ActualClass(actualClass, actualClassDocCount, predictedClasses, otherPredictedClassDocCount));
             }
-            result = new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0));
+            result.set(new Result(actualClasses, Math.max(cardinalityAgg.getValue() - size, 0)));
         }
     }
 
+    private String aggName(String aggNameWithoutPrefix) {
+        return aggNamePrefix + aggNameWithoutPrefix;
+    }
+
     @Override
-    public Optional<EvaluationMetricResult> getResult() {
-        return Optional.ofNullable(result);
+    public Optional<Result> getResult() {
+        return Optional.ofNullable(result.get());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeString(aggNamePrefix);
+        }
     }
 
     @Override
@@ -187,12 +215,13 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MulticlassConfusionMatrix that = (MulticlassConfusionMatrix) o;
-        return Objects.equals(this.size, that.size);
+        return this.size == that.size
+            && Objects.equals(this.aggNamePrefix, that.aggNamePrefix);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(size);
+        return Objects.hash(size, aggNamePrefix);
     }
 
     public static class Result implements EvaluationMetricResult {
@@ -231,7 +260,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(Classification.NAME, NAME);
         }
 
         @Override
@@ -300,7 +329,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         /** Name of the actual class. */
         private final String actualClass;
-        /** Number of documents (examples) belonging to the {code actualClass} class. */
+        /** Number of documents belonging to the {code actualClass} class. */
         private final long actualClassDocCount;
         /** List of predicted classes. */
         private final List<PredictedClass> predictedClasses;
@@ -324,6 +353,10 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         public String getActualClass() {
             return actualClass;
+        }
+
+        public long getActualClassDocCount() {
+            return actualClassDocCount;
         }
 
         public List<PredictedClass> getPredictedClasses() {
@@ -400,6 +433,10 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         public String getPredictedClass() {
             return predictedClass;
+        }
+
+        public long getCount() {
+            return count;
         }
 
         @Override

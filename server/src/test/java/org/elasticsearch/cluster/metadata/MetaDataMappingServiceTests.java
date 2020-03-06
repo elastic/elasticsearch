@@ -44,7 +44,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testMappingClusterStateUpdateDoesntChangeExistingIndices() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
         final CompressedXContent currentMapping = indexService.mapperService().documentMapper().mappingSource();
 
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
@@ -67,7 +67,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        createIndex("test", client().admin().indices().prepareCreate("test"));
 
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -85,7 +85,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testMappingVersion() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final long previousVersion = indexService.getMetaData().getMappingVersion();
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -100,7 +100,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testMappingVersionUnchanged() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
         final long previousVersion = indexService.getMetaData().getMappingVersion();
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);

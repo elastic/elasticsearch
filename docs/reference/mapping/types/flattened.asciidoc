@@ -131,11 +131,6 @@ The following mapping parameters are accepted:
 
 [horizontal]
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number,
-    defaults to `1.0`.
-
 `depth_limit`::
 
     The maximum allowed depth of the flattened object field, in terms of nested

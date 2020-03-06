@@ -126,7 +126,7 @@ public class AppendProcessorTests extends ESTestCase {
     public void testAppendMetadataExceptVersion() throws Exception {
         // here any metadata field value becomes a list, which won't make sense in most of the cases,
         // but support for append is streamlined like for set so we test it
-        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING);
+        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.ID, MetaData.ROUTING);
         List<String> values = new ArrayList<>();
         Processor appendProcessor;
         if (randomBoolean()) {

@@ -3,6 +3,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 
@@ -10,9 +11,12 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
@@ -22,10 +26,9 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
 
-    @Option(
-        option = "debug-jvm",
-        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-    )
+    private Path dataDir = null;
+
+    @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
         this.debug = enabled;
     }
@@ -35,17 +38,43 @@ public class RunTask extends DefaultTestClustersTask {
         return debug;
     }
 
+    @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
+    public void setDataDir(String dataDirStr) {
+        dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Input
+    @Optional
+    public String getDataDir() {
+        if (dataDir == null) {
+            return null;
+        }
+        return dataDir.toString();
+    }
+
     @Override
     public void beforeStart() {
         int debugPort = 5005;
         int httpPort = 9200;
         int transportPort = 9300;
-        Map<String, String> additionalSettings = System.getProperties().entrySet().stream()
+        Map<String, String> additionalSettings = System.getProperties()
+            .entrySet()
+            .stream()
             .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
-            .collect(Collectors.toMap(
-                entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
-                entry -> entry.getValue().toString()
-            ));
+            .collect(
+                Collectors.toMap(
+                    entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
+                    entry -> entry.getValue().toString()
+                )
+            );
+        boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        final Function<ElasticsearchNode, Path> getDataPath;
+        if (singleNode) {
+            getDataPath = n -> dataDir;
+        } else {
+            getDataPath = n -> dataDir.resolve(n.getName());
+        }
+
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
             httpPort++;
@@ -53,11 +82,11 @@ public class RunTask extends DefaultTestClustersTask {
             transportPort++;
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
+                if (dataDir != null) {
+                    node.setDataPath(getDataPath.apply(node));
+                }
                 if (debug) {
-                    logger.lifecycle(
-                        "Running elasticsearch in debug mode, {} suspending until connected on debugPort {}",
-                        node, debugPort
-                    );
+                    logger.lifecycle("Running elasticsearch in debug mode, {} suspending until connected on debugPort {}", node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 }

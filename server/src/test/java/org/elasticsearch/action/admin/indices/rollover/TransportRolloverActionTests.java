@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -80,6 +79,7 @@ import org.mockito.ArgumentCaptor;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -91,7 +91,9 @@ import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -219,15 +221,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         results2.forEach((k, v) -> assertFalse(v));
     }
 
-    public void testCreateUpdateAliasRequest() {
+    public void testRolloverAliasActions() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
-        List<AliasAction> actions = updateRequest.actions();
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, false, null);
         assertThat(actions, hasSize(2));
         boolean foundAdd = false;
         boolean foundRemove = false;
@@ -246,15 +246,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertTrue(foundRemove);
     }
 
-    public void testCreateUpdateAliasRequestWithExplicitWriteIndex() {
+    public void testRolloverAliasActionsWithExplicitWriteIndex() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, true, null);
 
-        List<AliasAction> actions = updateRequest.actions();
         assertThat(actions, hasSize(2));
         boolean foundAddWrite = false;
         boolean foundRemoveWrite = false;
@@ -267,6 +265,68 @@ public class TransportRolloverActionTests extends ESTestCase {
             } else if (action.getIndex().equals(sourceIndex)) {
                 assertEquals(sourceAlias, addAction.getAlias());
                 assertFalse(addAction.writeIndex());
+                foundRemoveWrite = true;
+            } else {
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
+            }
+        }
+        assertTrue(foundAddWrite);
+        assertTrue(foundRemoveWrite);
+    }
+
+    public void testRolloverAliasActionsWithHiddenAliasAndExplicitWriteIndex() {
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
+        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, true, true);
+
+        assertThat(actions, hasSize(2));
+        boolean foundAddWrite = false;
+        boolean foundRemoveWrite = false;
+        for (AliasAction action : actions) {
+            assertThat(action, instanceOf(AliasAction.Add.class));
+            AliasAction.Add addAction = (AliasAction.Add) action;
+            if (action.getIndex().equals(targetIndex)) {
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertTrue(addAction.writeIndex());
+                assertTrue(addAction.isHidden());
+                foundAddWrite = true;
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertFalse(addAction.writeIndex());
+                assertTrue(addAction.isHidden());
+                foundRemoveWrite = true;
+            } else {
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
+            }
+        }
+        assertTrue(foundAddWrite);
+        assertTrue(foundRemoveWrite);
+    }
+
+    public void testRolloverAliasActionsWithHiddenAliasAndImplicitWriteIndex() {
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
+        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
+        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, false, true);
+
+        assertThat(actions, hasSize(2));
+        boolean foundAddWrite = false;
+        boolean foundRemoveWrite = false;
+        for (AliasAction action : actions) {
+            if (action.getIndex().equals(targetIndex)) {
+                assertThat(action, instanceOf(AliasAction.Add.class));
+                AliasAction.Add addAction = (AliasAction.Add) action;
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertThat(addAction.writeIndex(), nullValue());
+                assertTrue(addAction.isHidden());
+                foundAddWrite = true;
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertThat(action, instanceOf(AliasAction.Remove.class));
+                AliasAction.Remove removeAction = (AliasAction.Remove) action;
+                assertEquals(sourceAlias, removeAction.getAlias());
                 foundRemoveWrite = true;
             } else {
                 throw new AssertionError("Unknown index [" + action.getIndex() + "]");
@@ -364,7 +424,24 @@ public class TransportRolloverActionTests extends ESTestCase {
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName));
+            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testHiddenAffectsResolvedTemplates() {
+        final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
+            .patterns(Collections.singletonList("*"))
+            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
+            .build();
+        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+
+        // hidden shouldn't throw
+        TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, Boolean.TRUE);
+        // not hidden will throw
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 

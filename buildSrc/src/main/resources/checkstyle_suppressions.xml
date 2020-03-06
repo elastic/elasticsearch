@@ -10,6 +10,7 @@
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]antlr[/\\]PainlessLexer\.java" checks="." />
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]antlr[/\\]PainlessParser(|BaseVisitor|Visitor)\.java" checks="." />
   <suppress files="plugin[/\\]sql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]SqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
+  <suppress files="plugin[/\\]eql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]eql[/\\]parser[/\\]EqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
 
   <!-- JNA requires the no-argument constructor on JNAKernel32Library.SizeT to be public-->
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JNAKernel32Library.java" checks="RedundantModifier" />

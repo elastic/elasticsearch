@@ -15,8 +15,8 @@ import javax.net.ssl.SSLContext;
  */
 public class TestsSSLService extends SSLService {
 
-    public TestsSSLService(Settings settings, Environment environment) {
-        super(settings, environment);
+    public TestsSSLService(Environment environment) {
+        super(environment);
     }
 
     /**

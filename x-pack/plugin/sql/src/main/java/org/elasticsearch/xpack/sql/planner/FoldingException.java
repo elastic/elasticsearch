@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.sql.ClientSqlException;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.sql.SqlClientException;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-public class FoldingException extends ClientSqlException {
+public class FoldingException extends SqlClientException {
 
     private final int line;
     private final int column;

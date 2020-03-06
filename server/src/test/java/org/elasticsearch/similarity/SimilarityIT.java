@@ -38,8 +38,8 @@ public class SimilarityIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject()
-                        .startObject("type1")
+                .setMapping(jsonBuilder().startObject()
+                        .startObject("_doc")
                             .startObject("properties")
                                 .startObject("field1")
                                     .field("similarity", "custom")

@@ -43,6 +43,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
@@ -59,17 +60,6 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         this.bufferSize = bufferSize;
     }
 
-    @Override
-    public void deleteBlob(String blobName) throws IOException {
-        try {
-            if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
-                throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-            }
-        } catch (FileNotFoundException fnfe) {
-            throw new NoSuchFileException("[" + blobName + "] blob not found");
-        }
-    }
-
     // TODO: See if we can get precise result reporting.
     private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
 
@@ -77,6 +67,27 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     public DeleteResult delete() throws IOException {
         store.execute(fileContext -> fileContext.delete(path, true));
         return DELETE_RESULT;
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(final List<String> blobNames) throws IOException {
+        IOException ioe = null;
+        for (String blobName : blobNames) {
+            try {
+                store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
+            } catch (final FileNotFoundException ignored) {
+                // This exception is ignored
+            } catch (IOException e) {
+                if (ioe == null) {
+                    ioe = e;
+                } else {
+                    ioe.addSuppressed(e);
+                }
+            }
+        }
+        if (ioe != null) {
+            throw ioe;
+        }
     }
 
     @Override

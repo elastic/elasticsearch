@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private static final String index = "someindex";
-    private static final String type = "testtype";
 
     private static String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
@@ -59,7 +58,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
             textMappings = "type=text,fielddata=true";
         }
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping(type, "text", textMappings));
+                .setMapping("text", textMappings));
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, 0, indexBuilders);//high score but low doc freq
@@ -118,7 +117,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
             termMappings += ",fielddata=true";
         }
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .addMapping(type, "text", termMappings));
+            .setMapping("text", termMappings));
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, indexBuilders);//low doc freq but high score

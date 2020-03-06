@@ -159,6 +159,7 @@ public class AnalyticsResultProcessor {
         }
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {
+            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), progressPercent);
             statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
         }
         TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();

@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.privileges.UserPrivilegeResolver;
 import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
@@ -82,11 +84,14 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         SamlInit.initialize();
         final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(environment).build();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
+        final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext);
         final SamlFactory factory = new SamlFactory();
         return List.of(
             idp,
             index,
-            factory
+            factory,
+            userPrivilegeResolver
         );
     }
 

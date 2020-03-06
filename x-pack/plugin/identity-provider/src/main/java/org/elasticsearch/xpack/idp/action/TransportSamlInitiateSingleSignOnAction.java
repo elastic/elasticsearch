@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -14,9 +15,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.idp.privileges.UserPrivilegeResolver;
 import org.elasticsearch.xpack.idp.saml.authn.SuccessfulAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -26,9 +27,6 @@ import org.opensaml.saml.saml2.core.Response;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 public class TransportSamlInitiateSingleSignOnAction
     extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
@@ -38,14 +36,17 @@ public class TransportSamlInitiateSingleSignOnAction
     private final SecurityContext securityContext;
     private final SamlIdentityProvider identityProvider;
     private final SamlFactory samlFactory;
+    private final UserPrivilegeResolver privilegeResolver;
 
     @Inject
     public TransportSamlInitiateSingleSignOnAction(TransportService transportService, ActionFilters actionFilters,
-                                                   SecurityContext securityContext, SamlIdentityProvider idp, SamlFactory factory) {
+                                                   SecurityContext securityContext, SamlIdentityProvider idp, SamlFactory factory,
+                                                   UserPrivilegeResolver privilegeResolver) {
         super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
         this.securityContext = securityContext;
         this.identityProvider = idp;
         this.samlFactory = factory;
+        this.privilegeResolver = privilegeResolver;
     }
 
     @Override
@@ -66,14 +67,25 @@ public class TransportSamlInitiateSingleSignOnAction
                         listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
                         return;
                     }
-                    final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
-                    final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
-                        samlFactory, Clock.systemUTC(), identityProvider);
-                    final Response response = builder.build(user, null);
-                    listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                        user.getServiceProvider().getAssertionConsumerService().toString(),
-                        samlFactory.getXmlContent(response),
-                        user.getServiceProvider().getEntityId()));
+                    buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(
+                        user -> {
+                            if (user == null) {
+                                // TODO return SAML failure instead?
+                                listener.onFailure(new ElasticsearchSecurityException("User [{}] is not permitted to access service [{}]",
+                                    secondaryAuthentication.getUser(), sp));
+                                return;
+                            }
+                            final SuccessfulAuthenticationResponseMessageBuilder builder =
+                                new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider);
+                            final Response response = builder.build(user, null);
+                            listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                                user.getServiceProvider().getAssertionConsumerService().toString(),
+                                samlFactory.getXmlContent(response),
+                                user.getServiceProvider().getEntityId()));
+                        },
+                        listener::onFailure
+                    ));
+
                 } catch (IOException e) {
                     listener.onFailure(new IllegalArgumentException(e.getMessage()));
                 }
@@ -82,9 +94,23 @@ public class TransportSamlInitiateSingleSignOnAction
         ));
     }
 
-    private UserServiceAuthentication buildUserFromAuthentication(Authentication authentication, SamlServiceProvider sp) {
-        final User authenticatedUser = authentication.getUser();
-        final Set<String> groups = new HashSet<>(Arrays.asList(authenticatedUser.roles()));
-        return new UserServiceAuthentication(authenticatedUser.principal(), groups, sp);
+    private void buildUserFromAuthentication(SecondaryAuthentication secondaryAuthentication, SamlServiceProvider serviceProvider,
+                                             ActionListener<UserServiceAuthentication> listener) {
+        User user = secondaryAuthentication.getUser();
+        secondaryAuthentication.execute(ignore -> {
+                privilegeResolver.resolve(serviceProvider.getPrivileges(), ActionListener.wrap(
+                    userPrivileges -> {
+                        if (userPrivileges.hasAccess == false) {
+                            listener.onResponse(null);
+                        } else {
+                            listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
+                                userPrivileges.groups, serviceProvider));
+                        }
+                    },
+                    listener::onFailure
+                ));
+                return null;
+            }
+        );
     }
 }

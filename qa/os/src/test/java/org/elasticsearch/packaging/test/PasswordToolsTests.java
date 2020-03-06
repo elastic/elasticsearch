@@ -28,13 +28,15 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.Assume.assumeTrue;
@@ -52,9 +54,12 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test010Install() throws Exception {
         install();
-        append(installation.config("elasticsearch.yml"),
-            "xpack.license.self_generated.type: trial\n" +
-            "xpack.security.enabled: true");
+
+        List<String> lines = new ArrayList<>();
+        lines.add("xpack.license.self_generated.type: trial");
+        lines.add("xpack.security.enabled: true");
+
+        Files.write(installation.config("elasticsearch.yml"), lines, StandardOpenOption.APPEND);
     }
 
     public void test20GeneratePasswords() throws Exception {
@@ -63,7 +68,11 @@ public class PasswordToolsTests extends PackagingTestCase {
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
-                    Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
+                    Request.Get("http://localhost:9200"),
+                    userpass.getKey(),
+                    userpass.getValue(),
+                    null
+                );
                 assertThat(response, containsString("You Know, for Search"));
             }
         });
@@ -112,7 +121,10 @@ public class PasswordToolsTests extends PackagingTestCase {
         assertWhileRunning(() -> {
             String response = ServerUtils.makeRequest(
                 Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
-                "elastic", BOOTSTRAP_PASSWORD, null);
+                "elastic",
+                BOOTSTRAP_PASSWORD,
+                null
+            );
             assertThat(response, containsString("\"status\":\"green\""));
         });
     }
@@ -125,7 +137,11 @@ public class PasswordToolsTests extends PackagingTestCase {
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
-                    Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
+                    Request.Get("http://localhost:9200"),
+                    userpass.getKey(),
+                    userpass.getValue(),
+                    null
+                );
                 assertThat(response, containsString("You Know, for Search"));
             }
         });

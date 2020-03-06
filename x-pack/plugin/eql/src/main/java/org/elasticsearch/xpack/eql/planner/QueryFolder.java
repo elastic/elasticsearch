@@ -6,12 +6,21 @@
 
 package org.elasticsearch.xpack.eql.planner;
 
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -27,7 +36,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         Batch fold = new Batch("Fold queries",
-                new FoldFilter()
+                new FoldFilter(), new FoldOrderBy()
         );
         Batch finish = new Batch("Finish query", Limiter.ONCE,
                 new PlanOutputToQueryRef()
@@ -57,6 +66,38 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
     
+    private static class FoldOrderBy extends FoldingRule<OrderExec> {
+        @Override
+        protected PhysicalPlan rule(OrderExec plan) {
+            if (plan.child() instanceof EsQueryExec) {
+                EsQueryExec exec = (EsQueryExec) plan.child();
+                QueryContainer qContainer = exec.queryContainer();
+
+                for (Order order : plan.order()) {
+                    Direction direction = Direction.from(order.direction());
+                    Missing missing = Missing.from(order.nullsPosition());
+
+                    // check whether sorting is on an group (and thus nested agg) or field
+                    Expression orderExpression = order.child();
+
+                    String lookup = Expressions.id(orderExpression);
+
+                    // field
+                    if (orderExpression instanceof FieldAttribute) {
+                        qContainer = qContainer.addSort(lookup, new AttributeSort((FieldAttribute) orderExpression, direction, missing));
+                    }
+                    // unknown
+                    else {
+                        throw new EqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
+                    }
+                }
+
+                return exec.with(qContainer);
+            }
+            return plan;
+        }
+    }
+
     private static class PlanOutputToQueryRef extends FoldingRule<EsQueryExec> {
         @Override
         protected PhysicalPlan rule(EsQueryExec exec) {

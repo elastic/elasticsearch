@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
+import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -512,7 +513,7 @@ public class JobResultsProvider {
                         }
                         SearchHit hit = hits.getHits()[0];
                         try {
-                            DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER);
+                            DatafeedTimingStats timingStats = MlParserUtils.parse(hit, DatafeedTimingStats.PARSER);
                             timingStatsByJobId.put(jobId, timingStats);
                         } catch (Exception e) {
                             listener.onFailure(e);
@@ -644,38 +645,21 @@ public class JobResultsProvider {
                                                       SearchHit hit) {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
-            paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER));
+            paramsBuilder.setDataCounts(MlParserUtils.parse(hit, DataCounts.PARSER));
         } else if (TimingStats.documentId(jobId).equals(hitId)) {
-            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER));
+            paramsBuilder.setTimingStats(MlParserUtils.parse(hit, TimingStats.PARSER));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
-            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER);
+            ModelSizeStats.Builder modelSizeStats = MlParserUtils.parse(hit, ModelSizeStats.LENIENT_PARSER);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
         } else if (hitId.startsWith(ModelSnapshot.documentIdPrefix(jobId))) {
-            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.LENIENT_PARSER);
+            ModelSnapshot.Builder modelSnapshot = MlParserUtils.parse(hit, ModelSnapshot.LENIENT_PARSER);
             paramsBuilder.setModelSnapshot(modelSnapshot == null ? null : modelSnapshot.build());
         } else if (Quantiles.documentId(jobId).equals(hit.getId())) {
-            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.LENIENT_PARSER));
+            paramsBuilder.setQuantiles(MlParserUtils.parse(hit, Quantiles.LENIENT_PARSER));
         } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
-            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.LENIENT_PARSER).build());
+            paramsBuilder.addFilter(MlParserUtils.parse(hit, MlFilter.LENIENT_PARSER).build());
         } else {
             throw new IllegalStateException("Unexpected Id [" + hitId + "]");
-        }
-    }
-
-    /**
-     * @param hit The search hit to parse
-     * @param objectParser Parser for the object of type T
-     * @return The parsed value of T from the search hit
-     * @throws ElasticsearchException on failure
-     */
-    private static <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser) {
-        BytesReference source = hit.getSourceRef();
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return objectParser.apply(parser, null);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse " + hit.getId(), e);
         }
     }
 
@@ -1124,7 +1108,7 @@ public class JobResultsProvider {
                                 handler.accept(new Result<>(null, notFoundSupplier.get()));
                             } else if (hits.length == 1) {
                                 try {
-                                    T result = parseSearchHit(hits[0], objectParser);
+                                    T result = MlParserUtils.parse(hits[0], objectParser);
                                     handler.accept(new Result<>(hits[0].getIndex(), result));
                                 } catch (Exception e) {
                                     errorHandler.accept(e);
@@ -1268,7 +1252,7 @@ public class JobResultsProvider {
                             SearchHit[] hits = response.getHits().getHits();
                             try {
                                 for (SearchHit hit : hits) {
-                                    ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.LENIENT_PARSER);
+                                    ScheduledEvent.Builder event = MlParserUtils.parse(hit, ScheduledEvent.LENIENT_PARSER);
 
                                     event.eventId(hit.getId());
                                     events.add(event.build());
@@ -1400,7 +1384,7 @@ public class JobResultsProvider {
                             SearchHit[] hits = response.getHits().getHits();
                             try {
                                 for (SearchHit hit : hits) {
-                                    calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER).build());
+                                    calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                                 }
                                 listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));

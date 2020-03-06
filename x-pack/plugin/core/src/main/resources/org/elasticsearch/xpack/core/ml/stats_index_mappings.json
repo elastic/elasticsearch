@@ -1,0 +1,21 @@
+{
+  "${xpack.ml.mapping_type}": {
+    "_meta": {
+      "version" : "${xpack.ml.version}"
+    },
+    "properties" : {
+      "type" : {
+        "type" : "keyword"
+      },
+      "job_id" : {
+        "type" : "keyword"
+      },
+      "timestamp" : {
+        "type" : "date"
+      },
+      "peak_usage_bytes" : {
+        "type" : "long"
+      }
+    }
+  }
+}

@@ -351,6 +351,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "*");
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo"));
+
         results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
         assertEquals(0, results.length);
 

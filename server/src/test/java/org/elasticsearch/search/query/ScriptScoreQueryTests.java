@@ -53,7 +53,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ScriptScoreQueryTests extends ESTestCase {
-    
+
     private Directory dir;
     private IndexWriter w;
     private DirectoryReader reader;
@@ -131,6 +131,14 @@ public class ScriptScoreQueryTests extends ESTestCase {
         assertThat(explanation.getValue(), equalTo(2.0f));
     }
 
+    public void testScriptScoreErrorOnNegativeScore() {
+        Script script = new Script("script that returns a negative score");
+        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> -1000.0);
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
+        assertTrue(e.getMessage().contains("Must be a non-negative score!"));
+    }
+
     private ScoreScript.LeafFactory newFactory(Script script, boolean needsScore,
                                                Function<ScoreScript.ExplanationHolder, Double> function) {
         SearchLookup lookup = mock(SearchLookup.class);
@@ -153,4 +161,5 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
         };
     }
+
 }

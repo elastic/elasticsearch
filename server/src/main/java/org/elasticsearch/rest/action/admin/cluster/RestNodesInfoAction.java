@@ -36,17 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = Sets.newHashSet(
-            "http",
-            "ingest",
-            "indices",
-            "jvm",
-            "os",
-            "plugins",
-            "process",
-            "settings",
-            "thread_pool",
-            "transport");
+    static final Set<String> ALLOWED_METRICS = NodesInfoRequest.Metrics.allMetrics();
 
     private final SettingsFilter settingsFilter;
 

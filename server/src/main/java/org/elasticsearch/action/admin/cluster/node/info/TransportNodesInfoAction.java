@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest,
                                                                    NodesInfoResponse,
@@ -69,8 +70,18 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
         NodesInfoRequest request = nodeRequest.request;
-        return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.transport(), request.http(), request.plugins(), request.ingest(), request.indices());
+        Set<String> metrics = request.requestedMetrics();
+        return nodeService.info(
+            metrics.contains("settings"),
+            metrics.contains("os"),
+            metrics.contains("process"),
+            metrics.contains("jvm"),
+            metrics.contains("threadPool"),
+            metrics.contains("transport"),
+            metrics.contains("http"),
+            metrics.contains("plugins"),
+            metrics.contains("ingest"),
+            metrics.contains("indices"));
     }
 
     public static class NodeInfoRequest extends BaseNodeRequest {

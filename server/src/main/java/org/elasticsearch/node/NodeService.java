@@ -85,6 +85,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(ingestService);
     }
 
+    // TODO: this should take a set of strings argument rather than a bunch of boolean arguments
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                 boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
         return new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(),

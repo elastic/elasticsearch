@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -89,6 +90,41 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
+     * Get the names of requested metrics
+     */
+    public Set<String> requestedMetrics() {
+        return Set.copyOf(requestedMetrics);
+    }
+
+    /**
+     * Add metric
+     */
+    public void addMetric(String metric) {
+        requestedMetrics.add(metric);
+    }
+
+    /**
+     * Add collection of metrics
+     */
+    public void addMetrics(Collection<String> metrics) {
+        requestedMetrics.addAll(metrics);
+    }
+
+    /**
+     * Remove metric
+     */
+    public void removeMetric(String metric) {
+        requestedMetrics.remove(metric);
+    }
+
+    /**
+     * Remove collection of metrics
+     */
+    public void removeMetrics(Collection<String> metrics) {
+        requestedMetrics.removeAll(metrics);
+    }
+
+    /**
      * Should the node settings be returned.
      */
     public boolean settings() {
@@ -106,23 +142,9 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     /**
      * Should the node OS be returned.
      */
-    public boolean os() {
-        return Metrics.OS.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node OS be returned.
-     */
     public NodesInfoRequest os(boolean os) {
         addOrRemoveMetric(os, Metrics.OS.metricName());
         return this;
-    }
-
-    /**
-     * Should the node Process be returned.
-     */
-    public boolean process() {
-        return Metrics.PROCESS.containedIn(requestedMetrics);
     }
 
     /**
@@ -136,23 +158,9 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     /**
      * Should the node JVM be returned.
      */
-    public boolean jvm() {
-        return Metrics.JVM.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node JVM be returned.
-     */
     public NodesInfoRequest jvm(boolean jvm) {
         addOrRemoveMetric(jvm, Metrics.JVM.metricName());
         return this;
-    }
-
-    /**
-     * Should the node Thread Pool info be returned.
-     */
-    public boolean threadPool() {
-        return Metrics.THREAD_POOL.containedIn(requestedMetrics);
     }
 
     /**
@@ -166,23 +174,9 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     /**
      * Should the node Transport be returned.
      */
-    public boolean transport() {
-        return Metrics.TRANSPORT.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node Transport be returned.
-     */
     public NodesInfoRequest transport(boolean transport) {
         addOrRemoveMetric(transport, Metrics.TRANSPORT.metricName());
         return this;
-    }
-
-    /**
-     * Should the node HTTP be returned.
-     */
-    public boolean http() {
-        return Metrics.HTTP.containedIn(requestedMetrics);
     }
 
     /**
@@ -204,13 +198,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * @return true if information about plugins is requested
-     */
-    public boolean plugins() {
-        return Metrics.PLUGINS.containedIn(requestedMetrics);
-    }
-
-    /**
      * Should information about ingest be returned
      * @param ingest true if you want info
      */
@@ -220,26 +207,12 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * @return true if information about ingest is requested
-     */
-    public boolean ingest() {
-        return Metrics.INGEST.containedIn(requestedMetrics);
-    }
-
-    /**
      * Should information about indices (currently just indexing buffers) be returned
      * @param indices true if you want info
      */
     public NodesInfoRequest indices(boolean indices) {
         addOrRemoveMetric(indices, Metrics.INDICES.metricName());
         return this;
-    }
-
-    /**
-     * @return true if information about indices (currently just indexing buffers)
-     */
-    public boolean indices() {
-        return Metrics.INDICES.containedIn(requestedMetrics);
     }
 
     /**
@@ -281,12 +254,12 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * from the nodes information endpoint. Eventually this list list will be
      * pluggable.
      */
-    enum Metrics {
+    public enum Metrics {
         SETTINGS("settings"),
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),
-        THREAD_POOL("threadPool"),
+        THREAD_POOL("thread_pool"),
         TRANSPORT("transport"),
         HTTP("http"),
         PLUGINS("plugins"),
@@ -307,7 +280,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
             return metricNames.contains(this.metricName());
         }
 
-        static Set<String> allMetrics() {
+        public static Set<String> allMetrics() {
             return Arrays.stream(values()).map(Metrics::metricName).collect(Collectors.toSet());
         }
     }

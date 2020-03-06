@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.support.values;
 
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -87,5 +88,12 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
     @Override
     public void setScorer(Scorable scorer) {
         script.setScorer(scorer);
+    }
+
+    @Override
+    public BytesRef normalizeValue(BytesRef value) {
+        script.setNextAggregationValue(value.utf8ToString());
+        Object run = script.execute();
+        return new BytesRef(run.toString());
     }
 }

@@ -283,6 +283,13 @@ public abstract class ValuesSource {
                 }
 
                 @Override
+                public BytesRef normalizeValue(BytesRef value) {
+                    script.setNextAggregationValue(value.utf8ToString());
+                    Object run = script.execute();
+                    return new BytesRef(run.toString());
+                }
+
+                @Override
                 public boolean advanceExact(int doc) throws IOException {
                     if (bytesValues.advanceExact(doc)) {
                         count = bytesValues.docValueCount();

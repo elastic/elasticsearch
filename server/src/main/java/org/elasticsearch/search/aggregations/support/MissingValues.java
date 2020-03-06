@@ -91,6 +91,11 @@ public enum MissingValues {
             public String toString() {
                 return "anon SortedBinaryDocValues of [" + super.toString() + "]";
             }
+
+            @Override
+            public BytesRef normalizeValue(BytesRef value) {
+                return value;
+            }
         };
     }
 

@@ -85,6 +85,11 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
                 return scratch;
             }
 
+            @Override
+            public BytesRef normalizeValue(BytesRef value) {
+                return value;
+            }
+
         };
     }
 

@@ -48,10 +48,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -274,6 +274,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
                         return inValues.advanceExact(doc);
+                    }
+
+                    @Override
+                    public BytesRef normalizeValue(BytesRef value) {
+                        return value;
                     }
                 };
             }

@@ -52,4 +52,10 @@ public abstract class SortedBinaryDocValues {
      */
     public abstract BytesRef nextValue() throws IOException;
 
+    /**
+     * Applies normalization to the value for example a value script if needed.
+     * @return {@link BytesRef} of the normalized value which can be value if no
+     * normalization is required.
+     */
+    public abstract BytesRef normalizeValue(BytesRef value);
 }

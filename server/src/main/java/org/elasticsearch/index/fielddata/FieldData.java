@@ -367,6 +367,11 @@ public enum FieldData {
                 return values.lookupOrd(values.nextOrd());
             }
 
+            @Override
+            public BytesRef normalizeValue(BytesRef value) {
+                return value;
+            }
+
         };
     }
 
@@ -410,6 +415,11 @@ public enum FieldData {
                 }
                 sort();
                 return true;
+            }
+
+            @Override
+            public BytesRef normalizeValue(BytesRef value) {
+                return value;
             }
 
         };

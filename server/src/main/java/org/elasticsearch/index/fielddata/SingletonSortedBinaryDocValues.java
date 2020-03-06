@@ -51,4 +51,9 @@ final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
         return in;
     }
 
+    @Override
+    public BytesRef normalizeValue(BytesRef value) {
+        return value;
+    }
+
 }

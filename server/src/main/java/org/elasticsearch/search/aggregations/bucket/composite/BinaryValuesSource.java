@@ -173,11 +173,13 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
-        currentValue = (BytesRef) value;
+        final SortedBinaryDocValues dvs = docValuesFunc.apply(context);
+        currentValue = dvs.normalizeValue((BytesRef) value);
+
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {

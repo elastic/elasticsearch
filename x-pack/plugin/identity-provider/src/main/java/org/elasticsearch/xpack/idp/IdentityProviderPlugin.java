@@ -51,14 +51,13 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.joda.time.Duration;
+import org.opensaml.saml.saml2.core.NameID;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 /**
  * This plugin provides the backend for an IdP built on top of Elasticsearch security features.
@@ -88,12 +87,12 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
 
         // TODO
-        final ServiceProviderDefaults serviceProviderResolver
-            = new ServiceProviderDefaults("elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5));
-        final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderResolver);
+        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login",
+            NameID.TRANSIENT, Duration.standardMinutes(5));
+        final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
             .fromSettings(environment)
-            .serviceProviderDefaults(serviceProviderResolver)
+            .serviceProviderDefaults(serviceProviderDefaults)
             .build();
 
         final SamlFactory factory = new SamlFactory();

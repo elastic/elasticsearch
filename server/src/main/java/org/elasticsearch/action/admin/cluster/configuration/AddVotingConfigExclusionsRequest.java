@@ -179,7 +179,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         return resolvedExclusions;
     }
 
-    public static boolean noneOrMoreThanOneIsSet(String[] deprecatedNodeDescription, String[] nodeIds, String[] nodeNames) {
+    private boolean noneOrMoreThanOneIsSet(String[] deprecatedNodeDescription, String[] nodeIds, String[] nodeNames) {
         if(arrayHasElement(deprecatedNodeDescription)) {
             return arrayHasElement(nodeIds) || arrayHasElement(nodeNames);
         }
@@ -195,7 +195,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         }
     }
 
-    private static boolean arrayHasElement(String[] array) {
+    private boolean arrayHasElement(String[] array) {
         return array != null && array.length > 0;
     }
 

@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
-        int descriptionCount = between(0, 5);
+        int descriptionCount = between(1, 5);
         String[] descriptions = new String[descriptionCount];
         for (int i = 0; i < descriptionCount; i++) {
             descriptions[i] = randomAlphaOfLength(10);
@@ -53,6 +53,30 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         final AddVotingConfigExclusionsRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
             AddVotingConfigExclusionsRequest::new);
         assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
+        assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
+    }
+
+    public void testSerializationForNodeIdOrNodeName() throws IOException {
+        // TODO still need adjustment for version? copyWriteable uses Version.CURRENT
+        AddVotingConfigExclusionsRequest originalRequest = new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
+                                        new String[]{"nodeId1", "nodeId2"}, Strings.EMPTY_ARRAY, TimeValue.ZERO);
+        AddVotingConfigExclusionsRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
+            AddVotingConfigExclusionsRequest::new);
+
+        assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
+        assertThat(deserialized.getNodeIds(), equalTo(originalRequest.getNodeIds()));
+        assertThat(deserialized.getNodeNames(), equalTo(originalRequest.getNodeNames()));
+        assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
+
+        // TODO still need adjustment for version? copyWriteable uses Version.CURRENT
+        originalRequest = new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY, new String[]{"nodeName1", "nodeName2"}, TimeValue.ZERO);
+        deserialized = copyWriteable(originalRequest, writableRegistry(),
+            AddVotingConfigExclusionsRequest::new);
+
+        assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
+        assertThat(deserialized.getNodeIds(), equalTo(originalRequest.getNodeIds()));
+        assertThat(deserialized.getNodeNames(), equalTo(originalRequest.getNodeNames()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }
 
@@ -97,6 +121,173 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> makeRequest("not-a-node").resolveVotingConfigExclusions(clusterState)).getMessage(),
             equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
+    }
+
+    public void testResolveAllNodeIdentifiersNullOrEmpty() {
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> new AddVotingConfigExclusionsRequest(null, null, null, TimeValue.ZERO)).getMessage(),
+            equalTo("Please set node identifiers correctly. " +
+                "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
+
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.ZERO))
+                .getMessage(), equalTo("Please set node identifiers correctly. " +
+                                        "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
+    }
+
+    public void testResolveMoreThanOneNodeIdentifiersSet() {
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> new AddVotingConfigExclusionsRequest(new String[]{"local"}, new String[]{"nodeId"}, Strings.EMPTY_ARRAY, TimeValue.ZERO))
+                .getMessage(), equalTo("Please set node identifiers correctly. " +
+                                        "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
+
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> new AddVotingConfigExclusionsRequest(new String[]{"local"}, Strings.EMPTY_ARRAY,
+                                                        new String[]{"nodeName"}, TimeValue.ZERO))
+            .getMessage(), equalTo("Please set node identifiers correctly. " +
+                                    "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
+
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"nodeId"},
+                                                        new String[]{"nodeName"}, TimeValue.ZERO))
+            .getMessage(), equalTo("Please set node identifiers correctly. " +
+                                    "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
+
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> new AddVotingConfigExclusionsRequest(new String[]{"local"}, new String[]{"nodeId"},
+                                                        new String[]{"nodeName"}, TimeValue.ZERO))
+            .getMessage(), equalTo("Please set node identifiers correctly. " +
+                                    "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
+    }
+
+    public void testResolveByNodeIds() {
+        final DiscoveryNode node1 = new DiscoveryNode(
+            "nodeName1",
+            "nodeId1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
+
+        final DiscoveryNode node2 = new DiscoveryNode(
+            "nodeName2",
+            "nodeId2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
+
+        final DiscoveryNode node3 = new DiscoveryNode(
+            "nodeName3",
+            "nodeId3",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+
+        final VotingConfigExclusion unresolvableVotingConfigExclusion = new VotingConfigExclusion("unresolvableNodeId",
+                                                                                                VotingConfigExclusion.MISSING_VALUE_MARKER);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+                    .nodes(new Builder().add(node1).add(node2).add(node3).localNodeId(node1.getId())).build();
+
+        assertThat(new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"nodeId1", "nodeId2"},
+                                                        Strings.EMPTY_ARRAY, TimeValue.ZERO).resolveVotingConfigExclusions(clusterState),
+                    containsInAnyOrder(node1Exclusion, node2Exclusion));
+
+        assertThat(new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"nodeId1", "unresolvableNodeId"},
+                                                        Strings.EMPTY_ARRAY, TimeValue.ZERO).resolveVotingConfigExclusions(clusterState),
+                    containsInAnyOrder(node1Exclusion, unresolvableVotingConfigExclusion));
+    }
+
+
+    public void testResolveByNodeNames() {
+        final DiscoveryNode node1 = new DiscoveryNode(
+            "nodeName1",
+            "nodeId1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
+
+        final DiscoveryNode node2 = new DiscoveryNode(
+            "nodeName2",
+            "nodeId2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
+
+        final DiscoveryNode node3 = new DiscoveryNode(
+            "nodeName3",
+            "nodeId3",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+
+        final VotingConfigExclusion unresolvableVotingConfigExclusion = new VotingConfigExclusion(
+            VotingConfigExclusion.MISSING_VALUE_MARKER, "unresolvableNodeName");
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+                    .nodes(new Builder().add(node1).add(node2).add(node3).localNodeId(node1.getId())).build();
+
+        assertThat(new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY,
+                                                        new String[]{"nodeName1", "nodeName2"}, TimeValue.ZERO)
+                            .resolveVotingConfigExclusions(clusterState),
+                    containsInAnyOrder(node1Exclusion, node2Exclusion));
+
+        assertThat(new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY,
+                                                        new String[]{"nodeName1", "unresolvableNodeName"}, TimeValue.ZERO)
+                            .resolveVotingConfigExclusions(clusterState),
+                    containsInAnyOrder(node1Exclusion, unresolvableVotingConfigExclusion));
+    }
+
+    public void testResolveRemoveExistingVotingConfigExclusions() {
+        final DiscoveryNode node1 = new DiscoveryNode(
+            "nodeName1",
+            "nodeId1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
+
+        final DiscoveryNode node2 = new DiscoveryNode(
+            "nodeName2",
+            "nodeId2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
+
+        final DiscoveryNode node3 = new DiscoveryNode(
+            "nodeName3",
+            "nodeId3",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+
+        final VotingConfigExclusion existingVotingConfigExclusion = new VotingConfigExclusion("nodeId1", "nodeName1");
+
+        MetaData metaData = MetaData.builder()
+                                    .coordinationMetaData(CoordinationMetaData.builder()
+                                        .addVotingConfigExclusion(existingVotingConfigExclusion).build())
+                                    .build();
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metaData(metaData)
+            .nodes(new Builder().add(node1).add(node2).add(node3).localNodeId(node1.getId())).build();
+
+        assertThat(new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"nodeId1", "nodeId2"},
+                                                        Strings.EMPTY_ARRAY, TimeValue.ZERO)
+                            .resolveVotingConfigExclusions(clusterState),
+                    contains(node2Exclusion));
     }
 
     public void testResolveAndCheckMaximum() {

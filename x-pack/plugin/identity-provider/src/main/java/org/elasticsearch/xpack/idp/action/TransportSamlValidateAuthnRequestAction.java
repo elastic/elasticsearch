@@ -35,10 +35,9 @@ public class TransportSamlValidateAuthnRequestAction extends HandledTransportAct
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         final SamlFactory samlFactory = new SamlFactory();
         final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(samlFactory, idp);
-        try {
-            validator.processQueryString(request.getQueryString(), listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        validator.processQueryString(request.getQueryString(), ActionListener.wrap(
+            listener::onResponse, listener::onFailure
+        ));
+
     }
 }

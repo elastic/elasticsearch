@@ -40,9 +40,9 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends ESTestCase {
         action.doExecute(mock(Task.class), request, future);
 
         final SamlInitiateSingleSignOnResponse response = future.get();
-        assertThat(response.getSpEntityId(), equalTo("https://sp.some.org"));
-        assertThat(response.getRedirectUrl(), equalTo("https://sp.some.org/api/security/v1/saml"));
-        assertThat(response.getResponseBody(), containsString("saml_enduser"));
+        assertThat(response.getEntityId(), equalTo("https://sp.some.org"));
+        assertThat(response.getPostUrl(), equalTo("https://sp.some.org/api/security/v1/saml"));
+        assertThat(response.getSamlResponse(), containsString("saml_enduser"));
     }
 
     public void testGetResponseWithoutSecondaryAuthentication() throws Exception {

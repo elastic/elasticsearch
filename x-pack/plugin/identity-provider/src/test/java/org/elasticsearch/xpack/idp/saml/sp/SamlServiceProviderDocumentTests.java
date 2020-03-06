@@ -100,7 +100,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.setAcs("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
         doc1.setCreatedMillis(System.currentTimeMillis() - randomIntBetween(100_000, 1_000_000));
         doc1.setLastModifiedMillis(System.currentTimeMillis() - randomIntBetween(1_000, 100_000));
-        doc1.setNameIdFormats(randomSubsetOf(List.of(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL)));
+        doc1.setNameIdFormat(randomFrom(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL));
         doc1.setAuthenticationExpiryMillis(randomLongBetween(100, 5_000_000));
         doc1.certificates.setServiceProviderX509SigningCertificates(spCertificates);
         doc1.certificates.setIdentityProviderX509SigningCertificates(idpCertificates);

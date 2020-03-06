@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.idp.rest;
+package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;

@@ -21,7 +21,6 @@ import java.net.URL;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -77,7 +76,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final SamlServiceProvider serviceProvider = resolveServiceProvider(entityId);
         assertThat(serviceProvider.getEntityId(), equalTo(entityId));
         assertThat(serviceProvider.getAssertionConsumerService(), equalTo(acs));
-        assertThat(serviceProvider.getAllowedNameIdFormats(), contains(defaults.nameIdFormat));
+        assertThat(serviceProvider.getAllowedNameIdFormat(), equalTo(defaults.nameIdFormat));
         assertThat(serviceProvider.getAuthnExpiry(), equalTo(defaults.authenticationExpiry));
         assertThat(serviceProvider.getSpSigningCredentials(), emptyIterable());
         assertThat(serviceProvider.shouldSignAuthnRequests(), equalTo(false));

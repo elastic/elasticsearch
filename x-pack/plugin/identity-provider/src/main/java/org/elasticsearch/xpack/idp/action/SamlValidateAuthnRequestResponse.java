@@ -21,13 +21,19 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
 
     public SamlValidateAuthnRequestResponse(StreamInput in) throws IOException {
         super(in);
-        this.spEntityId = in.readString();
+        this.spEntityId = in.readOptionalString();
         this.forceAuthn = in.readBoolean();
         this.authnState = in.readMap();
     }
 
+    public SamlValidateAuthnRequestResponse(String errorResponse, String xmlErrorResponse) {
+        this.spEntityId = null;
+        this.forceAuthn = false;
+        this.authnState = Map.of();
+    }
+
     public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> authnState) {
-        this.spEntityId = Objects.requireNonNull(spEntityId);
+        this.spEntityId = Objects.requireNonNull(spEntityId, "spEntityId is required for successful responses");
         this.forceAuthn = forceAuthn;
         this.authnState = Map.copyOf(Objects.requireNonNull(authnState));
     }
@@ -46,16 +52,15 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(spEntityId);
+        out.writeOptionalString(spEntityId);
         out.writeBoolean(forceAuthn);
         out.writeMap(authnState);
-
     }
 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "{ spEntityId='" + getSpEntityId() + "',\n" +
             " forceAuthn='" + isForceAuthn() + "',\n" +
-            " additionalData='" + getAuthnState() + "' }";
+            " authnState='" + getAuthnState() + "' }";
     }
 }

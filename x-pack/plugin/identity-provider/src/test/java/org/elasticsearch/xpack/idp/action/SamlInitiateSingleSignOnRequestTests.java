@@ -32,6 +32,6 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         final ActionRequestValidationException validationException = request1.validate();
         assertNotNull(validationException);
         assertThat(validationException.validationErrors().size(), equalTo(1));
-        assertThat(validationException.validationErrors().get(0), containsString("sp_entity_id is missing"));
+        assertThat(validationException.validationErrors().get(0), containsString("entity_id is missing"));
     }
 }

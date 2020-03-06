@@ -234,7 +234,7 @@ public class CloudIdp implements SamlIdentityProvider {
         Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
         try {
             registeredSps.put("https://sp.some.org",
-                new CloudServiceProvider("https://sp.some.org", new URL("https://sp.some.org/api/security/v1/saml"), Set.of(TRANSIENT),
+                new CloudServiceProvider("https://sp.some.org", new URL("https://sp.some.org/api/security/v1/saml"), TRANSIENT,
                     Duration.standardMinutes(5), null,
                     new SamlServiceProvider.AttributeNames(
                         "https://saml.elasticsearch.org/attributes/principal",

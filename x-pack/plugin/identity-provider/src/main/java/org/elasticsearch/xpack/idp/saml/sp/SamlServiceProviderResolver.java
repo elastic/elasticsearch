@@ -104,9 +104,9 @@ public class SamlServiceProviderResolver {
             .collect(Collectors.toUnmodifiableSet());
 
         final URL acs = parseUrl(document);
-        Set<String> nameIdFormats = document.nameIdFormats;
-        if (nameIdFormats == null || nameIdFormats.isEmpty()) {
-            nameIdFormats = Set.of(identityProvider.getServiceProviderDefaults().nameIdFormat);
+        String nameIdFormat = document.nameIdFormat;
+        if (nameIdFormat == null) {
+            nameIdFormat = identityProvider.getServiceProviderDefaults().nameIdFormat;
         }
 
         final ReadableDuration authnExpiry = Optional.ofNullable(document.getAuthenticationExpiry())
@@ -115,7 +115,7 @@ public class SamlServiceProviderResolver {
         final boolean signAuthnRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_AUTHN);
         final boolean signLogoutRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_LOGOUT);
 
-        return new CloudServiceProvider(document.entityId, acs, nameIdFormats, authnExpiry, privileges,
+        return new CloudServiceProvider(document.entityId, acs, nameIdFormat, authnExpiry, privileges,
             attributes, credentials, signAuthnRequests, signLogoutRequests);
     }
 

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
@@ -18,15 +19,17 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.idp.saml.authn.FailedAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.SuccessfulAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
 import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.saml.saml2.core.StatusCode;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -55,34 +58,68 @@ public class TransportSamlInitiateSingleSignOnAction
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
         // TODO : Inject this IDP from the plugin
         final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
+        final SamlAuthenticationState authenticationState = request.getSamlAuthenticationState();
+        if (authenticationState != null) {
+            final ValidationException validationException = authenticationState.validate();
+            if (validationException != null) {
+                listener.onFailure(validationException);
+                return;
+            }
+        }
         idp.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
             sp -> {
-                try {
-                    if (null == sp) {
-                        final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
-                            + "] is not registered with this Identity Provider";
-                        logger.debug(message);
-                        listener.onFailure(new IllegalArgumentException(message));
+                if (null == sp) {
+                    final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
+                        + "] is not registered with this Identity Provider";
+                    logger.debug(message);
+                    listener.onFailure(new IllegalArgumentException(message));
+                    return;
+                }
+                final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
+                if (secondaryAuthentication == null) {
+                    if (authenticationState != null) {
+                        final FailedAuthenticationResponseMessageBuilder builder =
+                            new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), idp)
+                                .setInResponseTo(authenticationState.getAuthnRequestId())
+                                .setAcsUrl(authenticationState.getRequestedAcsUrl())
+                                .setPrimaryStatusCode(StatusCode.REQUESTER)
+                                .setSecondaryStatusCode(StatusCode.AUTHN_FAILED);
+                        final Response response = builder.build();
+                        listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                            authenticationState.getRequestedAcsUrl(),
+                            samlFactory.getXmlContent(response),
+                            authenticationState.getEntityId()));
                         return;
-                    }
-                    final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
-                    if (secondaryAuthentication == null) {
+                    } else {
                         listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
                         return;
                     }
-                    final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
-                    final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
-                        samlFactory, Clock.systemUTC(), idp);
-                    final Response response = builder.build(user, null);
-                    listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                        user.getServiceProvider().getAssertionConsumerService().toString(),
-                        samlFactory.getXmlContent(response),
-                        user.getServiceProvider().getEntityId()));
-                } catch (IOException e) {
-                    listener.onFailure(new IllegalArgumentException(e.getMessage()));
                 }
+                final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
+                final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
+                    samlFactory, Clock.systemUTC(), idp);
+                final Response response = builder.build(user, request.getSamlAuthenticationState());
+                listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                    user.getServiceProvider().getAssertionConsumerService().toString(),
+                    samlFactory.getXmlContent(response),
+                    user.getServiceProvider().getEntityId()));
             },
-            listener::onFailure
+            e -> {
+                if (authenticationState != null) {
+                    final FailedAuthenticationResponseMessageBuilder builder =
+                        new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), idp)
+                            .setInResponseTo(authenticationState.getAuthnRequestId())
+                            .setAcsUrl(authenticationState.getRequestedAcsUrl())
+                            .setPrimaryStatusCode(StatusCode.RESPONDER);
+                    final Response response = builder.build();
+                    listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                        authenticationState.getRequestedAcsUrl(),
+                        samlFactory.getXmlContent(response),
+                        authenticationState.getEntityId()));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         ));
     }
 

@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSamlTestCase {
 
@@ -42,6 +43,9 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getServiceProviderDefaults())
+            .thenReturn(new SamlIdentityProvider.ServiceProviderDefaults(
+                "elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5)));
     }
 
     public void testUnsignedResponseIsValidAgainstXmlSchema() throws Exception {

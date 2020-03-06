@@ -98,16 +98,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.all();
         } else {
             nodesInfoRequest.clear();
-            nodesInfoRequest.settings(metrics.contains("settings"));
-            nodesInfoRequest.os(metrics.contains("os"));
-            nodesInfoRequest.process(metrics.contains("process"));
-            nodesInfoRequest.jvm(metrics.contains("jvm"));
-            nodesInfoRequest.threadPool(metrics.contains("thread_pool"));
-            nodesInfoRequest.transport(metrics.contains("transport"));
-            nodesInfoRequest.http(metrics.contains("http"));
-            nodesInfoRequest.plugins(metrics.contains("plugins"));
-            nodesInfoRequest.ingest(metrics.contains("ingest"));
-            nodesInfoRequest.indices(metrics.contains("indices"));
+            nodesInfoRequest.addMetrics(metrics);
         }
         return nodesInfoRequest;
     }

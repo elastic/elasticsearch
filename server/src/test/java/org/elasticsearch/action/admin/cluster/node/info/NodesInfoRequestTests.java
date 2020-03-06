@@ -23,8 +23,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
@@ -75,6 +79,27 @@ public class NodesInfoRequestTests extends ESTestCase {
         request.clear();
 
         assertThat(request.requestedMetrics(), empty());
+    }
+
+    /**
+     * Test that (for now) we can only add metrics from a set of known metrics.
+     */
+    public void testUnknownMetricsRejected() {
+        String unknownMetric = "unknown_metric1";
+        Set<String> unknownMetrics = new HashSet<>();
+        unknownMetrics.add(unknownMetric);
+        unknownMetrics.addAll(randomSubsetOf(NodesInfoRequest.Metrics.allMetrics()));
+
+        NodesInfoRequest request = new NodesInfoRequest();
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.addMetric(unknownMetric));
+        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric));
+
+        exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric));
+        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric));
+
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics));
+        assertThat(exception.getMessage(), startsWith("Used an illegal metric: "));
     }
 
     /**

@@ -100,6 +100,9 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Add metric
      */
     public void addMetric(String metric) {
+        if (Metrics.allMetrics().contains(metric) == false) {
+            throw new IllegalStateException("Used an illegal metric: " + metric);
+        }
         requestedMetrics.add(metric);
     }
 
@@ -107,6 +110,9 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Add collection of metrics
      */
     public void addMetrics(Collection<String> metrics) {
+        if (Metrics.allMetrics().containsAll(metrics) == false) {
+            throw new IllegalStateException("Used an illegal metric: " + metrics);
+        }
         requestedMetrics.addAll(metrics);
     }
 
@@ -114,21 +120,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Remove metric
      */
     public void removeMetric(String metric) {
+        if (Metrics.allMetrics().contains(metric) == false) {
+            throw new IllegalStateException("Used an illegal metric: " + metric);
+        }
         requestedMetrics.remove(metric);
-    }
-
-    /**
-     * Remove collection of metrics
-     */
-    public void removeMetrics(Collection<String> metrics) {
-        requestedMetrics.removeAll(metrics);
-    }
-
-    /**
-     * Should the node settings be returned.
-     */
-    public boolean settings() {
-        return Metrics.SETTINGS.containedIn(requestedMetrics);
     }
 
     /**
@@ -172,14 +167,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * Should the node Transport be returned.
-     */
-    public NodesInfoRequest transport(boolean transport) {
-        addOrRemoveMetric(transport, Metrics.TRANSPORT.metricName());
-        return this;
-    }
-
-    /**
      * Should the node HTTP be returned.
      */
     public NodesInfoRequest http(boolean http) {
@@ -203,15 +190,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      */
     public NodesInfoRequest ingest(boolean ingest) {
         addOrRemoveMetric(ingest, Metrics.INGEST.metricName());
-        return this;
-    }
-
-    /**
-     * Should information about indices (currently just indexing buffers) be returned
-     * @param indices true if you want info
-     */
-    public NodesInfoRequest indices(boolean indices) {
-        addOrRemoveMetric(indices, Metrics.INDICES.metricName());
         return this;
     }
 

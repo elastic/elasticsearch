@@ -48,7 +48,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node settings be returned.
      */
     public NodesInfoRequestBuilder setSettings(boolean settings) {
-        request.settings(settings);
+        addOrRemoveMetric(settings, NodesInfoRequest.Metrics.SETTINGS);
         return this;
     }
 
@@ -56,7 +56,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node OS info be returned.
      */
     public NodesInfoRequestBuilder setOs(boolean os) {
-        request.os(os);
+        addOrRemoveMetric(os, NodesInfoRequest.Metrics.OS);
         return this;
     }
 
@@ -64,7 +64,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node OS process be returned.
      */
     public NodesInfoRequestBuilder setProcess(boolean process) {
-        request.process(process);
+        addOrRemoveMetric(process, NodesInfoRequest.Metrics.PROCESS);
         return this;
     }
 
@@ -72,7 +72,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node JVM info be returned.
      */
     public NodesInfoRequestBuilder setJvm(boolean jvm) {
-        request.jvm(jvm);
+        addOrRemoveMetric(jvm, NodesInfoRequest.Metrics.JVM);
         return this;
     }
 
@@ -80,7 +80,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node thread pool info be returned.
      */
     public NodesInfoRequestBuilder setThreadPool(boolean threadPool) {
-        request.threadPool(threadPool);
+        addOrRemoveMetric(threadPool, NodesInfoRequest.Metrics.THREAD_POOL);
         return this;
     }
 
@@ -88,7 +88,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {
-        request.transport(transport);
+        addOrRemoveMetric(transport, NodesInfoRequest.Metrics.TRANSPORT);
         return this;
     }
 
@@ -96,7 +96,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node HTTP info be returned.
      */
     public NodesInfoRequestBuilder setHttp(boolean http) {
-        request.http(http);
+        addOrRemoveMetric(http, NodesInfoRequest.Metrics.HTTP);
         return this;
     }
 
@@ -104,7 +104,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node plugins info be returned.
      */
     public NodesInfoRequestBuilder setPlugins(boolean plugins) {
-        request().plugins(plugins);
+        addOrRemoveMetric(plugins, NodesInfoRequest.Metrics.PLUGINS);
         return this;
     }
 
@@ -112,7 +112,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node ingest info be returned.
      */
     public NodesInfoRequestBuilder setIngest(boolean ingest) {
-        request().ingest(ingest);
+        addOrRemoveMetric(ingest, NodesInfoRequest.Metrics.INGEST);
         return this;
     }
 
@@ -120,7 +120,15 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node indices info be returned.
      */
     public NodesInfoRequestBuilder setIndices(boolean indices) {
-        request().indices(indices);
+        addOrRemoveMetric(indices, NodesInfoRequest.Metrics.INDICES);
         return this;
+    }
+
+    private void addOrRemoveMetric(boolean includeMetric, NodesInfoRequest.Metrics metric) {
+        if (includeMetric) {
+            request.addMetric(metric.metricName());
+        } else {
+            request.removeMetric(metric.metricName());
+        }
     }
 }

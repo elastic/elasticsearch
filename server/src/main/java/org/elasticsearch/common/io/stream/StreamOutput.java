@@ -272,6 +272,15 @@ public abstract class StreamOutput extends OutputStream {
         writeVLongNoCheck(i);
     }
 
+    public void writeOptionalVLong(@Nullable  Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeVLong(l);
+        }
+    }
+
     /**
      * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
      * {@link #writeVLong(long)} instead.

@@ -38,7 +38,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             String eventName = visitIdentifier(ctx.event);
             Literal eventValue = new Literal(eventSource, eventName, DataTypes.KEYWORD);
 
-            UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventType());
+            UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventCategory());
             Expression eventMatch = new Equals(eventSource, eventField, eventValue);
 
             condition = new And(source, eventMatch, condition);

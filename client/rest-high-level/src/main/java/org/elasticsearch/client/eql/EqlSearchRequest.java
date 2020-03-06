@@ -37,8 +37,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
     private QueryBuilder filter = null;
-    private String timestampField = "timestamp";
-    private String eventTypeField = "event_type";
+    private String timestampField = "@timestamp";
+    private String eventCategoryField = "event.category";
     private String implicitJoinKeyField = "agent.id";
     private int fetchSize = 50;
     private SearchAfterBuilder searchAfterBuilder;
@@ -46,7 +46,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
-    static final String KEY_EVENT_TYPE_FIELD = "event_type_field";
+    static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
@@ -64,7 +64,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             builder.field(KEY_FILTER, filter);
         }
         builder.field(KEY_TIMESTAMP_FIELD, timestampField());
-        builder.field(KEY_EVENT_TYPE_FIELD, eventTypeField());
+        builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
         }
@@ -107,13 +107,13 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
-    public String eventTypeField() {
-        return this.eventTypeField;
+    public String eventCategoryField() {
+        return this.eventCategoryField;
     }
 
-    public EqlSearchRequest eventTypeField(String eventTypeField) {
-        Objects.requireNonNull(eventTypeField, "event type field must not be null");
-        this.eventTypeField = eventTypeField;
+    public EqlSearchRequest eventCategoryField(String eventCategoryField) {
+        Objects.requireNonNull(eventCategoryField, "event category field must not be null");
+        this.eventCategoryField = eventCategoryField;
         return this;
     }
 
@@ -180,7 +180,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(eventTypeField, that.eventTypeField) &&
+                Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query);
@@ -194,7 +194,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             filter,
             fetchSize,
             timestampField,
-            eventTypeField,
+            eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
             query);

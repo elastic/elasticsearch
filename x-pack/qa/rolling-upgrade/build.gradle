@@ -133,7 +133,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
-        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms',
+        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
       ])
     }
     systemProperty 'tests.rest.blacklist', toBlackList.join(',')
@@ -156,7 +156,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
-        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms',
+        'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
       ])
     }
     if (!toBlackList.empty) {
@@ -190,6 +190,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop mixed cluster batch transform'
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, mixed continuous transforms'
     }
+
     if (!toBlackList.empty) {
       systemProperty 'tests.rest.blacklist', toBlackList.join(',')
     }

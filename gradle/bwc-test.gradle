@@ -1,0 +1,30 @@
+import org.elasticsearch.gradle.Version
+
+ext.bwcTaskName = { Version version ->
+  return "v${version}#bwcTest"
+}
+
+def bwcTestSnapshots = tasks.register("bwcTestSnapshots") {
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.matching { task -> bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
+  }
+}
+
+tasks.register("bwcTest") {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
+
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.matching { it.name ==~ /v[0-9\.]+#bwcTest/ }
+  }
+}
+
+tasks.withType(Test).configureEach {
+  onlyIf { project.bwc_tests_enabled }
+}
+
+tasks.named("check").configure {
+  dependsOn(bwcTestSnapshots)
+}
+
+test.enabled = false

@@ -27,9 +27,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_TYPE;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.IMPLICIT_JOIN_KEY;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
@@ -39,15 +39,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;
-    private String eventTypeField = FIELD_EVENT_TYPE;
-    private String implicitJoinKeyField = IMPLICIT_JOIN_KEY;
+    private String eventCategoryField = FIELD_EVENT_CATEGORY;
+    private String implicitJoinKeyField = FIELD_IMPLICIT_JOIN_KEY;
     private int fetchSize = FETCH_SIZE;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
-    static final String KEY_EVENT_TYPE_FIELD = "event_type_field";
+    static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
@@ -55,7 +55,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
-    static final ParseField EVENT_TYPE_FIELD = new ParseField(KEY_EVENT_TYPE_FIELD);
+    static final ParseField EVENT_CATEGORY_FIELD = new ParseField(KEY_EVENT_CATEGORY_FIELD);
     static final ParseField IMPLICIT_JOIN_KEY_FIELD = new ParseField(KEY_IMPLICIT_JOIN_KEY_FIELD);
     static final ParseField SIZE = new ParseField(KEY_SIZE);
     static final ParseField SEARCH_AFTER = new ParseField(KEY_SEARCH_AFTER);
@@ -73,7 +73,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         timestampField = in.readString();
-        eventTypeField = in.readString();
+        eventCategoryField = in.readString();
         implicitJoinKeyField = in.readString();
         fetchSize = in.readVInt();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
@@ -104,11 +104,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
 
         if (timestampField == null || timestampField.isEmpty()) {
-            validationException = addValidationError("timestamp field is null or empty", validationException);
+            validationException = addValidationError("@timestamp field is null or empty", validationException);
         }
 
-        if (eventTypeField == null || eventTypeField.isEmpty()) {
-            validationException = addValidationError("event type field is null or empty", validationException);
+        if (eventCategoryField == null || eventCategoryField.isEmpty()) {
+            validationException = addValidationError("event category field is null or empty", validationException);
         }
 
         if (implicitJoinKeyField == null || implicitJoinKeyField.isEmpty()) {
@@ -128,7 +128,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             builder.field(KEY_FILTER, filter);
         }
         builder.field(KEY_TIMESTAMP_FIELD, timestampField());
-        builder.field(KEY_EVENT_TYPE_FIELD, eventTypeField());
+        builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
         }
@@ -152,7 +152,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareObject(EqlSearchRequest::filter,
             (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
-        parser.declareString(EqlSearchRequest::eventTypeField, EVENT_TYPE_FIELD);
+        parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
         parser.declareString(EqlSearchRequest::implicitJoinKeyField, IMPLICIT_JOIN_KEY_FIELD);
         parser.declareInt(EqlSearchRequest::fetchSize, SIZE);
         parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
@@ -181,10 +181,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public String eventTypeField() { return this.eventTypeField; }
+    public String eventCategoryField() { return this.eventCategoryField; }
 
-    public EqlSearchRequest eventTypeField(String eventTypeField) {
-        this.eventTypeField = eventTypeField;
+    public EqlSearchRequest eventCategoryField(String eventCategoryField) {
+        this.eventCategoryField = eventCategoryField;
         return this;
     }
 
@@ -233,7 +233,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(filter);
         out.writeString(timestampField);
-        out.writeString(eventTypeField);
+        out.writeString(eventCategoryField);
         out.writeString(implicitJoinKeyField);
         out.writeVInt(fetchSize);
         out.writeOptionalWriteable(searchAfterBuilder);
@@ -254,7 +254,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(eventTypeField, that.eventTypeField) &&
+                Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query);
@@ -267,8 +267,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             indicesOptions,
             filter,
             fetchSize,
-            timestampField,
-            eventTypeField,
+            timestampField, eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
             query);

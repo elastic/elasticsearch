@@ -84,4 +84,11 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaTypeOrFormat("text/plain"), nullValue());
         assertThat(XContentType.fromMediaTypeOrFormat("gobbly;goop"), nullValue());
     }
+
+    public void testMediaType() throws Exception {
+        String mediaType = XContentType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=7");
+        assertThat(mediaType,equalTo("application/json"));
+        mediaType = XContentType.parseMediaType("application/json");
+        assertThat(mediaType,equalTo("application/json"));
+    }
 }

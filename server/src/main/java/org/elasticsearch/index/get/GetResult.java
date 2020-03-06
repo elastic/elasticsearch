@@ -52,6 +52,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
+    private static final String TYPE_FIELD_NAME = "_type";
+    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";
     private static final String _VERSION = "_version";
@@ -296,8 +299,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         }
         return builder;
     }
-    private static final String TYPE_FIELD_NAME = "_type";
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -107,4 +107,34 @@ public class DocWriteResponseTests extends ESTestCase {
             }
         }
     }
+
+    public void testTypeWhenCompatible() throws IOException {
+        DocWriteResponse response =
+            new DocWriteResponse(
+                new ShardId("index", "uuid", 0),
+                "id",
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                17,
+                0,
+                Result.CREATED) {
+                // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+            };
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.compatibleVersion((byte)7);
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                assertThat(parser.map(), hasEntry(DocWriteResponse.TYPE_FIELD_NAME,DocWriteResponse.SINGLE_MAPPING_TYPE.toString()));
+            }
+        }
+
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.compatibleVersion((byte)6);
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                assertThat(parser.map(), not(hasKey(DocWriteResponse.TYPE_FIELD_NAME)));
+            }
+        }
+    }
 }

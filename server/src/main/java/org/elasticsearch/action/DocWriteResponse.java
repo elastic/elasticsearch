@@ -54,8 +54,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
 
-    private static final String TYPE_FIELD_NAME = "_type";
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+    static final String TYPE_FIELD_NAME = "_type";
+    static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     private static final String _SHARDS = "_shards";
     private static final String _INDEX = "_index";

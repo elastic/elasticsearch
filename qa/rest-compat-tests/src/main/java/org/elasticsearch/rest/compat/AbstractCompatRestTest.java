@@ -59,7 +59,7 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             DoSection doSection = (DoSection) ds;
             //TODO: be more selective here
             doSection.setIgnoreWarnings(true);
-            //TODO: use the real header compatibility header
+
             String compatibleHeader = createCompatibleHeader();
             doSection.getApiCallSection()
                      .addHeaders(Collections.singletonMap(CompatibleHandlers.COMPATIBLE_HEADER, compatibleHeader));

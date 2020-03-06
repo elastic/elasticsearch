@@ -52,7 +52,7 @@ public class DataFrameDataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
-    private static final String EMPTY_STRING = "";
+    public static final String NULL_VALUE = "\0";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
@@ -189,7 +189,7 @@ public class DataFrameDataExtractor {
             } else {
                 if (values.length == 0 && context.includeRowsWithMissingValues) {
                     // if values is empty then it means it's a missing value
-                    extractedValues[i] = EMPTY_STRING;
+                    extractedValues[i] = NULL_VALUE;
                 } else {
                     // we are here if we have a missing value but the analysis does not support those
                     // or the value type is not supported (e.g. arrays, etc.)

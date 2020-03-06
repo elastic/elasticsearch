@@ -79,9 +79,10 @@ public class Alias implements Writeable, ToXContentFragment {
         } else {
             writeIndex = null;
         }
-        writeIndex = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isHidden = in.readOptionalBoolean();
+        } else {
+            isHidden = null;
         }
     }
 

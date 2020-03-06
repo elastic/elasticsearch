@@ -57,7 +57,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         public String resource;
         @Nullable
         public String loginAction;
-        public Map<String, String> groupActions = Map.of();
+        public Map<String, String> roleActions = Map.of();
 
         public void setApplication(String application) {
             this.application = application;
@@ -71,8 +71,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             this.loginAction = loginAction;
         }
 
-        public void setGroupActions(Map<String, String> groupActions) {
-            this.groupActions = groupActions;
+        public void setRoleActions(Map<String, String> roleActions) {
+            this.roleActions = roleActions;
         }
 
         @Override
@@ -83,12 +83,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             return Objects.equals(application, that.application) &&
                 Objects.equals(resource, that.resource) &&
                 Objects.equals(loginAction, that.loginAction) &&
-                Objects.equals(groupActions, that.groupActions);
+                Objects.equals(roleActions, that.roleActions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(application, resource, loginAction, groupActions);
+            return Objects.hash(application, resource, loginAction, roleActions);
         }
     }
 
@@ -99,7 +99,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         @Nullable
         public String name;
         @Nullable
-        public String groups;
+        public String roles;
 
         public void setPrincipal(String principal) {
             this.principal = principal;
@@ -113,8 +113,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             this.name = name;
         }
 
-        public void setGroups(String groups) {
-            this.groups = groups;
+        public void setRoles(String roles) {
+            this.roles = roles;
         }
 
         @Override
@@ -125,12 +125,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             return Objects.equals(principal, that.principal) &&
                 Objects.equals(email, that.email) &&
                 Objects.equals(name, that.name) &&
-                Objects.equals(groups, that.groups);
+                Objects.equals(roles, that.roles);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(principal, email, name, groups);
+            return Objects.hash(principal, email, name, roles);
         }
     }
 
@@ -273,12 +273,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         privileges.application = in.readOptionalString();
         privileges.resource = in.readString();
         privileges.loginAction = in.readOptionalString();
-        privileges.groupActions = in.readMap(StreamInput::readString, StreamInput::readString);
+        privileges.roleActions = in.readMap(StreamInput::readString, StreamInput::readString);
 
         attributeNames.principal = in.readString();
         attributeNames.email = in.readOptionalString();
         attributeNames.name = in.readOptionalString();
-        attributeNames.groups = in.readOptionalString();
+        attributeNames.roles = in.readOptionalString();
 
         certificates.serviceProviderSigning = in.readStringList();
         certificates.identityProviderSigning = in.readStringList();
@@ -305,13 +305,13 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalString(privileges.application);
         out.writeString(privileges.resource);
         out.writeOptionalString(privileges.loginAction);
-        out.writeMap(privileges.groupActions == null ? Map.of() : privileges.groupActions,
+        out.writeMap(privileges.roleActions == null ? Map.of() : privileges.roleActions,
             StreamOutput::writeString, StreamOutput::writeString);
 
         out.writeString(attributeNames.principal);
         out.writeOptionalString(attributeNames.email);
         out.writeOptionalString(attributeNames.name);
-        out.writeOptionalString(attributeNames.groups);
+        out.writeOptionalString(attributeNames.roles);
 
         out.writeStringCollection(certificates.serviceProviderSigning);
         out.writeStringCollection(certificates.identityProviderSigning);
@@ -425,15 +425,15 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         PRIVILEGES_PARSER.declareStringOrNull(Privileges::setApplication, Fields.Privileges.APPLICATION);
         PRIVILEGES_PARSER.declareString(Privileges::setResource, Fields.Privileges.RESOURCE);
         PRIVILEGES_PARSER.declareStringOrNull(Privileges::setLoginAction, Fields.Privileges.LOGIN_ACTION);
-        PRIVILEGES_PARSER.declareField(Privileges::setGroupActions,
+        PRIVILEGES_PARSER.declareField(Privileges::setRoleActions,
             (parser, ignore) -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.mapStrings(),
-            Fields.Privileges.GROUPS, ObjectParser.ValueType.OBJECT_OR_NULL);
+            Fields.Privileges.ROLES, ObjectParser.ValueType.OBJECT_OR_NULL);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (p, doc) -> ATTRIBUTES_PARSER.parse(p, doc.attributeNames, null), Fields.ATTRIBUTES);
         ATTRIBUTES_PARSER.declareString(AttributeNames::setPrincipal, Fields.Attributes.PRINCIPAL);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setEmail, Fields.Attributes.EMAIL);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setName, Fields.Attributes.NAME);
-        ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setGroups, Fields.Attributes.GROUPS);
+        ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setRoles, Fields.Attributes.ROLES);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (p, doc) -> CERTIFICATES_PARSER.parse(p, doc.certificates, null), Fields.CERTIFICATES);
         CERTIFICATES_PARSER.declareStringArray(Certificates::setServiceProviderSigning, Fields.Certificates.SP_SIGNING);
@@ -503,14 +503,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.Privileges.APPLICATION.getPreferredName(), privileges.application);
         builder.field(Fields.Privileges.RESOURCE.getPreferredName(), privileges.resource);
         builder.field(Fields.Privileges.LOGIN_ACTION.getPreferredName(), privileges.loginAction);
-        builder.field(Fields.Privileges.GROUPS.getPreferredName(), privileges.groupActions);
+        builder.field(Fields.Privileges.ROLES.getPreferredName(), privileges.roleActions);
         builder.endObject();
 
         builder.startObject(Fields.ATTRIBUTES.getPreferredName());
         builder.field(Fields.Attributes.PRINCIPAL.getPreferredName(), attributeNames.principal);
         builder.field(Fields.Attributes.EMAIL.getPreferredName(), attributeNames.email);
         builder.field(Fields.Attributes.NAME.getPreferredName(), attributeNames.name);
-        builder.field(Fields.Attributes.GROUPS.getPreferredName(), attributeNames.groups);
+        builder.field(Fields.Attributes.ROLES.getPreferredName(), attributeNames.roles);
         builder.endObject();
 
         builder.startObject(Fields.CERTIFICATES.getPreferredName());
@@ -542,14 +542,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             ParseField APPLICATION = new ParseField("application");
             ParseField RESOURCE = new ParseField("resource");
             ParseField LOGIN_ACTION = new ParseField("login");
-            ParseField GROUPS = new ParseField("groups");
+            ParseField ROLES = new ParseField("roles");
         }
 
         interface Attributes {
             ParseField PRINCIPAL = new ParseField("principal");
             ParseField EMAIL = new ParseField("email");
             ParseField NAME = new ParseField("name");
-            ParseField GROUPS = new ParseField("groups");
+            ParseField ROLES = new ParseField("roles");
         }
 
         interface Certificates {

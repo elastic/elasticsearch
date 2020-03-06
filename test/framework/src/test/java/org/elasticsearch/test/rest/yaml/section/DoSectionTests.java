@@ -94,12 +94,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
             section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT);
         }
-        // Even if you get multiple of the same expected
-        {
-            final DoSection section = new DoSection(new XContentLocation(1, 1));
-            section.setExpectedWarningHeaders(singletonList("test"));
-            section.checkWarningHeaders(Arrays.asList(testHeader, testHeader, testHeader), Version.CURRENT);
-        }
 
         // But if you don't get some that you did expect, that is an error
         {
@@ -131,6 +125,15 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                             catHeader + "\n]\n" +
                             "did not get expected warning headers [\n\tanother\n\tsome more\n]\n",
                     e.getMessage());
+        }
+
+        // "allowed" warnings are fine
+        {
+            final DoSection section = new DoSection(new XContentLocation(1, 1));
+            section.setAllowedWarningHeaders(singletonList("test"));
+            section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
+            // and don't throw exceptions if we don't receive them
+            section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
     }
 
@@ -471,6 +474,54 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getExpectedWarningHeaders(), equalTo(singletonList(
                 "just one entry this time")));
+    }
+
+    public void testParseDoSectionAllowedWarnings() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "indices.get_field_mapping:\n" +
+                "        index: test_index\n" +
+                "        type: test_type\n" +
+                "allowed_warnings:\n" +
+                "    - some test warning they are typically pretty long\n" +
+                "    - some other test warning sometimes they have [in] them"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertThat(doSection.getCatch(), nullValue());
+        assertThat(doSection.getApiCallSection(), notNullValue());
+        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_field_mapping"));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
+        assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
+        assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
+        assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
+        assertThat(doSection.getAllowedWarningHeaders(), equalTo(Arrays.asList(
+                "some test warning they are typically pretty long",
+                "some other test warning sometimes they have [in] them")));
+
+        parser = createParser(YamlXContent.yamlXContent,
+                "indices.get_field_mapping:\n" +
+                "        index: test_index\n" +
+                "allowed_warnings:\n" +
+                "    - just one entry this time"
+        );
+
+        doSection = DoSection.parse(parser);
+        assertThat(doSection.getCatch(), nullValue());
+        assertThat(doSection.getApiCallSection(), notNullValue());
+        assertThat(doSection.getAllowedWarningHeaders(), equalTo(singletonList(
+                "just one entry this time")));
+
+        parser = createParser(YamlXContent.yamlXContent,
+                "indices.get_field_mapping:\n" +
+                "        index: test_index\n" +
+                "warnings:\n" +
+                "    - foo\n" +
+                "allowed_warnings:\n" +
+                "    - foo"
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> DoSection.parse(parser));
+        assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
     public void testNodeSelectorByVersion() throws IOException {

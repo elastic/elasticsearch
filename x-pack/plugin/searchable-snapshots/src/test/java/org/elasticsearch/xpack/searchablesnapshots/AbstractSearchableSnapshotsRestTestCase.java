@@ -10,7 +10,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -278,7 +277,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final Request request = new Request(HttpPost.METHOD_NAME, mountIndexName + "/_snapshot/mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
         request.setJsonEntity(Strings.toString(new MountSearchableSnapshotRequest(mountIndexName, repository, snapshot, snapshotIndexName,
-            Settings.EMPTY, indexSettings, Strings.EMPTY_ARRAY, MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, waitForCompletion)));
+            indexSettings, Strings.EMPTY_ARRAY, waitForCompletion)));
 
         final Response response = client().performRequest(request);
         assertThat("Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,

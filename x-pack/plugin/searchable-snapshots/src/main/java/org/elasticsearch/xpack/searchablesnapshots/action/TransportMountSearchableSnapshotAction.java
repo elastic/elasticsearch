@@ -16,13 +16,13 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -41,6 +41,9 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 public class TransportMountSearchableSnapshotAction
     extends TransportMasterNodeAction<MountSearchableSnapshotRequest, RestoreSnapshotResponse> {
+    // This action doesn't technically need to run on the master node, but it needs to get metadata from the repository and we only expect
+    // the repository to be accessible from data and master-eligible nodes so we can't run it everywhere. Given that we already have a way
+    // to run actions on the master and that we have to do the restore via the master, it's simplest to use TransportMasterNodeAction.
 
     private final Client client;
     private final RepositoriesService repositoriesService;
@@ -57,8 +60,8 @@ public class TransportMountSearchableSnapshotAction
 
     @Override
     protected String executor() {
-        // Using the generic instead of the snapshot threadpool here as the snapshot threadpool might be blocked on long running tasks
-        // which would block the request from getting an error response because of the ongoing task
+        // Avoid SNAPSHOT since snapshot threads may all be busy with long-running tasks which would block this action from responding with
+        // an error. Avoid SAME since getting the repository metadata may block on IO.
         return ThreadPool.Names.GENERIC;
     }
 
@@ -69,13 +72,8 @@ public class TransportMountSearchableSnapshotAction
 
     @Override
     protected ClusterBlockException checkBlock(MountSearchableSnapshotRequest request, ClusterState state) {
-        // Restoring a snapshot might change the global state and create/change an index,
-        // so we need to check for METADATA_WRITE and WRITE blocks
-        ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        if (blockException != null) {
-            return blockException;
-        }
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        // The restore action checks the cluster blocks.
+        return null;
     }
 
     /**
@@ -95,68 +93,51 @@ public class TransportMountSearchableSnapshotAction
     @Override
     protected void masterOperation(Task task, final MountSearchableSnapshotRequest request, final ClusterState state,
                                    final ActionListener<RestoreSnapshotResponse> listener) {
-        final String repoName = request.repository();
-        final String snapName = request.snapshot();
-        final String indexName = request.snapshotIndex();
+        final String repoName = request.repositoryName();
+        final String snapName = request.snapshotName();
+        final String indexName = request.snapshotIndexName();
 
         // Retrieve IndexId and SnapshotId instances, which are then used to create a new restore
         // request, which is then sent on to the actual snapshot restore mechanism
-        try {
-            final Repository repository = repositoriesService.repository(repoName);
-            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-            repository.getRepositoryData(repositoryDataListener);
-            repositoryDataListener.whenComplete(repoData -> {
-                final Map<String, IndexId> indexIds = repoData.getIndices();
+        final Repository repository = repositoriesService.repository(repoName);
+        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        repository.getRepositoryData(repositoryDataListener);
+        repositoryDataListener.whenComplete(repoData -> {
+            final Map<String, IndexId> indexIds = repoData.getIndices();
+            if (indexIds.containsKey(indexName) == false && indexIds.get(indexName) != null) {
+                throw new IndexNotFoundException("index [" + indexName + "] not found in repository [" + repoName + "]");
+            }
+            final IndexId indexId = indexIds.get(indexName);
 
-                if (indexIds.containsKey(indexName) == false && indexIds.get(indexName) != null) {
-                    // Can't proceed, we need the index metadata
-                    listener.onFailure(new ElasticsearchException("the index " + indexName +
-                        " is missing from the snapshot repository metadata"));
-                    return;
-                }
+            final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds().stream()
+                .filter(s -> snapName.equals(s.getName())).findFirst();
+            if (matchingSnapshotId.isEmpty()) {
+                throw new ElasticsearchException("snapshot [" + snapName + "] not found in repository [" + repoName + "]");
+            }
+            final SnapshotId snapshotId = matchingSnapshotId.get();
 
-                final IndexId indexId = indexIds.get(indexName);
+            // NOCOMMIT TODO should we ensure that the IDs we just obtained match the ones that we ultimately restore?
 
-                final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds().stream()
-                    .filter(s -> snapName.equals(s.getName())).findFirst();
-
-                if (matchingSnapshotId.isEmpty()) {
-                    // We also need the snapshot metadata, so if we can't find them, then fail
-                    listener.onFailure(new ElasticsearchException("the snapshot " + snapName +
-                        " is missing from the snapshot repository metadata"));
-                    return;
-                }
-
-                final SnapshotId snapshotId = matchingSnapshotId.get();
-
-                final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(repoName, snapName);
-                restoreRequest
-                    // Restore the single index specified
-                    .indices(indexName)
-                    // Always rename it to the desired mounted index name
-                    .renamePattern(".+")
-                    .renameReplacement(request.mountedIndex())
-                    // Pass through any restore settings
-                    .settings(request.settings())
-                    // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                    .indexSettings(Settings.builder().put(request.indexSettings())
-                        .put(getIndexSettings(request.repository(), snapshotId, indexId))
-                        .build())
-                    // Pass through ignored index settings
-                    .ignoreIndexSettings(request.ignoreIndexSettings())
-                    // Don't include global state
-                    .includeGlobalState(false)
-                    // Don't include aliases
-                    .includeAliases(false)
-                    // Pass through the wait-for-completion flag
-                    .waitForCompletion(request.waitForCompletion())
-                    .masterNodeTimeout(request.masterNodeTimeout());
-
-                // Finally, actually restore the snapshot, passing in the original listener
-                client.admin().cluster().restoreSnapshot(restoreRequest, listener);
-            }, listener::onFailure);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            client.admin().cluster().restoreSnapshot(new RestoreSnapshotRequest(repoName, snapName)
+                // Restore the single index specified
+                .indices(indexName)
+                // Always rename it to the desired mounted index name
+                .renamePattern(".+")
+                .renameReplacement(request.mountedIndexName())
+                // Pass through index settings, adding the index-level settings required to use searchable snapshots
+                .indexSettings(Settings.builder().put(request.indexSettings())
+                    .put(getIndexSettings(request.repositoryName(), snapshotId, indexId))
+                    .build())
+                // Pass through ignored index settings
+                .ignoreIndexSettings(request.ignoreIndexSettings())
+                // Don't include global state
+                .includeGlobalState(false)
+                // Don't include aliases
+                .includeAliases(false)
+                // Pass through the wait-for-completion flag
+                .waitForCompletion(request.waitForCompletion())
+                // Pass through the master-node timeout
+                .masterNodeTimeout(request.masterNodeTimeout()), listener);
+        }, listener::onFailure);
     }
 }

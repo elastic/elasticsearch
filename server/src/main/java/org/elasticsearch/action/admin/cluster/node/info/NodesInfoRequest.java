@@ -49,16 +49,16 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         if (in.getVersion().before(Version.V_7_7_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
-            addOrRemoveMetric(in.readBoolean(), Metrics.SETTINGS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.HTTP.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.PLUGINS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.INGEST.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.INDICES.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.SETTINGS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.OS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.PROCESS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.JVM.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.HTTP.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.PLUGINS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.INGEST.metricName());
+            optionallyAddMetric(in.readBoolean(), Metrics.INDICES.metricName());
         } else {
             requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
         }
@@ -99,110 +99,46 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     /**
      * Add metric
      */
-    public void addMetric(String metric) {
+    public NodesInfoRequest addMetric(String metric) {
         if (Metrics.allMetrics().contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
         requestedMetrics.add(metric);
+        return this;
     }
 
     /**
      * Add collection of metrics
      */
-    public void addMetrics(Collection<String> metrics) {
+    public NodesInfoRequest addMetrics(Collection<String> metrics) {
         if (Metrics.allMetrics().containsAll(metrics) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metrics);
         }
         requestedMetrics.addAll(metrics);
+        return this;
     }
 
     /**
      * Remove metric
      */
-    public void removeMetric(String metric) {
+    public NodesInfoRequest removeMetric(String metric) {
         if (Metrics.allMetrics().contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
         requestedMetrics.remove(metric);
-    }
-
-    /**
-     * Should the node settings be returned.
-     */
-    public NodesInfoRequest settings(boolean settings) {
-        addOrRemoveMetric(settings, Metrics.SETTINGS.metricName());
         return this;
     }
 
     /**
-     * Should the node OS be returned.
-     */
-    public NodesInfoRequest os(boolean os) {
-        addOrRemoveMetric(os, Metrics.OS.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node Process be returned.
-     */
-    public NodesInfoRequest process(boolean process) {
-        addOrRemoveMetric(process, Metrics.PROCESS.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node JVM be returned.
-     */
-    public NodesInfoRequest jvm(boolean jvm) {
-        addOrRemoveMetric(jvm, Metrics.JVM.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node Thread Pool info be returned.
-     */
-    public NodesInfoRequest threadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, Metrics.THREAD_POOL.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node HTTP be returned.
-     */
-    public NodesInfoRequest http(boolean http) {
-        addOrRemoveMetric(http, Metrics.HTTP.metricName());
-        return this;
-    }
-
-    /**
-     * Should information about plugins be returned
-     * @param plugins true if you want info
-     * @return The request
-     */
-    public NodesInfoRequest plugins(boolean plugins) {
-        addOrRemoveMetric(plugins, Metrics.PLUGINS.metricName());
-        return this;
-    }
-
-    /**
-     * Should information about ingest be returned
-     * @param ingest true if you want info
-     */
-    public NodesInfoRequest ingest(boolean ingest) {
-        addOrRemoveMetric(ingest, Metrics.INGEST.metricName());
-        return this;
-    }
-
-    /**
-     * Helper method for adding and removing metrics.
-     * @param includeMetric Whether or not to include a metric.
+     * Helper method for adding and removing metrics. Used when deserializing
+     * a NodesInfoRequest from an ordered list of booleans.
+     *
+     * @param addMetric Whether or not to include a metric.
      * @param metricName Name of the metric to include or remove.
      */
-    private void addOrRemoveMetric(boolean includeMetric, String metricName) {
-        if (includeMetric) {
+    private void optionallyAddMetric(boolean addMetric, String metricName) {
+        if (addMetric) {
             requestedMetrics.add(metricName);
-        } else {
-            requestedMetrics.remove(metricName);
         }
     }
 
@@ -250,7 +186,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
             this.metricName = name;
         }
 
-        String metricName() {
+        public String metricName() {
             return this.metricName;
         }
 

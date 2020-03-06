@@ -72,16 +72,16 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         NodesInfoRequest request = nodeRequest.request;
         Set<String> metrics = request.requestedMetrics();
         return nodeService.info(
-            metrics.contains("settings"),
-            metrics.contains("os"),
-            metrics.contains("process"),
-            metrics.contains("jvm"),
-            metrics.contains("threadPool"),
-            metrics.contains("transport"),
-            metrics.contains("http"),
-            metrics.contains("plugins"),
-            metrics.contains("ingest"),
-            metrics.contains("indices"));
+            metrics.contains(NodesInfoRequest.Metrics.SETTINGS.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.OS.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.PROCESS.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.JVM.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.THREAD_POOL.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.TRANSPORT.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.HTTP.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.PLUGINS.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.INGEST.metricName()),
+            metrics.contains(NodesInfoRequest.Metrics.INDICES.metricName()));
     }
 
     public static class NodeInfoRequest extends BaseNodeRequest {

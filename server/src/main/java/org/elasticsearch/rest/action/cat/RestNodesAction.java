@@ -97,7 +97,11 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
+                nodesInfoRequest.clear()
+                    .addMetric(NodesInfoRequest.Metrics.JVM.metricName())
+                    .addMetric(NodesInfoRequest.Metrics.OS.metricName())
+                    .addMetric(NodesInfoRequest.Metrics.PROCESS.metricName())
+                    .addMetric(NodesInfoRequest.Metrics.HTTP.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {

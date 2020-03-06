@@ -73,8 +73,8 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
-    private static Set<ValueType> numericValueTypes = Set.of(ValueType.DOUBLE, ValueType.DATE, ValueType.LONG, ValueType.NUMBER, ValueType.NUMERIC,
-        ValueType.BOOLEAN);
+    private static Set<ValueType> numericValueTypes = Set.of(ValueType.DOUBLE, ValueType.DATE, ValueType.LONG, ValueType.NUMBER,
+        ValueType.NUMERIC, ValueType.BOOLEAN);
     private static Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
 
     /**

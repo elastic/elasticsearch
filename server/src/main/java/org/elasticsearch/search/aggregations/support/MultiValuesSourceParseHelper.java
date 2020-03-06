@@ -25,12 +25,7 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.util.Set;
-
 public final class MultiValuesSourceParseHelper {
-
-    // FIXME: Hard coding here to support WeightedAverage.  See https://github.com/elastic/elasticsearch/issues/53194
-    private static Set<ValueType> expectedValueTypes = Set.of(ValueType.DOUBLE, ValueType.LONG, ValueType.NUMERIC, ValueType.NUMBER);
 
     public static <T> void declareCommon(
             AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
@@ -38,7 +33,7 @@ public final class MultiValuesSourceParseHelper {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());
-            if (expectedValueTypes.contains(valueType) == false) {
+            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
                         + valueType + "].  It can only work on value off type ["

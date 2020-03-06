@@ -75,7 +75,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
                 BoxplotAggregationBuilder.PARSER)
-                .addResultReader(InternalBoxplot::new),
+                .addResultReader(InternalBoxplot::new)
+                .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,

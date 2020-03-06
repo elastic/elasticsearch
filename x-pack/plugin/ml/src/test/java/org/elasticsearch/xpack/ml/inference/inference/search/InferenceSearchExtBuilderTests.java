@@ -34,7 +34,7 @@ public class InferenceSearchExtBuilderTests extends AbstractSerializingTestCase<
 
     @Override
     protected InferenceSearchExtBuilder createTestInstance() {
-        InferenceConfig config = null;
+        InferenceConfig config;
 
         if (randomBoolean()) {
             config = ClassificationConfigTests.randomClassificationConfig();
@@ -42,7 +42,8 @@ public class InferenceSearchExtBuilderTests extends AbstractSerializingTestCase<
             config = RegressionConfigTests.randomRegressionConfig();
         }
 
-        return new InferenceSearchExtBuilder(randomAlphaOfLength(8), Collections.singletonList(config), randomMapOrNull());
+        return new InferenceSearchExtBuilder(randomAlphaOfLength(8), Collections.singletonList(config),
+                randomAlphaOfLength(6), randomMapOrNull());
     }
 
     private Map<String, String> randomMapOrNull() {

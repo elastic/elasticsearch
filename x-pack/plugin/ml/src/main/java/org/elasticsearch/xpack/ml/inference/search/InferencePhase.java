@@ -15,6 +15,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -39,12 +40,12 @@ public class InferencePhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext searchContext, SearchHit[] hits) {
-        SearchExtBuilder inferenceBuider = searchContext.getSearchExt(InferenceSearchExtBuilder.NAME);
-        if (inferenceBuider == null) {
+        SearchExtBuilder inferenceBuilder = searchContext.getSearchExt(InferenceSearchExtBuilder.NAME);
+        if (inferenceBuilder == null) {
             return;
         }
 
-        InferenceSearchExtBuilder infBuilder = (InferenceSearchExtBuilder)inferenceBuider;
+        InferenceSearchExtBuilder infBuilder = (InferenceSearchExtBuilder)inferenceBuilder;
 
         SetOnce<Model> model = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -76,7 +77,7 @@ public class InferencePhase implements FetchSubPhase {
                     mapFields(
                             extractFields(hit, fieldsToRead), fieldMap), config);
 
-            addFieldsToHit(hit, infer.writeResultToMap());
+            addFieldsToHit(hit, infer.writeResultToMap(infBuilder.getTargetField()));
         }
     }
 
@@ -96,7 +97,7 @@ public class InferencePhase implements FetchSubPhase {
         Map<String, Object> sourceMap = hit.getSourceAsMap();
         if (sourceMap != null) {
             for (String fieldName : trackingFieldNames) {
-                Object fieldValue = sourceMap.get(fieldName);
+                Object fieldValue = MapHelper.dig(fieldName, sourceMap);
                 if (fieldValue != null) {
                      doc.put(fieldName, fieldValue);
                 }

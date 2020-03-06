@@ -76,13 +76,17 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    public Map<String, Object> writeResultToMap() {
+    public Map<String, Object> writeResultToMap(String parentResultField) {
+        Map<String, Object> parentResult = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
+        parentResult.put(parentResultField, result);
+
         result.put(resultsField, value());
         if (getFeatureImportance().size() > 0) {
             result.put("feature_importance", getFeatureImportance());
         }
-        return result;
+
+        return parentResult;
     }
 
     @Override

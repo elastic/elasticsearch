@@ -10,6 +10,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -91,15 +92,18 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                 "foo",
                 entries,
                 new ClassificationConfig(3, "my_results", "bar"));
-        Map<String, Object> resultsDoc = result.writeResultToMap();
+        Map<String, Object> resultsDoc = result.writeResultToMap("result_field");
 
-        List<?> list = (List<?>)resultsDoc.get("bar");
+        List<?> list = (List<?>) MapHelper.dig("result_field.bar", resultsDoc);
         assertThat(list.size(), equalTo(3));
 
         for(int i = 0; i < 3; i++) {
             Map<String, Object> map = (Map<String, Object>)list.get(i);
             assertThat(map, equalTo(entries.get(i).asValueMap()));
         }
+
+        Object value = MapHelper.dig("result_field.my_results", resultsDoc);
+        assertThat(value, equalTo("foo"));
     }
 
     @Override

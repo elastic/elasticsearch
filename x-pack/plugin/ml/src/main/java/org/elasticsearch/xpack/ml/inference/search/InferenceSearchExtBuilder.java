@@ -28,21 +28,26 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class InferenceSearchExtBuilder extends SearchExtBuilder {
 
-    public static final String NAME = "ml_inf_search_ext";
+    public static final String NAME = "ml_inference";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     private static final ParseField FIELD_MAPPINGS = new ParseField("field_mappings");
+    private static final ParseField TARGET_FIELD = new ParseField("target_field");
+
+    private static final String DEFAULT_TARGET_FIELD = "ml";
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceSearchExtBuilder, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
-            args -> new InferenceSearchExtBuilder((String) args[0], (List<InferenceConfig>) args[1], (Map<String, String>) args[2])
+            args -> new InferenceSearchExtBuilder((String) args[0], (List<InferenceConfig>) args[1],
+                    (String) args[2], (Map<String, String>) args[3])
     );
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);
         PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
+        PARSER.declareString(optionalConstructorArg(), TARGET_FIELD);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAPPINGS, ObjectParser.ValueType.OBJECT);
     }
 
@@ -53,8 +58,11 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
     private final String modelId;
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMap;
+    private final String targetField;
 
-    public InferenceSearchExtBuilder(String modelId, List<InferenceConfig> config, @Nullable Map<String, String> fieldMap) {
+    public InferenceSearchExtBuilder(String modelId, List<InferenceConfig> config,
+                                     @Nullable String targetField,
+                                     @Nullable Map<String, String> fieldMap) {
         this.modelId = modelId;
         if (config != null) {
             assert config.size() == 1;
@@ -62,16 +70,14 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
         } else {
             this.inferenceConfig = null;
         }
-        if (fieldMap != null) {
-            this.fieldMap = fieldMap;
-        } else {
-            this.fieldMap = Collections.emptyMap();
-        }
+        this.targetField = targetField == null ? DEFAULT_TARGET_FIELD : targetField;
+        this.fieldMap = fieldMap == null ? Collections.emptyMap() : fieldMap;
     }
 
     public InferenceSearchExtBuilder(StreamInput in) throws IOException {
         modelId = in.readString();
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
+        targetField = in.readString();
         boolean readMap = in.readBoolean();
         if (readMap) {
             fieldMap = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -82,6 +88,10 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
 
     public String getModelId() {
         return modelId;
+    }
+
+    public String getTargetField() {
+        return targetField;
     }
 
     public InferenceConfig getInferenceConfig() {
@@ -101,6 +111,7 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeOptionalNamedWriteable(inferenceConfig);
+        out.writeString(targetField);
         boolean fieldMapDefined = fieldMap != null && fieldMap.isEmpty() == false;
         out.writeBoolean(fieldMapDefined);
         if (fieldMapDefined) {

@@ -14,5 +14,5 @@ public interface InferenceResults extends NamedWriteable {
 
     void writeResult(IngestDocument document, String parentResultField);
 
-    Map<String, Object> writeResultToMap();
+    Map<String, Object> writeResultToMap(String parentResultField);
 }

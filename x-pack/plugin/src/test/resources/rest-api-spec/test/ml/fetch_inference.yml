@@ -148,7 +148,7 @@ setup:
           {
             "query": { "term" : { "goods": {"value": "television"} } },
             "ext" : {
-              "ml_inf_search_ext": {
+              "ml_inference": {
                   "model_id": "a-complex-regression-model",
                   "field_mappings": {"size": "decider"},
                   "inference_config": {
@@ -159,8 +159,8 @@ setup:
               }
             }
           }
-  - match: { hits.hits.0.fields.regression-value.0: 5.0 }
-  - match: { hits.hits.1.fields.regression-value.0: 2.0 }
+  - match: { hits.hits.0.fields.ml.0.regression-value: 5.0 }
+  - match: { hits.hits.1.fields.ml.0.regression-value: 2.0 }
 
 ---
 "Test fetch classification":
@@ -172,8 +172,9 @@ setup:
           {
             "query": { "term" : { "goods": {"value": "television"} } },
             "ext" : {
-              "ml_inf_search_ext": {
+              "ml_inference": {
                   "model_id": "a-complex-classification-model",
+                  "target_field" : "ml_class",
                   "inference_config": {
                      "classification": {
                        "num_top_classes": 1
@@ -182,5 +183,5 @@ setup:
               }
             }
           }
-  - match: { hits.hits.0.fields.top_classes.0.0.class_name: "bog standard" }
-  - match: { hits.hits.1.fields.top_classes.0.0.class_name: "widescreen" }
+  - match: { hits.hits.0.fields.ml_class.0.top_classes.0.class_name: "bog standard" }
+  - match: { hits.hits.1.fields.ml_class.0.top_classes.0.class_name: "widescreen" }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,9 +31,10 @@ public class WarningInferenceResultsTests extends AbstractWireSerializingTestCas
 
     public void testWriteResultToMap() {
         WarningInferenceResults result = new WarningInferenceResults("foo");
-        Map<String, Object> doc = result.writeResultToMap();
+        Map<String, Object> doc = result.writeResultToMap("result_field");
 
-        assertThat(doc.get("result_field.warning"), equalTo("foo"));
+        Object field = MapHelper.dig("result_field.warning", doc);
+        assertThat(field, equalTo("foo"));
     }
 
     @Override

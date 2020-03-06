@@ -10,6 +10,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,9 +34,10 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
 
     public void testWriteResultsToMap() {
         RegressionInferenceResults result = new RegressionInferenceResults(0.3, RegressionConfig.EMPTY_PARAMS);
-        Map<String, Object> doc = result.writeResultToMap();
+        Map<String, Object> doc = result.writeResultToMap("result_field");
 
-        assertThat(doc.get("predicted_value"), equalTo(0.3));
+        Object value = MapHelper.dig("result_field.predicted_value", doc);
+        assertThat(value, equalTo(0.3));
     }
 
     @Override

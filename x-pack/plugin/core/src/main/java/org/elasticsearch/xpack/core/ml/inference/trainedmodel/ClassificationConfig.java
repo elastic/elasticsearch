@@ -108,6 +108,7 @@ public class ClassificationConfig implements InferenceConfig {
         return topClassesResultsField;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }

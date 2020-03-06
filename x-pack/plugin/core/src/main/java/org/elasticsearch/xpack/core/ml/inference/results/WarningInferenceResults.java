@@ -61,8 +61,8 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
-    public Map<String, Object> writeResultToMap() {
-        return Collections.singletonMap(NAME, warning);
+    public Map<String, Object> writeResultToMap(String parentResultField) {
+        return Collections.singletonMap(parentResultField, Collections.singletonMap(NAME, warning));
     }
 
     @Override

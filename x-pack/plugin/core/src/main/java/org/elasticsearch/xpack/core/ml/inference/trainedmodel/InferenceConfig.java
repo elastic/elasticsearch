@@ -22,4 +22,6 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
     default boolean requestingImportance() {
         return false;
     }
+
+    String getResultsField();
 }

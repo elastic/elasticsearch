@@ -7,6 +7,10 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -43,6 +47,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanLiteralsOnTheRight(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceWildcards(),
+                new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 // prune/elimination
@@ -98,6 +103,30 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
+                return e;
+            });
+        }
+    }
+
+    private static class ReplaceNullChecks extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+
+            return filter.transformExpressionsUp(e -> {
+                if (e instanceof Equals) {
+                    Equals eq = (Equals) e;
+                    if (Expressions.isNull(eq.right())) {
+                        return new IsNull(e.source(), eq.left());
+                    }
+                }
+
+                else if (e instanceof NotEquals) {
+                    NotEquals eq = (NotEquals) e;
+                    if (Expressions.isNull(eq.right())) {
+                        return new IsNotNull(e.source(), eq.left());
+                    }
+                }
                 return e;
             });
         }

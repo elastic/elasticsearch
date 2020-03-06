@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -32,6 +34,7 @@ public class OptimizerTests extends ESTestCase {
     private static final String INDEX_NAME = "test";
     private EqlParser parser = new EqlParser();
     private IndexResolution index = loadIndexResolution("mapping-default.json");
+
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
     }
@@ -51,6 +54,36 @@ public class OptimizerTests extends ESTestCase {
         return accept(index, eql);
     }
 
+    public void testIsNull() {
+        for (String q : new String[]{"foo where command_line == null", "foo where null == command_line"}) {
+            LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof OrderBy);
+            plan = ((OrderBy) plan).child();
+            assertTrue(plan instanceof Filter);
+
+            Filter filter = (Filter) plan;
+            And condition = (And) filter.condition();
+            assertTrue(condition.right() instanceof IsNull);
+
+            IsNull check = (IsNull) condition.right();
+            assertEquals(((FieldAttribute) check.field()).name(), "command_line");
+        }
+    }
+    public void testIsNotNull() {
+        for (String q : new String[]{"foo where command_line != null", "foo where null != command_line"}) {
+            LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof OrderBy);
+            plan = ((OrderBy) plan).child();
+            assertTrue(plan instanceof Filter);
+
+            Filter filter = (Filter) plan;
+            And condition = (And) filter.condition();
+            assertTrue(condition.right() instanceof IsNotNull);
+
+            IsNotNull check = (IsNotNull) condition.right();
+            assertEquals(((FieldAttribute) check.field()).name(), "command_line");
+        }
+    }
 
     public void testEqualsWildcard() {
         for (String q : new String[]{"foo where command_line == '* bar *'", "foo where '* bar *' == command_line"}) {

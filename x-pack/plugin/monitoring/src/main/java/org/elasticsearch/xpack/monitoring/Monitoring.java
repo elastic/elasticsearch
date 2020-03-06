@@ -114,7 +114,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
-        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext());
+        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
+            dynamicSSLService);
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));

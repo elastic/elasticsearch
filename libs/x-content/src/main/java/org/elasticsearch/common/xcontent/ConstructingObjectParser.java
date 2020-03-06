@@ -299,6 +299,16 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         return objectParser.getName();
     }
 
+    @Override
+    public void declareRequiredFieldSet(String... requiredSet) {
+        objectParser.declareRequiredFieldSet(requiredSet);
+    }
+
+    @Override
+    public void declareExclusiveFieldSet(String... exclusiveSet) {
+        objectParser.declareExclusiveFieldSet(exclusiveSet);
+    }
+
     private Consumer<Target> wrapOrderedModeCallBack(Consumer<Value> callback) {
         return (target) -> {
             if (target.targetObject != null) {

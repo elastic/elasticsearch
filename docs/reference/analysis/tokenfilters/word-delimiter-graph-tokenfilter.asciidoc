@@ -26,9 +26,9 @@ The `word_delimiter_graph` filter uses Lucene's
 [[analysis-word-delimiter-graph-tokenfilter-analyze-ex]]
 ==== Example
 
-The following analyze API request uses the `word_delimiter_graph` filter to
-split `Neil's Wi-Fi-enabled PowerShot SD500` into normalized tokens using the
-filter's default rules:
+The following <<indices-analyze,analyze API>> request uses the
+`word_delimiter_graph` filter to split `Neil's Wi-Fi-enabled PowerShot SD500`
+into normalized tokens using the filter's default rules:
 
 [source,console]
 ----

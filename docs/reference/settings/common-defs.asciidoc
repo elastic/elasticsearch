@@ -15,18 +15,31 @@ end::ssl-cipher-suites-values[]
 
 tag::ssl-cipher-suites-values-java11[]
 Supported cipher suites vary depending on which version of Java you use. For
-example, for version 11 the default value is `TLS_AES_256_GCM_SHA384`,
+example, for version 11 the default value is `TLS_AES_256_GCM_SHA384`, 
 `TLS_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, 
 `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, 
 `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, 
 `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, 
 `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, 
 `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, 
-`TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`,
-`TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA`. For more information, see Oracle's
+`TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, 
+`TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, 
+`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, 
+`TLS_RSA_WITH_AES_128_CBC_SHA`.
++
+--
+NOTE: The default cipher suites list above includes TLSv1.3 ciphers and ciphers
+that require the _Java Cryptography Extension (JCE) Unlimited Strength
+Jurisdiction Policy Files_ for 256-bit AES encryption. If TLSv1.3 is not
+available, the TLSv1.3 ciphers `TLS_AES_256_GCM_SHA384` and
+`TLS_AES_128_GCM_SHA256` are not included in the default list. If 256-bit AES is 
+unavailable, ciphers with `AES_256` in their names are not included in the
+default list. Finally, AES GCM has known performance issues in Java versions
+prior to 11 and is included in the default list only when using Java 11 or above.
+
+For more information, see Oracle's
 https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java Cryptography Architecture documentation].
+--
 end::ssl-cipher-suites-values-java11[]
 
 tag::ssl-key-pem[]

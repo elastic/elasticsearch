@@ -185,9 +185,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, TESTS_PATH);
     }
 
-    /**
-     * Create parameters for this parameterized test.
-     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry registry) throws Exception {
+        return createParameters(registry, TESTS_PATH);
+    }
+
+        /**
+         * Create parameters for this parameterized test.
+         */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String testsPath) throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         Map<String, Set<Path>> yamlSuites = loadSuites(testsPath, paths);

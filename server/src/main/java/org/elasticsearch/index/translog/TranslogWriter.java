@@ -467,7 +467,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         lastWrittenCheckpoint = new Checkpoint(writtenOffset.get(), numOps, generation, minSeqNo, maxSeqNo,
                             globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
                             SequenceNumbers.UNASSIGNED_SEQ_NO);
-                        assert operationSorter.isEmpty();
+                        // TODO: Optimize
+                        buffer.addAll(operationSorter);
                     } finally {
                         Releasables.closeWhileHandlingException(operationSorter);
                         operationSorter.clear();

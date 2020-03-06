@@ -98,6 +98,7 @@ public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
+    private static final String PRIMARY_SHARDS_INACTIVE = "not all primary shards are active";
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -476,7 +477,7 @@ public class TransportStartDataFrameAnalyticsAction
                 assignmentExplanation = assignment.getExplanation();
                 // Assignment failed due to primary shard check.
                 // This is hopefully intermittent and we should allow another assignment attempt.
-                if (assignmentExplanation.contains("not all primary shards are active")) {
+                if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
                     return false;
                 }
                 exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
@@ -609,8 +610,12 @@ public class TransportStartDataFrameAnalyticsAction
                     MlStatsIndex.indexPattern(),
                     AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
-                String reason = "Not opening data frame analytics job [" + id +
-                    "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";
+                String reason = "Not opening data frame analytics job ["
+                    + id
+                    + "], because "
+                    + PRIMARY_SHARDS_INACTIVE
+                    + " for the following indices ["
+                    + String.join(",", unavailableIndices) + "]";
                 logger.debug(reason);
                 return new PersistentTasksCustomMetaData.Assignment(null, reason);
             }

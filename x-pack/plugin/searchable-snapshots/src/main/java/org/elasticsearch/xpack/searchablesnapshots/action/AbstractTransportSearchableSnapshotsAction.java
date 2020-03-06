@@ -24,9 +24,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.searchablesnapshots.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 
 import java.io.IOException;

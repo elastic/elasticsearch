@@ -4,8 +4,6 @@
 <titleabbrev>Word delimiter graph</titleabbrev>
 ++++
 
-experimental[This functionality is marked as experimental in Lucene]
-
 Named `word_delimiter_graph`, it splits words into subwords and performs
 optional transformations on subword groups. Words are split into
 subwords with the following rules:

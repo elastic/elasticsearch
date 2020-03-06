@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 public class OptimizerTests extends ESTestCase {
@@ -55,7 +57,12 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNull() {
-        for (String q : new String[]{"foo where command_line == null", "foo where null == command_line"}) {
+        List<String> tests = Arrays.asList(
+            "foo where command_line == null",
+            "foo where null == command_line"
+        );
+
+        for (String q : tests) {
             LogicalPlan plan = accept(q);
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
@@ -70,7 +77,12 @@ public class OptimizerTests extends ESTestCase {
         }
     }
     public void testIsNotNull() {
-        for (String q : new String[]{"foo where command_line != null", "foo where null != command_line"}) {
+        List<String> tests = Arrays.asList(
+            "foo where command_line != null",
+            "foo where null != command_line"
+        );
+
+        for (String q : tests) {
             LogicalPlan plan = accept(q);
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
@@ -86,7 +98,12 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcard() {
-        for (String q : new String[]{"foo where command_line == '* bar *'", "foo where '* bar *' == command_line"}) {
+        List<String> tests = Arrays.asList(
+            "foo where command_line == '* bar *'",
+            "foo where '* bar *' == command_line"
+        );
+
+        for (String q : tests) {
             LogicalPlan plan = accept(q);
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
@@ -105,7 +122,12 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testNotEqualsWildcard() {
-        for (String q : new String[]{"foo where command_line != '* baz *'", "foo where '* baz *' != command_line"}) {
+        List<String> tests = Arrays.asList(
+            "foo where command_line != '* baz *'",
+            "foo where '* baz *' != command_line"
+        );
+
+        for (String q : tests) {
 
             LogicalPlan plan = accept(q);
             assertTrue(plan instanceof OrderBy);

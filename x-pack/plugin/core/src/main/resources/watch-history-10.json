@@ -1,18 +1,17 @@
 {
-  "index_patterns": [ ".watcher-history-${xpack.watcher.template.version}*" ],
+  "index_patterns": [ ".watcher-history-10*" ],
   "order": 2147483647,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
     "index.lifecycle.name": "watch-history-ilm-policy",
-    "index.hidden": true,
     "index.format": 6
   },
   "mappings": {
     "_doc": {
       "_meta": {
-        "watcher-history-version": "${xpack.watcher.template.version}"
+        "watcher-history-version": "10"
       },
       "dynamic_templates": [
         {
@@ -564,5 +563,5 @@
       }
     }
   },
-  "version": ${xpack.watcher.template.version}
+  "version": 10
 }

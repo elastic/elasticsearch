@@ -45,20 +45,21 @@ PUT _ml/anomaly_detectors/farequote
     "bucket_span": "60m",
     "detectors": [{
       "function": "mean",
-      "field_name": "responsetime", <!--1-->
-      "by_field_name": "airline" <!--1-->
+      "field_name": "responsetime",  <!--1-->
+      "by_field_name": "airline"  <!--1-->
     }],
     "summary_count_field_name": "doc_count"
   },
   "data_description": {
-    "time_field":"time" <!--1-->
+    "time_field":"time"  <!--1-->
   }
 }
 ----------------------------------
 // TEST[skip:setup:farequote_data]
 
 <1> In this example, the `airline`, `responsetime`, and `time` fields are
-aggregations. Only the aggregated fields defined in the `analysis_config` object are analyzed by the {anomaly-job}.
+aggregations. Only the aggregated fields defined in the `analysis_config` object 
+are analyzed by the {anomaly-job}.
 
 NOTE: When the `summary_count_field_name` property is set to a non-null value,
 the job expects to receive aggregated input. The property must be set to the
@@ -81,16 +82,16 @@ PUT _ml/datafeeds/datafeed-farequote
         "time_zone": "UTC"
       },
       "aggregations": {
-        "time": { <!--1-->
+        "time": {  <!--1-->
           "max": {"field": "time"}
         },
-        "airline": { <!--1-->
+        "airline": {  <!--1-->
           "terms": {
             "field": "airline",
             "size": 100
           },
           "aggregations": {
-            "responsetime": { <!--1-->
+            "responsetime": {  <!--1-->
               "avg": {
                 "field": "responsetime"
               }
@@ -110,11 +111,6 @@ field is also `time`. The same is true for the aggregations with the names
 `airline` and `responsetime`. Since you must create the job before you can
 create the {dfeed}, synchronizing your aggregation and field names can simplify
 these configuration steps.
-
-****
-The aggregation you create in a {dfeed} needs to have the same name as that of 
-the field it operates on.
-****
 
 IMPORTANT: If you use a `max` aggregation on a time field, the aggregation name
 in the {dfeed} must match the name of the time field, as in the previous example.

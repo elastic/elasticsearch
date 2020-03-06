@@ -21,7 +21,7 @@ the filter uses the following rules:
   For example: `Neil's` -> `Neil`
 
 The `word_delimiter_graph` filter uses Lucene's
-{lucene-analysis-docs}/miscellaneous/WordDelimiterGraphFilter.html[WordDelimiterGraphFilter]
+{lucene-analysis-docs}/miscellaneous/WordDelimiterGraphFilter.html[WordDelimiterGraphFilter].
 
 [[analysis-word-delimiter-graph-tokenfilter-analyze-ex]]
 ==== Example

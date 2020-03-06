@@ -15,14 +15,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -39,7 +37,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
@@ -444,21 +441,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         // Let's run both jobs in parallel and wait until they are finished
         startAnalytics(firstJobId);
-        // Wait for `.ml-state*` to be created
-        assertBusy(() -> {
-            assertThat(client()
-                    .admin()
-                    .indices()
-                    .prepareGetIndex()
-                    .addIndices(MlStatsIndex.indexPattern())
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .get()
-                    .getIndices()
-                    .length,
-                greaterThan(0));
-        }, 30, TimeUnit.SECONDS);
-        // Wait for `.ml-state*` to be yellow
-        client().admin().cluster().prepareHealth(MlStatsIndex.indexPattern()).setWaitForYellowStatus().get();
         startAnalytics(secondJobId);
         waitUntilAnalyticsIsStopped(firstJobId);
         waitUntilAnalyticsIsStopped(secondJobId);

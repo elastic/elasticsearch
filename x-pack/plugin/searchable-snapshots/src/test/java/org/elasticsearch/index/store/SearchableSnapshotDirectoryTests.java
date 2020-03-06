@@ -65,7 +65,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -324,7 +323,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                 final String repositoryName = randomAlphaOfLength(10);
                 final RepositoryMetaData repositoryMetaData =
-                    new RepositoryMetaData(repositoryName, SearchableSnapshotRepository.TYPE, repositorySettings.build());
+                    new RepositoryMetaData(repositoryName, "fs", repositorySettings.build());
 
                 final BlobStoreRepository repository = new FsRepository(
                     repositoryMetaData,

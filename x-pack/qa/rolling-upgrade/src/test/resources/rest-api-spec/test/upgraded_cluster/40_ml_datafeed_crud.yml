@@ -178,6 +178,8 @@ setup:
         job_id: old-cluster-datafeed-job-with-aggs
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.delete_datafeed:
         datafeed_id: old-cluster-datafeed-with-aggs
 
@@ -208,6 +210,8 @@ setup:
         job_id: mixed-cluster-datafeed-job-with-aggs
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.delete_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
 

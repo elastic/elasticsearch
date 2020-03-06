@@ -1368,7 +1368,6 @@ force closed and then deleted. If the {dfeed} can be corrected, the job can be
 closed and then re-opened.
 * `opened`: The job is available to receive and process data.
 * `opening`: The job open action is in progress and has not yet completed.
-* `deleting`: The job deletion process is in progress but not yet completed.
 --
 end::state-anomaly-job[]
 

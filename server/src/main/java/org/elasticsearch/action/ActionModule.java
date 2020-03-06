@@ -642,6 +642,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndexAction.CompatibleAutoIdHandler(nodesInCluster));
 
         registerHandler.accept(new RestGetAction());
+        registerHandler.accept(new RestGetAction.CompatibleRestGetAction());
+
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
         registerHandler.accept(new RestDeleteAction());

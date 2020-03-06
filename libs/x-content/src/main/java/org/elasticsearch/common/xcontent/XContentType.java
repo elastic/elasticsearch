@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -142,7 +144,9 @@ public enum XContentType {
      * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
      * HTTP header. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaType(String mediaType) {
+    public static XContentType fromMediaType(String mediaTypeHeaderValue) {
+        String mediaType = parseMediaType(mediaTypeHeaderValue);
+
         final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
         for (XContentType type : values()) {
             if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
@@ -157,6 +161,29 @@ public enum XContentType {
         return null;
     }
 
+    static Pattern pattern = Pattern.compile("application/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?");
+
+    public static String parseMediaType(String mediaType) {
+        if (mediaType != null) {
+            Matcher matcher = pattern.matcher(mediaType);
+            if (matcher.find()) {
+                return "application/"+matcher.group(2);
+            }
+        }
+
+        return mediaType;
+    }
+
+    public static String parseVersion(String mediaType){
+        if(mediaType != null){
+            Matcher matcher = pattern.matcher(mediaType);
+            if (matcher.find() && "vnd.elasticsearch+".equals(matcher.group(1))) {
+
+                return matcher.group(4);
+            }
+        }
+        return null;
+    }
     private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
         return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
                 stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||

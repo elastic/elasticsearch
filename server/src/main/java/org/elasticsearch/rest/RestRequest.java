@@ -131,9 +131,29 @@ public class RestRequest implements ToXContent.Params {
     public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
-        return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
+        RestRequest restRequest = new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet());
+        addCompatibleParameter(restRequest);
+        return restRequest;
     }
+
+    private static void addCompatibleParameter(RestRequest request) {
+        if (isRequestCompatible(request)) {
+            String compatibleVersion = XContentType.parseVersion(request.header(CompatibleHandlers.COMPATIBLE_HEADER));
+            request.params().put(CompatibleHandlers.COMPATIBLE_PARAMS_KEY, compatibleVersion);
+            //use it so it won't fail request validation with unused parameter
+            request.param(CompatibleHandlers.COMPATIBLE_PARAMS_KEY);
+        }
+    }
+
+    public static boolean isRequestCompatible(RestRequest request) {
+        return isHeaderCompatible(request.header(CompatibleHandlers.COMPATIBLE_HEADER));
+    }
+    public static boolean isHeaderCompatible(String headerValue) {
+        String version = XContentType.parseVersion(headerValue);
+        return CompatibleHandlers.COMPATIBLE_VERSION.equals(version);
+    }
+
 
     private static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();

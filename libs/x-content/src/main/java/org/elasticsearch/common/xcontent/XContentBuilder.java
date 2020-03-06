@@ -165,6 +165,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
+    private byte compatibleVersion;
+
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
@@ -997,6 +999,16 @@ public final class XContentBuilder implements Closeable, Flushable {
         generator.copyCurrentStructure(parser);
         return this;
     }
+
+    public XContentBuilder compatibleVersion(byte compatibleVersion){
+        this.compatibleVersion = compatibleVersion;
+        return this;
+    }
+
+    public byte getCompatibleMajorVersion() {
+        return compatibleVersion;
+    }
+
 
     @Override
     public void flush() throws IOException {

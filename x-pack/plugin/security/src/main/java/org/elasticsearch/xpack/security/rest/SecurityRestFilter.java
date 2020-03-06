@@ -127,4 +127,9 @@ public class SecurityRestFilter implements RestHandler {
         }
         return restRequest;
     }
+
+    @Override
+    public boolean compatibilityRequired() {
+        return restHandler.compatibilityRequired();
+    }
 }

@@ -4,6 +4,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.rest.CompatibleHandlers;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -59,8 +60,14 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             //TODO: be more selective here
             doSection.setIgnoreWarnings(true);
             //TODO: use the real header compatibility header
-            doSection.getApiCallSection().addHeaders(Collections.singletonMap("compatible-with", "v7"));
+            String compatibleHeader = createCompatibleHeader();
+            doSection.getApiCallSection()
+                     .addHeaders(Collections.singletonMap(CompatibleHandlers.COMPATIBLE_HEADER, compatibleHeader));
         });
+    }
+
+    private static String createCompatibleHeader() {
+        return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleHandlers.COMPATIBLE_VERSION;
     }
 
 

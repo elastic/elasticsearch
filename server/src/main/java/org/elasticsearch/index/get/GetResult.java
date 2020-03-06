@@ -28,6 +28,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -295,11 +296,16 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         }
         return builder;
     }
+    private static final String TYPE_FIELD_NAME = "_type";
+    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
+        if (builder.getCompatibleMajorVersion() == Version.V_7_0_0.major) {
+            builder.field(TYPE_FIELD_NAME, SINGLE_MAPPING_TYPE);
+        }
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {

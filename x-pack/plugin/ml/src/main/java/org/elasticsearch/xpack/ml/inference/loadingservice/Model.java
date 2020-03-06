@@ -10,12 +10,23 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 
 import java.util.Map;
+import java.util.Set;
 
 public interface Model {
 
     String getResultsType();
 
-    void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener);
+    default void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener) {
+        try {
+            listener.onResponse(infer(fields, inferenceConfig));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    InferenceResults infer(Map<String, Object> fields, InferenceConfig inferenceConfig);
 
     String getModelId();
+
+    Set<String> getFieldNames();
 }

@@ -123,6 +123,21 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     }
 
     @Override
+    public Map<String, Object> writeResultToMap() {
+        Map<String, Object> results = new HashMap<>();
+        results.put(resultsField, valueAsString());
+        if (topClasses.size() > 0) {
+            results.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+        }
+        if (getFeatureImportance().size() > 0) {
+            results.put("feature_importance", getFeatureImportance());
+        }
+
+        return results;
+    }
+
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

@@ -58,6 +58,11 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Map<String, Object> writeResultToMap() {
+        throw new UnsupportedOperationException("[raw] does not support writing inference results");
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

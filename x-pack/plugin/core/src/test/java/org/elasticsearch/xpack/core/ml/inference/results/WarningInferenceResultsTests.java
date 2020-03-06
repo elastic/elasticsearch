@@ -10,6 +10,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -25,6 +26,13 @@ public class WarningInferenceResultsTests extends AbstractWireSerializingTestCas
         result.writeResult(document, "result_field");
 
         assertThat(document.getFieldValue("result_field.warning", String.class), equalTo("foo"));
+    }
+
+    public void testWriteResultToMap() {
+        WarningInferenceResults result = new WarningInferenceResults("foo");
+        Map<String, Object> doc = result.writeResultToMap();
+
+        assertThat(doc.get("result_field.warning"), equalTo("foo"));
     }
 
     @Override

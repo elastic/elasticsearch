@@ -131,8 +131,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
@@ -212,10 +210,11 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
-import org.elasticsearch.xpack.ml.inference.search.InferencePhase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.inference.search.InferencePhase;
+import org.elasticsearch.xpack.ml.inference.search.InferenceSearchExtBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -895,16 +894,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     @Override
     public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-        // TODO: add a way to specify the model ID and necessary config.
-        // TODO: is the full inference config really needed?
-        String modelId = "model-id";
-        InferenceConfig config = new RegressionConfig("ignored");
-        return List.of(new InferencePhase(modelId, config, this.modelLoadingService));
+        return Collections.singletonList(new InferencePhase(modelLoadingService));
     }
 
     @Override
     public List<SearchExtSpec<?>> getSearchExts() {
-        return emptyList();
+        return Collections.singletonList(
+                new SearchExtSpec<>(InferenceSearchExtBuilder.NAME, InferenceSearchExtBuilder::new,
+                        InferenceSearchExtBuilder::fromXContent));
     }
 
     @Override

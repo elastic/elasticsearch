@@ -81,6 +81,27 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         assertThat(document.getFieldValue("result_field.my_results", String.class), equalTo("foo"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testWriteResultsToMapWithTopClasses() {
+        List<ClassificationInferenceResults.TopClassEntry> entries = Arrays.asList(
+                new ClassificationInferenceResults.TopClassEntry("foo", 0.7),
+                new ClassificationInferenceResults.TopClassEntry("bar", 0.2),
+                new ClassificationInferenceResults.TopClassEntry("baz", 0.1));
+        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
+                "foo",
+                entries,
+                new ClassificationConfig(3, "my_results", "bar"));
+        Map<String, Object> resultsDoc = result.writeResultToMap();
+
+        List<?> list = (List<?>)resultsDoc.get("bar");
+        assertThat(list.size(), equalTo(3));
+
+        for(int i = 0; i < 3; i++) {
+            Map<String, Object> map = (Map<String, Object>)list.get(i);
+            assertThat(map, equalTo(entries.get(i).asValueMap()));
+        }
+    }
+
     @Override
     protected ClassificationInferenceResults createTestInstance() {
         return createRandomResults();

@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.HashSet;
@@ -45,6 +44,11 @@ public class LocalModel implements Model {
     }
 
     @Override
+    public Set<String> getFieldNames() {
+        return fieldNames;
+    }
+
+    @Override
     public String getResultsType() {
         switch (trainedModelDefinition.getTrainedModel().targetType()) {
             case CLASSIFICATION:
@@ -53,23 +57,18 @@ public class LocalModel implements Model {
                 return RegressionInferenceResults.NAME;
             default:
                 throw ExceptionsHelper.badRequestException("Model [{}] has unsupported target type [{}]",
-                    modelId,
-                    trainedModelDefinition.getTrainedModel().targetType());
+                        modelId,
+                        trainedModelDefinition.getTrainedModel().targetType());
         }
     }
 
     @Override
-    public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
-        try {
-            if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
-                listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
-                return;
-            }
-
-            listener.onResponse(trainedModelDefinition.infer(fields, config));
-        } catch (Exception e) {
-            listener.onFailure(e);
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+        if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
+            return new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
         }
+
+        return trainedModelDefinition.infer(fields, config);
     }
 
 }

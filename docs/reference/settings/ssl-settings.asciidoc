@@ -124,7 +124,6 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.type+::
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
-//TBD:Should this use the ssl-truststore-type-pkcs11 or ssl-truststore-type definition and default values?
 
 +{ssl-prefix}.ssl.truststore.password+::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
@@ -143,7 +142,6 @@ via the following settings:
 
 +{ssl-prefix}.keystore.type+::
 Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keystore.
-//TBD: Is the default value `jks`?
 
 +{ssl-prefix}.truststore.type+::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]

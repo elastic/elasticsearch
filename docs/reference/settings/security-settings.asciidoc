@@ -728,7 +728,6 @@ include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 `ssl.secure_keystore.password` (<<secure-settings,Secure>>)::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
-//TBD: Why/how is this different than `ssl.keystore.secure_password`?
 
 `ssl.keystore.path`::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
@@ -1135,7 +1134,6 @@ You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 +
 You cannot use this setting and `ssl.keystore.password` at the same time.
-//TBD: Why is this different name than `ssl.secure_keystore.password` elsewhere in this file?
 
 `ssl.keystore.key_password`::
 include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]

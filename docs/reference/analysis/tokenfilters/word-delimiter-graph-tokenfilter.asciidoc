@@ -10,24 +10,37 @@ the filter uses the following rules:
 
 * Split tokens at non-alphanumeric characters.
   The filter uses these characters as delimiters.
-  For example: `Wi-Fi` -> `Wi`, `Fi`
+  For example: `Super-Duper` -> `Super`, `Duper`
 * Remove leading or trailing delimiters from each token.
-  For example: `hello---there, 'dude'` -> `hello`, `there`, `dude`
+  For example: `XL---42+'Autocoder'` -> `XL`, `42`, `Autocoder`
 * Split tokens at letter case transitions.
   For example: `PowerShot` -> `Power`, `Shot`
 * Split tokens at letter-number transitions.
-  For example: `SD500` -> `SD`, `500`
+  For example: `XL500` -> `XL`, `500`
 * Remove the English possessive (`'s`) from the end of each token.
   For example: `Neil's` -> `Neil`
 
 The `word_delimiter_graph` filter uses Lucene's
 {lucene-analysis-docs}/miscellaneous/WordDelimiterGraphFilter.html[WordDelimiterGraphFilter].
 
+[TIP]
+====
+The `word_delimiter_graph` filter was designed to remove punctuation from
+complex identifiers, such as product IDs or part numbers. For these use cases,
+we recommend using the `word_delimiter_graph` filter with the
+<<analysis-keyword-tokenizer,`keyword`>> tokenizer.
+
+Avoid using the `word_delimiter_graph` filter to split hyphenated words, such as
+`wi-fi`. Because users often search for these words both with and without
+hyphens, we recommend using the
+<<analysis-synonym-graph-tokenfilter,`synonym_graph`>> filter instead.
+====
+
 [[analysis-word-delimiter-graph-tokenfilter-analyze-ex]]
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the
-`word_delimiter_graph` filter to split `Neil's Wi-Fi-enabled PowerShot SD500`
+`word_delimiter_graph` filter to split `Neil's Super-Duper-XL500--42+AutoCoder`
 into normalized tokens using the filter's default rules:
 
 [source,console]
@@ -36,7 +49,7 @@ GET /_analyze
 {
   "tokenizer": "whitespace",
   "filter": [ "word_delimiter_graph" ],
-  "text": "Neil's Wi-Fi-enabled PowerShot SD500"
+  "text": "Neil's Super-Duper-XL500--42+AutoCoder"
 }
 ----
 
@@ -44,7 +57,7 @@ The filter produces the following tokens:
 
 [source,txt]
 ----
-[ Neil, Wi, Fi, enabled, Power, Shot, SD, 500 ]
+[ Neil, Super, Duper, XL, 500, 42, Auto, Coder ]
 ----
 
 ////
@@ -60,51 +73,51 @@ The filter produces the following tokens:
       "position" : 0
     },
     {
-      "token" : "Wi",
+      "token" : "Super",
       "start_offset" : 7,
-      "end_offset" : 9,
+      "end_offset" : 12,
       "type" : "word",
       "position" : 1
     },
     {
-      "token" : "Fi",
-      "start_offset" : 10,
-      "end_offset" : 12,
+      "token" : "Duper",
+      "start_offset" : 13,
+      "end_offset" : 18,
       "type" : "word",
       "position" : 2
     },
     {
-      "token" : "enabled",
-      "start_offset" : 13,
-      "end_offset" : 20,
+      "token" : "XL",
+      "start_offset" : 19,
+      "end_offset" : 21,
       "type" : "word",
       "position" : 3
     },
     {
-      "token" : "Power",
+      "token" : "500",
       "start_offset" : 21,
-      "end_offset" : 26,
+      "end_offset" : 24,
       "type" : "word",
       "position" : 4
     },
     {
-      "token" : "Shot",
+      "token" : "42",
       "start_offset" : 26,
-      "end_offset" : 30,
+      "end_offset" : 28,
       "type" : "word",
       "position" : 5
     },
     {
-      "token" : "SD",
-      "start_offset" : 31,
+      "token" : "Auto",
+      "start_offset" : 29,
       "end_offset" : 33,
       "type" : "word",
       "position" : 6
     },
     {
-      "token" : "500",
+      "token" : "Coder",
       "start_offset" : 33,
-      "end_offset" : 36,
+      "end_offset" : 38,
       "type" : "word",
       "position" : 7
     }
@@ -145,8 +158,8 @@ This could prevent the `word_delimiter_graph` filter from splitting tokens
 correctly. It can also interfere with the filter's configurable parameters, such
 as <<word-delimiter-graph-tokenfilter-catenate-all,`catenate_all`>> or
 <<word-delimiter-graph-tokenfilter-preserve-original,`preserve_original`>>. We
-recommend using the <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer
-instead.
+recommend using the <<analysis-keyword-tokenizer,`keyword`>> or
+<<analysis-whitespace-tokenizer,`whitespace`>> tokenizer instead.
 ====
 
 [[word-delimiter-graph-tokenfilter-configure-parms]]
@@ -171,25 +184,79 @@ could produce tokens with illegal offsets.
 
 [[word-delimiter-graph-tokenfilter-catenate-all]]
 `catenate_all`::
++
+--
 (Optional, boolean)
 If `true`, the filter produces catenated tokens for chains of alphanumeric
 characters separated by non-alphabetic delimiters. For example:
-`wi-fi-232-enabled` -> [**`wifi232enabled`**, `wi`, `fi`, `232`, `enabled` ].
+`super-duper-xl-500` -> [**`superduperxl500`**, `super`, `duper`, `xl`, `500` ].
 Defaults to `false`.
+
+[WARNING]
+====
+Setting this parameter to `true` produces multi-position tokens, which are not
+supported by indexing.
+
+If this parameter is `true`, avoid using this filter in an index analyzer or
+use the <<analysis-flatten-graph-tokenfilter,`flatten_graph`>> filter after
+this filter to make the token stream suitable for indexing.
+
+When used for search analysis, catenated tokens can cause problems for the
+<<query-dsl-match-query-phrase,`match_phrase`>> query and other queries that
+rely on token position for matching. Avoid setting this parameter to `true` if
+you plan to use these queries.
+====
+--
 
 [[word-delimiter-graph-tokenfilter-catenate-numbers]]
 `catenate_numbers`::
++
+--
 (Optional, boolean)
 If `true`, the filter produces catenated tokens for chains of numeric characters
 separated by non-alphabetic delimiters. For example: `01-02-03` ->
 [**`010203`**, `01`, `02`, `03` ]. Defaults to `false`.
 
+[WARNING]
+====
+Setting this parameter to `true` produces multi-position tokens, which are not
+supported by indexing.
+
+If this parameter is `true`, avoid using this filter in an index analyzer or
+use the <<analysis-flatten-graph-tokenfilter,`flatten_graph`>> filter after
+this filter to make the token stream suitable for indexing.
+
+When used for search analysis, catenated tokens can cause problems for the
+<<query-dsl-match-query-phrase,`match_phrase`>> query and other queries that
+rely on token position for matching. Avoid setting this parameter to `true` if
+you plan to use these queries.
+====
+--
+
 [[word-delimiter-graph-tokenfilter-catenate-words]]
 `catenate_words`::
++
+--
 (Optional, boolean)
 If `true`, the filter produces catenated tokens for chains of alphabetical
-characters separated by non-alphabetic delimiters. For example: `wi-fi-enabled`
--> [**`wifienabled`**, `wi`, `fi`, `enabled`]. Defaults to `false`.
+characters separated by non-alphabetic delimiters. For example: `super-duper-xl`
+-> [**`superduperxl`**, `super`, `duper`, `xl`]. Defaults to `false`.
+
+[WARNING]
+====
+Setting this parameter to `true` produces multi-position tokens, which are not
+supported by indexing.
+
+If this parameter is `true`, avoid using this filter in an index analyzer or
+use the <<analysis-flatten-graph-tokenfilter,`flatten_graph`>> filter after
+this filter to make the token stream suitable for indexing.
+
+When used for search analysis, catenated tokens can cause problems for the
+<<query-dsl-match-query-phrase,`match_phrase`>> query and other queries that
+rely on token position for matching. Avoid setting this parameter to `true` if
+you plan to use these queries.
+====
+--
 
 `generate_number_parts`::
 (Optional, boolean)
@@ -205,10 +272,24 @@ Defaults to `true`.
 
 [[word-delimiter-graph-tokenfilter-preserve-original]]
 `preserve_original`::
++
+--
 (Optional, boolean)
 If `true`, the filter includes the original version of any split tokens in the
 output. This original version includes non-alphanumeric delimiters. For example:
-`wi-fi-232` -> [**`wi-fi-232`**, `wi`, `fi`, `232` ]. Defaults to `false`.
+`super-duper-xl-500` -> [**`super-duper-xl-500`**, `super`, `duper`, `xl`, `500`
+]. Defaults to `false`.
+
+[WARNING]
+====
+Setting this parameter to `true` produces multi-position tokens, which are not
+supported by indexing.
+
+If this parameter is `true`, avoid using this filter in an index analyzer or
+use the <<analysis-flatten-graph-tokenfilter,`flatten_graph`>> filter after
+this filter to make the token stream suitable for indexing.
+====
+--
 
 `protected_words`::
 (Optional, array of strings)
@@ -326,7 +407,7 @@ PUT /my_index
   "settings": {
     "analysis": {
       "analyzer": {
-        "default": {
+        "my_analyzer": {
           "tokenizer": "whitespace",
           "filter": [ "my_custom_word_delimiter_graph_filter" ]
         }
@@ -348,32 +429,70 @@ PUT /my_index
 [[analysis-word-delimiter-graph-differences]]
 ==== Differences between `word_delimiter` and `word_delimiter_graph`
 
-Both the <<analysis-word-delimiter-tokenfilter,`word_delimiter`>> and
-`word_delimiter_graph` token filters can produce catenated tokens when any of
-the following parameters are `true`:
+Both the  <<analysis-word-delimiter-tokenfilter,`word_delimiter`>> and
+`word_delimiter_graph` filters produce tokens that span multiple positions when
+any of the following parameters are `true`:
 
  * <<word-delimiter-graph-tokenfilter-catenate-all,`catenate_all`>>
  * <<word-delimiter-graph-tokenfilter-catenate-numbers,`catenate_numbers`>>
  * <<word-delimiter-graph-tokenfilter-catenate-words,`catenate_words`>>
+ * <<word-delimiter-graph-tokenfilter-preserve-original,`preserve_original`>>
 
-When adding these new tokens to a stream, the `word_delimiter` filter places
-catenated tokens _after_ the first delimited token. For example, with
-`catenate_words` set to `true`, the `word_delimiter` filter changes [ `the`,
-`wi-fi`, `is`, `enabled`]  to [`the`, `wi`, **`wifi`**, `fi`, `is`, `enabled` ].
+However, only the `word_delimiter_graph` filter assigns multi-position tokens a
+`positionLength` attribute, which indicates the number of positions a token
+spans. This ensures the `word_delimiter_graph` filter always produces valid token
+https://en.wikipedia.org/wiki/Directed_acyclic_graph[graphs].
 
-This can cause issues for the <<query-dsl-match-query-phrase,`match_phrase`>>
-query and other queries that rely on the sequence of token streams for matching.
+The `word_delimiter` filter does not assign multi-position tokens a
+`positionLength` attribute. This means it produces invalid graphs for streams
+including these tokens.
 
-The `word_delimiter_graph` filter places catenated tokens _before_ the first
-delimited token. For example, with `catenate_words` set to `true`, the
-`word_delimiter_graph` filter changes [ `the`, `wi-fi`, `is`, `enabled` ] to
-[ `the`, **`wifi`**, `wi`, `fi`, `is`, `enabled` ].
+While indexing does not support token graphs containing multi-position tokens,
+queries, such as the <<query-dsl-match-query-phrase,`match_phrase`>> query, can
+use these graphs to generate multiple sub-queries from a single query string.
 
-This better preserves the token stream's original sequence and doesn't usually
-interfere with `match_phrase` or similar queries.
+To see how token graphs produced by the `word_delimiter` and
+`word_delimiter_graph` filters differ, check out the following example.
 
-The `word_delimiter_graph` also supports the
-<<word-delimiter-graph-tokenfilter-adjust-offsets,`adjust_offsets`>> parameter,
-which adjusts the offsets of split or catenated tokens to reflect their actual
-position in the token stream. The `adjust_offsets` parameter is not supported by
-the `word_delimiter` filter.
+.*Example*
+[%collapsible]
+====
+
+[[analysis-word-delimiter-graph-basic-token-graph]]
+*Basic token graph*
+
+Both the `word_delimiter` and `word_delimiter_graph` produce the following token
+graph for `PowerShot2000` when the following parameters are `false`:
+
+ * <<word-delimiter-graph-tokenfilter-catenate-all,`catenate_all`>>
+ * <<word-delimiter-graph-tokenfilter-catenate-numbers,`catenate_numbers`>>
+ * <<word-delimiter-graph-tokenfilter-catenate-words,`catenate_words`>>
+ * <<word-delimiter-graph-tokenfilter-preserve-original,`preserve_original`>>
+
+This graph does not contain multi-position tokens. All tokens span only one
+position.
+
+image::images/analysis/token-graph-basic.svg[align="center"]
+
+[[analysis-word-delimiter-graph-wdg-token-graph]]
+*`word_delimiter_graph` graph with a multi-position token*
+
+The `word_delimiter_graph` filter produces the following token graph for
+`PowerShot2000` when `catenate_words` is `true`.
+
+image::images/analysis/token-graph-wdg.svg[align="center"]
+
+This graph correctly indicates the catenated `PowerShot` token spans two
+positions.
+====
+
+[[analysis-word-delimiter-graph-wd-token-graph]]
+*`word_delimiter` graph with a multi-position token*
+
+When `catenate_words` is `true`, the `word_delimiter` filter produces
+the following token graph for `PowerShot2000`.
+
+Note that the catenated `PowerShot` token should span two positions but only
+spans one in the token graph, making it invalid.
+
+image::images/analysis/token-graph-wd.svg[align="center"]

@@ -106,7 +106,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         return builder;
     }
 
-    public static FilterAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+    public static FilterAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
         QueryBuilder filter = parseInnerQueryBuilder(parser);
         return new FilterAggregationBuilder(aggregationName, filter);
     }

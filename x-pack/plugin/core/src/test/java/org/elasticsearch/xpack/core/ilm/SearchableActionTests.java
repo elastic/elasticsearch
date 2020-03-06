@@ -73,30 +73,63 @@ public class SearchableActionTests extends AbstractActionTestCase<SearchableSnap
     public void testCheckSnapshotStatusActionReportsFailure() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetaData.Builder indexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-        TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
-            getCheckSnapshotStatusAsyncAction("repo");
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-        try (NoOpClient client = new NoOpClient(getTestName())) {
-            checkSnapshotStatusAsyncAction.apply(client, indexMetadataBuilder.build(), new BranchingStepListener() {
-                @Override
-                public void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext) {
+            TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
+                getCheckSnapshotStatusAsyncAction();
 
-                }
+            try (NoOpClient client = new NoOpClient(getTestName())) {
+                checkSnapshotStatusAsyncAction.apply(client, indexMetadataBuilder.build(), new BranchingStepListener() {
+                    @Override
+                    public void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext) {
 
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                }
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName +
-                        "] and index [" + indexName + "]"));
-                }
-            });
+                    @Override
+                    public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e.getMessage(), is("snapshot repository is not present for policy [" + policyName +
+                            "] and index [" + indexName + "]"));
+                    }
+                });
+            }
+        }
+
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
+            indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
+
+            TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
+                getCheckSnapshotStatusAsyncAction();
+
+            try (NoOpClient client = new NoOpClient(getTestName())) {
+                checkSnapshotStatusAsyncAction.apply(client, indexMetadataBuilder.build(), new BranchingStepListener() {
+                    @Override
+                    public void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext) {
+
+                    }
+
+                    @Override
+                    public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName +
+                            "] and index [" + indexName + "]"));
+                    }
+                });
+            }
         }
     }
 
@@ -104,16 +137,17 @@ public class SearchableActionTests extends AbstractActionTestCase<SearchableSnap
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         String snapshotName = "ilm-snapshot";
+        String repoName = "repo_name";
         IndexMetaData.Builder indexMetadataBuilder =
             IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("snapshot_name", snapshotName));
+                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("repository_name", repoName, "snapshot_name",
+                    snapshotName));
 
-        String snapshotRepository = "repo";
         TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
-            getCheckSnapshotStatusAsyncAction(snapshotRepository);
+            getCheckSnapshotStatusAsyncAction();
 
-        try (NoOpClient client = getSnapshotStatusRequestAssertingClient(snapshotRepository, snapshotName)) {
+        try (NoOpClient client = getSnapshotStatusRequestAssertingClient(repoName, snapshotName)) {
             checkSnapshotStatusAsyncAction.apply(client, indexMetadataBuilder.build(), new BranchingStepListener() {
                 @Override
                 public void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext) {

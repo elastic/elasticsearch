@@ -37,6 +37,7 @@ public class LifecycleExecutionState {
     private static final String STEP_INFO = "step_info";
     private static final String PHASE_DEFINITION = "phase_definition";
     private static final String SNAPSHOT_NAME ="snapshot_name";
+    private static final String SNAPSHOT_REPOSITORY ="snapshot_repository";
 
     private final String phase;
     private final String action;
@@ -51,10 +52,11 @@ public class LifecycleExecutionState {
     private final Long actionTime;
     private final Long stepTime;
     private final String snapshotName;
+    private final String snapshotRepository;
 
     private LifecycleExecutionState(String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
                                     Integer failedStepRetryCount, String stepInfo, String phaseDefinition, Long lifecycleDate,
-                                    Long phaseTime, Long actionTime, Long stepTime, String snapshotName) {
+                                    Long phaseTime, Long actionTime, Long stepTime, String snapshotRepository, String snapshotName) {
         this.phase = phase;
         this.action = action;
         this.step = step;
@@ -67,6 +69,7 @@ public class LifecycleExecutionState {
         this.phaseTime = phaseTime;
         this.actionTime = actionTime;
         this.stepTime = stepTime;
+        this.snapshotRepository = snapshotRepository;
         this.snapshotName = snapshotName;
     }
 
@@ -125,6 +128,7 @@ public class LifecycleExecutionState {
             .setIndexCreationDate(state.lifecycleDate)
             .setPhaseTime(state.phaseTime)
             .setActionTime(state.actionTime)
+            .setSnapshotRepository(state.snapshotRepository)
             .setSnapshotName(state.snapshotName)
             .setStepTime(state.stepTime);
     }
@@ -154,6 +158,9 @@ public class LifecycleExecutionState {
         }
         if (customData.containsKey(PHASE_DEFINITION)) {
             builder.setPhaseDefinition(customData.get(PHASE_DEFINITION));
+        }
+        if (customData.containsKey(SNAPSHOT_REPOSITORY)) {
+            builder.setSnapshotRepository(customData.get(SNAPSHOT_REPOSITORY));
         }
         if (customData.containsKey(SNAPSHOT_NAME)) {
             builder.setSnapshotName(customData.get(SNAPSHOT_NAME));
@@ -236,6 +243,9 @@ public class LifecycleExecutionState {
         if (phaseDefinition != null) {
             result.put(PHASE_DEFINITION, String.valueOf(phaseDefinition));
         }
+        if (snapshotRepository != null) {
+            result.put(SNAPSHOT_REPOSITORY, snapshotRepository);
+        }
         if (snapshotName != null) {
             result.put(SNAPSHOT_NAME, snapshotName);
         }
@@ -294,6 +304,10 @@ public class LifecycleExecutionState {
         return snapshotName;
     }
 
+    public String getSnapshotRepository() {
+        return snapshotRepository;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -310,6 +324,7 @@ public class LifecycleExecutionState {
             Objects.equals(isAutoRetryableError(), that.isAutoRetryableError()) &&
             Objects.equals(getFailedStepRetryCount(), that.getFailedStepRetryCount()) &&
             Objects.equals(getStepInfo(), that.getStepInfo()) &&
+            Objects.equals(getSnapshotRepository(), that.getSnapshotRepository()) &&
             Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
             Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
     }
@@ -317,7 +332,8 @@ public class LifecycleExecutionState {
     @Override
     public int hashCode() {
         return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), isAutoRetryableError(), getFailedStepRetryCount(),
-            getStepInfo(), getPhaseDefinition(), getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime(), getSnapshotName());
+            getStepInfo(), getPhaseDefinition(), getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime(),
+            getSnapshotRepository(), getSnapshotName());
     }
 
     @Override
@@ -339,6 +355,7 @@ public class LifecycleExecutionState {
         private Boolean isAutoRetryableError;
         private Integer failedStepRetryCount;
         private String snapshotName;
+        private String snapshotRepository;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -400,6 +417,11 @@ public class LifecycleExecutionState {
             return this;
         }
 
+        public Builder setSnapshotRepository(String snapshotRepository) {
+            this.snapshotRepository = snapshotRepository;
+            return this;
+        }
+
         public Builder setSnapshotName(String snapshotName) {
             this.snapshotName = snapshotName;
             return this;
@@ -407,7 +429,7 @@ public class LifecycleExecutionState {
 
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(phase, action, step, failedStep, isAutoRetryableError, failedStepRetryCount, stepInfo,
-                phaseDefinition, indexCreationDate, phaseTime, actionTime, stepTime, snapshotName);
+                phaseDefinition, indexCreationDate, phaseTime, actionTime, stepTime, snapshotRepository, snapshotName);
         }
     }
 

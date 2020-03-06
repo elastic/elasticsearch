@@ -32,70 +32,95 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
     public CleanupSnapshotStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        String repository = randomAlphaOfLength(10);
-        return new CleanupSnapshotStep(stepKey, nextStepKey, client, repository);
+        return new CleanupSnapshotStep(stepKey, nextStepKey, client);
     }
 
     @Override
     protected CleanupSnapshotStep copyInstance(CleanupSnapshotStep instance) {
-        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getSnapshotRepository());
+        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
     @Override
     public CleanupSnapshotStep mutateInstance(CleanupSnapshotStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String snapshotRepository = instance.getSnapshotRepository();
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 1:
                 nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
-            case 2:
-                snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(1, 10));
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupSnapshotStep(key, nextKey, instance.getClient(), snapshotRepository);
+        return new CleanupSnapshotStep(key, nextKey, instance.getClient());
     }
 
     public void testPerformActionFailure() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetaData.Builder indexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetaData indexMetaData = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-        CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-        cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
-            }
+            IndexMetaData indexMetaData = indexMetadataBuilder.build();
 
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(IllegalStateException.class));
-                assertThat(e.getMessage(),
-                    is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
-            }
-        });
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+
+            CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
+            cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+                @Override
+                public void onResponse(boolean complete) {
+                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalStateException.class));
+                    assertThat(e.getMessage(),
+                        is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
+                }
+            });
+        }
+
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
+            indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
+
+            IndexMetaData indexMetaData = indexMetadataBuilder.build();
+
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+
+            CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
+            cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+                @Override
+                public void onResponse(boolean complete) {
+                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalStateException.class));
+                    assertThat(e.getMessage(),
+                        is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
+                }
+            });
+        }
     }
 
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        Map<String, String> ilmCustom = new HashMap<>();
         String snapshotName = indexName + "-" + policyName;
-        ilmCustom.put("snapshot_name", snapshotName);
+        Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName);
 
         IndexMetaData.Builder indexMetadataBuilder =
             IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -107,8 +132,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
         try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
-            CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client,
-                randomAlphaOfLengthBetween(1, 10));
+            CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {

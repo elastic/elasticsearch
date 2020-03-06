@@ -18,6 +18,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -26,30 +27,34 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
     @Override
     protected GenerateSnapshotNameStep createRandomInstance() {
-        return new GenerateSnapshotNameStep(randomStepKey(), randomStepKey());
+        return new GenerateSnapshotNameStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(5, 10));
     }
 
     @Override
     protected GenerateSnapshotNameStep mutateInstance(GenerateSnapshotNameStep instance) {
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
+        String snapshotRepository = instance.getSnapshotRepository();
 
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0:
                 key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 1:
                 nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
+            case 2:
+                snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(5, 10));
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new GenerateSnapshotNameStep(key, nextKey);
+        return new GenerateSnapshotNameStep(key, nextKey, snapshotRepository);
     }
 
     @Override
     protected GenerateSnapshotNameStep copyInstance(GenerateSnapshotNameStep instance) {
-        return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey());
+        return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey(), instance.getSnapshotRepository());
     }
 
     public void testPerformAction() {
@@ -68,6 +73,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metaData().index(indexName));
         assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
             notNullValue());
+        assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
         assertThat(executionState.getSnapshotName(), containsStringIgnoringCase(indexName));
         assertThat(executionState.getSnapshotName(), containsStringIgnoringCase(policyName));
     }

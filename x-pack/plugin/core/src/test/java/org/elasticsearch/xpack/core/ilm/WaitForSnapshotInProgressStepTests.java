@@ -32,60 +32,79 @@ public class WaitForSnapshotInProgressStepTests extends AbstractStepTestCase<Wai
 
     @Override
     protected WaitForSnapshotInProgressStep createRandomInstance() {
-        return new WaitForSnapshotInProgressStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(1, 10));
+        return new WaitForSnapshotInProgressStep(randomStepKey(), randomStepKey());
     }
 
     @Override
     protected WaitForSnapshotInProgressStep mutateInstance(WaitForSnapshotInProgressStep instance) {
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
-        String snapshotRepository = instance.getSnapshotRepository();
 
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0:
                 key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 1:
                 nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
-            case 2:
-                snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(1, 10));
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new WaitForSnapshotInProgressStep(key, nextKey, snapshotRepository);
+        return new WaitForSnapshotInProgressStep(key, nextKey);
     }
 
     @Override
     protected WaitForSnapshotInProgressStep copyInstance(WaitForSnapshotInProgressStep instance) {
-        return new WaitForSnapshotInProgressStep(instance.getKey(), instance.getNextStepKey(), instance.getSnapshotRepository());
+        return new WaitForSnapshotInProgressStep(instance.getKey(), instance.getNextStepKey());
     }
 
-    public void testNoSnapshotNameAvailable() {
+    public void testMissingSnapshotAndRepoInformation() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetaData.Builder indexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetaData indexMetaData = indexMetadataBuilder.build();
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            Map<String, String> ilmCustom = new HashMap<>();
+            String repository = "repository";
+            ilmCustom.put("snapshot_repository", repository);
+            indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+            IndexMetaData indexMetaData = indexMetadataBuilder.build();
 
-        WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = createRandomInstance();
-        Result result = waitForSnapshotInProgressStep.isConditionMet(indexMetaData.getIndex(), clusterState);
-        assertThat(getMessage(result), containsStringIgnoringCase("snapshot name was not generated for policy [" + policyName + "] and " +
-            "index [" + indexName + "]"));
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+
+            WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = createRandomInstance();
+            Result result = waitForSnapshotInProgressStep.isConditionMet(indexMetaData.getIndex(), clusterState);
+            assertThat(getMessage(result), containsStringIgnoringCase("snapshot name was not generated for policy [" + policyName
+                + "] and index [" + indexName + "]"));
+        }
+
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+
+            IndexMetaData indexMetaData = indexMetadataBuilder.build();
+
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+
+            WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = createRandomInstance();
+            Result result = waitForSnapshotInProgressStep.isConditionMet(indexMetaData.getIndex(), clusterState);
+            assertThat(getMessage(result), containsStringIgnoringCase("snapshot repository is not present for policy [" +
+                policyName + "] and index [" + indexName + "]"));
+        }
     }
 
     public void testSnapshotInProgress() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        Map<String, String> ilmCustom = new HashMap<>();
+        String repository = "repository";
         String snapshotName = indexName + "-" + policyName;
-        ilmCustom.put("snapshot_name", snapshotName);
+        Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName, "snapshot_repository", repository);
 
         IndexMetaData.Builder indexMetadataBuilder =
             IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -94,8 +113,7 @@ public class WaitForSnapshotInProgressStepTests extends AbstractStepTestCase<Wai
         IndexMetaData indexMetaData = indexMetadataBuilder.build();
 
         WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = createRandomInstance();
-        Snapshot snapshot = new Snapshot(waitForSnapshotInProgressStep.getSnapshotRepository(), new SnapshotId(snapshotName,
-            UUID.randomUUID().toString()));
+        Snapshot snapshot = new Snapshot(repository, new SnapshotId(snapshotName, UUID.randomUUID().toString()));
         SnapshotsInProgress inProgress = new SnapshotsInProgress(
             new SnapshotsInProgress.Entry(
                 snapshot, false, false, SnapshotsInProgress.State.INIT,
@@ -117,9 +135,8 @@ public class WaitForSnapshotInProgressStepTests extends AbstractStepTestCase<Wai
     public void testNoSnapshotInProgress() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        Map<String, String> ilmCustom = new HashMap<>();
         String snapshotName = indexName + "-" + policyName;
-        ilmCustom.put("snapshot_name", snapshotName);
+        Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName, "snapshot_repository", "repository_name");
 
         IndexMetaData.Builder indexMetadataBuilder =
             IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))

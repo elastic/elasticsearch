@@ -16,8 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 
-import java.util.Objects;
-
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
@@ -26,20 +24,13 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
 public class CleanupSnapshotStep extends AsyncActionStep {
     public static final String NAME = "cleanup-snapshot";
 
-    private final String snapshotRepository;
-
-    public CleanupSnapshotStep(StepKey key, StepKey nextStepKey, Client client, String snapshotRepository) {
+    public CleanupSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
-        this.snapshotRepository = snapshotRepository;
     }
 
     @Override
     public boolean isRetryable() {
         return true;
-    }
-
-    public String getSnapshotRepository() {
-        return snapshotRepository;
     }
 
     @Override
@@ -48,15 +39,22 @@ public class CleanupSnapshotStep extends AsyncActionStep {
         final String indexName = indexMetaData.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+        final String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String repositoryName = lifecycleState.getSnapshotRepository();
+        if (Strings.hasText(repositoryName) == false) {
+            listener.onFailure(
+                new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName +
+                    "]"));
+            return;
+        }
         final String snapshotName = lifecycleState.getSnapshotName();
         if (Strings.hasText(snapshotName) == false) {
-            String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
             );
             return;
         }
-        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(snapshotRepository, snapshotName);
+        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(repositoryName, snapshotName);
         getClient().admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
 
             @Override
@@ -72,7 +70,7 @@ public class CleanupSnapshotStep extends AsyncActionStep {
                 } else {
                     if (e instanceof RepositoryMissingException) {
                         String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                        listener.onFailure(new IllegalStateException("repository [" + snapshotRepository + "] is missing. [" + policyName +
+                        listener.onFailure(new IllegalStateException("repository [" + repositoryName + "] is missing. [" + policyName +
                             "] policy for index [" + indexName + "] cannot continue until the repository is created", e));
                     } else {
                         listener.onFailure(e);
@@ -80,23 +78,5 @@ public class CleanupSnapshotStep extends AsyncActionStep {
                 }
             }
         });
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), snapshotRepository);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        CleanupSnapshotStep other = (CleanupSnapshotStep) obj;
-        return super.equals(obj) &&
-            Objects.equals(snapshotRepository, other.snapshotRepository);
     }
 }

@@ -94,14 +94,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, generateSnapshotNameKey,
             client);
-        GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey);
-        CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client, snapshotRepository);
-        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForSnapshotInProgressKey, client,
+        GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
+        CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForSnapshotInProgressKey, client);
         WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = new WaitForSnapshotInProgressStep(waitForSnapshotInProgressKey,
-            verifySnapshotStatusBranchingKey, snapshotRepository);
+            verifySnapshotStatusBranchingKey);
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(verifySnapshotStatusBranchingKey,
-            cleanSnapshotKey, restoreFromSearchableRepoKey, client, getCheckSnapshotStatusAsyncAction(snapshotRepository));
+            cleanSnapshotKey, restoreFromSearchableRepoKey, client, getCheckSnapshotStatusAsyncAction());
         RestoreSnapshotStep restoreSnapshotStep = new RestoreSnapshotStep(restoreFromSearchableRepoKey, waitForGreenRestoredIndexKey,
             client, searchableRepository, RESTORED_INDEX_PREFIX);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
@@ -121,10 +121,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     /**
-     * Creates a consumer of parameters needed to evaluate the ILM generated snapshot status in the provided snapshotRepository in an
-     * async way, akin to an equivalent {@link AsyncWaitStep} implementation.
+     * Creates a consumer to evaluate the ILM generated snapshot status in the provided snapshotRepository in an async way, akin to an
+     * equivalent {@link AsyncWaitStep} implementation.
      */
-    static TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction(String snapshotRepository) {
+    static TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction() {
         return (client, indexMetaData, branchingStepListener) -> {
 
             LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
@@ -132,12 +132,19 @@ public class SearchableSnapshotAction implements LifecycleAction {
             String snapshotName = executionState.getSnapshotName();
             String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             final String indexName = indexMetaData.getIndex().getName();
+            final String repositoryName = executionState.getSnapshotRepository();
+            if (Strings.hasText(repositoryName) == false) {
+                branchingStepListener.onFailure(
+                    new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName +
+                        "]"));
+                return;
+            }
             if (Strings.hasText(snapshotName) == false) {
                 branchingStepListener.onFailure(new IllegalStateException("snapshot name was not generated for policy [" + policyName +
                     "] and index [" + indexName + "]"));
                 return;
             }
-            SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(snapshotRepository, new String[]{snapshotName});
+            SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repositoryName, new String[]{snapshotName});
             client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SnapshotsStatusResponse snapshotsStatusResponse) {

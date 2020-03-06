@@ -14,27 +14,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotException;
 
-import java.util.Objects;
-
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "create-snapshot";
 
-    private final String snapshotRepository;
-
-    public CreateSnapshotStep(StepKey key, StepKey nextStepKey, Client client, String snapshotRepository) {
+    public CreateSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
-        this.snapshotRepository = snapshotRepository;
     }
 
     @Override
     public boolean isRetryable() {
         return true;
-    }
-
-    public String getSnapshotRepository() {
-        return snapshotRepository;
     }
 
     @Override
@@ -43,8 +34,15 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
 
-        final String snapshotName = lifecycleState.getSnapshotName();
         final String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String snapshotRepository = lifecycleState.getSnapshotRepository();
+        if (Strings.hasText(snapshotRepository) == false) {
+            listener.onFailure(new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" +
+                indexName + "]"));
+            return;
+        }
+
+        final String snapshotName = lifecycleState.getSnapshotName();
         if (Strings.hasText(snapshotName) == false) {
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
@@ -66,23 +64,5 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.onResponse(true);
                 }
             }, listener::onFailure));
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), snapshotRepository);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        CreateSnapshotStep other = (CreateSnapshotStep) obj;
-        return super.equals(obj) &&
-            Objects.equals(snapshotRepository, other.snapshotRepository);
     }
 }

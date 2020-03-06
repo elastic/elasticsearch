@@ -21,12 +21,13 @@ import org.elasticsearch.index.Index;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
- * Generates a snapshot name for the given index and records it in the index metadata.
+ * Generates a snapshot name for the given index and records it in the index metadata along with the provided snapshot repository.
  */
 public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
@@ -37,8 +38,15 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
 
-    public GenerateSnapshotNameStep(StepKey key, StepKey nextStepKey) {
+    private final String snapshotRepository;
+
+    public GenerateSnapshotNameStep(StepKey key, StepKey nextStepKey, String snapshotRepository) {
         super(key, nextStepKey);
+        this.snapshotRepository = snapshotRepository;
+    }
+
+    public String getSnapshotRepository() {
+        return snapshotRepository;
     }
 
     @Override
@@ -66,11 +74,30 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             throw validationException;
         }
         newCustomData.setSnapshotName(snapshotName);
+        newCustomData.setSnapshotRepository(snapshotRepository);
 
         IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(indexMetadataBuilder));
         return newClusterStateBuilder.build();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), snapshotRepository);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        GenerateSnapshotNameStep other = (GenerateSnapshotNameStep) obj;
+        return super.equals(obj) &&
+            Objects.equals(snapshotRepository, other.snapshotRepository);
     }
 
     /**

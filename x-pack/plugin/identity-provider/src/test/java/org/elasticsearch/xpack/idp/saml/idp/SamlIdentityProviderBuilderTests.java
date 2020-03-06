@@ -13,8 +13,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
+import org.mockito.Mockito;
 import org.opensaml.security.x509.X509Credential;
 
 import java.nio.file.Files;
@@ -58,7 +60,8 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(env).build();
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).build();
         assertThat(idp.getEntityId(), equalTo("urn:elastic:cloud:idp"));
         assertThat(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/sso/redirect"));
         assertThat(idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/sso/post"));
@@ -75,8 +78,9 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "not a url")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder().fromSettings(env).build());
+            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
         assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
     }
@@ -90,8 +94,9 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder().fromSettings(env).build());
+            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
         assertThat(e.getMessage(), Matchers.containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("is required"));
     }
@@ -106,8 +111,9 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_ORGANIZATION_NAME.getKey(), "The Organization")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder().fromSettings(env).build());
+            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
         assertThat(e.getMessage(), Matchers.containsString(IDP_ORGANIZATION_URL.getKey()));
         assertThat(e.getMessage(), Matchers.containsString("Not a valid URL"));
     }

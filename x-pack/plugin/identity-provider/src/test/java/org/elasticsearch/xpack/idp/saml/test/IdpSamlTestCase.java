@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
@@ -88,14 +89,28 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     protected static void mockRegisteredServiceProvider(SamlIdentityProvider idp, String entityId, SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();
-            assertThat(args, Matchers.arrayWithSize(2));
+            assertThat(args, Matchers.arrayWithSize(3));
             assertThat(args[0], Matchers.equalTo(entityId));
-            assertThat(args[1], Matchers.instanceOf(ActionListener.class));
-            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[1];
+            assertThat(args[args.length-1], Matchers.instanceOf(ActionListener.class));
+            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[args.length-1];
 
             listener.onResponse(sp);
             return null;
-        }).when(idp).getRegisteredServiceProvider(Mockito.eq(entityId), Mockito.any(ActionListener.class));
+        }).when(idp).getRegisteredServiceProvider(Mockito.eq(entityId), Mockito.anyBoolean(), Mockito.any(ActionListener.class));
+    }
+
+    protected static void mockRegisteredServiceProvider(SamlServiceProviderResolver resolverMock, String entityId,
+                                                        SamlServiceProvider sp) {
+        Mockito.doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            assertThat(args, Matchers.arrayWithSize(2));
+            assertThat(args[0], Matchers.equalTo(entityId));
+            assertThat(args[args.length-1], Matchers.instanceOf(ActionListener.class));
+            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[args.length-1];
+
+            listener.onResponse(sp);
+            return null;
+        }).when(resolverMock).resolve(Mockito.eq(entityId), Mockito.any(ActionListener.class));
     }
 
     protected List<X509Credential> readCredentials() throws CertificateException, IOException {

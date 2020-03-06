@@ -33,9 +33,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
-import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
@@ -43,17 +43,22 @@ import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
-import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
-import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.joda.time.Duration;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 /**
  * This plugin provides the backend for an IdP built on top of Elasticsearch security features.
@@ -80,12 +85,22 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         }
 
         SamlInit.initialize();
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(environment).build();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
+
+        // TODO
+        final ServiceProviderDefaults serviceProviderResolver
+            = new ServiceProviderDefaults("elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5));
+        final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderResolver);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
+            .fromSettings(environment)
+            .serviceProviderDefaults(serviceProviderResolver)
+            .build();
+
         final SamlFactory factory = new SamlFactory();
+
         return List.of(
-            idp,
             index,
+            idp,
             factory
         );
     }

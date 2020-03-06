@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -21,16 +20,25 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
+import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
+import org.joda.time.Duration;
+import org.mockito.Mockito;
 
+import java.net.URL;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
-public class TransportSamlInitiateSingleSignOnRequestTests extends ESTestCase {
+public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCase {
 
     public void testGetResponseForRegisteredSp() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
@@ -100,7 +108,24 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends ESTestCase {
                     new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name")))
                 .writeToContext(threadContext);
         }
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(env).build();
+
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final CloudServiceProvider serviceProvider = new CloudServiceProvider("https://sp.some.org",
+            "test sp",
+            true,
+            new URL("https://sp.some.org/api/security/v1/saml"),
+            Set.of(TRANSIENT),
+            Duration.standardMinutes(5),
+            null,
+            new SamlServiceProvider.AttributeNames(
+                "https://saml.elasticsearch.org/attributes/principal",
+                "https://saml.elasticsearch.org/attributes/name",
+                "https://saml.elasticsearch.org/attributes/email",
+                "https://saml.elasticsearch.org/attributes/groups"),
+            null, false, false);
+        mockRegisteredServiceProvider(resolver, "https://sp.some.org", serviceProvider);
+        mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).build();
         final SamlFactory factory = new SamlFactory();
         return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext, idp, factory);
     }

@@ -7,9 +7,9 @@
     "url": {
       "paths": [
         {
-          "path": "/{index}/_snapshot/mount",
+          "path": "/{index}/_searchable_snapshots/mount",
           "methods": [
-            "POST", "PUT"
+            "POST"
           ],
           "parts": {
             "index": {
@@ -19,6 +19,17 @@
           }
         }
       ]
+    },
+    "params": {
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node"
+      },
+      "wait_for_completion":{
+        "type":"boolean",
+        "description":"Should this request wait until the operation has completed before returning",
+        "default":false
+      }
     },
     "body":{
       "description":"The restore configuration for mounting the snapshot as searchable",

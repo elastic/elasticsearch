@@ -28,6 +28,7 @@ public class RestMountSearchableSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
+        // NORELEASE TODO maybe /_snapshot/{repo}/{snapshot}/_mount/{index} ?
         return Collections.singletonList(new Route(POST, "/{index}/_searchable_snapshots/mount"));
     }
 

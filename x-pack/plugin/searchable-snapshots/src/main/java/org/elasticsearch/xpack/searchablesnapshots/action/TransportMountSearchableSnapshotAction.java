@@ -95,7 +95,7 @@ public class TransportMountSearchableSnapshotAction
                                    final ActionListener<RestoreSnapshotResponse> listener) {
         final String repoName = request.repositoryName();
         final String snapName = request.snapshotName();
-        final String indexName = request.snapshotIndexName();
+        final String indexName = request.snapshotIndexName() == null ? request.mountedIndexName() : request.snapshotIndexName();
 
         // Retrieve IndexId and SnapshotId instances, which are then used to create a new restore
         // request, which is then sent on to the actual snapshot restore mechanism
@@ -116,7 +116,7 @@ public class TransportMountSearchableSnapshotAction
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            // NOCOMMIT TODO should we ensure that the IDs we just obtained match the ones that we ultimately restore?
+            // NORELEASE TODO should we ensure that the IDs we just obtained match the ones that we ultimately restore?
 
             client.admin().cluster().restoreSnapshot(new RestoreSnapshotRequest(repoName, snapName)
                 // Restore the single index specified

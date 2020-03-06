@@ -9,13 +9,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardPath;
@@ -23,7 +19,6 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -36,18 +31,15 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * A repository that wraps a {@link BlobStoreRepository} to add settings to the index metadata during a restore to identify the source
  * snapshot and index in order to create a {@link SearchableSnapshotDirectory} (and corresponding empty translog) to search these shards
  * without needing to fully restore them.
  */
-public class SearchableSnapshotRepository extends FilterRepository {
+public class SearchableSnapshotRepository {
 
     public static final String TYPE = "searchable";
 
@@ -64,13 +56,9 @@ public class SearchableSnapshotRepository extends FilterRepository {
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
-    private static final Setting<String> DELEGATE_TYPE
-        = new Setting<>("delegate_type", "", Function.identity(), Setting.Property.NodeScope);
-
     private final BlobStoreRepository blobStoreRepository;
 
     public SearchableSnapshotRepository(Repository in) {
-        super(in);
         // TODO: this is probably terrible, revisit this unwrapping
         if (in instanceof SearchableSnapshotRepository) {
             blobStoreRepository = ((SearchableSnapshotRepository) in).blobStoreRepository;
@@ -119,48 +107,9 @@ public class SearchableSnapshotRepository extends FilterRepository {
         return directory;
     }
 
-    @Override
-    public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        final IndexMetaData indexMetaData = super.getSnapshotIndexMetaData(snapshotId, index);
-        final IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
-        builder.settings(Settings.builder().put(indexMetaData.getSettings()).put(getIndexSettings(blobStoreRepository, snapshotId, index)));
-        return builder.build();
-    }
-
-    public static Settings getIndexSettings(Repository repository, SnapshotId snapshotId, IndexId indexId) {
-        return Settings.builder()
-            .put(SNAPSHOT_REPOSITORY_SETTING.getKey(), repository.getMetadata().name())
-            .put(SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
-            .put(SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
-            .put(SNAPSHOT_INDEX_ID_SETTING.getKey(), indexId.getId())
-            .put(INDEX_STORE_TYPE_SETTING.getKey(), SNAPSHOT_DIRECTORY_FACTORY_KEY)
-            .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)
-            .build();
-    }
-
-    static Factory getRepositoryFactory() {
-        return new Repository.Factory() {
-            @Override
-            public Repository create(RepositoryMetaData metadata) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Repository create(RepositoryMetaData metaData, Function<String, Factory> typeLookup) throws Exception {
-                String delegateType = DELEGATE_TYPE.get(metaData.settings());
-                if (Strings.hasLength(delegateType) == false) {
-                    throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
-                }
-                Repository.Factory factory = typeLookup.apply(delegateType);
-                return new SearchableSnapshotRepository(factory.create(new RepositoryMetaData(metaData.name(),
-                    delegateType, metaData.settings()), typeLookup));
-            }
-        };
-    }
-
-    public static IndexStorePlugin.DirectoryFactory newDirectoryFactory(final Supplier<RepositoriesService> repositoriesService,
-                                                                        final Supplier<CacheService> cacheService,
-                                                                        final LongSupplier currentTimeNanosSupplier) {
+    static IndexStorePlugin.DirectoryFactory newDirectoryFactory(final Supplier<RepositoriesService> repositoriesService,
+                                                                 final Supplier<CacheService> cacheService,
+                                                                 final LongSupplier currentTimeNanosSupplier) {
         return (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
             assert repositories != null;

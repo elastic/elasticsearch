@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,7 +46,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     static {
         PARSER.declareField(constructorArg(), XContentParser::text, REPOSITORY_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(constructorArg(), XContentParser::text, SNAPSHOT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), XContentParser::text, SNAPSHOT_INDEX_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), XContentParser::text, SNAPSHOT_INDEX_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(),
             p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
@@ -74,12 +75,12 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
      * Constructs a new mount searchable snapshot request, restoring an index with the settings needed to make it a searchable snapshot.
      */
     public MountSearchableSnapshotRequest(String mountedIndexName,
-                                          String repositoryName, String snapshotName, String snapshotIndexName, Settings indexSettings,
-                                          String[] ignoredIndexSettings, boolean waitForCompletion) {
+                                          String repositoryName, String snapshotName, @Nullable String snapshotIndexName,
+                                          Settings indexSettings, String[] ignoredIndexSettings, boolean waitForCompletion) {
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
         this.repositoryName = Objects.requireNonNull(repositoryName);
         this.snapshotName = Objects.requireNonNull(snapshotName);
-        this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
+        this.snapshotIndexName = snapshotIndexName;
         this.indexSettings = Objects.requireNonNullElse(indexSettings, Settings.EMPTY);
         this.ignoredIndexSettings = Objects.requireNonNullElse(ignoredIndexSettings, Strings.EMPTY_ARRAY);
         this.waitForCompletion = waitForCompletion;
@@ -90,7 +91,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.mountedIndexName = in.readString();
         this.repositoryName = in.readString();
         this.snapshotName = in.readString();
-        this.snapshotIndexName = in.readString();
+        this.snapshotIndexName = in.readOptionalString();
         this.indexSettings = readSettingsFromStream(in);
         this.ignoredIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
@@ -102,7 +103,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         out.writeString(mountedIndexName);
         out.writeString(repositoryName);
         out.writeString(snapshotName);
-        out.writeString(snapshotIndexName);
+        out.writeOptionalString(snapshotIndexName);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoredIndexSettings);
         out.writeBoolean(waitForCompletion);
@@ -115,7 +116,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return the name of the index that will be created
-     * @noinspection WeakerAccess
      */
     public String mountedIndexName() {
         return mountedIndexName;
@@ -123,7 +123,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return the name of the repository
-     * @noinspection WeakerAccess
      */
     public String repositoryName() {
         return this.repositoryName;
@@ -131,7 +130,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return the name of the snapshot.
-     * @noinspection WeakerAccess
      */
     public String snapshotName() {
         return this.snapshotName;
@@ -139,7 +137,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return the name of the index contained in the snapshot
-     * @noinspection WeakerAccess
      */
     public String snapshotIndexName() {
         return snapshotIndexName;
@@ -147,7 +144,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return true if the operation will wait for completion
-     * @noinspection WeakerAccess
      */
     public boolean waitForCompletion() {
         return waitForCompletion;
@@ -155,7 +151,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return settings that should be added to the index when it is mounted
-     * @noinspection WeakerAccess
      */
     public Settings indexSettings() {
         return this.indexSettings;
@@ -163,7 +158,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     /**
      * @return the names of settings that should be removed from the index when it is mounted
-     * @noinspection WeakerAccess
      */
     public String[] ignoreIndexSettings() {
         return ignoredIndexSettings;
@@ -174,7 +168,9 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         builder.startObject();
         builder.field(REPOSITORY_FIELD.getPreferredName(), repositoryName);
         builder.field(SNAPSHOT_FIELD.getPreferredName(), snapshotName);
-        builder.field(SNAPSHOT_INDEX_FIELD.getPreferredName(), snapshotIndexName);
+        if (snapshotIndexName != null) {
+            builder.field(SNAPSHOT_INDEX_FIELD.getPreferredName(), snapshotIndexName);
+        }
         if (indexSettings.isEmpty() == false) {
             builder.startObject(INDEX_SETTINGS_FIELD.getPreferredName());
             indexSettings.toXContent(builder, params);

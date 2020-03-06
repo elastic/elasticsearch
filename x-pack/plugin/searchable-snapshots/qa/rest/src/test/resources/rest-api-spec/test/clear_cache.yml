@@ -51,15 +51,6 @@ setup:
       indices.delete:
         index: docs
 
-  - do:
-      snapshot.create_repository:
-        repository: repository-searchable-snapshots
-        body:
-          type: searchable
-          settings:
-            delegate_type: fs
-            location: "repository-fs"
-
 ---
 teardown:
 
@@ -72,10 +63,6 @@ teardown:
   - do:
       snapshot.delete_repository:
         repository: repository-fs
-
-  - do:
-      snapshot.delete_repository:
-        repository: repository-searchable-snapshots
 
 ---
 "Clear searchable snapshots cache":
@@ -116,10 +103,12 @@ teardown:
   - match: { error.root_cause.0.reason: "No searchable snapshots indices found" }
 
   - do:
-      snapshot.restore:
-        repository: repository-searchable-snapshots
-        snapshot: snapshot
+      searchable_snapshots.mount:
+        index: docs
         wait_for_completion: true
+        body:
+          repository: repository-fs
+          snapshot: snapshot
 
   - match: { snapshot.snapshot: snapshot }
   - match: { snapshot.shards.failed: 0 }

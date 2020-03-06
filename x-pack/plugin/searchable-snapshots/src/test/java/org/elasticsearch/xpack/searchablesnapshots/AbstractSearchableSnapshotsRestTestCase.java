@@ -269,7 +269,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     protected static void mountSnapshot(String repository, String snapshot, boolean waitForCompletion,
                                         String snapshotIndexName, String mountIndexName, Settings indexSettings) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, mountIndexName + "/_searchable_snapshots/mount");
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/" + snapshot + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
         request.setJsonEntity(Strings.toString(new MountSearchableSnapshotRequest(mountIndexName, repository, snapshot,
             snapshotIndexName, indexSettings, Strings.EMPTY_ARRAY, waitForCompletion)));

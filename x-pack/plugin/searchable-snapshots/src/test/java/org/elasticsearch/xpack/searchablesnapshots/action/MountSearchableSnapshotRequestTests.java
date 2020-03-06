@@ -30,7 +30,10 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
 
         final MountSearchableSnapshotRequest processed = MountSearchableSnapshotRequest.PARSER.apply(parser,
-            new MountSearchableSnapshotRequest.RequestParams(original.mountedIndexName(), original.waitForCompletion()))
+            new MountSearchableSnapshotRequest.RequestParams(
+                original.repositoryName(),
+                original.snapshotName(),
+                original.waitForCompletion()))
             .masterNodeTimeout(original.masterNodeTimeout());
 
         assertEquals(original, processed);

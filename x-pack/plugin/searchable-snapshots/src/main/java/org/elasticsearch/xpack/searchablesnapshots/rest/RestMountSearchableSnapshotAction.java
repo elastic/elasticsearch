@@ -28,14 +28,16 @@ public class RestMountSearchableSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // NORELEASE TODO maybe /_snapshot/{repo}/{snapshot}/_mount/{index} ?
-        return Collections.singletonList(new Route(POST, "/{index}/_searchable_snapshots/mount"));
+        return Collections.singletonList(new Route(POST, "/_snapshot/{repository}/{snapshot}/_mount"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MountSearchableSnapshotRequest mountSearchableSnapshotRequest = MountSearchableSnapshotRequest.PARSER.apply(request.contentParser(),
-            new MountSearchableSnapshotRequest.RequestParams(request.param("index"), request.paramAsBoolean("wait_for_completion", false)))
+            new MountSearchableSnapshotRequest.RequestParams(
+                request.param("repository"),
+                request.param("snapshot"),
+                request.paramAsBoolean("wait_for_completion", false)))
             .masterNodeTimeout(request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT));
         return channel -> client.execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             new RestToXContentListener<>(channel));

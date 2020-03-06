@@ -33,24 +33,23 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RequestParams> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot", true,
-        (a, p) -> new MountSearchableSnapshotRequest(p.mountedIndexName,
-            (String) a[0],
-            (String) a[1],
-            Objects.requireNonNullElse((String)a[2], p.mountedIndexName),
-            Objects.requireNonNullElse((Settings)a[3], Settings.EMPTY),
-            Objects.requireNonNullElse((String[])a[4], Strings.EMPTY_ARRAY),
+        (a, p) -> new MountSearchableSnapshotRequest(
+            Objects.requireNonNullElse((String)a[1], (String)a[0]),
+            p.repositoryName,
+            p.snapshotName,
+            (String)a[0],
+            Objects.requireNonNullElse((Settings)a[2], Settings.EMPTY),
+            Objects.requireNonNullElse((String[])a[3], Strings.EMPTY_ARRAY),
             p.waitForCompletion));
 
-    private static final ParseField REPOSITORY_FIELD = new ParseField("repository");
-    private static final ParseField SNAPSHOT_FIELD = new ParseField("snapshot");
-    private static final ParseField SNAPSHOT_INDEX_FIELD = new ParseField("index");
+    private static final ParseField INDEX_FIELD = new ParseField("index");
+    private static final ParseField RENAMED_INDEX_FIELD = new ParseField("renamed_index");
     private static final ParseField INDEX_SETTINGS_FIELD = new ParseField("index_settings");
     private static final ParseField IGNORE_INDEX_SETTINGS_FIELD = new ParseField("ignore_index_settings");
 
     static {
-        PARSER.declareField(constructorArg(), XContentParser::text, REPOSITORY_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), XContentParser::text, SNAPSHOT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), XContentParser::text, SNAPSHOT_INDEX_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), XContentParser::text, INDEX_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), XContentParser::text, RENAMED_INDEX_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(),
             p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
@@ -58,11 +57,13 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     }
 
     public static class RequestParams {
-        final String mountedIndexName;
+        private final String repositoryName;
+        private final String snapshotName;
         final boolean waitForCompletion;
 
-        public RequestParams(String mountedIndexName, boolean waitForCompletion) {
-            this.mountedIndexName = mountedIndexName;
+        public RequestParams(String repositoryName, String snapshotName, boolean waitForCompletion) {
+            this.repositoryName = repositoryName;
+            this.snapshotName = snapshotName;
             this.waitForCompletion = waitForCompletion;
         }
     }
@@ -169,9 +170,8 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REPOSITORY_FIELD.getPreferredName(), repositoryName);
-        builder.field(SNAPSHOT_FIELD.getPreferredName(), snapshotName);
-        builder.field(SNAPSHOT_INDEX_FIELD.getPreferredName(), snapshotIndexName);
+        builder.field(INDEX_FIELD.getPreferredName(), snapshotIndexName);
+        builder.field(RENAMED_INDEX_FIELD.getPreferredName(), mountedIndexName);
         if (indexSettings.isEmpty() == false) {
             builder.startObject(INDEX_SETTINGS_FIELD.getPreferredName());
             indexSettings.toXContent(builder, params);

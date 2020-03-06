@@ -104,11 +104,11 @@ teardown:
 
   - do:
       searchable_snapshots.mount:
-        index: docs
+        repository: repository-fs
+        snapshot: snapshot
         wait_for_completion: true
         body:
-          repository: repository-fs
-          snapshot: snapshot
+          index: docs
 
   - match: { snapshot.snapshot: snapshot }
   - match: { snapshot.shards.failed: 0 }

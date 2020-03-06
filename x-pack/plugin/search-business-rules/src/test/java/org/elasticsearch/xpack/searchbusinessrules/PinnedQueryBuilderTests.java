@@ -56,7 +56,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                     break;
                 case 1:
                     if (randomBoolean()) {
-                        fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+                        fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
                     }
                     if (frequently()) {
                         value = randomAlphaOfLengthBetween(1, 10);

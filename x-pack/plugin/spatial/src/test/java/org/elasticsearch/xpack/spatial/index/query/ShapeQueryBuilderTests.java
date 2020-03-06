@@ -235,7 +235,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
 
     public void testWrongFieldType() {
         Geometry shape = ShapeTestUtils.randomGeometry(false);
-        final ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder(STRING_FIELD_NAME, shape);
+        final ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder(TEXT_FIELD_NAME, shape);
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [shape] but of type [text]"));
     }

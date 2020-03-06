@@ -283,8 +283,8 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         ShapeType shapeType = ShapeType.randomType(random());
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         final GeoShapeQueryBuilder queryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape) :
-            new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape.buildGeometry());
+            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape) :
+            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));
     }

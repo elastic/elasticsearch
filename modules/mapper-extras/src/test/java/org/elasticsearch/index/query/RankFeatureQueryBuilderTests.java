@@ -108,7 +108,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     public void testIllegalField() throws IOException {
         String query = "{\n" +
                 "    \"rank_feature\" : {\n" +
-                "        \"field\": \"" + STRING_FIELD_NAME + "\"\n" +
+                "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" +
                 "    }\n" +
                 "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));

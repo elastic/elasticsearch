@@ -48,7 +48,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_7_0)) {
             addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
             addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
             addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
@@ -293,7 +293,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_7_7_0)) {
             out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
             out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
             out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,16 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String jobId;
     private String sourceIndex;
     private String destIndex;
+
+    @Before
+    public void enableLogging() {
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.action", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG"))
+            .get();
+    }
 
     @After
     public void cleanup() {
@@ -320,13 +331,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     public void testDeleteExpiredData_RemovesUnusedState() throws Exception {
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.action", "DEBUG")
-                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG"))
-            .get();
-
         initialize("regression_delete_expired_data");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
         indexData(sourceIndex, 100, 0);

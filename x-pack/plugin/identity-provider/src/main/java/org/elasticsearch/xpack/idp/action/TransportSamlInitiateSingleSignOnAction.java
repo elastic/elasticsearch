@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.authn.FailedAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.SuccessfulAuthenticationResponseMessageBuilder;
 import org.elasticsearch.xpack.idp.saml.authn.UserServiceAuthentication;
-import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
@@ -38,26 +36,24 @@ import java.util.Set;
 public class TransportSamlInitiateSingleSignOnAction
     extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
 
     private final SecurityContext securityContext;
-    private final Environment env;
+    private final SamlIdentityProvider identityProvider;
     private final SamlFactory samlFactory;
 
     @Inject
     public TransportSamlInitiateSingleSignOnAction(TransportService transportService, ActionFilters actionFilters,
-                                                   SecurityContext securityContext, Environment environment, SamlFactory samlFactory) {
+                                                   SecurityContext securityContext, SamlIdentityProvider idp, SamlFactory factory) {
         super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
         this.securityContext = securityContext;
-        this.env = environment;
-        this.samlFactory = samlFactory;
+        this.identityProvider = idp;
+        this.samlFactory = factory;
     }
 
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        // TODO : Inject this IDP from the plugin
-        final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
         final SamlAuthenticationState authenticationState = request.getSamlAuthenticationState();
         if (authenticationState != null) {
             final ValidationException validationException = authenticationState.validate();
@@ -66,7 +62,7 @@ public class TransportSamlInitiateSingleSignOnAction
                 return;
             }
         }
-        idp.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
+        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
             sp -> {
                 if (null == sp) {
                     final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
@@ -79,7 +75,7 @@ public class TransportSamlInitiateSingleSignOnAction
                 if (secondaryAuthentication == null) {
                     if (authenticationState != null) {
                         final FailedAuthenticationResponseMessageBuilder builder =
-                            new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), idp)
+                            new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
                                 .setInResponseTo(authenticationState.getAuthnRequestId())
                                 .setAcsUrl(authenticationState.getRequestedAcsUrl())
                                 .setPrimaryStatusCode(StatusCode.REQUESTER)
@@ -97,7 +93,7 @@ public class TransportSamlInitiateSingleSignOnAction
                 }
                 final UserServiceAuthentication user = buildUserFromAuthentication(secondaryAuthentication.getAuthentication(), sp);
                 final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
-                    samlFactory, Clock.systemUTC(), idp);
+                    samlFactory, Clock.systemUTC(), identityProvider);
                 final Response response = builder.build(user, request.getSamlAuthenticationState());
                 listener.onResponse(new SamlInitiateSingleSignOnResponse(
                     user.getServiceProvider().getAssertionConsumerService().toString(),
@@ -107,7 +103,7 @@ public class TransportSamlInitiateSingleSignOnAction
             e -> {
                 if (authenticationState != null) {
                     final FailedAuthenticationResponseMessageBuilder builder =
-                        new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), idp)
+                        new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
                             .setInResponseTo(authenticationState.getAuthnRequestId())
                             .setAcsUrl(authenticationState.getRequestedAcsUrl())
                             .setPrimaryStatusCode(StatusCode.RESPONDER);

@@ -9,30 +9,29 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.idp.SamlMetadataGenerator;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
 public class TransportSamlMetadataAction extends HandledTransportAction<SamlMetadataRequest, SamlMetadataResponse> {
 
-    private final Environment env;
+    private final SamlIdentityProvider identityProvider;
+    private final SamlFactory samlFactory;
 
     @Inject
-    public TransportSamlMetadataAction(TransportService transportService, ActionFilters actionFilters, Environment environment) {
+    public TransportSamlMetadataAction(TransportService transportService, ActionFilters actionFilters,
+                                       SamlIdentityProvider idp, SamlFactory factory) {
         super(SamlMetadataAction.NAME, transportService, actionFilters, SamlMetadataRequest::new);
-        this.env = environment;
+        this.identityProvider = idp;
+        this.samlFactory = factory;
     }
 
     @Override
     protected void doExecute(Task task, SamlMetadataRequest request, ActionListener<SamlMetadataResponse> listener) {
-        final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
-        final SamlFactory factory = new SamlFactory();
         final String spEntityId = request.getSpEntityId();
-        final SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
+        final SamlMetadataGenerator generator = new SamlMetadataGenerator(samlFactory, identityProvider);
         generator.generateMetadata(spEntityId, listener);
     }
 }

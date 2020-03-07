@@ -9,35 +9,34 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.idp.saml.authn.SamlAuthnRequestValidator;
-import org.elasticsearch.xpack.idp.saml.idp.CloudIdp;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
-public class TransportSamlValidateAuthnRequestAction extends HandledTransportAction<SamlValidateAuthnRequestRequest,
-    SamlValidateAuthnRequestResponse> {
+public class TransportSamlValidateAuthnRequestAction
+    extends HandledTransportAction<SamlValidateAuthnRequestRequest, SamlValidateAuthnRequestResponse> {
 
-    private final Environment env;
+    private final SamlIdentityProvider identityProvider;
+    private final SamlFactory samlFactory;
 
     @Inject
     public TransportSamlValidateAuthnRequestAction(TransportService transportService, ActionFilters actionFilters,
-                                                   Environment environment) {
+                                                   SamlIdentityProvider idp, SamlFactory factory) {
         super(SamlValidateAuthnRequestAction.NAME, transportService, actionFilters, SamlValidateAuthnRequestRequest::new);
-        this.env = environment;
+        this.identityProvider = idp;
+        this.samlFactory = factory;
     }
 
     @Override
     protected void doExecute(Task task, SamlValidateAuthnRequestRequest request,
                              ActionListener<SamlValidateAuthnRequestResponse> listener) {
-        final SamlIdentityProvider idp = new CloudIdp(env, env.settings());
-        final SamlFactory samlFactory = new SamlFactory();
-        final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(samlFactory, idp);
-        validator.processQueryString(request.getQueryString(), ActionListener.wrap(
-            listener::onResponse, listener::onFailure
-        ));
-
+        final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(samlFactory, identityProvider);
+        try {
+            validator.processQueryString(request.getQueryString(), listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

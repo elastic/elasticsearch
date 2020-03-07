@@ -167,13 +167,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             explanation = readExplanation(in);
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            documentFields = readFields(in);
-            metaFields = readFields(in);
+            documentFields = in.readMap(StreamInput::readString, DocumentField::new);
+            metaFields = in.readMap(StreamInput::readString, DocumentField::new);
         } else {
             Map<String, DocumentField> fields = readFields(in);
             documentFields = new HashMap<>();
             metaFields = new HashMap<>();
-            splitFieldsByMetadata(fields, documentFields, metaFields);
+            SearchHit.splitFieldsByMetadata(fields, documentFields, metaFields);
         }
 
         int size = in.readVInt();
@@ -248,16 +248,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    private void splitFieldsByMetadata(Map<String, DocumentField> fields, Map<String, DocumentField> outDocument,
-                                       Map<String, DocumentField> outMetadata) {
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                outMetadata.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                outDocument.put(fieldEntry.getKey(), fieldEntry.getValue());
-            }
-        }
-    }
 
 
     @Override
@@ -279,8 +269,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             writeExplanation(out, explanation);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            writeFields(out, documentFields);
-            writeFields(out, metaFields);
+            out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+            out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
         } else {
             writeFields(out, this.getFields());
         }
@@ -587,6 +577,22 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.innerHits = innerHits;
     }
 
+    public static void splitFieldsByMetadata(Map<String, DocumentField> fields,
+                                             Map<String, DocumentField> documentFields,
+                                             Map<String, DocumentField> metaFields) {
+        // documentFields and metaFields must be non-empty maps
+        if (fields == null) {
+            return;
+        }
+        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
+            if (fieldEntry.getValue().isMetadataField()) {
+                metaFields.put(fieldEntry.getKey(), fieldEntry.getValue());
+            } else {
+                documentFields.put(fieldEntry.getKey(), fieldEntry.getValue());
+            }
+        }
+    }
+
     public static class Fields {
         static final String _INDEX = "_index";
         static final String _ID = "_id";
@@ -825,6 +831,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * handled individually. All other fields are parsed to an entry in the fields map
      */
     private static void declareMetaDataFields(ObjectParser<Map<String, Object>, Void> parser) {
+        /* TODO: This method and its usage in declareInnerHitsParseFields() must be replaced by
+            calling an UnknownFieldConsumer. All fields on the root level of the parsed SearhHit
+            should be interpreted as metadata fields.
+         */
         for (String metadatafield : MapperService.getAllMetaFields()) {
             if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false) {
                 if (metadatafield.equals(IgnoredFieldMapper.NAME)) {

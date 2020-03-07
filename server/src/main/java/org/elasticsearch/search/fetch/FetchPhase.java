@@ -213,7 +213,7 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, DocumentField> metaFields = new HashMap<>();
         Map<String, DocumentField> documentFields = new HashMap<>();
-        splitSearchHitFields(searchFields, documentFields, metaFields);
+        SearchHit.splitFieldsByMetadata(searchFields, documentFields, metaFields);
 
         SearchHit searchHit = new SearchHit(docId, fieldsVisitor.id(), documentFields, metaFields);
         // Set _source if requested.
@@ -223,21 +223,6 @@ public class FetchPhase implements SearchPhase {
             sourceLookup.setSource(fieldsVisitor.source());
         }
         return searchHit;
-    }
-
-    private void splitSearchHitFields(Map<String, DocumentField> fields, Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
-        // metaFields and documentFields must be non-empty maps
-        if (fields == null) {
-            return;
-        }
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                metaFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                documentFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            }
-        }
-
     }
 
     private Map<String, DocumentField> getSearchFields(SearchContext context,
@@ -360,7 +345,7 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, DocumentField> metaFields = new HashMap<>(),
             documentFields = new HashMap<>();
-        splitSearchHitFields(searchFields, documentFields, metaFields);
+        SearchHit.splitFieldsByMetadata(searchFields, documentFields, metaFields);
 
         return new SearchHit(nestedTopDocId, id, nestedIdentity, documentFields, metaFields);
     }

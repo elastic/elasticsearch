@@ -110,8 +110,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                 throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
                     + " matched no master-eligible nodes");
             }
-        }
-        else {
+        } else {
             Set<VotingConfigExclusion> resolvedVotingConfigExclusions;
             Set<VotingConfigExclusion> unresolvedVotingConfigExclusions;
 

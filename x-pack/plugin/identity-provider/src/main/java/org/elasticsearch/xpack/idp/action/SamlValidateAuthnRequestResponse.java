@@ -21,15 +21,9 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
 
     public SamlValidateAuthnRequestResponse(StreamInput in) throws IOException {
         super(in);
-        this.spEntityId = in.readOptionalString();
+        this.spEntityId = in.readString();
         this.forceAuthn = in.readBoolean();
         this.authnState = in.readMap();
-    }
-
-    public SamlValidateAuthnRequestResponse(String errorResponse, String xmlErrorResponse) {
-        this.spEntityId = null;
-        this.forceAuthn = false;
-        this.authnState = Map.of();
     }
 
     public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> authnState) {
@@ -52,7 +46,7 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(spEntityId);
+        out.writeString(spEntityId);
         out.writeBoolean(forceAuthn);
         out.writeMap(authnState);
     }

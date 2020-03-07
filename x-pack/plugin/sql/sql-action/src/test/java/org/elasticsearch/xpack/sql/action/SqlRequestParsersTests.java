@@ -134,7 +134,7 @@ public class SqlRequestParsersTests extends ESTestCase {
                 + "\"request_timeout\":\"5s\",\"page_timeout\":\"10s\"}", SqlQueryRequest::fromXContent);
         assertNull(request.clientId());
         assertEquals(randomMode, request.mode());
-        if (clientVersion.isEmpty() == false) {
+        if (Mode.isDedicatedClient(randomMode)) {
             assertEquals(Version.CURRENT.toString(), request.version().toString());
         }
         assertEquals("whatever", request.cursor());

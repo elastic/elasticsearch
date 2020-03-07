@@ -42,6 +42,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
@@ -86,13 +87,13 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             } else {
                 listener.onResponse(response);
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             listener.onFailure(e);
         }
     }
 
     static SearchRequest convert(SearchTemplateRequest searchTemplateRequest, SearchTemplateResponse response, ScriptService scriptService,
-                                 NamedXContentRegistry xContentRegistry) throws Exception {
+                                 NamedXContentRegistry xContentRegistry) throws IOException {
         Script script = new Script(searchTemplateRequest.getScriptType(),
             searchTemplateRequest.getScriptType() == ScriptType.STORED ? null : TEMPLATE_LANG, searchTemplateRequest.getScript(),
                 searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams());
@@ -111,21 +112,27 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             builder.parseXContent(parser, false);
             builder.explain(searchTemplateRequest.isExplain());
             builder.profile(searchTemplateRequest.isProfile());
-            if (searchRequest.source() == null) {
-                searchRequest.source(new SearchSourceBuilder());
-            }
-            Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
-            if (trackTotalHitsUpTo != null) {
-                if (builder.trackTotalHitsUpTo() == null) {
-                    builder.trackTotalHitsUpTo(trackTotalHitsUpTo);
-                } else if (builder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
-                    && builder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                    throw new IllegalArgumentException("[" + RestSearchAction.TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
-                        "if the tracking of total hits is not accurate, got " + trackTotalHitsUpTo);
-                }
-            }
+            checkRestTotalHitsAsInt(searchRequest, builder);
             searchRequest.source(builder);
         }
         return searchRequest;
+    }
+
+    private static void checkRestTotalHitsAsInt(SearchRequest searchRequest, SearchSourceBuilder searchSourceBuilder) {
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+        // trackTotalHitsUpTo is set to Integer.MAX_VALUE when `rest_total_hits_as_int` is true
+        if (trackTotalHitsUpTo != null) {
+            if (searchSourceBuilder.trackTotalHitsUpTo() == null) {
+                // trackTotalHitsUpTo should be set here, ensure that we can get an accurate total hits count
+                searchSourceBuilder.trackTotalHitsUpTo(trackTotalHitsUpTo);
+            } else if (searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                throw new IllegalArgumentException("[" + RestSearchAction.TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
+                    "if the tracking of total hits is not accurate, got " + searchSourceBuilder.trackTotalHitsUpTo());
+            }
+        }
     }
 }

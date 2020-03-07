@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -275,6 +276,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeLong(-3);
         out.writeVLong(4);
         out.writeOptionalLong(11234234L);
+        out.writeOptionalVLong(5L);
+        out.writeOptionalVLong(null);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
@@ -311,6 +314,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readLong(), equalTo(-3L));
         assertThat(in.readVLong(), equalTo(4L));
         assertThat(in.readOptionalLong(), equalTo(11234234L));
+        assertThat(in.readOptionalVLong(), equalTo(5L));
+        assertThat(in.readOptionalVLong(), nullValue());
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));

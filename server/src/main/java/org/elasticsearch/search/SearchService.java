@@ -402,7 +402,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }, listener::onFailure));
     }
 
-    private void onMatchNoDocs(SearchRewriteContext rewriteContext, ActionListener<SearchPhaseResult> listener) {
+    private void onMatchNoDocs(SearchRewriteContext rewriteContext, ActionListener<SearchPhaseResult> listener) throws IOException {
         // creates a lightweight search context that we use to inform context listeners
         // before closing
         SearchContext searchContext = createSearchContext(rewriteContext, defaultSearchTimeout);
@@ -623,7 +623,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createAndPutContext(SearchRewriteContext rewriteContext) {
+    final SearchContext createAndPutContext(SearchRewriteContext rewriteContext) throws IOException {
         SearchContext context = createContext(rewriteContext);
         onNewContext(context);
         boolean success = false;
@@ -658,7 +658,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createContext(SearchRewriteContext rewriteContext) {
+    final SearchContext createContext(SearchRewriteContext rewriteContext) throws IOException {
         final DefaultSearchContext context = createSearchContext(rewriteContext, defaultSearchTimeout);
         try {
             if (rewriteContext.request != null && openScrollContexts.get() >= maxOpenScrollContext) {
@@ -709,7 +709,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return createSearchContext(rewriteContext.wrapSearcher(), timeout);
     }
 
-    private DefaultSearchContext createSearchContext(SearchRewriteContext rewriteContext, TimeValue timeout) {
+    private DefaultSearchContext createSearchContext(SearchRewriteContext rewriteContext, TimeValue timeout) throws IOException {
         boolean success = false;
         try {
             final ShardSearchRequest request = rewriteContext.request;

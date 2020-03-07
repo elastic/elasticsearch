@@ -50,12 +50,12 @@ and able to run {es} successfully in a FIPS 140-2 enabled JVM.
 ==== TLS
 
 SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot
-be used for <<ssl-tls-settings, `ssl.supported_protocols`>>
+be used for <<ssl-tls-settings,`ssl.supported_protocols`>>.
 
 NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
 (the FIPS Approved Security Provider that your JVM uses). All the ciphers that
 are configured by default in {es} are FIPS 140-2 compliant and as such can be
-used in a FIPS 140-2 JVM. (see <<ssl-tls-settings, `ssl.cipher_suites`>>)
+used in a FIPS 140-2 JVM. See <<ssl-tls-settings,`ssl.cipher_suites`>>.
 
 [float]
 ==== TLS Keystores and keys
@@ -71,9 +71,8 @@ options, and for trust material you can use `*.certificate_authorities`.
 
 FIPS 140-2 compliance dictates that the length of the public keys used for TLS
 must correspond to the strength of the symmetric key algorithm in use in TLS.
-Depending on the value of <<ssl-tls-settings, `ssl.cipher_suites`>> that
-you select to use, the TLS keys must have corresponding length according to
-the following table:
+Depending on the value of `ssl.cipher_suites` that you select to use, the TLS
+keys must have corresponding length according to the following table:
 
 [[comparable-key-strength]]
 .Comparable key strengths

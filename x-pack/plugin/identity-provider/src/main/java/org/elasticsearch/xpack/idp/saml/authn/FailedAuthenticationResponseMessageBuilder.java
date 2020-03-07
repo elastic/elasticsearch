@@ -64,7 +64,6 @@ public class FailedAuthenticationResponseMessageBuilder {
         return this;
     }
 
-
     public Response build() {
         final DateTime now = now();
         final Response response = samlFactory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
@@ -74,7 +73,6 @@ public class FailedAuthenticationResponseMessageBuilder {
         response.setIssueInstant(now);
         response.setStatus(buildStatus());
         response.setDestination(acsUrl);
-
         return response;
     }
 
@@ -85,7 +83,6 @@ public class FailedAuthenticationResponseMessageBuilder {
     }
 
     private Status buildStatus() {
-
         final StatusCode firstLevelCode = samlFactory.object(StatusCode.class, StatusCode.DEFAULT_ELEMENT_NAME);
         firstLevelCode.setValue(primaryStatusCode);
 
@@ -102,7 +99,6 @@ public class FailedAuthenticationResponseMessageBuilder {
             status.setStatusMessage(firstLevelMessage);
         }
         status.setStatusCode(firstLevelCode);
-
         return status;
     }
 

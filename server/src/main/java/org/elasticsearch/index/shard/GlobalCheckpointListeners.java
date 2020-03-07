@@ -53,6 +53,16 @@ public class GlobalCheckpointListeners implements Closeable {
      */
     @FunctionalInterface
     public interface GlobalCheckpointListener {
+
+        /**
+         * The executor on which the listener is notified. Defaults to the calling thread.
+         *
+         * @return the executor
+         */
+        default Executor executor() {
+            return Runnable::run;
+        }
+
         /**
          * Callback when the global checkpoint is updated or the shard is closed. If the shard is closed, the value of the global checkpoint
          * will be set to {@link org.elasticsearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} and the exception will be non-null and an
@@ -71,7 +81,6 @@ public class GlobalCheckpointListeners implements Closeable {
     private long lastKnownGlobalCheckpoint = UNASSIGNED_SEQ_NO;
 
     private final ShardId shardId;
-    private final Executor executor;
     private final ScheduledExecutorService scheduler;
     private final Logger logger;
 
@@ -79,17 +88,14 @@ public class GlobalCheckpointListeners implements Closeable {
      * Construct a global checkpoint listeners collection.
      *
      * @param shardId   the shard ID on which global checkpoint updates can be listened to
-     * @param executor  the executor for listener notifications
      * @param scheduler the executor used for scheduling timeouts
      * @param logger    a shard-level logger
      */
     GlobalCheckpointListeners(
-            final ShardId shardId,
-            final Executor executor,
-            final ScheduledExecutorService scheduler,
-            final Logger logger) {
+        final ShardId shardId,
+        final ScheduledExecutorService scheduler,
+        final Logger logger) {
         this.shardId = Objects.requireNonNull(shardId, "shardId");
-        this.executor = Objects.requireNonNull(executor, "executor");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.logger = Objects.requireNonNull(logger, "logger");
     }
@@ -109,12 +115,12 @@ public class GlobalCheckpointListeners implements Closeable {
      */
     synchronized void add(final long waitingForGlobalCheckpoint, final GlobalCheckpointListener listener, final TimeValue timeout) {
         if (closed) {
-            executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
+            listener.executor().execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
             return;
         }
         if (lastKnownGlobalCheckpoint >= waitingForGlobalCheckpoint) {
             // notify directly
-            executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
+            listener.executor().execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
         } else {
             if (timeout == null) {
                 listeners.put(listener, Tuple.tuple(waitingForGlobalCheckpoint, null));
@@ -140,7 +146,7 @@ public class GlobalCheckpointListeners implements Closeable {
                                             if (removed) {
                                                 final TimeoutException e = new TimeoutException(timeout.getStringRep());
                                                 logger.trace("global checkpoint listener timed out", e);
-                                                executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, e));
+                                                listener.executor().execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, e));
                                             }
                                         },
                                         timeout.nanos(),
@@ -214,16 +220,15 @@ public class GlobalCheckpointListeners implements Closeable {
             listeners.clear();
         }
         if (listenersToNotify.isEmpty() == false) {
-            executor.execute(() ->
-                    listenersToNotify
-                            .forEach((listener, t) -> {
-                                /*
-                                 * We do not want to interrupt any timeouts that fired, these will detect that the listener has been
-                                 * notified and not trigger the timeout.
-                                 */
-                                FutureUtils.cancel(t.v2());
-                                notifyListener(listener, globalCheckpoint, e);
-                            }));
+            listenersToNotify
+                .forEach((listener, t) -> {
+                    /*
+                     * We do not want to interrupt any timeouts that fired, these will detect that the listener has been notified and not
+                     * trigger the timeout.
+                     */
+                    FutureUtils.cancel(t.v2());
+                    listener.executor().execute(() -> notifyListener(listener, globalCheckpoint, e));
+                });
         }
     }
 

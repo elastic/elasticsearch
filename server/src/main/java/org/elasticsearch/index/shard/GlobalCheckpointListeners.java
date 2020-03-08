@@ -54,7 +54,7 @@ public class GlobalCheckpointListeners implements Closeable {
     public interface GlobalCheckpointListener {
 
         /**
-         * The executor on which the listener is notified. Defaults to the calling thread.
+         * The executor on which the listener is notified.
          *
          * @return the executor
          */

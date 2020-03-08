@@ -59,27 +59,27 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertEquals("cluster_x", parseScrollId.getContext()[0].getClusterAlias());
         assertEquals(1, parseScrollId.getContext()[0].getContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[0].getContextId().getUuid(), equalTo("x"));
+            assertThat(parseScrollId.getContext()[0].getContextId().getReaderId(), equalTo("x"));
         } else {
-            assertThat(parseScrollId.getContext()[0].getContextId().getUuid(), equalTo(""));
+            assertThat(parseScrollId.getContext()[0].getContextId().getReaderId(), equalTo(""));
         }
 
         assertEquals("node_2", parseScrollId.getContext()[1].getNode());
         assertEquals("cluster_y", parseScrollId.getContext()[1].getClusterAlias());
         assertEquals(12, parseScrollId.getContext()[1].getContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[1].getContextId().getUuid(), equalTo("y"));
+            assertThat(parseScrollId.getContext()[1].getContextId().getReaderId(), equalTo("y"));
         } else {
-            assertThat(parseScrollId.getContext()[1].getContextId().getUuid(), equalTo(""));
+            assertThat(parseScrollId.getContext()[1].getContextId().getReaderId(), equalTo(""));
         }
 
         assertEquals("node_3", parseScrollId.getContext()[2].getNode());
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[2].getContextId().getUuid(), equalTo("z"));
+            assertThat(parseScrollId.getContext()[2].getContextId().getReaderId(), equalTo("z"));
         } else {
-            assertThat(parseScrollId.getContext()[2].getContextId().getUuid(), equalTo(""));
+            assertThat(parseScrollId.getContext()[2].getContextId().getReaderId(), equalTo(""));
         }
     }
 }

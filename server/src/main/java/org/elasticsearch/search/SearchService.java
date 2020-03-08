@@ -195,8 +195,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicLong idGenerator = new AtomicLong();
 
-    final String contextUUID = UUIDs.randomBase64UUID(); // combined with idGenerator to generate SearchContextId
-
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final MultiBucketConsumerService multiBucketConsumerService;
@@ -530,15 +528,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private boolean isMatchContextUUID(SearchContextId contextId) {
-        return contextId.getUuid().isEmpty() || contextId.getUuid().equals(contextUUID);
-    }
 
     final Executor getExecutor(SearchContextId contextId) {
-        if (isMatchContextUUID(contextId) == false) {
-            throw new SearchContextMissingException(contextId);
-        }
-        SearchContext context = activeContexts.get(contextId.getId());
+        SearchContext context = getContext(contextId);
         if (context == null) {
             throw new SearchContextMissingException(contextId);
         }
@@ -604,11 +596,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, listener);
     }
 
-    private SearchContext findContext(SearchContextId contextId, TransportRequest request) throws SearchContextMissingException {
-        if (isMatchContextUUID(contextId) == false) {
-            throw new SearchContextMissingException(contextId);
-        }
+    private SearchContext getContext(SearchContextId contextId) {
         final SearchContext context = activeContexts.get(contextId.getId());
+        if (context == null) {
+            return null;
+        }
+        if (context.id().getReaderId().equals(contextId.getReaderId()) || contextId.getReaderId().isEmpty()) {
+            return context;
+        }
+        return null;
+    }
+
+    private SearchContext findContext(SearchContextId contextId, TransportRequest request) throws SearchContextMissingException {
+        final SearchContext context = getContext(contextId);
         if (context == null) {
             throw new SearchContextMissingException(contextId);
         }
@@ -718,8 +718,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             IndexShard indexShard = indexService.getShard(request.shardId().getId());
             SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
+            // TODO: If no changes are made since the last commit, and the searcher is opened from that commit, then we can use the
+            //  commit_id as the context_id. And if the local checkpoint and max_seq_no of that commit equal the global checkpoint,
+            //  then we can use a combination of history_uuid and one of these values as a **weaker** context_id.
+            //  Reader contexts with the same commit_id can be replaced at any time, as the Lucene doc ids are the same.
+            //  Reader contexts with the same seq_id, however, can't be replaced between the query and fetch phase because
+            //  the Lucene doc ids can be different.
+            final String readerId = UUIDs.base64UUID();
             DefaultSearchContext searchContext = new DefaultSearchContext(
-                new SearchContextId(contextUUID, idGenerator.incrementAndGet()),
+                new SearchContextId(readerId, idGenerator.incrementAndGet()),
                 request, shardTarget, searcher, clusterService, indexService, indexShard, bigArrays,
                 threadPool::relativeTimeInMillis, timeout, fetchPhase);
             success = true;
@@ -745,17 +752,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeContext(SearchContextId contextId) {
-        if (contextId.getUuid().isEmpty() || contextUUID.equals(contextId.getUuid())) {
-            return freeContext(contextId.getId());
-        }
-        return false;
-    }
-
-    private boolean freeContext(long id) {
-        try (SearchContext context = removeContext(id)) {
-            if (context != null) {
-                onFreeContext(context);
-                return true;
+        if (getContext(contextId) != null) {
+            try (SearchContext context = removeContext(contextId.getId())) {
+                if (context != null) {
+                    onFreeContext(context);
+                    return true;
+                }
             }
         }
         return false;
@@ -763,7 +765,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void onFreeContext(SearchContext context) {
         assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
-        assert activeContexts.containsKey(context.id()) == false;
+        assert activeContexts.containsKey(context.id().getId()) == false;
         context.indexShard().getSearchOperationListener().onFreeContext(context);
         if (context.scrollContext() != null) {
             openScrollContexts.decrementAndGet();

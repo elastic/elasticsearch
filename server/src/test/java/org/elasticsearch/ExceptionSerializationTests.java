@@ -358,9 +358,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
         if (version.onOrAfter(Version.V_8_0_0)) {
-            assertThat(ex.contextId().getUuid(), equalTo(contextId.getUuid()));
+            assertThat(ex.contextId().getReaderId(), equalTo(contextId.getReaderId()));
         } else {
-            assertThat(ex.contextId().getUuid(), equalTo(""));
+            assertThat(ex.contextId().getReaderId(), equalTo(""));
         }
     }
 

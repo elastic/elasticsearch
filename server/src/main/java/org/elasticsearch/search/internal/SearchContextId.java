@@ -27,21 +27,22 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
+
 public final class SearchContextId implements Writeable {
-    private final String uuid;
+    private final String readerId;
     private final long id;
 
-    public SearchContextId(String uuid, long id) {
-        this.uuid = Objects.requireNonNull(uuid);
+    public SearchContextId(String readerId, long id) {
+        this.readerId = Objects.requireNonNull(readerId);
         this.id = id;
     }
 
     public SearchContextId(StreamInput in) throws IOException {
         this.id = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.uuid = in.readString();
+            this.readerId = in.readString();
         } else {
-            this.uuid = "";
+            this.readerId = "";
         }
     }
 
@@ -49,12 +50,12 @@ public final class SearchContextId implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeString(uuid);
+            out.writeString(readerId);
         }
     }
 
-    public String getUuid() {
-        return uuid;
+    public String getReaderId() {
+        return readerId;
     }
 
     public long getId() {
@@ -66,16 +67,16 @@ public final class SearchContextId implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchContextId other = (SearchContextId) o;
-        return id == other.id && uuid.equals(other.uuid);
+        return id == other.id && readerId.equals(other.readerId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uuid, id);
+        return Objects.hash(readerId, id);
     }
 
     @Override
     public String toString() {
-        return "[" + uuid + "][" + id + "]";
+        return "[" + readerId + "][" + id + "]";
     }
 }

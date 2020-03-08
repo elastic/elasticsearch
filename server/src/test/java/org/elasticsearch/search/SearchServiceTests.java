@@ -947,8 +947,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numContexts; i++) {
             SearchService.SearchRewriteContext rewriteContext = searchService.acquireSearcherAndRewrite(shardSearchRequest, indexShard);
             final SearchContext searchContext = searchService.createContext(rewriteContext);
-            assertThat(searchContext.id().getUuid(), equalTo(searchService.contextUUID));
-            assertThat(searchContext.id().getId(), equalTo((long)(i + 1)));
+            assertThat(searchContext.id().getId(), equalTo((long) (i + 1)));
             searchService.putContext(searchContext);
             contextIds.add(searchContext.id());
         }

@@ -67,6 +67,15 @@ import static org.mockito.Mockito.verify;
 
 public class GlobalCheckpointListenersTests extends ESTestCase {
 
+    @FunctionalInterface
+    interface TestGlobalCheckpointListener extends GlobalCheckpointListeners.GlobalCheckpointListener {
+
+        default Executor executor() {
+            return Runnable::run;
+        }
+
+    }
+
     private final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
     private final ScheduledThreadPoolExecutor scheduler =
             new Scheduler.SafeScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(Settings.EMPTY, "scheduler"));
@@ -84,11 +93,13 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         final Map<GlobalCheckpointListeners.GlobalCheckpointListener, Long> listeners = new HashMap<>();
         final Map<GlobalCheckpointListeners.GlobalCheckpointListener, Long> notifiedListeners = new HashMap<>();
         for (int i = 0; i < numberOfListeners; i++) {
-            final GlobalCheckpointListeners.GlobalCheckpointListener listener = new GlobalCheckpointListeners.GlobalCheckpointListener() {
+            final TestGlobalCheckpointListener listener = new TestGlobalCheckpointListener() {
+
                 @Override
                 public void accept(final long g, final Exception e) {
                     notifiedListeners.put(this, g);
                 }
+
             };
             final long waitingGlobalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE);
             listeners.put(listener, waitingGlobalCheckpoint);
@@ -369,7 +380,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             globalCheckpointListeners.add(
                 0,
                 maybeMultipleInvocationProtectingListener(
-                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                    new TestGlobalCheckpointListener() {
 
                         @Override
                         public Executor executor() {
@@ -405,7 +416,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             globalCheckpointListeners.add(
                 NO_OPS_PERFORMED,
                 maybeMultipleInvocationProtectingListener(
-                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                    new TestGlobalCheckpointListener() {
 
                         @Override
                         public Executor executor() {
@@ -443,8 +454,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             globalCheckpointListeners.add(
                 randomLongBetween(0, globalCheckpoint),
                 maybeMultipleInvocationProtectingListener(
-
-                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                    new TestGlobalCheckpointListener() {
 
                         @Override
                         public Executor executor() {
@@ -504,7 +514,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                 globalCheckpointListeners.add(
                     globalCheckpoint.get(),
                     maybeMultipleInvocationProtectingListener(
-                        new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                        new TestGlobalCheckpointListener() {
 
                             @Override
                             public Executor executor() {
@@ -591,7 +601,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         globalCheckpointListeners.add(
             NO_OPS_PERFORMED,
             maybeMultipleInvocationProtectingListener(
-                new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                new TestGlobalCheckpointListener() {
 
                     @Override
                     public Executor executor() {
@@ -660,7 +670,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
     }
 
     private GlobalCheckpointListeners.GlobalCheckpointListener maybeMultipleInvocationProtectingListener(
-            final GlobalCheckpointListeners.GlobalCheckpointListener globalCheckpointListener) {
+            final TestGlobalCheckpointListener globalCheckpointListener) {
         if (Assertions.ENABLED) {
             final AtomicBoolean invoked = new AtomicBoolean();
             return new GlobalCheckpointListeners.GlobalCheckpointListener() {

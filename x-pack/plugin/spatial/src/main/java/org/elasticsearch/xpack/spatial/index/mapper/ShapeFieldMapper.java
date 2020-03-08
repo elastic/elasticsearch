@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYShape;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -59,6 +60,11 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
         @Override
         public ShapeFieldType fieldType() {
             return (ShapeFieldType)fieldType;
+        }
+
+        @Override
+        protected boolean defaultDocValues(Version indexCreated) {
+            return true;
         }
 
         @SuppressWarnings("unchecked")

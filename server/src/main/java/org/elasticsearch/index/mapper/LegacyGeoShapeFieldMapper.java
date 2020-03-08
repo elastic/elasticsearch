@@ -264,6 +264,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
+            if (context.indexCreatedVersion().onOrAfter(Version.V_8_0_0) && fieldType().hasDocValues()) {
+                throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type while using prefix trees",
+                    TypeParsers.DOC_VALUES, CONTENT_TYPE);
+            }
+
             fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType()));
             fieldType().setGeometryParser(ShapeParser::parse);
             fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));

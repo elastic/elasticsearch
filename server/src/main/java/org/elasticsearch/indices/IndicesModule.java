@@ -65,6 +65,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,6 +74,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -83,9 +85,9 @@ import java.util.function.Predicate;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
-                getFieldFilter(mapperPlugins));
+    public IndicesModule(List<Plugin> plugins) {
+        this.mapperRegistry = new MapperRegistry(getMappers(plugins), getMetadataMappers(plugins),
+                getFieldFilter(plugins));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -106,7 +108,7 @@ public class IndicesModule extends AbstractModule {
         );
     }
 
-    public static Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, Mapper.TypeParser> getMappers(List<Plugin> plugins) {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
 
         // builtin mappers
@@ -132,10 +134,20 @@ public class IndicesModule extends AbstractModule {
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
         mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new AbstractGeometryFieldMapper.TypeParser());
 
-        for (MapperPlugin mapperPlugin : mapperPlugins) {
-            for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
-                if (mappers.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
+        for (Plugin plugin : plugins) {
+            for (GeoShapeFieldMapper.Extension geoExtension : ServiceLoader.load(GeoShapeFieldMapper.Extension.class,
+                plugin.getClass().getClassLoader())) {
+                GeoShapeFieldMapper.registerDataHandlers(geoExtension.getDataHandlerFactories());
+            }
+            for (AbstractGeometryFieldMapper.ParserExtension geoParserExtension :
+                ServiceLoader.load(AbstractGeometryFieldMapper.ParserExtension.class, plugin.getClass().getClassLoader())) {
+                GeoShapeFieldMapper.registerParserExtensions(geoParserExtension.getParserExtensions());
+            }
+            if (plugin instanceof MapperPlugin) {
+                for (Map.Entry<String, Mapper.TypeParser> entry : ((MapperPlugin)plugin).getMappers().entrySet()) {
+                    if (mappers.put(entry.getKey(), entry.getValue()) != null) {
+                        throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
+                    }
                 }
             }
         }
@@ -165,7 +177,7 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
 
-    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<Plugin> plugins) {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
         int i = 0;
@@ -181,13 +193,15 @@ public class IndicesModule extends AbstractModule {
         }
         assert fieldNamesEntry != null;
 
-        for (MapperPlugin mapperPlugin : mapperPlugins) {
-            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperPlugin.getMetadataMappers().entrySet()) {
-                if (entry.getKey().equals(FieldNamesFieldMapper.NAME)) {
-                    throw new IllegalArgumentException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
-                }
-                if (metadataMappers.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("MetadataFieldMapper [" + entry.getKey() + "] is already registered");
+        for (Plugin plugin : plugins) {
+            if (plugin instanceof MapperPlugin) {
+                for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : ((MapperPlugin) plugin).getMetadataMappers().entrySet()) {
+                    if (entry.getKey().equals(FieldNamesFieldMapper.NAME)) {
+                        throw new IllegalArgumentException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
+                    }
+                    if (metadataMappers.put(entry.getKey(), entry.getValue()) != null) {
+                        throw new IllegalArgumentException("MetadataFieldMapper [" + entry.getKey() + "] is already registered");
+                    }
                 }
             }
         }
@@ -204,10 +218,12 @@ public class IndicesModule extends AbstractModule {
         return builtInMetadataMappers.keySet();
     }
 
-    private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
+    private static Function<String, Predicate<String>> getFieldFilter(List<Plugin> plugins) {
         Function<String, Predicate<String>> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
-        for (MapperPlugin mapperPlugin : mapperPlugins) {
-            fieldFilter = and(fieldFilter, mapperPlugin.getFieldFilter());
+        for (Plugin plugin : plugins) {
+            if (plugin instanceof MapperPlugin) {
+                fieldFilter = and(fieldFilter, ((MapperPlugin)plugin).getFieldFilter());
+            }
         }
         return fieldFilter;
     }

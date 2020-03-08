@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.spi.SpatialExtension.SpatialParserHandler;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,6 +46,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
+        ShapeFieldMapper.registerParserExtensions(List.of(new SpatialParserHandler()));
         return Collections.unmodifiableMap(mappers);
     }
 

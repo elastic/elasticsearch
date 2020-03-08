@@ -19,12 +19,16 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -49,9 +53,18 @@ import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
+    public static Map<String, DataHandlerFactory> DATA_HANDLER_FACTORIES = new HashMap<>();
+
+    public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
+        public static final Explicit<String> DATA_HANDLER = new Explicit<>("default", false);
+    }
+
     public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
+        DataHandler dataHandler;
+
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            this.dataHandler = resolveDataHandler(Defaults.DATA_HANDLER.value());
         }
 
         @Override
@@ -62,17 +75,23 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
 
         @Override
+        protected boolean defaultDocValues(Version indexCreated) {
+            return dataHandler.defaultDocValues(indexCreated);
+        }
+
+        @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
             GeoShapeFieldType fieldType = (GeoShapeFieldType)fieldType();
             boolean orientation = fieldType.orientation == ShapeBuilder.Orientation.RIGHT;
 
+            // @todo the GeometryParser can be static since it doesn't hold state?
             GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
-
-            fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()));
             fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
-            fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+
+            fieldType.setGeometryIndexer(dataHandler.newIndexer(orientation, fieldType));
+            fieldType.setGeometryQueryBuilder(dataHandler.newQueryProcessor());
         }
     }
 
@@ -123,5 +142,50 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    public static void registerDataHandlers(Map<String, DataHandlerFactory> dataHandlerFactories) {
+        DATA_HANDLER_FACTORIES.putAll(dataHandlerFactories);
+    }
+
+    public static DataHandler resolveDataHandler(String handlerKey) {
+        if (DATA_HANDLER_FACTORIES.containsKey(handlerKey)) {
+            return DATA_HANDLER_FACTORIES.get(handlerKey).newDataHandler();
+        }
+        throw new IllegalArgumentException("dataHandler [" + handlerKey + "] not supported");
+    }
+
+    public interface DataHandlerFactory {
+        DataHandler newDataHandler();
+    }
+
+    public abstract static class DataHandler {
+        public abstract Indexer newIndexer(boolean orientation, MappedFieldType fieldType);
+        public abstract QueryProcessor newQueryProcessor();
+        public abstract boolean defaultDocValues(Version indexCreatedVersion);
+    }
+
+    static {
+        DATA_HANDLER_FACTORIES.put(Defaults.DATA_HANDLER.value(), () ->
+            new DataHandler() {
+                @Override
+                public boolean defaultDocValues(Version indexCreatedVersion) {
+                    return false;
+                }
+
+                @Override
+                public Indexer newIndexer(boolean orientation, MappedFieldType fieldType) {
+                    return new GeoShapeIndexer(orientation, fieldType.name());
+                }
+
+                @Override
+                public QueryProcessor newQueryProcessor() {
+                    return new VectorGeoShapeQueryProcessor();
+                }
+            });
+    }
+
+    public interface Extension {
+        Map<String, DataHandlerFactory> getDataHandlerFactories();
     }
 }

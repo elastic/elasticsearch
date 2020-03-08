@@ -54,6 +54,26 @@ public class ShapeFieldMapperTests extends ESSingleNodeTestCase {
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
         assertThat(shapeFieldMapper.fieldType().orientation(),
             equalTo(ShapeFieldMapper.Defaults.ORIENTATION.value()));
+        assertThat(shapeFieldMapper.fieldType().hasDocValues(), equalTo(true));
+    }
+
+    public void testParseDocValues() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "shape")
+            .field("doc_values", false)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+
+        ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
+        assertThat(shapeFieldMapper.fieldType().orientation(),
+            equalTo(ShapeFieldMapper.Defaults.ORIENTATION.value()));
+        assertThat(shapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
     }
 
     /**

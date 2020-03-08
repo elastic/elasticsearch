@@ -69,6 +69,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
     }
 
+    protected static List<ParserHandler> PARSER_EXTENSIONS = new ArrayList<>();
 
     /**
      * Interface representing an preprocessor in geo-shape indexing pipeline
@@ -80,6 +81,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         Class<Processed> processedClass();
 
         List<IndexableField> indexShape(ParseContext context, Processed shape);
+
+        void indexDocValues(ParseContext context, Processed shape);
     }
 
     /**
@@ -222,6 +225,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Map<String, Object> params = new HashMap<>();
             boolean parsedDeprecatedParameters = false;
+            boolean parsedExtension = false;
             params.put(DEPRECATED_PARAMETERS_KEY, new DeprecatedParameters());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -245,6 +249,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                         XContentMapValues.nodeBooleanValue(fieldNode,
                             name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
+                } else if (PARSER_EXTENSIONS.isEmpty() == false) {
+                    for (ParserHandler parser : PARSER_EXTENSIONS) {
+                        if (parser.parse(iterator, fieldName, fieldNode, params, parserContext.indexVersionCreated())) {
+                            parsedExtension = true;
+                            break;
+                        }
+                    }
                 }
             }
             if (parsedDeprecatedParameters == false) {
@@ -266,6 +277,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
             if (params.containsKey(Names.ORIENTATION.getPreferredName())) {
                 builder.orientation((Orientation)params.get(Names.ORIENTATION.getPreferredName()));
+            }
+
+            if (parsedExtension) {
+                for (ParserHandler parser : PARSER_EXTENSIONS) {
+                    parser.config(params, builder);
+                }
             }
 
             return builder;
@@ -399,6 +416,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         if (includeDefaults || ignoreZValue.explicit()) {
             builder.field(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
         }
+        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+            doXContentDocValues(builder, includeDefaults);
+        }
     }
 
     public Explicit<Boolean> coerce() {
@@ -440,6 +460,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             for (IndexableField field : fields) {
                 context.doc().add(field);
             }
+            if (fieldType.hasDocValues()) {
+                geometryIndexer.indexDocValues(context, shape);
+            }
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
@@ -447,6 +470,21 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
             context.addIgnoredField(fieldType().name());
         }
+    }
+
+    public static void registerParserExtensions(List<ParserHandler> parserExtensions) {
+        PARSER_EXTENSIONS.addAll(parserExtensions);
+    }
+
+    public interface ParserHandler {
+        boolean parse(Iterator<Map.Entry<String, Object>> iterator, String name, Object node, Map<String, Object> params,
+                      Version indexCreatedVersion);
+        @SuppressWarnings("rawtypes")
+        void config(Map<String, Object> params, Builder builder);
+    }
+
+    public interface ParserExtension {
+        List<ParserHandler> getParserExtensions();
     }
 
 }

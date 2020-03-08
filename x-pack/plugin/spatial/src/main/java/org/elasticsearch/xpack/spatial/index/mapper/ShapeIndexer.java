@@ -157,4 +157,11 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
         }
         return result;
     }
+
+    @Override
+    public void indexDocValues(ParseContext context, Geometry shape) {
+        // indexing doc values
+        /** @todo add shape doc values */
+        //  context.doc().add(new GeoShapeDocValueField(....))
+    }
 }

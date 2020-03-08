@@ -113,7 +113,7 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
     public abstract void testAggregationAccuracy() throws IOException;
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public abstract <A extends ArrayValuesSourceAggregationBuilder.LeafOnly> A getAggregatorBuilder(String name);
+    public abstract ArrayValuesSourceAggregationBuilder.LeafOnly getAggregatorBuilder(String name);
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <A extends MatrixStatsAggregator> A getAggregator(String name,
@@ -122,15 +122,15 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
         return createAggregator(aggBuilder, indexSearcher, fieldTypes.stream().toArray(n -> new NumberFieldMapper.NumberFieldType[n]));
     }
 
-    @SuppressWarnings("unchecked")
-    public abstract <R extends MatrixStatsResults> R computeResults();
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public abstract MatrixStatsResults computeResults();
 
-    @SuppressWarnings("unchecked")
-    public <R extends MatrixStatsResults> R getResults() {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public MatrixStatsResults getResults() {
         if (results == null) {
             return computeResults();
         }
-        return (R) results;
+        return results;
     }
 
     protected void testCase(Query query,
@@ -165,7 +165,7 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static ArrayList randomNumericFields(int numFields) {
+    public static ArrayList<String> randomNumericFields(int numFields) {
         ArrayList<String> fields = new ArrayList<>(numFields);
         for (int i = 0; i < numFields; ++i) {
             fields.add(randomNumericField() + i);

@@ -341,7 +341,7 @@ public class RunningStats implements Writeable, Cloneable {
             Objects.equals(skewness, that.skewness) &&
             Objects.equals(kurtosis, that.kurtosis);
 
-        if (result == true) {
+        if (result) {
             // check covariance equality: we do it this way because two objects could have a different hashmap
             // representation of the upper triangle matrix but the values are equal
             for (String row : means.keySet()) {

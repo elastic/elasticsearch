@@ -23,19 +23,21 @@ public class PCAAggregationTests extends AbstractMatrixStatsTestCase {
     public void testAggregationAccuracy() throws IOException {
         testCase(new MatchAllDocsQuery(),
             pca -> {
-                PCAStatsResults truth = getResults();
+                PCAStatsResults truth = (PCAStatsResults)getResults();
                 InternalPCAStats pcaAgg = (InternalPCAStats) pca;
                 assertNearlyEqual(truth, pcaAgg.getResults());
             });
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public PCAStatsResults computeResults() {
         results = new PCAStatsResults(baseTruthStats, useCovariance);
         return (PCAStatsResults) results;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public PCAAggregationBuilder getAggregatorBuilder(String name) {
         PCAAggregationBuilder aggBuilder = new PCAAggregationBuilder(name);
         aggBuilder.setUseCovariance(useCovariance);

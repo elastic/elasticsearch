@@ -128,7 +128,7 @@ public class PCAStatsResults extends MatrixStatsResults {
             for (int c = 0; c < n; ++c) {
                 String colName = colNames.next().getKey();
                 double val = useCovariance ? getCovariance(rowName, colName) : getCorrelation(rowName, colName);
-                if (Double.isNaN(val) == true) {
+                if (Double.isNaN(val)) {
                     String errorValue = useCovariance ? "Covariance" : "Correlation";
                     throw new ElasticsearchException("Unable to compute PCA. " + errorValue + " for fields ["
                         +  rowName + "], [" + colName + "] is [NaN]");

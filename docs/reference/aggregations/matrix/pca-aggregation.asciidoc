@@ -34,7 +34,7 @@ POST /_refresh
 The following example demonstrates the use of principal component analysis to describe the relationship between income,
 education, age, and savings.
 
-[source,js]
+[source,console,id=pca-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -47,13 +47,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 The aggregation type is `pca` and the `fields` setting defines the set of fields (as an array) for computing
 the principal component analysis. The above request returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -97,7 +96,7 @@ assumption the default behavior is to compute an eigen decomposition of the pear
 alternatively run PCA using an eigen decomposition of the covariance matrix if data quantities are in the same units. This
 is done using the optional `use_covariance` parameter as demonstrated below:
 
-[source,js]
+[source,console,id=pca-aggregation-covariance-example]
 --------------------------------------------------
 GET /_search
 {
@@ -111,7 +110,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 <1> Performs principal component analysis as an eigen decomposition over the covariance matrix.
@@ -134,7 +132,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they had a value.
 This is done by adding a set of fieldname : value mappings to specify default values per field.
 
-[source,js]
+[source,console,id=pca-aggregation-missing-example]
 --------------------------------------------------
 GET /_search
 {
@@ -148,7 +146,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Documents without a value in the `income` field will have the default value `50000`.
 

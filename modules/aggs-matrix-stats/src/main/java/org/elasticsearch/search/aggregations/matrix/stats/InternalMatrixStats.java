@@ -20,15 +20,11 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Adds correlation computation to Computes distribution statistics over multiple fields
@@ -116,15 +112,4 @@ public class InternalMatrixStats extends BaseInternalMatrixStats {
         return builder;
     }
 
-//    @Override
-//    protected int doHashCode() {
-//        return Objects.hash(stats, results);
-//    }
-//
-//    @Override
-//    protected boolean doEquals(Object obj) {
-//        InternalMatrixStats other = (InternalMatrixStats) obj;
-//        return Objects.equals(this.stats, other.stats) &&
-//            Objects.equals(this.results, other.results);
-//    }
 }

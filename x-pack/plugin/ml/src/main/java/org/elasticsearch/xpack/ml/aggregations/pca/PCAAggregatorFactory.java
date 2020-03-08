@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.aggregations.pca;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -20,29 +21,35 @@ import java.util.List;
 import java.util.Map;
 
 final class PCAAggregatorFactory
-    extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric, PCAAggregatorFactory> {
+    extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric> {
     private final MultiValueMode multiValueMode;
     private final boolean useCovariance;
 
     PCAAggregatorFactory(String name,
                          Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, MultiValueMode multiValueMode,
-                         boolean useCovariance, SearchContext context, AggregatorFactory<?> parent,
+                         boolean useCovariance, QueryShardContext queryShardContext, AggregatorFactory parent,
                          AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, configs, context, parent, subFactoriesBuilder, metaData);
+        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.multiValueMode = multiValueMode;
         this.useCovariance = useCovariance;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData)
         throws IOException {
-        return new PCAAggregator(name, null, context, parent, multiValueMode, useCovariance, pipelineAggregators, metaData);
+        return new PCAAggregator(name, null, searchContext, parent, multiValueMode, useCovariance, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent,
-                                          boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources,
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        return new PCAAggregator(name, valuesSources, context, parent, multiValueMode, useCovariance, pipelineAggregators, metaData);
+        return new PCAAggregator(name, valuesSources, searchContext, parent, multiValueMode, useCovariance, pipelineAggregators, metaData);
     }
 }

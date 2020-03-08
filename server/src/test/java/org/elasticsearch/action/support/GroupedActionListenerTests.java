@@ -140,7 +140,7 @@ public class GroupedActionListenerTests extends ESTestCase {
     /*
      * It can happen that the same exception causes a grouped listener to be notified of the failure multiple times. Since we suppress
      * additional exceptions into the first exception, we have to guard against suppressing into the same exception, which could occur if we
-     * are notified of with the same failure multiple times. This test that the guard against self-suppression remains.
+     * are notified of with the same failure multiple times. This test verifies that the guard against self-suppression remains.
      */
     public void testRepeatNotificationForTheSameException() {
         final AtomicReference<Exception> finalException = new AtomicReference<>();

@@ -49,11 +49,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -272,11 +275,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("bar"))
-                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")));
+                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")))
+                .put(indexBuilder("hidden", Settings.builder().put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden", Settings.builder().put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-closed", Settings.builder().put("index.hidden", true).build()).state(IndexMetaData.State.CLOSE))
+                .put(indexBuilder("hidden-closed", Settings.builder().put("index.hidden", true).build()).state(IndexMetaData.State.CLOSE));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
         // Only closed
-        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true);
+        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true, false);
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(1, results.length);
@@ -291,8 +298,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
         // Only open
-        options = IndicesOptions.fromOptions(false, true, true, false);
+        options = IndicesOptions.fromOptions(false, true, true, false, false);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(2, results.length);
@@ -306,8 +322,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden"));
+
         // Open and closed
-        options = IndicesOptions.fromOptions(false, true, true, true);
+        options = IndicesOptions.fromOptions(false, true, true, true, false);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(3, results.length);
@@ -329,10 +354,118 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "*");
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo"));
+
         results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
         assertEquals(0, results.length);
 
-        options = IndicesOptions.fromOptions(false, false, true, true);
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden", ".hidden-closed"));
+
+        // open closed and hidden
+        options = IndicesOptions.fromOptions(false, true, true, true, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(7, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder("foobar", "foo"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo*");
+        assertEquals(5, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "-foobar");
+        assertEquals(5, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "-foobar", "-hidden*");
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder("hidden", "hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder("hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden-closed");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder("hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
+        assertEquals(0, results.length);
+
+        // open and hidden
+        options = IndicesOptions.fromOptions(false, true, true, false, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(4, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "hidden", ".hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(1, results.length);
+        assertEquals("foobar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
+        assertEquals(1, results.length);
+        assertEquals("hidden", results[0]);
+
+        // closed and hidden
+        options = IndicesOptions.fromOptions(false, true, false, true, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("foo", "hidden-closed", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
+        assertEquals(1, results.length);
+        assertEquals("hidden-closed", results[0]);
+
+        // only hidden
+        options = IndicesOptions.fromOptions(false, true, false, false, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertThat(results, emptyArray());
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
+        assertThat(results, emptyArray());
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden");
+        assertThat(results, arrayContainingInAnyOrder("hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden-closed");
+        assertThat(results, arrayContainingInAnyOrder("hidden-closed"));
+
+        options = IndicesOptions.fromOptions(false, false, true, true, true);
         IndexNameExpressionResolver.Context context2 = new IndexNameExpressionResolver.Context(state, options);
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context2, "-*"));
@@ -349,7 +482,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //ignore unavailable and allow no indices
         {
-            IndicesOptions noExpandLenient = IndicesOptions.fromOptions(true, true, false, false);
+            IndicesOptions noExpandLenient = IndicesOptions.fromOptions(true, true, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandLenient);
             String[] results = indexNameExpressionResolver.concreteIndexNames(context, "baz*");
             assertThat(results, emptyArray());
@@ -371,7 +504,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //ignore unavailable but don't allow no indices
         {
-            IndicesOptions noExpandDisallowEmpty = IndicesOptions.fromOptions(true, false, false, false);
+            IndicesOptions noExpandDisallowEmpty = IndicesOptions.fromOptions(true, false, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandDisallowEmpty);
 
             {
@@ -396,7 +529,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //error on unavailable but allow no indices
         {
-            IndicesOptions noExpandErrorUnavailable = IndicesOptions.fromOptions(false, true, false, false);
+            IndicesOptions noExpandErrorUnavailable = IndicesOptions.fromOptions(false, true, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandErrorUnavailable);
             {
                 String[] results = indexNameExpressionResolver.concreteIndexNames(context, "baz*");
@@ -422,7 +555,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //error on both unavailable and no indices
         {
-            IndicesOptions noExpandStrict = IndicesOptions.fromOptions(false, false, false, false);
+            IndicesOptions noExpandStrict = IndicesOptions.fromOptions(false, false, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandStrict);
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "baz*"));
@@ -539,12 +672,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings());
+        return indexBuilder(index, Settings.EMPTY);
     }
 
-    private static Settings.Builder settings() {
+    private static IndexMetaData.Builder indexBuilder(String index, Settings additionalSettings) {
+        return IndexMetaData.builder(index).settings(settings(additionalSettings));
+    }
+
+    private static Settings.Builder settings(Settings additionalSettings) {
         return settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(additionalSettings);
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
@@ -594,7 +732,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testConcreteIndicesNoIndicesErrorMessage() {
         MetaData.Builder mdBuilder = MetaData.builder();
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, 
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
             IndicesOptions.fromOptions(false, false, true, true));
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
@@ -604,13 +742,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testConcreteIndicesNoIndicesErrorMessageNoExpand() {
         MetaData.Builder mdBuilder = MetaData.builder();
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, 
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
             IndicesOptions.fromOptions(false, false, false, false));
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
         assertThat(infe.getMessage(), is("no such index [_all] and no indices exist"));
     }
-    
+
     public void testConcreteIndicesWildcardExpansion() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").state(State.OPEN))
@@ -746,6 +884,170 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));
         assertTrue(indexNames.contains("bar_bar"));
+    }
+
+    public void testHiddenAliasAndHiddenIndexResolution() {
+        final String visibleIndex = "visible_index";
+        final String hiddenIndex = "hidden_index";
+        final String visibleAlias = "visible_alias";
+        final String hiddenAlias = "hidden_alias";
+        final String dottedHiddenAlias = ".hidden_alias";
+        final String dottedHiddenIndex = ".hidden_index";
+
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false);
+
+        {
+            // A visible index with a visible alias and a hidden index with a hidden alias
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(visibleAlias)))
+                .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            // A total wildcard should only be resolved to visible indices
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // Unless hidden is specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // Both hidden indices and hidden aliases should not be included in wildcard resolution
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "hidden*", "visible*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // unless it's specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "hidden*", "visible*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // Only visible aliases should be included in wildcard resolution
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // unless, again, it's specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // If we specify a hidden alias by name, the options shouldn't matter.
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+        }
+
+        {
+            // A visible alias that points to one hidden and one visible index
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(visibleAlias)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(visibleAlias)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            // If the alias is resolved to concrete indices, it should resolve to all the indices it points to, hidden or not.
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // A total wildcards does not resolve the hidden index in this case
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+        }
+
+        {
+            // A hidden alias that points to one hidden and one visible index
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // A query that only matches the hidden alias should throw
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias"));
+
+            // But if we include hidden it should be resolved to both indices
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // If we specify the alias by name it should resolve to both indices, regardless of if the options specify hidden
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+        }
+
+        {
+            // A hidden alias with a dot-prefixed name that points to one hidden index with a dot prefix, and one hidden index without
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(dottedHiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(dottedHiddenAlias).isHidden(true)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(dottedHiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            String[] indexNames;
+            // A dot-prefixed pattern that includes only the hidden alias should resolve to both, regardless of the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, ".hidden_a*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, ".hidden_a*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+
+            // A query that doesn't include the dot should fail if the options don't include hidden
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias"));
+
+            // But should include both indices if the options do include hidden
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+
+        }
+    }
+
+    public void testHiddenIndexWithVisibleAliasOverlappingNameResolution() {
+        final String hiddenIndex = "my-hidden-index";
+        final String hiddenAlias = "my-hidden-alias";
+        final String visibleAlias = "my-visible-alias";
+
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
+
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                .state(State.OPEN)
+                .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true))
+                .putAlias(AliasMetaData.builder(visibleAlias).build()));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        String[] indexNames;
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-*");
+        assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-hidden*");
+        assertThat(Arrays.asList(indexNames), empty());
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-*", "-my-visible*");
+        assertThat(Arrays.asList(indexNames), empty());
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "my-hidden*", "-my-hidden-a*");
+        assertThat(Arrays.asList(indexNames), empty());
     }
 
     /**
@@ -1207,7 +1509,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+            new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
@@ -1227,7 +1529,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+            new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
@@ -1397,13 +1699,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testIgnoreThrottled() {
         MetaData.Builder mdBuilder = MetaData.builder()
-            .put(indexBuilder("test-index").state(State.OPEN)
-                .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
+            .put(indexBuilder("test-index", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                .state(State.OPEN)
                 .putAlias(AliasMetaData.builder("test-alias")))
             .put(indexBuilder("index").state(State.OPEN)
                 .putAlias(AliasMetaData.builder("test-alias2")))
-            .put(indexBuilder("index-closed").state(State.CLOSE)
-                .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
+            .put(indexBuilder("index-closed", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                .state(State.CLOSE)
                 .putAlias(AliasMetaData.builder("test-alias-closed")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         {

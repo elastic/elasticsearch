@@ -284,16 +284,14 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         // create a mapping with a wrong @timestamp field, so that the index action of the watch below will fail
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("bar")
                 .startObject("properties")
                 .startObject("@timestamp")
                 .field("type", "integer")
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject());
 
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("foo").setMapping(mapping).get();
 
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 
@@ -394,7 +392,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         INDEX {
             @Override
             public Action.Builder<IndexAction> action() throws Exception {
-                return IndexAction.builder("test_index", "test_type");
+                return IndexAction.builder("test_index");
             }
 
             @Override

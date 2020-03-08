@@ -68,19 +68,17 @@ and potentially a list of errors encountered while invalidating specific tokens.
 For example, if you create a token using the `client_credentials` grant type as
 follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
   "grant_type" : "client_credentials"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The get token API returns the following information about the access token:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
@@ -88,27 +86,25 @@ The get token API returns the following information about the access token:
   "expires_in" : 1200
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
 This access token can now be immediately invalidated, as shown in the following
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TEST[continued]
 
 If you used the `password` grant type to obtain a token for a user, the response
 might also contain a refresh token. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
@@ -117,12 +113,10 @@ POST /_security/oauth2/token
   "password" : "x-pack-test-password"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The get token API returns the following information:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
@@ -131,54 +125,48 @@ The get token API returns the following information:
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
 The refresh token can now also be immediately invalidated as shown 
 in the following example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "refresh_token" : "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 // TEST[continued]
 
 The following example invalidates all access tokens and refresh tokens for the
 `saml1` realm immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The following example invalidates all access tokens and refresh tokens for the
 user `myuser` in all realms immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "username" : "myuser"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 Finally, the following example invalidates all access tokens and refresh tokens
 for the user `myuser` in the `saml1` realm immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
@@ -186,8 +174,6 @@ DELETE /_security/oauth2/token
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 [source,js]
 --------------------------------------------------

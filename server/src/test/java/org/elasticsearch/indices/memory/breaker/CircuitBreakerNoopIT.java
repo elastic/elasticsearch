@@ -57,7 +57,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -74,7 +74,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 

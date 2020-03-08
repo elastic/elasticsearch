@@ -117,8 +117,9 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.security.Security;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -133,6 +134,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -191,6 +193,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
+    public static final String FIPS_SYSPROP = "tests.fips.enabled";
+
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
@@ -242,9 +246,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
-
-        // Disable direct buffer pooling
-        System.setProperty("io.netty.allocator.numDirectArenas", "0");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -371,7 +372,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            assert threadContext == null;
+            DeprecationLogger.removeThreadContext(threadContext);
+            threadContext = null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -394,7 +396,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             assertNull("unexpected warning headers", warnings);
         } finally {
-            resetDeprecationLogger(false);
+            resetDeprecationLogger();
         }
     }
 
@@ -435,26 +437,16 @@ public abstract class ESTestCase extends LuceneTestCase {
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
                 expectedWarnings.length, actualWarnings.size());
         } finally {
-            resetDeprecationLogger(true);
+            resetDeprecationLogger();
         }
     }
 
     /**
-     * Reset the deprecation logger by removing the current thread context, and setting a new thread context if {@code setNewThreadContext}
-     * is set to {@code true} and otherwise clearing the current thread context.
-     *
-     * @param setNewThreadContext whether or not to attach a new thread context to the deprecation logger
+     * Reset the deprecation logger by clearing the current thread context.
      */
-    private void resetDeprecationLogger(final boolean setNewThreadContext) {
-        // "clear" current warning headers by setting a new ThreadContext
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
-        if (setNewThreadContext) {
-            this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(this.threadContext);
-        } else {
-            this.threadContext = null;
-        }
+    private void resetDeprecationLogger() {
+        // "clear" context by stashing current values and dropping the returned StoredContext
+        threadContext.stashContext();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -514,15 +506,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     // TODO: can we do this cleaner???
 
     /** MockFSDirectoryService sets this: */
-    public static boolean checkIndexFailed;
+    public static final List<Exception> checkIndexFailures = new CopyOnWriteArrayList<>();
 
     @Before
     public final void resetCheckIndexStatus() throws Exception {
-        checkIndexFailed = false;
+        checkIndexFailures.clear();
     }
 
     public final void ensureCheckIndexPassed() {
-        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
+        if (checkIndexFailures.isEmpty() == false) {
+            final AssertionError e = new AssertionError("at least one shard failed CheckIndex");
+            for (Exception failure : checkIndexFailures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
     }
 
     // -----------------------------------------------------------------
@@ -759,6 +757,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return array;
     }
 
+    public static <T> List<T> randomList(int maxListSize, Supplier<T> valueConstructor) {
+        return randomList(0, maxListSize, valueConstructor);
+    }
+
+    public static <T> List<T> randomList(int minListSize, int maxListSize, Supplier<T> valueConstructor) {
+        final int size = randomIntBetween(minListSize, maxListSize);
+        List<T> list = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            list.add(valueConstructor.get());
+        }
+        return list;
+    }
+
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 
@@ -848,6 +859,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        // In case you've forgotten your high-school studies, log10(x) / log10(y) == log y(x)
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
         long sum = 0;
@@ -875,14 +887,34 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    public static boolean awaitBusy(BooleanSupplier breakSupplier) throws InterruptedException {
-        return awaitBusy(breakSupplier, 10, TimeUnit.SECONDS);
+    /**
+     * Periodically execute the supplied function until it returns true, or a timeout
+     * is reached. This version uses a timeout of 10 seconds. If at all possible,
+     * use {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     *
+     * @param breakSupplier determines whether to return immediately or continue waiting.
+     * @return the last value returned by <code>breakSupplier</code>
+     * @throws InterruptedException if any sleep calls were interrupted.
+     */
+    public static boolean waitUntil(BooleanSupplier breakSupplier) throws InterruptedException {
+        return waitUntil(breakSupplier, 10, TimeUnit.SECONDS);
     }
 
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    public static boolean awaitBusy(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    /**
+     * Periodically execute the supplied function until it returns true, or until the
+     * specified maximum wait time has elapsed. If at all possible, use
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     *
+     * @param breakSupplier determines whether to return immediately or continue waiting.
+     * @param maxWaitTime the maximum amount of time to wait
+     * @param unit the unit of tie for <code>maxWaitTime</code>
+     * @return the last value returned by <code>breakSupplier</code>
+     * @throws InterruptedException if any sleep calls were interrupted.
+     */
+    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long timeInMillis = 1;
         long sum = 0;
@@ -1142,6 +1174,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
 
+    /**
+     * Create a copy of an original {@link NamedWriteable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}.
+     */
+    public static <T extends NamedWriteable> T copyNamedWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+            Class<T> categoryClass) throws IOException {
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+    }
+
+    /**
+     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
+     * a {@link Version} argument which will be used to write and read back the object.
+     */
+    public static <T extends NamedWriteable> T copyNamedWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+                                                        Class<T> categoryClass, Version version) throws IOException {
+        return copyInstance(original, namedWriteableRegistry,
+                (out, value) -> out.writeNamedWriteable(value),
+                in -> in.readNamedWriteable(categoryClass), version);
+    }
+
     protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
                                       Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -1316,7 +1368,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
     /**
@@ -1342,5 +1394,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
+    }
+
+    protected static InetAddress randomIp(boolean v4) {
+        try {
+            if (v4) {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                return InetAddress.getByAddress(ipv4);
+            } else {
+                byte[] ipv6 = new byte[16];
+                random().nextBytes(ipv6);
+                return InetAddress.getByAddress(ipv6);
+            }
+        } catch (UnknownHostException e) {
+            throw new AssertionError();
+        }
     }
 }

@@ -5,22 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.NodeSubclassTests;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 /**
  * Needed to override tests in {@link NodeSubclassTests} as If is special since its children are not usual
@@ -58,10 +62,6 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
         Source newSource = randomValueOtherThan(iif.source(), SourceTests::randomSource);
         assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
             iif.transformPropertiesOnly(p -> Objects.equals(p, iif.source()) ? newSource: p, Object.class));
-
-        String newName = randomValueOtherThan(iif.name(), () -> randomAlphaOfLength(5));
-        assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
-            iif.transformPropertiesOnly(p -> Objects.equals(p, iif.name()) ? newName : p, Object.class));
     }
 
     @Override
@@ -72,6 +72,13 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
         assertEquals(new Iif(iif.source(), newChildren.get(0), newChildren.get(1), newChildren.get(2)),
             iif.replaceChildren(Arrays.asList(new IfConditional(iif.source(), newChildren.get(0), newChildren.get(1)),
                 newChildren.get(2))));
+    }
+
+    public void testConditionFolded() {
+        Iif iif = new Iif(EMPTY, Collections.singletonList(SqlTestUtils.literal("foo")));
+        assertEquals(DataTypes.KEYWORD, iif.dataType());
+        assertEquals(Expression.TypeResolution.TYPE_RESOLVED, iif.typeResolved());
+        assertNotNull(iif.info());
     }
 
     private List<Expression> mutateChildren(Iif iif) {

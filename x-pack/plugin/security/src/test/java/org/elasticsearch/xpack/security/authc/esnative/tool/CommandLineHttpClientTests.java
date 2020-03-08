@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -36,10 +35,14 @@ import static org.hamcrest.Matchers.containsString;
 public class CommandLineHttpClientTests extends ESTestCase {
 
     private MockWebServer webServer;
-    private Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+    private Path certPath;
+    private Path keyPath;
 
     @Before
     public void setup() throws Exception {
+        certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+
         webServer = createMockWebServer();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{\"test\": \"complete\"}"));
         webServer.start();
@@ -51,12 +54,11 @@ public class CommandLineHttpClientTests extends ESTestCase {
     }
 
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
-        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        Settings settings = Settings.builder()
+        Settings settings = getHttpSslSettings()
             .put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
             .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE)
             .build();
-        CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
+        CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
                 new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));
 
@@ -67,25 +69,29 @@ public class CommandLineHttpClientTests extends ESTestCase {
 
     public void testGetDefaultURLFailsWithHelpfulMessage() {
         Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
             .put("network.host", "_ec2:privateIpv4_")
             .build();
-        CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
+        CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
         assertThat(expectThrows(IllegalStateException.class, () -> client.getDefaultURL()).getMessage(),
             containsString("unable to determine default URL from settings, please use the -u option to explicitly provide the url"));
     }
 
     private MockWebServer createMockWebServer() {
-        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        Settings settings = getHttpSslSettings().build();
+        TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
+        return new MockWebServer(sslService.sslContext("xpack.security.http.ssl."), false);
+    }
+
+    private Settings.Builder getHttpSslSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        Settings settings = Settings.builder()
+        return Settings.builder()
+            .put("path.home", createTempDir())
+            .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", keyPath.toString())
             .put("xpack.security.http.ssl.certificate", certPath.toString())
-            .setSecureSettings(secureSettings)
-            .build();
-        TestsSSLService sslService = new TestsSSLService(settings, environment);
-        return new MockWebServer(sslService.sslContext("xpack.security.http.ssl."), false);
+            .setSecureSettings(secureSettings);
     }
 
     private HttpResponseBuilder responseBuilder(final InputStream is) throws IOException {

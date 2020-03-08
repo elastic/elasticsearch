@@ -69,7 +69,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(revertPointBucket.isInterim(), is(true));
 
         // We need to wait a second to ensure the second time around model snapshot will have a different ID (it depends on epoch seconds)
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         openJob(job.getId());
         postData(job.getId(), generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo", "bar"),
@@ -156,7 +156,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Quantiles getQuantiles(String jobId) {
-        SearchResponse response = client().prepareSearch(".ml-state")
+        SearchResponse response = client().prepareSearch(".ml-state*")
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
                 .setSize(1)
                 .get();

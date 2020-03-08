@@ -5,14 +5,15 @@
 
 beta[]
 
-The geo functions work with geometries stored in `geo_point` and `geo_shape` fields, or returned by other geo functions.
+The geo functions work with geometries stored in `geo_point`, `geo_shape` and `shape` fields, or returned by other geo functions.
 
 ==== Limitations
 
-Both <<geo-point, `geo_point`>> and <<geo-shape, `geo_shape`>> types are represented in SQL as geometry and can be used
-interchangeably with the following exceptions:
+<<geo-point, `geo_point`>>, <<geo-shape, `geo_shape`>> and <<shape, `shape`>> and types are represented in SQL as
+geometry and can be used interchangeably with the following exceptions:
 
-* `geo_shape` fields don't have doc values, therefore these fields cannot be used for filtering, grouping or sorting.
+* `geo_shape` and `shape` fields don't have doc values, therefore these fields cannot be used for filtering, grouping
+  or sorting.
 
 * `geo_points` fields are indexed and have doc values by default, however only latitude and longitude are stored and
   indexed with some loss of precision from the original values (4.190951585769653E-8 for the latitude and
@@ -38,9 +39,7 @@ ST_AsWKT(
 
 *Output*: string
 
-.Description:
-
-Returns the WKT representation of the `geometry`.
+*Description*: Returns the WKT representation of the `geometry`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -65,9 +64,7 @@ ST_WKTToSQL(
 
 *Output*: geometry
 
-.Description:
-
-Returns the geometry from WKT representation.
+*Description*: Returns the geometry from WKT representation.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -93,9 +90,7 @@ ST_GeometryType(
 
 *Output*: string
 
-.Description:
-
-Returns the type of the `geometry` such as POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, GEOMETRYCOLLECTION, ENVELOPE or CIRCLE.
+*Description*: Returns the type of the `geometry` such as POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, GEOMETRYCOLLECTION, ENVELOPE or CIRCLE.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -119,9 +114,7 @@ ST_X(
 
 *Output*: double
 
-.Description:
-
-Returns the longitude of the first point in the geometry.
+*Description*: Returns the longitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -145,9 +138,7 @@ ST_Y(
 
 *Output*: double
 
-.Description:
-
-Returns the latitude of the first point in the geometry.
+*Description*: Returns the latitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -171,9 +162,7 @@ ST_Z(
 
 *Output*: double
 
-.Description:
-
-Returns the altitude of the first point in the geometry.
+*Description*: Returns the altitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -199,9 +188,7 @@ ST_Distance(
 
 *Output*: Double
 
-.Description:
-
-Returns the distance between geometries in meters. Both geometries have to be points.
+*Description*: Returns the distance between geometries in meters. Both geometries have to be points.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

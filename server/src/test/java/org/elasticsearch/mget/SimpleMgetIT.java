@@ -48,12 +48,12 @@ public class SimpleMgetIT extends ESIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "test", "1"))
-                .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
+                .add(new MultiGetRequest.Item("test", "1"))
+                .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
                 .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
@@ -67,7 +67,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
             is("nonExistingIndex"));
 
         mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
+                .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
                 .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
@@ -81,12 +81,12 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
         assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
-        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("test", "test", "1"))
-            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .add(new MultiGetRequest.Item("test", "1"))
+            .add(new MultiGetRequest.Item("multiIndexAlias", "1"))
             .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
@@ -98,7 +98,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), containsString("more than one indices"));
 
         mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .add(new MultiGetRequest.Item("multiIndexAlias", "1"))
             .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("multiIndexAlias"));
@@ -108,14 +108,14 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
     public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
-            .addMapping("test", jsonBuilder()
-                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+            .setMapping(jsonBuilder()
+                .startObject().startObject("_doc").startObject("_routing").field("required", true).endObject().endObject().endObject()));
 
-        client().prepareIndex("alias1", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+        client().prepareIndex("alias1").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("alias1", "test", "1"))
+            .add(new MultiGetRequest.Item("alias1", "1"))
             .get();
         assertEquals(1, mgetResponse.getResponses().length);
 
@@ -132,16 +132,16 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .field("excluded", "should not be seen")
                 .endObject());
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();
         for (int i = 0; i < 100; i++) {
             if (i % 2 == 0) {
-                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i))
+                request.add(new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i))
                     .fetchSourceContext(new FetchSourceContext(true, new String[] {"included"}, new String[] {"*.hidden_field"})));
             } else {
-                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i))
+                request.add(new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i))
                     .fetchSourceContext(new FetchSourceContext(false)));
             }
         }
@@ -173,13 +173,13 @@ public class SimpleMgetIT extends ESIntegTestCase {
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);
 
-        client().prepareIndex("test", "test", id).setRefreshPolicy(IMMEDIATE).setRouting(routingOtherShard)
+        client().prepareIndex("test").setId(id).setRefreshPolicy(IMMEDIATE).setRouting(routingOtherShard)
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", id).routing(routingOtherShard))
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", id))
+                .add(new MultiGetRequest.Item(indexOrAlias(), id).routing(routingOtherShard))
+                .add(new MultiGetRequest.Item(indexOrAlias(), id))
                 .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));

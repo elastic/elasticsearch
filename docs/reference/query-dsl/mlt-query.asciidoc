@@ -15,7 +15,7 @@ provided piece of text. Here, we are asking for all movies that have some text
 similar to "Once upon a time" in their "title" and in their "description"
 fields, limiting the number of selected terms to 12.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -29,13 +29,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 A more complicated use case consists of mixing texts with documents already
 existing in the index. In this case, the syntax to specify a document is
 similar to the one used in the <<docs-multi-get,Multi GET API>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -59,13 +58,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Finally, users can mix some texts, a chosen set of documents but also provide
 documents not necessarily present in the index. To provide documents not
 present in the index, the syntax is similar to <<docs-termvectors-artificial-doc,artificial documents>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -94,7 +92,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== How it Works
 
@@ -120,7 +117,7 @@ we can explicitly store their `term_vector` at index time. We can still
 perform MLT on the "description" and "tags" fields, as `_source` is enabled by
 default, but there will be no speed up on analysis for these fields.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /imdb
 {
@@ -147,7 +144,6 @@ PUT /imdb
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Parameters
 
@@ -202,7 +198,8 @@ input document. Defaults to `5`.
 `max_doc_freq`::
 The maximum document frequency above which the terms will be ignored from the
 input document. This could be useful in order to ignore highly frequent words
-such as stop words. Defaults to unbounded (`0`).
+such as stop words. Defaults to unbounded (`Integer.MAX_VALUE`, which is `2^31-1`
+or 2147483647).
 
 `min_word_length`::
 The minimum word length below which the terms will be ignored. The old name
@@ -250,3 +247,6 @@ results returned. Defaults to `false`.
 
 `boost`::
 Sets the boost value of the whole query. Defaults to `1.0`.
+
+==== Alternative
+To take more control over the construction of a query for similar documents it is worth considering writing custom client code to assemble selected terms from an example document into a Boolean query with the desired settings. The logic in `more_like_this` that selects "interesting" words from a piece of text is also accessible via the <<docs-termvectors,TermVectors API>>. For example, using the termvectors API it would be possible to present users with a selection of topical keywords found in a document's text, allowing them to select words of interest to drill down on, rather than using the more "black-box" approach of matching used by `more_like_this`.

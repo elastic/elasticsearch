@@ -65,7 +65,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 "\"airline\": {\"type\": \"keyword\"}," +
                 "\"responsetime\": {\"type\": \"float\"}" +
                 "}}}}");
-        createTestIndex.setOptions(allowTypesRemovalWarnings());
         client().performRequest(createTestIndex);
     }
 

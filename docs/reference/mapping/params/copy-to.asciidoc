@@ -6,7 +6,7 @@ fields into a group field, which can then be queried as a single
 field. For instance, the `first_name` and `last_name` fields can be copied to
 the `full_name` field as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -46,7 +46,7 @@ GET my_index/_search
 }
 
 --------------------------------------------------
-// CONSOLE
+
 <1>  The values of the `first_name` and `last_name` fields are copied to the
      `full_name` field.
 

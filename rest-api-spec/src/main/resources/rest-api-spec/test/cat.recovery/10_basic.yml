@@ -82,7 +82,7 @@
 ---
 "Test cat recovery output for closed index":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: format of bytes output changed in 8.0.0
 
   - do:

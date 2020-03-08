@@ -78,7 +78,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final XContentType xContentType = XContentType.JSON;
 
         final int nbDocs = randomIntBetween(1, 20);
-        final String[] types = new String[nbDocs];
         final String[] ids = new String[nbDocs];
         final BytesReference[] sources = new BytesReference[nbDocs];
 
@@ -93,8 +92,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                             builder.field("_index", "");
                         }
 
-                        types[i] = randomAlphaOfLength(5);
-                        builder.field("_type", types[i]);
+                        builder.field("_type", "_doc");
 
                         if (randomBoolean()) {
                             ids[i] = randomAlphaOfLength(10);
@@ -132,7 +130,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         int count = 0;
         for (final MonitoringBulkDoc bulkDoc : bulkDocs) {
             assertThat(bulkDoc.getSystem(), equalTo(system));
-            assertThat(bulkDoc.getType(), equalTo(types[count]));
             assertThat(bulkDoc.getId(), equalTo(ids[count]));
             assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
             assertThat(bulkDoc.getIntervalMillis(), equalTo(interval));
@@ -158,7 +155,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                     builder.startObject("index");
                     {
                         builder.field("_index", "");
-                        builder.field("_type", "doc");
+                        builder.field("_type", "_doc");
                         builder.field("_id", String.valueOf(i));
                     }
                     builder.endObject();
@@ -186,7 +183,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
-        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
+        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][_doc][" + nbDocs + "]"));
     }
 
     public void testAddRequestContentWithUnrecognizedIndexName() throws IOException {
@@ -202,7 +199,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                 builder.startObject("index");
                 {
                     builder.field("_index", indexName);
-                    builder.field("_type", "doc");
                 }
                 builder.endObject();
             }

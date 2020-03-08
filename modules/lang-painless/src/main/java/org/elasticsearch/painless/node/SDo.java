@@ -19,16 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DoWhileLoopNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a do-while loop.
@@ -48,26 +45,8 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        locals = Locals.newLocalScope(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        scope = scope.newLocalScope();
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -75,19 +54,18 @@ public final class SDo extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-
-        block.analyze(locals);
+        block.analyze(scriptRoot, scope);
 
         if (block.loopEscape && !block.anyContinue) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
+        condition.analyze(scriptRoot, scope);
+        condition.cast();
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        if (condition instanceof EBoolean) {
+            continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -100,39 +78,19 @@ public final class SDo extends AStatement {
         }
 
         statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    DoWhileLoopNode write(ClassNode classNode) {
+        DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
 
-        Label start = new Label();
-        Label begin = new Label();
-        Label end = new Label();
+        doWhileLoopNode.setConditionNode(condition.cast(condition.write(classNode)));
+        doWhileLoopNode.setBlockNode(block.write(classNode));
 
-        writer.mark(start);
+        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setContinuous(continuous);
 
-        block.continu = begin;
-        block.brake = end;
-        block.write(writer, globals);
-
-        writer.mark(begin);
-
-        if (!continuous) {
-            condition.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (loopCounter != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-        }
-
-        writer.goTo(start);
-        writer.mark(end);
+        return doWhileLoopNode;
     }
 
     @Override

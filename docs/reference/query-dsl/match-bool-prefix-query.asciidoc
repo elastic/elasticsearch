@@ -9,7 +9,7 @@ A `match_bool_prefix` query analyzes its input and constructs a
 is used in a `term` query. The last term is used in a `prefix` query. A
 `match_bool_prefix` query such as
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -20,12 +20,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 where analysis produces the terms `quick`, `brown`, and `f` is similar to the
 following `bool` query
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -40,7 +39,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 An important difference between the `match_bool_prefix` query and
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix`>> is that the
@@ -57,7 +55,7 @@ By default, `match_bool_prefix` queries' input text will be analyzed using the
 analyzer from the queried field's mapping. A different search analyzer can be
 configured with the `analyzer` parameter
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -71,7 +69,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 `match_bool_prefix` queries support the
 <<query-dsl-minimum-should-match,`minimum_should_match`>> and `operator`

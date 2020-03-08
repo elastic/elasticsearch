@@ -19,15 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Opcodes;
-
-import java.util.Set;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a null constant.
@@ -39,22 +36,10 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // do nothing
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from null constant."));
         }
-
-        isNull = true;
 
         if (expected != null) {
             if (expected.isPrimitive()) {
@@ -69,8 +54,13 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.visitInsn(Opcodes.ACONST_NULL);
+    NullNode write(ClassNode classNode) {
+        NullNode nullNode = new NullNode();
+
+        nullNode.setLocation(location);
+        nullNode.setExpressionType(actual);
+
+        return nullNode;
     }
 
     @Override

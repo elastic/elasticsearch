@@ -1,5 +1,8 @@
 [[analysis-stemmer-tokenfilter]]
-=== Stemmer Token Filter
+=== Stemmer token filter
+++++
+<titleabbrev>Stemmer</titleabbrev>
+++++
 
 // Adds attribute for the 'minimal_portuguese' stemmer values link.
 // This link contains ~, which is converted to subscript.
@@ -10,7 +13,7 @@
 A filter that provides access to (almost) all of the available stemming token
 filters through a single unified interface. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -32,7 +35,6 @@ PUT /my_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `language`/`name` parameter controls the stemmer with the following
 available values (the preferred filters are marked in *bold*):

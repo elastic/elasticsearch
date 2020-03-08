@@ -79,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1170,16 +1171,17 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             {
                 NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-                assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
+                assertThat(e.getMessage(), endsWith("unknown field [unknown]"));
+                assertThat(e.getCandidates(), containsInAnyOrder("test1", "test2", "deprecated", "str"));
             }
             {
-                Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+                Exception e = expectThrows(XContentParseException.class, () -> p.namedObject(String.class, "doesn't matter", null));
                 assertEquals("unknown named object category [java.lang.String]", e.getMessage());
             }
         }
         try (XContentParser emptyRegistryParser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {})) {
-            Exception e = expectThrows(NamedObjectNotFoundException.class,
+            Exception e = expectThrows(XContentParseException.class,
                 () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("named objects are not supported for this parser", e.getMessage());
         }
@@ -1206,11 +1208,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     private static void expectNonNullFieldException(ThrowingRunnable runnable) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
-    }
-
-    private static void expectNonNullFormatterException(ThrowingRunnable runnable) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {

@@ -65,6 +65,22 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testFormat() throws Exception {
+        RangeFieldMapper.Range range = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-01T12:14:36"),
+            asLong("2019-08-01T15:07:22"), true, true);
+        testCase(
+            new MatchAllDocsQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.DAY).format("yyyy-MM-dd"),
+            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
+            histo -> {
+                assertEquals(1, histo.getBuckets().size());
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+
+                assertEquals("2019-08-01", histo.getBuckets().get(0).getKeyAsString());
+            }
+        );
+    }
+
     public void testUnsupportedRangeType() throws Exception {
         RangeType rangeType = RangeType.LONG;
         final String fieldName = "field";

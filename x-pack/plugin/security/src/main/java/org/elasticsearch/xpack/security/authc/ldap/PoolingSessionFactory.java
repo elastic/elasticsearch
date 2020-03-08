@@ -15,6 +15,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.SecureString;
@@ -24,9 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
@@ -45,9 +44,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     private final LDAPConnectionPool connectionPool;
 
     final SimpleBindRequest bindCredentials;
-    final LdapMetaDataResolver metaDataResolver;
     final LdapSession.GroupsResolver groupResolver;
-
 
     /**
      * @param config the configuration for the realm
@@ -63,7 +60,6 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                           ThreadPool threadPool) throws LDAPException {
         super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
-        this.metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
 
         final byte[] bindPassword;
         if (config.hasSetting(LEGACY_BIND_PASSWORD)) {

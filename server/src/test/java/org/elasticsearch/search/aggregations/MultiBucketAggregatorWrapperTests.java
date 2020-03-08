@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -45,11 +46,13 @@ public class MultiBucketAggregatorWrapperTests extends ESTestCase {
         LeafReaderContext leafReaderContext = MemoryIndex.fromDocument(Collections.emptyList(), new MockAnalyzer(random()))
                 .createSearcher().getIndexReader().leaves().get(0);
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.bigArrays()).thenReturn(bigArrays);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
         Aggregator aggregator = mock(Aggregator.class);
-        AggregatorFactory aggregatorFactory = new TestAggregatorFactory(searchContext, aggregator);
+        AggregatorFactory aggregatorFactory = new TestAggregatorFactory(queryShardContext, aggregator);
         LeafBucketCollector wrappedCollector = mock(LeafBucketCollector.class);
         when(aggregator.getLeafCollector(leafReaderContext)).thenReturn(wrappedCollector);
         Aggregator wrapper = AggregatorFactory.asMultiBucketAggregator(aggregatorFactory, searchContext, null);

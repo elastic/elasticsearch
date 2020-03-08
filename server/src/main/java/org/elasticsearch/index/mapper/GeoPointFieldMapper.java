@@ -40,6 +40,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -131,6 +133,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
+        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new GeoPointFieldMapper.Builder(name);
@@ -159,7 +162,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
             if (nullValue != null) {
                 boolean ignoreZValue = builder.ignoreZValue == null ? Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
-                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreZValue;
+                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreMalformed;
                 GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
                 if (ignoreMalformed == false) {
                     if (point.lat() > 90.0 || point.lat() < -90.0) {
@@ -232,6 +235,11 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new AbstractLatLonPointDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.GEOPOINT;
         }
 
         @Override

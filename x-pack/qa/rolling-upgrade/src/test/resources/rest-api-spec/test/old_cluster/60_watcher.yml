@@ -1,9 +1,5 @@
 ---
 "CRUD watch APIs":
-  - skip:
-      reason: https://github.com/elastic/elasticsearch/issues/33185
-      version: "6.7.0 - "
-
   - do:
       watcher.put_watch:
         id: "my_watch"
@@ -31,6 +27,13 @@
   - match: { found : true}
   - match: { _id: "my_watch" }
 
+  - do:
+      cluster.health:
+        index: .watches
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
+        wait_for_events: languid
+        timeout: 1m
 
   # execute watch
   - do:
@@ -67,7 +70,7 @@
       watcher.deactivate_watch:
         watch_id: "my_watch"
   - match: { status.state.active : false }
-  
+
   - do:
       watcher.get_watch:
         id: "my_watch"
@@ -81,7 +84,7 @@
       watcher.activate_watch:
         watch_id: "my_watch"
   - match: { status.state.active : true }
-  
+
   - do:
       watcher.get_watch:
         id: "my_watch"
@@ -89,14 +92,8 @@
   - match: { _id: "my_watch" }
   - match: { status.state.active: true }
 
-
 ---
 "Test watcher stats output":
-
-  - skip:
-      reason: https://github.com/elastic/elasticsearch/issues/33185
-      version: "6.7.0 - "
-
   - do:
       watcher.stats: {}
   - match: { "manually_stopped": false }

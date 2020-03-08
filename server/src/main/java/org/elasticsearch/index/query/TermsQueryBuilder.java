@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
@@ -34,14 +34,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -63,11 +61,6 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TermsQueryBuilder.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated " +
-        "in [terms] lookup queries.";
 
     private final String fieldName;
     private final List<?> values;
@@ -215,10 +208,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
-    }
-
-    public boolean isTypeless() {
-        return termsLookup == null || termsLookup.type() == null;
     }
 
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
@@ -406,10 +395,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             .boost(boost)
             .queryName(queryName);
 
-        if (builder.isTypeless() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("terms_lookup_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         return builder;
     }
 
@@ -432,11 +417,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (termsLookup != null || supplier != null) {
+        if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
-        }
-        if (values == null || values.isEmpty()) {
-            return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount){
@@ -446,22 +428,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-
-        if (fieldType != null) {
-            return fieldType.termsQuery(values, context);
-        } else {
-            BytesRef[] filterValues = new BytesRef[values.size()];
-            for (int i = 0; i < filterValues.length; i++) {
-                filterValues[i] = BytesRefs.toBytesRef(values.get(i));
-            }
-            return new TermInSetQuery(fieldName, filterValues);
+        if (fieldType == null) {
+            throw new IllegalStateException("Rewrite first");
         }
+        return fieldType.termsQuery(values, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = termsLookup.type() == null
-            ? new GetRequest(termsLookup.index(), termsLookup.id())
-            : new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id());
+        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
@@ -499,6 +473,31 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
+
+        if (values == null || values.isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+
+        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        if (context != null) {
+            MappedFieldType fieldType = context.fieldMapper(this.fieldName);
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof ConstantFieldType) {
+                // This logic is correct for all field types, but by only applying it to constant
+                // fields we also have the guarantee that it doesn't perform I/O, which is important
+                // since rewrites might happen on a network thread.
+                Query query = fieldType.termsQuery(values, context);
+                if (query instanceof MatchAllDocsQuery) {
+                    return new MatchAllQueryBuilder();
+                } else if (query instanceof MatchNoDocsQuery) {
+                    return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                }
+            }
+        }
+
         return this;
     }
 }

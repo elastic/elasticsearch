@@ -42,16 +42,6 @@ public class GetFieldMappingsRequestBuilder
         return this;
     }
 
-    public GetFieldMappingsRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    public GetFieldMappingsRequestBuilder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
-        return this;
-    }
-
     public GetFieldMappingsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;

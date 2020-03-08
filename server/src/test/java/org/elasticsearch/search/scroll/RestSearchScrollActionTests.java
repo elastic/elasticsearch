@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +43,7 @@ import static org.mockito.Mockito.verify;
 public class RestSearchScrollActionTests extends ESTestCase {
 
     public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        RestSearchScrollAction action = new RestSearchScrollAction(mock(RestController.class));
+        RestSearchScrollAction action = new RestSearchScrollAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
@@ -55,7 +54,7 @@ public class RestSearchScrollActionTests extends ESTestCase {
         NodeClient nodeClient = mock(NodeClient.class);
         doNothing().when(nodeClient).searchScroll(any(), any());
 
-        RestSearchScrollAction action = new RestSearchScrollAction(mock(RestController.class));
+        RestSearchScrollAction action = new RestSearchScrollAction();
         Map<String, String> params = new HashMap<>();
         params.put("scroll_id", "QUERY_STRING");
         params.put("scroll", "1000m");

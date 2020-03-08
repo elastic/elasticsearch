@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -55,10 +54,9 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     @Inject
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                            ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            ShardStateAction shardStateAction, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            indexNameExpressionResolver, ResyncReplicationRequest::new, ResyncReplicationRequest::new, ThreadPool.Names.WRITE,
+            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ThreadPool.Names.WRITE,
             true /* we should never reject resync because of thread pool capacity on primary */);
     }
 

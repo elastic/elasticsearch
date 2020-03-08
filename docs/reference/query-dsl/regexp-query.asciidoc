@@ -19,7 +19,7 @@ that begins with `k` and ends with `y`. The `.*` operators match any
 characters of any length, including no characters. Matching
 terms can include `ky`, `kay`, and `kimchy`.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -35,7 +35,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 
 [[regexp-top-level-params]]
@@ -87,3 +86,8 @@ regular expressions.
 `rewrite`::
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+==== Notes
+===== Allow expensive queries
+Regexp queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

@@ -1,7 +1,8 @@
+[role="xpack"]
 [[schedule-hourly]]
-==== Hourly Schedule
+==== Hourly schedule
 
-A <<trigger-schedule, `schedule`>> that triggers at a particular minute every
+A <<trigger-schedule,`schedule`>> that triggers at a particular minute every
 hour of the day. To use the `hourly` schedule, you specify the minute (or minutes)
 when you want the scheduler to start the watch execution with the `minute`
 attribute.
@@ -10,7 +11,7 @@ NOTE: If you don't specify the `minute` attribute for an `hourly` schedule, it
       defaults to `0` and the schedule triggers on the hour every hour--`12:00`,
       `13:00`, `14:00`, and so on.
 
-===== Configuring a Once an Hour Schedule
+===== Configuring a once an hour schedule
 
 To configure a once an hour schedule, you specify a single time with the `minute`
 attribute.
@@ -30,7 +31,7 @@ For example, the following `hourly` schedule triggers at minute 30 every hour--
 --------------------------------------------------
 // NOTCONSOLE
 
-===== Configuring a Multiple Times Hourly Schedule
+===== Configuring a multiple times hourly schedule
 
 To configure an `hourly` schedule that triggers at multiple times during the
 hour, you specify an array of minutes. For example, the following schedule

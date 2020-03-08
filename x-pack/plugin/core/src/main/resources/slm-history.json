@@ -8,6 +8,8 @@
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
     "index.lifecycle.name": "slm-history-ilm-policy",
+    "index.lifecycle.rollover_alias": ".slm-history-${xpack.slm.template.version}",
+    "index.hidden": true,
     "index.format": 1
   },
   "mappings": {
@@ -54,5 +56,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.slm.template.version}
 }

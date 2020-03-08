@@ -3,6 +3,7 @@
 :request: PutFilterRequest
 :response: PutFilterResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Filter API
 

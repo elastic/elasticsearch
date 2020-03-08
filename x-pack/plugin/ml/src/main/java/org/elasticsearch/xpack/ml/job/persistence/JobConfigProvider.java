@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -50,11 +51,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -124,7 +127,7 @@ public class JobConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                     listener::onResponse,
                     e -> {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             // the job already exists
                             listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
                         } else {
@@ -409,7 +412,7 @@ public class JobConfigProvider {
      * For the list of job Ids find all that match existing jobs Ids.
      * The repsonse is all the job Ids in {@code ids} that match an existing
      * job Id.
-     * @param ids Job Ids to find 
+     * @param ids Job Ids to find
      * @param listener The matched Ids listener
      */
     public void jobIdMatches(List<String> ids, ActionListener<List<String>> listener) {
@@ -496,9 +499,17 @@ public class JobConfigProvider {
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param excludeDeleting If true exclude jobs marked as deleting
+     * @param tasksCustomMetaData The current persistent task metadata.
+     *                            For resolving jobIds that have tasks, but for some reason, don't have configs
+     * @param allowMissingConfigs If a job has a task, but is missing a config, allow the ID to be expanded via the existing task
      * @param listener The expanded job Ids listener
      */
-    public void expandJobsIds(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<SortedSet<String>> listener) {
+    public void expandJobsIds(String expression,
+                              boolean allowNoJobs,
+                              boolean excludeDeleting,
+                              @Nullable PersistentTasksCustomMetaData tasksCustomMetaData,
+                              boolean allowMissingConfigs,
+                              ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
@@ -513,6 +524,7 @@ public class JobConfigProvider {
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
+        Set<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetaData);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -527,7 +539,9 @@ public class JobConfigProvider {
                                     groupsIds.addAll(groups.stream().map(Object::toString).collect(Collectors.toList()));
                                 }
                             }
-
+                            if (allowMissingConfigs) {
+                                jobIds.addAll(openMatchingJobs);
+                            }
                             groupsIds.addAll(jobIds);
                             requiredMatches.filterMatchedIds(groupsIds);
                             if (requiredMatches.hasUnmatchedIds()) {
@@ -543,26 +557,11 @@ public class JobConfigProvider {
 
     }
 
-    private SearchRequest makeExpandIdsSearchRequest(String expression, boolean excludeDeleting) {
-        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
-        sourceBuilder.sort(Job.ID.getPreferredName());
-        sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
-
-        return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
-                .request();
-    }
-
     /**
-     * The same logic as {@link #expandJobsIds(String, boolean, boolean, ActionListener)} but
+     * The same logic as {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)} but
      * the full anomaly detector job configuration is returned.
      *
-     * See {@link #expandJobsIds(String, boolean, boolean, ActionListener)}
+     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -620,7 +619,7 @@ public class JobConfigProvider {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, boolean, ActionListener)} it is not an error
+     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)} it is not an error
      * if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
@@ -743,6 +742,31 @@ public class JobConfigProvider {
                 listener::onFailure
         ));
     }
+
+    static Set<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetaData tasksMetaData) {
+        Set<String> openjobs = MlTasks.openJobIds(tasksMetaData);
+        if (openjobs.isEmpty()) {
+            return Collections.emptySet();
+        }
+        if (Strings.isAllOrWildcard(jobIdPatterns)) {
+            return openjobs;
+        }
+
+        Set<String> matchingJobIds = new HashSet<>();
+        for (String jobIdPattern : jobIdPatterns) {
+            if (openjobs.contains(jobIdPattern))  {
+                matchingJobIds.add(jobIdPattern);
+            } else if (Regex.isSimpleMatchPattern(jobIdPattern)) {
+                for (String openJobId : openjobs) {
+                    if (Regex.simpleMatch(jobIdPattern, openJobId)) {
+                        matchingJobIds.add(openJobId);
+                    }
+                }
+            }
+        }
+        return matchingJobIds;
+    }
+
 
     private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener)  {
         try (InputStream stream = source.streamInput();

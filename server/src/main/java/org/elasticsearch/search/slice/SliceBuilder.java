@@ -19,11 +19,9 @@
 
 package org.elasticsearch.search.slice;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -65,11 +62,9 @@ import java.util.Set;
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
 
-    private static final DeprecationLogger DEPRECATION_LOG = new DeprecationLogger(LogManager.getLogger(SliceBuilder.class));
-
-    public static final ParseField FIELD_FIELD = new ParseField("field");
+    private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
-    public static final ParseField MAX_FIELD = new ParseField("max");
+    private static final ParseField MAX_FIELD = new ParseField("max");
     private static final ObjectParser<SliceBuilder, Void> PARSER =
         new ObjectParser<>("slice", SliceBuilder::new);
 
@@ -209,7 +204,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      *
      * @param context Additional information needed to build the query
      */
-    public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context, Version minNodeVersion) {
+    @SuppressWarnings("rawtypes")
+    public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context) {
         final MappedFieldType type = context.fieldMapper(field);
         if (type == null) {
             throw new IllegalArgumentException("field " + field + " not found");

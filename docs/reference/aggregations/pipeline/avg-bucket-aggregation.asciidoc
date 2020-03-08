@@ -33,7 +33,7 @@ An `avg_bucket` aggregation looks like this in isolation:
 
 The following snippet calculates the average of the total monthly `sales`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -61,14 +61,14 @@ POST /_search
 }
 
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> `buckets_path` instructs this avg_bucket aggregation that we want the (mean) average value of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

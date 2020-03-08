@@ -24,20 +24,19 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class TransportPutSnapshotLifecycleAction extends
@@ -89,11 +88,8 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setHeaders(filteredHeaders)
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
-                        IndexLifecycleMetadata ilmMeta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-                        OperationMode mode = Optional.ofNullable(ilmMeta)
-                            .map(IndexLifecycleMetadata::getOperationMode)
-                            .orElse(OperationMode.RUNNING);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta), mode);
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta),
+                            OperationMode.RUNNING, new SnapshotLifecycleStats());
                         logger.info("adding new snapshot lifecycle [{}]", id);
                     } else {
                         Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
@@ -105,7 +101,8 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
                         snapLifecycles.put(id, newLifecycle);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode());
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
+                            snapMeta.getOperationMode(), snapMeta.getStats());
                         if (oldLifecycle == null) {
                             logger.info("adding new snapshot lifecycle [{}]", id);
                         } else {

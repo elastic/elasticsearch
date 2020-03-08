@@ -1,0 +1,33 @@
+[[high-availability]]
+= Set up a cluster for high availability
+
+[partintro]
+--
+As with any software that stores data,
+it is important to routinely back up your data.
+{es}'s <<glossary-replica-shard,replica shards>> provide high availability
+during runtime;
+they enable you to tolerate sporadic node loss
+without an interruption of service.
+
+However, replica shards do not protect an {es} cluster
+from catastrophic failure.
+You need a backup of your cluster—
+a copy in case something goes wrong.
+
+
+{es} offers two features to support high availability for a cluster:
+
+* <<backup-cluster,Snapshot and restore>>,
+which you can use to back up individual indices or entire clusters.
+You can automatically store these backups in a repository on a shared filesystem.
+
+* <<xpack-ccr,Cross-cluster replication (CCR)>>,
+which you can use to copy indices in remote clusters to a local cluster.
+You can use {ccr} to recover from the failure of a primary cluster
+or serve data locally based on geo-proximity.
+--
+
+include::high-availability/backup-cluster.asciidoc[]
+
+include::ccr/index.asciidoc[]

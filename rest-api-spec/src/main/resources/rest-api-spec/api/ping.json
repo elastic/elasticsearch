@@ -1,7 +1,7 @@
 {
   "ping":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
       "description":"Returns whether the cluster is running."
     },
     "stability":"stable",

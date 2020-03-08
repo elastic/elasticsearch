@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -48,6 +50,8 @@ import java.util.Collections;
  * Close index action
  */
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;

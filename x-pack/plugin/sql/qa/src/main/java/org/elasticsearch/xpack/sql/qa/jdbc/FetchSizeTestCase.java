@@ -16,7 +16,12 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Properties;
 
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
 
 /**
@@ -102,6 +107,51 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         assertNoSearchContexts();
     }
 
+    public void testScrollWithDatetimeAndTimezoneParam() throws IOException, SQLException {
+        Request request = new Request("PUT", "/test_date_timezone");
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("date").field("type", "date").field("format", "epoch_millis");
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+
+        request = new Request("PUT", "/test_date_timezone/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        long[] datetimes = new long[] { 1_000, 10_000, 100_000, 1_000_000, 10_000_000 };
+        for (long datetime : datetimes) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"date\":").append(datetime).append("}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        ZoneId zoneId = randomZone();
+        Properties connectionProperties = connectionProperties();
+        connectionProperties.put(JDBC_TIMEZONE, zoneId.toString());
+        try (Connection c = esJdbc(connectionProperties);
+             Statement s = c.createStatement()) {
+            s.setFetchSize(2);
+            try (ResultSet rs =
+                         s.executeQuery("SELECT DATE_PART('TZOFFSET', date) FROM test_date_timezone ORDER BY date")) {
+                for (int i = 0; i < datetimes.length; i++) {
+                    assertEquals(2, rs.getFetchSize());
+                    assertTrue("No more entries left at " + i, rs.next());
+                    assertEquals(ZonedDateTime.ofInstant(Instant.ofEpochMilli(datetimes[i]), zoneId).getOffset()
+                            .getTotalSeconds()/ 60, rs.getInt(1));
+                }
+                assertFalse(rs.next());
+            }
+        }
+    }
 
     /**
      * Test for {@code SELECT} that is implemented as an aggregation.
@@ -148,5 +198,93 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             // don't check the very last row in the result set
             assertTrue("No more entries left after row " + rs.getRow(), (i+j == 23 || rs.next()));
         }
+    }
+    
+    /**
+     * Explicit pagination test for PIVOT.
+     * Checks that the paging properly consumes the necessary amount of aggregations and the
+     * page size affects the result not the intermediate query.
+     */
+    public void testPivotPaging() throws Exception {
+        addPivotData();
+        
+        try (Connection c = esJdbc();
+             Statement s = c.createStatement()) {
+            
+            String query = "SELECT * FROM "
+                    + "(SELECT item, amount, location FROM test_pivot)"
+                    + " PIVOT (AVG(amount) FOR location IN ( 'AF', 'AS', 'EU', 'NA', 'SA', 'AQ', 'AU') )";
+            // set size smaller than an agg page
+            s.setFetchSize(3);
+            try (ResultSet rs = s.executeQuery(query)) {
+                assertEquals(8, rs.getMetaData().getColumnCount());
+                for (int i = 0; i < 10; i++) {
+                    assertTrue(rs.next());
+                    // the page was set to a pivot row (since the initial 3 is lower as a pivot page takes number of pivot entries + 1)
+                    assertEquals(1, rs.getFetchSize());
+                    assertEquals(Long.valueOf(i), rs.getObject("item"));
+                }
+                assertFalse(rs.next());
+            }
+            
+            // now try with a larger fetch size (8 * 2 + something) - should be 2
+            s.setFetchSize(20);
+            try (ResultSet rs = s.executeQuery(query)) {
+                for (int i = 0; i < 10; i++) {
+                    assertTrue(rs.next());
+                    //
+                    assertEquals(2, rs.getFetchSize());
+                    assertEquals(Long.valueOf(i), rs.getObject("item"));
+                }
+                assertFalse(rs.next());
+            }
+        }
+        assertNoSearchContexts();
+    }
+    
+    
+    public void testPivotPagingWithLimit() throws Exception {
+        addPivotData();
+
+        try (Connection c = esJdbc();
+             Statement s = c.createStatement()) {
+            
+            // run a query with a limit that is not a multiple of the fetch size
+            String query = "SELECT * FROM "
+                    + "(SELECT item, amount, location FROM test_pivot)"
+                    + " PIVOT (AVG(amount) FOR location IN ( 'EU', 'NA' ) ) LIMIT 5";
+            // set size smaller than an agg page
+            s.setFetchSize(20);
+            try (ResultSet rs = s.executeQuery(query)) {
+                assertEquals(3, rs.getMetaData().getColumnCount());
+                for (int i = 0; i < 4; i++) {
+                    assertTrue(rs.next());
+                    assertEquals(2, rs.getFetchSize());
+                    assertEquals(Long.valueOf(i), rs.getObject("item"));
+                }
+                // last entry
+                assertTrue(rs.next());
+                assertEquals(1, rs.getFetchSize());
+                assertFalse("LIMIT should be reached", rs.next());
+            }
+        }
+        assertNoSearchContexts();
+    }
+
+    private void addPivotData() throws Exception {
+        Request request = new Request("PUT", "/test_pivot/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        String[] continent = new String[] { "AF", "AS", "EU", "NA", "SA", "AQ", "AU" };
+        for (int i = 0; i <= 100; i++) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"item\":").append(i % 10)
+                .append(", \"entry\":").append(i)
+                .append(", \"amount\" : ").append(randomInt(999))
+                .append(", \"location\" : \"").append(continent[i % (continent.length)]).append("\"")
+                .append("}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 }

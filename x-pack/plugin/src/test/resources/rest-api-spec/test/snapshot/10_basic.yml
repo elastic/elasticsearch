@@ -28,7 +28,6 @@ setup:
   - do:
       index:
           index:  test_index
-          type:   _doc
           id:     1
           body:   { foo: bar }
   - do:
@@ -40,6 +39,8 @@ setup:
         repository: test_repo_restore_1
         snapshot: test_snapshot
         wait_for_completion: true
+        body: |
+          { "indices": "test_index" }
 
   - match: { snapshot.snapshot: test_snapshot }
   - match: { snapshot.state : SUCCESS }
@@ -67,7 +68,9 @@ setup:
   - match: { test_index.shards.0.translog.recovered: 0}
   - match: { test_index.shards.0.translog.total: 0}
   - match: { test_index.shards.0.translog.total_on_start: 0}
-  - match: { test_index.shards.0.index.files.recovered: 5}
+  # for version >= 7.7, there should be 6, previous versions should have 5
+  - gte: { test_index.shards.0.index.files.recovered: 5}
+  - lte: { test_index.shards.0.index.files.recovered: 6}
   - match: { test_index.shards.0.index.files.reused: 0}
   - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
   - gt: { test_index.shards.0.index.size.recovered_in_bytes: 0}

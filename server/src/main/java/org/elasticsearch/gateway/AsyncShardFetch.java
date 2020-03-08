@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -61,22 +62,25 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * An action that lists the relevant shard data that needs to be fetched.
      */
     public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
+        void list(ShardId shardId, @Nullable String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
     }
 
     protected final Logger logger;
     protected final String type;
     protected final ShardId shardId;
+    protected final String customDataPath;
     private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
-    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath,
+                              Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
-        this.shardId = shardId;
+        this.shardId = Objects.requireNonNull(shardId);
+        this.customDataPath = Objects.requireNonNull(customDataPath);
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
     }
 
@@ -231,6 +235,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected abstract void reroute(ShardId shardId, String reason);
 
     /**
+     * Clear cache for node, ensuring next fetch will fetch a fresh copy.
+     */
+    synchronized void clearCacheForNode(String nodeId) {
+        cache.remove(nodeId);
+    }
+
+    /**
      * Fills the shard fetched data with new (data) nodes and a fresh NodeEntry, and removes from
      * it nodes that are no longer part of the state.
      */
@@ -278,7 +289,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
-        action.list(shardId, nodes, new ActionListener<BaseNodesResponse<T>>() {
+        action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);

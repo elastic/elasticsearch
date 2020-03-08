@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -32,7 +31,7 @@ import java.util.Objects;
 /**
  * A request to update information about an existing model snapshot for a given job
  */
-public class UpdateModelSnapshotRequest extends ActionRequest implements ToXContentObject {
+public class UpdateModelSnapshotRequest implements Validatable, ToXContentObject {
 
 
     public static final ConstructingObjectParser<UpdateModelSnapshotRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -91,11 +90,6 @@ public class UpdateModelSnapshotRequest extends ActionRequest implements ToXCont
      */
     public void setRetain(boolean retain) {
         this.retain = retain;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -40,13 +42,14 @@ import java.util.stream.Collectors;
  */
 public class SnapshotLifecycleService implements LocalNodeMasterListener, Closeable, ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(SnapshotLifecycleMetadata.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
 
     private final SchedulerEngine scheduler;
     private final ClusterService clusterService;
     private final SnapshotLifecycleTask snapshotTask;
     private final Map<String, SchedulerEngine.Job> scheduledTasks = ConcurrentCollections.newConcurrentMap();
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isMaster = false;
 
     public SnapshotLifecycleService(Settings settings,
@@ -65,9 +68,12 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         if (this.isMaster) {
             final ClusterState state = event.state();
 
-            if (ilmStoppedOrStopping(state)) {
+            if (slmStoppedOrStopping(state)) {
                 if (scheduler.scheduledJobIds().size() > 0) {
                     cancelSnapshotJobs();
+                }
+                if (slmStopping(state)) {
+                    submitOperationModeUpdate(OperationMode.STOPPED);
                 }
                 return;
             }
@@ -82,8 +88,8 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         this.isMaster = true;
         scheduler.register(snapshotTask);
         final ClusterState state = clusterService.state();
-        if (ilmStoppedOrStopping(state)) {
-            // ILM is currently stopped, so don't schedule jobs
+        if (slmStoppedOrStopping(state)) {
+            // SLM is currently stopped, so don't schedule jobs
             return;
         }
         scheduleSnapshotJobs(state);
@@ -102,13 +108,27 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     }
 
     /**
-     * Returns true if ILM is in the stopped or stopped state
+     * Returns true if SLM is in the stopping or stopped state
      */
-    private static boolean ilmStoppedOrStopping(ClusterState state) {
+    static boolean slmStoppedOrStopping(ClusterState state) {
         return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getOperationMode)
             .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
             .orElse(false);
+    }
+
+    /**
+     * Returns true if SLM is in the stopping state
+     */
+    static boolean slmStopping(ClusterState state) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
+            .map(SnapshotLifecycleMetadata::getOperationMode)
+            .map(mode -> OperationMode.STOPPING == mode)
+            .orElse(false);
+    }
+
+    public void submitOperationModeUpdate(OperationMode mode) {
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", OperationModeUpdateTask.slmMode(mode));
     }
 
     /**
@@ -142,6 +162,10 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
      * the same version of a policy has already been scheduled it does not overwrite the job.
      */
     public void maybeScheduleSnapshot(final SnapshotLifecyclePolicyMetadata snapshotLifecyclePolicy) {
+        if (this.running.get() == false) {
+            return;
+        }
+
         final String jobId = getJobId(snapshotLifecyclePolicy);
         final Pattern existingJobPattern = Pattern.compile(snapshotLifecyclePolicy.getPolicy().getId() + JOB_PATTERN_SUFFIX);
 
@@ -219,6 +243,8 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
 
     @Override
     public void close() {
-        this.scheduler.stop();
+        if (this.running.compareAndSet(true, false)) {
+            this.scheduler.stop();
+        }
     }
 }

@@ -66,7 +66,6 @@ setup:
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -77,7 +76,6 @@ setup:
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -88,7 +86,6 @@ setup:
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 

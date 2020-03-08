@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -15,7 +16,7 @@ import java.util.Locale;
 
 public enum DataFrameAnalyticsState implements Writeable {
 
-    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED;
+    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED, STARTING;
 
     public static DataFrameAnalyticsState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -27,7 +28,13 @@ public enum DataFrameAnalyticsState implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        DataFrameAnalyticsState toWrite = this;
+        if (out.getVersion().before(Version.V_7_5_0) && toWrite == STARTING) {
+            // Before 7.5.0 there was no STARTING state and jobs for which
+            // tasks existed but were unassigned were considered STOPPED
+            toWrite = STOPPED;
+        }
+        out.writeEnum(toWrite);
     }
 
     @Override

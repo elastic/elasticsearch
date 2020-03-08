@@ -11,11 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,22 +49,35 @@ public class SegmentCountStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
         getClient().admin().indices().segments(new IndicesSegmentsRequest(indexMetaData.getIndex().getName()),
             ActionListener.wrap(response -> {
-                IndexSegments segments = response.getIndices().get(indexMetaData.getIndex().getName());
-                List<ShardSegments> unmergedShards = segments.getShards().values().stream()
-                    .flatMap(iss -> Arrays.stream(iss.getShards()))
-                    .filter(shardSegments -> shardSegments.getSegments().size() > maxNumSegments)
-                    .collect(Collectors.toList());
-                if (unmergedShards.size() > 0) {
-                    Map<ShardRouting, Integer> unmergedShardCounts = unmergedShards.stream()
-                        .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
-                    logger.info("[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
-                        indexMetaData.getIndex().getName(), maxNumSegments, unmergedShards.size(), unmergedShardCounts);
+                IndexSegments idxSegments = response.getIndices().get(indexMetaData.getIndex().getName());
+                if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
+                    final DefaultShardOperationFailedException[] failures = response.getShardFailures();
+                    logger.info("[{}] retrieval of segment counts after force merge did not succeed, " +
+                            "there were {} shard failures. " +
+                            "failures: {}",
+                        indexMetaData.getIndex().getName(),
+                        response.getFailedShards(),
+                        failures == null ? "n/a" : Strings.collectionToDelimitedString(Arrays.stream(failures)
+                            .map(Strings::toString)
+                            .collect(Collectors.toList()), ","));
+                    listener.onResponse(true, new Info(-1));
+                } else {
+                    List<ShardSegments> unmergedShards = idxSegments.getShards().values().stream()
+                        .flatMap(iss -> Arrays.stream(iss.getShards()))
+                        .filter(shardSegments -> shardSegments.getSegments().size() > maxNumSegments)
+                        .collect(Collectors.toList());
+                    if (unmergedShards.size() > 0) {
+                        Map<ShardRouting, Integer> unmergedShardCounts = unmergedShards.stream()
+                            .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
+                        logger.info("[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
+                            indexMetaData.getIndex().getName(), maxNumSegments, unmergedShards.size(), unmergedShardCounts);
+                    }
+                    // Force merging is best effort, so always return true that the condition has been met.
+                    listener.onResponse(true, new Info(unmergedShards.size()));
                 }
-                // Force merging is best effort, so always return true that the condition has been met.
-                listener.onResponse(true, new Info(unmergedShards.size()));
             }, listener::onFailure));
     }
 

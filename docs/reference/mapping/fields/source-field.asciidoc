@@ -12,7 +12,7 @@ _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 Though very handy to have around, the source field does incur storage overhead
 within the index. For this reason, it can be disabled as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT tweets
 {
@@ -23,7 +23,6 @@ PUT tweets
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [WARNING]
 .Think before disabling the `_source` field
@@ -82,7 +81,7 @@ Elasticsearch index to another. Consider using
 The `includes`/`excludes` parameters (which also accept wildcards) can be used
 as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT logs
 {
@@ -125,7 +124,6 @@ GET logs/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> These fields will be removed from the stored `_source` field.
 <2> We can still search on this field, even though it is not in the stored `_source`.

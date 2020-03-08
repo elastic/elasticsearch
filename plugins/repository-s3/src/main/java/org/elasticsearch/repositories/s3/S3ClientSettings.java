@@ -35,6 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A container for settings used to create an S3 client.
@@ -103,6 +104,14 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(PREFIX, "disable_chunked_encoding",
         key -> Setting.boolSetting(key, false, Property.NodeScope));
 
+    /** An override for the s3 region to use for signing requests. */
+    static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(PREFIX, "region",
+        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope));
+
+    /** An override for the signer to use. */
+    static final Setting.AffixSetting<String> SIGNER_OVERRIDE = Setting.affixKeySetting(PREFIX, "signer_override",
+        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope));
+
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
@@ -141,10 +150,16 @@ final class S3ClientSettings {
     /** Whether chunked encoding should be disabled or not. */
     final boolean disableChunkedEncoding;
 
+    /** Region to use for signing requests or empty string to use default. */
+    final String region;
+
+    /** Signer override to use or empty string to use default. */
+    final String signerOverride;
+
     private S3ClientSettings(S3BasicCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
                              int readTimeoutMillis, int maxRetries, boolean throttleRetries,
-                             boolean pathStyleAccess, boolean disableChunkedEncoding) {
+                             boolean pathStyleAccess, boolean disableChunkedEncoding, String region, String signerOverride) {
         this.credentials = credentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
@@ -157,6 +172,8 @@ final class S3ClientSettings {
         this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
+        this.region = region;
+        this.signerOverride = signerOverride;
     }
 
     /**
@@ -182,20 +199,17 @@ final class S3ClientSettings {
         final boolean usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING, normalizedSettings, disableChunkedEncoding);
-        final S3BasicCredentials newCredentials;
-        if (checkDeprecatedCredentials(repoSettings)) {
-            newCredentials = loadDeprecatedCredentials(repoSettings);
-        } else {
-            newCredentials = credentials;
-        }
+        final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
+        final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
         if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
-            && newThrottleRetries == throttleRetries && Objects.equals(credentials, newCredentials)
-            && newDisableChunkedEncoding == disableChunkedEncoding) {
+            && newThrottleRetries == throttleRetries
+            && newDisableChunkedEncoding == disableChunkedEncoding
+            && Objects.equals(region, newRegion) && Objects.equals(signerOverride, newSignerOverride)) {
             return this;
         }
         return new S3ClientSettings(
-            newCredentials,
+            credentials,
             newEndpoint,
             newProtocol,
             newProxyHost,
@@ -206,7 +220,9 @@ final class S3ClientSettings {
             newMaxRetries,
             newThrottleRetries,
             usePathStyleAccess,
-            newDisableChunkedEncoding
+            newDisableChunkedEncoding,
+            newRegion,
+            newSignerOverride
         );
     }
 
@@ -227,29 +243,6 @@ final class S3ClientSettings {
             clients.put("default", getClientSettings(settings, "default"));
         }
         return Collections.unmodifiableMap(clients);
-    }
-
-    static boolean checkDeprecatedCredentials(Settings repositorySettings) {
-        if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
-            if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
-                throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey()
-                        + " must be accompanied by setting [" + S3Repository.SECRET_KEY_SETTING.getKey() + "]");
-            }
-            return true;
-        } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
-            throw new IllegalArgumentException("Repository setting [" + S3Repository.SECRET_KEY_SETTING.getKey()
-                    + " must be accompanied by setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() + "]");
-        }
-        return false;
-    }
-
-    // backcompat for reading keys out of repository settings (clusterState)
-    private static S3BasicCredentials loadDeprecatedCredentials(Settings repositorySettings) {
-        assert checkDeprecatedCredentials(repositorySettings);
-        try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
-                SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
-            return new S3BasicCredentials(key.toString(), secret.toString());
-        }
     }
 
     private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {
@@ -295,7 +288,9 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
-                getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING)
+                getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
+                getConfigValue(settings, clientName, REGION),
+                getConfigValue(settings, clientName, SIGNER_OVERRIDE)
             );
         }
     }
@@ -319,13 +314,15 @@ final class S3ClientSettings {
             Objects.equals(proxyHost, that.proxyHost) &&
             Objects.equals(proxyUsername, that.proxyUsername) &&
             Objects.equals(proxyPassword, that.proxyPassword) &&
-            Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding);
+            Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding) &&
+            Objects.equals(region, that.region) &&
+            Objects.equals(signerOverride, that.signerOverride);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(credentials, endpoint, protocol, proxyHost, proxyPort, proxyUsername, proxyPassword,
-            readTimeoutMillis, maxRetries, throttleRetries, disableChunkedEncoding);
+            readTimeoutMillis, maxRetries, throttleRetries, disableChunkedEncoding, region, signerOverride);
     }
 
     private static <T> T getConfigValue(Settings settings, String clientName,

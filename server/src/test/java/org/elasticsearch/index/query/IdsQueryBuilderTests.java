@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -49,7 +48,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.ids().size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
@@ -99,5 +98,15 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(IdsQueryBuilder.class));
         return (IdsQueryBuilder) query;
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContextWithNoType();
+        context.setAllowUnmappedFields(true);
+        IdsQueryBuilder queryBuilder = createTestQueryBuilder();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

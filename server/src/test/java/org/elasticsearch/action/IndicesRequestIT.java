@@ -218,7 +218,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String[] indexShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(indexShardActions);
 
-        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id")
+        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias()).id("id")
             .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         internalCluster().coordOnlyNodeClient().index(indexRequest).actionGet();
 
@@ -230,7 +230,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String[] deleteShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(deleteShardActions);
 
-        DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
+        DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias()).id("id");
         internalCluster().coordOnlyNodeClient().delete(deleteRequest).actionGet();
 
         clearInterceptedActions();
@@ -243,8 +243,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+        client().prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
@@ -258,7 +258,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").upsert(Requests.INDEX_CONTENT_TYPE, "field", "value")
             .doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
@@ -273,8 +273,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
+        client().prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id")
                 .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
@@ -292,19 +292,19 @@ public class IndicesRequestIT extends ESIntegTestCase {
         int numIndexRequests = iterations(1, 10);
         for (int i = 0; i < numIndexRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new IndexRequest(indexOrAlias, "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+            bulkRequest.add(new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
             indices.add(indexOrAlias);
         }
         int numDeleteRequests = iterations(1, 10);
         for (int i = 0; i < numDeleteRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new DeleteRequest(indexOrAlias, "type", "id"));
+            bulkRequest.add(new DeleteRequest(indexOrAlias).id("id"));
             indices.add(indexOrAlias);
         }
         int numUpdateRequests = iterations(1, 10);
         for (int i = 0; i < numUpdateRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new UpdateRequest(indexOrAlias, "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
+            bulkRequest.add(new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
             indices.add(indexOrAlias);
         }
 
@@ -318,7 +318,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String getShardAction = GetAction.NAME + "[s]";
         interceptTransportActions(getShardAction);
 
-        GetRequest getRequest = new GetRequest(randomIndexOrAlias(), "type", "id");
+        GetRequest getRequest = new GetRequest(randomIndexOrAlias(), "id");
         internalCluster().coordOnlyNodeClient().get(getRequest).actionGet();
 
         clearInterceptedActions();
@@ -329,7 +329,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String explainShardAction = ExplainAction.NAME + "[s]";
         interceptTransportActions(explainShardAction);
 
-        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").query(QueryBuilders.matchAllQuery());
+        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "id").query(QueryBuilders.matchAllQuery());
         internalCluster().coordOnlyNodeClient().explain(explainRequest).actionGet();
 
         clearInterceptedActions();
@@ -374,7 +374,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         int numDocs = iterations(1, 30);
         for (int i = 0; i < numDocs; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            multiGetRequest.add(indexOrAlias, "type", Integer.toString(i));
+            multiGetRequest.add(indexOrAlias, Integer.toString(i));
             indices.add(indexOrAlias);
         }
         internalCluster().coordOnlyNodeClient().multiGet(multiGetRequest).actionGet();
@@ -522,7 +522,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(PutMappingAction.NAME);
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases())
-                .type("type")
                 .source("field", "type=text");
         internalCluster().coordOnlyNodeClient().admin().indices().putMapping(putMappingRequest).actionGet();
 
@@ -557,7 +556,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i], "type", "id-" + i).setSource("field", "value").get();
+            client().prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
         }
         refresh();
 
@@ -578,7 +577,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i], "type", "id-" + i).setSource("field", "value").get();
+            client().prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
         }
         refresh();
 

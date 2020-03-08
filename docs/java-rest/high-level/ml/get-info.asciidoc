@@ -3,6 +3,7 @@
 :request: MlInfoRequest
 :response: MlInfoResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === ML get info API
 

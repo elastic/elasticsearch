@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 
@@ -21,7 +22,14 @@ public class CustomProcessorFactory {
 
     public CustomProcessor create(DataFrameAnalysis analysis) {
         if (analysis instanceof Regression) {
-            return new RegressionCustomProcessor(fieldNames, (Regression) analysis);
+            Regression regression = (Regression) analysis;
+            return new DatasetSplittingCustomProcessor(
+                fieldNames, regression.getDependentVariable(), regression.getTrainingPercent(), regression.getRandomizeSeed());
+        }
+        if (analysis instanceof Classification) {
+            Classification classification = (Classification) analysis;
+            return new DatasetSplittingCustomProcessor(
+                fieldNames, classification.getDependentVariable(), classification.getTrainingPercent(), classification.getRandomizeSeed());
         }
         return row -> {};
     }

@@ -1,0 +1,102 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+---
+teardown:
+  - do:
+      indices.delete:
+        index: single_doc_index
+        ignore_unavailable: true
+
+---
+"Test that queries on _index match against the correct indices.":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index"}}'
+            - '{"f1": "local_cluster", "sort_field": 0}'
+
+  - do:
+     search:
+       rest_total_hits_as_int: true
+       index: "single_doc_index,my_remote_cluster:single_doc_index"
+       body:
+         query:
+            term:
+              "_index": "single_doc_index"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "single_doc_index"}
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _shards.failed: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "single_doc_index,my_remote_cluster:single_doc_index"
+        body:
+          query:
+            term:
+              "_index": "my_remote_cluster:single_doc_index"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _shards.failed: 0 }
+
+---
+"Test that queries on _index that don't match are skipped":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index"}}'
+            - '{"f1": "local_cluster", "sort_field": 0}'
+
+  - do:
+     search:
+       ccs_minimize_roundtrips: false
+       track_total_hits: true
+       index: "single_doc_index,my_remote_cluster:single_doc_index"
+       pre_filter_shard_size: 1
+       body:
+         query:
+            term:
+              "_index": "does_not_match"
+
+  - match: { hits.total.value: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+
+  - do:
+      search:
+        ccs_minimize_roundtrips: false
+        track_total_hits: true
+        index: "single_doc_index,my_remote_cluster:single_doc_index"
+        pre_filter_shard_size: 1
+        body:
+          query:
+            term:
+              "_index": "my_remote_cluster:does_not_match"
+
+  - match: { hits.total.value: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }

@@ -31,9 +31,8 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -148,26 +147,30 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
     /**
      * Parse the bounds and perform any delayed validation. Returns the result of the parsing.
      */
-    ExtendedBounds parseAndValidate(String aggName, SearchContext context, DocValueFormat format) {
+    ExtendedBounds parseAndValidate(String aggName, QueryShardContext queryShardContext, DocValueFormat format) {
         Long min = this.min;
         Long max = this.max;
         assert format != null;
         if (minAsStr != null) {
-            min = format.parseLong(minAsStr, false, context.getQueryShardContext()::nowInMillis);
+            min = format.parseLong(minAsStr, false, queryShardContext::nowInMillis);
         }
         if (maxAsStr != null) {
             // TODO: Should we rather pass roundUp=true?
-            max = format.parseLong(maxAsStr, false, context.getQueryShardContext()::nowInMillis);
+            max = format.parseLong(maxAsStr, false, queryShardContext::nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
-            throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +
-                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]", null);
+            throw new IllegalArgumentException("[extended_bounds.min][" + min + "] cannot be greater than " +
+                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]");
         }
         return new ExtendedBounds(min, max, minAsStr, maxAsStr);
     }
 
     ExtendedBounds round(Rounding rounding) {
-        return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
+        // Extended bounds shouldn't be effected by the offset
+        Rounding effectiveRounding = rounding.withoutOffset();
+        return new ExtendedBounds(
+                min != null ? effectiveRounding.round(min) : null,
+                max != null ? effectiveRounding.round(max) : null);
     }
 
     @Override

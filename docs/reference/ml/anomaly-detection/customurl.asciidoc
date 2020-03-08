@@ -91,7 +91,7 @@ dashboard query seeks a match for all of the terms of the category.
 For example, the following API updates a job to add a custom URL that uses 
 `$earliest$`, `$latest$`, and `$mlcategoryterms$` tokens:
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _ml/anomaly_detectors/sample_job/_update
 {
@@ -106,7 +106,6 @@ POST _ml/anomaly_detectors/sample_job/_update
       }
 }
 ----------------------------------
-//CONSOLE
 //TEST[skip:setup:sample_job]
 
 When you click this custom URL in the anomalies table in {kib}, it opens up the

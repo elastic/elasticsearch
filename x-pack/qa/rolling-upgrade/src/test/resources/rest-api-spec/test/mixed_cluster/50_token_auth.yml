@@ -13,7 +13,6 @@
         id:    "6"
 
   - match: { _index:   token_index }
-  - match: { _type:    _doc   }
   - match: { _id:      "6"      }
   - is_true: _source.token
   - set: { _source.token : token }
@@ -66,7 +65,6 @@
         id:    "7"
 
   - match: { _index:   token_index }
-  - match: { _type:    _doc   }
   - match: { _id:      "7"      }
   - is_true: _source.token
   - set: { _source.token : token }
@@ -118,7 +116,6 @@
         id:    "8"
 
   - match: { _index:   token_index }
-  - match: { _type:    _doc   }
   - match: { _id:      "8"      }
   - is_true: _source.token
   - set: { _source.token : refresh_token }

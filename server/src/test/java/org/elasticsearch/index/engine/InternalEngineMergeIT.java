@@ -27,19 +27,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.hamcrest.Matchers;
-
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, scope = Scope.SUITE)
 public class InternalEngineMergeIT extends ESIntegTestCase {
 
-    public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
+    public void testMergesHappening() throws Exception {
         final int numOfShards = randomIntBetween(1, 5);
         // some settings to keep num segments low
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -53,7 +52,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             final int numDocs = scaledRandomIntBetween(100, 1000);
             BulkRequestBuilder request = client().prepareBulk();
             for (int j = 0; j < numDocs; ++j) {
-                request.add(Requests.indexRequest("test").type("type1").id(Long.toString(id++))
+                request.add(Requests.indexRequest("test").id(Long.toString(id++))
                     .source(jsonBuilder().startObject().field("l", randomLong()).endObject()));
             }
             BulkResponse response = request.execute().actionGet();
@@ -66,21 +65,24 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
                 stats.getPrimaries().getMerge().getCurrent());
         }
         final long upperNumberSegments = 2 * numOfShards * 10;
-        awaitBusy(() -> {
+
+        assertBusy(() -> {
             IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
             logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
                 stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(),
                 stats.getPrimaries().getMerge().getCurrent());
             long current = stats.getPrimaries().getMerge().getCurrent();
             long count = stats.getPrimaries().getSegments().getCount();
-            return count < upperNumberSegments && current == 0;
+            assertThat(count, lessThan(upperNumberSegments));
+            assertThat(current, equalTo(0L));
         });
+
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
         logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
             stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(),
             stats.getPrimaries().getMerge().getCurrent());
         long count = stats.getPrimaries().getSegments().getCount();
-        assertThat(count, Matchers.lessThanOrEqualTo(upperNumberSegments));
+        assertThat(count, lessThanOrEqualTo(upperNumberSegments));
     }
 
 }

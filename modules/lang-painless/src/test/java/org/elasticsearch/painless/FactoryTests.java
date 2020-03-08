@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 
 import java.util.Collections;
@@ -34,8 +35,10 @@ public class FactoryTests extends ScriptTestCase {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
         contexts.put(StatefulFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(FactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(DeterministicFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
 
         return contexts;
     }
@@ -148,6 +151,31 @@ public class FactoryTests extends ScriptTestCase {
             new ScriptContext<>("test", FactoryTestScript.Factory.class);
     }
 
+    public abstract static class DeterministicFactoryTestScript {
+        private final Map<String, Object> params;
+
+        public DeterministicFactoryTestScript(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public static final String[] PARAMETERS = new String[] {"test"};
+        public abstract Object execute(int test);
+
+        public interface Factory extends ScriptFactory{
+            FactoryTestScript newInstance(Map<String, Object> params);
+
+            boolean needsTest();
+            boolean needsNothing();
+        }
+
+        public static final ScriptContext<DeterministicFactoryTestScript.Factory> CONTEXT =
+            new ScriptContext<>("test", DeterministicFactoryTestScript.Factory.class);
+    }
+
     public void testFactory() {
         FactoryTestScript.Factory factory =
             scriptEngine.compile("factory_test", "test + params.get('test')", FactoryTestScript.CONTEXT, Collections.emptyMap());
@@ -159,6 +187,32 @@ public class FactoryTests extends ScriptTestCase {
         assertEquals(2, script.execute(-1));
         assertEquals(true, factory.needsTest());
         assertEquals(false, factory.needsNothing());
+    }
+
+    public void testDeterministic() {
+        DeterministicFactoryTestScript.Factory factory =
+            scriptEngine.compile("deterministic_test", "Integer.parseInt('123')",
+                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertTrue(factory.isResultDeterministic());
+        assertEquals(123, factory.newInstance(Collections.emptyMap()).execute(0));
+    }
+
+    public void testNotDeterministic() {
+        DeterministicFactoryTestScript.Factory factory =
+            scriptEngine.compile("not_deterministic_test", "Math.random()",
+                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertFalse(factory.isResultDeterministic());
+        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        assertTrue(d >= 0.0 && d <= 1.0);
+    }
+
+    public void testMixedDeterministicIsNotDeterministic() {
+        DeterministicFactoryTestScript.Factory factory =
+            scriptEngine.compile("not_deterministic_test", "Integer.parseInt('123') + Math.random()",
+                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
+        assertFalse(factory.isResultDeterministic());
+        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        assertTrue(d >= 123.0 && d <= 124.0);
     }
 
     public abstract static class EmptyTestScript {
@@ -201,5 +255,23 @@ public class FactoryTests extends ScriptTestCase {
                 FactoryTestScript.CONTEXT, Collections.emptyMap());
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("x", 1));
         assertEquals(2, script.execute(1));
+    }
+
+    public abstract static class VoidReturnTestScript {
+        public static final String[] PARAMETERS = {"map"};
+        public abstract void execute(Map<Object, Object> map);
+
+        public interface Factory {
+            VoidReturnTestScript newInstance();
+        }
+
+        public static final ScriptContext<VoidReturnTestScript.Factory> CONTEXT =
+                new ScriptContext<>("test", VoidReturnTestScript.Factory.class);
+    }
+
+    public void testVoidReturn() {
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                scriptEngine.compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
+        assertEquals(iae.getMessage(), "Not a statement.");
     }
 }

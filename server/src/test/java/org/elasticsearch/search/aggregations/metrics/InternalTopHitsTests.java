@@ -33,7 +33,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -104,7 +103,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             } else {
                 scoreDocs[i] = new ScoreDoc(docId, score);
             }
-            hits[i] = new SearchHit(docId, Integer.toString(i), new Text("test"), searchHitFields);
+            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields);
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
@@ -144,7 +143,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             SearchHit actual = actualHits.get(i);
 
             assertEquals(expected.getIndex(), actual.getIndex());
-            assertEquals(expected.getType(), actual.getType());
             assertEquals(expected.getId(), actual.getId());
             assertEquals(expected.getVersion(), actual.getVersion());
             assertEquals(expected.getScore(), actual.getScore(), 0.0f);

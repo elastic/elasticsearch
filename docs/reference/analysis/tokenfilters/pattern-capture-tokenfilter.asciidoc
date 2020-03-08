@@ -1,5 +1,8 @@
 [[analysis-pattern-capture-tokenfilter]]
-=== Pattern Capture Token Filter
+=== Pattern capture token filter
+++++
+<titleabbrev>Pattern capture</titleabbrev>
+++++
 
 The `pattern_capture` token filter, unlike the `pattern` tokenizer,
 emits a token for every capture group in the regular expression.
@@ -44,7 +47,7 @@ emit the original token: `abc123def456`.
 This is particularly useful for indexing text like camel-case code, eg
 `stripHTML` where a user may search for `"strip html"` or `"striphtml"`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -70,7 +73,6 @@ PUT test
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 When used to analyze the text
 
@@ -85,7 +87,7 @@ this emits the tokens: [ `import`, `static`, `org`, `apache`, `commons`,
 
 Another example is analyzing email addresses:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -113,7 +115,6 @@ PUT test
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 When the above analyzer is used on an email address like:
 

@@ -12,9 +12,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -84,9 +82,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     public void testIsConditionMet() {
         int maxNumSegments = randomIntBetween(3, 10);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
         IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
@@ -104,9 +99,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
 
@@ -130,9 +122,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
             @Override
             public void onFailure(Exception e) {
+                logger.warn("unexpected onFailure call", e);
                 throw new AssertionError("unexpected method call");
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetResult.get());
         assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
@@ -141,9 +134,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     public void testIsConditionIsTrueEvenWhenMoreSegments() {
         int maxNumSegments = randomIntBetween(3, 10);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
         IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
@@ -161,8 +151,60 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
+
+        Mockito.doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<IndicesSegmentResponse> listener = (ActionListener<IndicesSegmentResponse>) invocationOnMock.getArguments()[1];
+            listener.onResponse(indicesSegmentResponse);
+            return null;
+        }).when(indicesClient).segments(any(), any());
+
+        SetOnce<Boolean> conditionMetResult = new SetOnce<>();
+        SetOnce<ToXContentObject> conditionInfo = new SetOnce<>();
+
+        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
+        step.evaluateCondition(makeMeta(index), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject info) {
+                conditionMetResult.set(conditionMet);
+                conditionInfo.set(info);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("unexpected onFailure call", e);
+                throw new AssertionError("unexpected method call");
+            }
+        }, MASTER_TIMEOUT);
+
+        assertTrue(conditionMetResult.get());
+        assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
+    }
+
+    public void testFailedToRetrieveSomeSegments() {
+        int maxNumSegments = randomIntBetween(3, 10);
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
+        IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
+        IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
+        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
+        ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
+        Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
+        List<Segment> segments = new ArrayList<>();
+        for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {
+            segments.add(null);
+        }
+        Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
+        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), null));
+        Mockito.when(indicesSegmentResponse.getShardFailures())
+            .thenReturn(new DefaultShardOperationFailedException[]{new DefaultShardOperationFailedException(index.getName(),
+                0, new IllegalArgumentException("fake"))});
+        Mockito.when(indexSegments.spliterator()).thenReturn(iss);
+        Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
+        Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -187,22 +229,18 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError("unexpected method call");
+                logger.warn("unexpected onFailure call", e);
+                throw new AssertionError("unexpected method call: " + e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetResult.get());
-        assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
+        assertEquals(new SegmentCountStep.Info(-1L), conditionInfo.get());
     }
 
     public void testThrowsException() {
         Exception exception = new RuntimeException("error");
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -229,7 +267,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
                 assertThat(e, equalTo(exception));
                 exceptionThrown.set(true);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(exceptionThrown.get());
     }

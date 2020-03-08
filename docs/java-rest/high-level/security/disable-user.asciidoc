@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-security-disable-user]]
 === Disable User API
 

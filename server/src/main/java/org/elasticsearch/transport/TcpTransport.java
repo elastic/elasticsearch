@@ -27,13 +27,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -76,7 +77,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -135,23 +135,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
-        final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
-        String[] features;
-        if (defaultFeatures == null) {
-            features = new String[0];
-        } else {
-            defaultFeatures.names().forEach(key -> {
-                if (Booleans.parseBoolean(defaultFeatures.get(key)) == false) {
-                    throw new IllegalArgumentException("feature settings must have default [true] value");
-                }
-            });
-            // use a sorted set to present the features in a consistent order
-            features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
-        }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         this.outboundHandler = new OutboundHandler(nodeName, version, threadPool, bigArrays);
-        this.handshaker = new TransportHandshaker(version, threadPool,
+        this.handshaker = new TransportHandshaker(ClusterName.CLUSTER_NAME_SETTING.get(settings), version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
                 TransportRequestOptions.EMPTY, v, false, true),
@@ -165,6 +152,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     protected void doStart() {
+    }
+
+    @Override
+    public void setLocalNode(DiscoveryNode localNode) {
+        handshaker.setLocalNode(localNode);
     }
 
     @Override
@@ -386,7 +378,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 return true;
             });
             if (!success) {
-                throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
+                throw new BindTransportException(
+                    "Failed to bind to " + NetworkAddress.format(hostAddress, portsRange),
+                    lastException.get()
+                );
             }
         } finally {
             closeLock.writeLock().unlock();
@@ -577,6 +572,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     public void onException(TcpChannel channel, Exception e) {
+        handleException(channel, e, lifecycle, outboundHandler);
+    }
+
+    // exposed for tests
+    static void handleException(TcpChannel channel, Exception e, Lifecycle lifecycle, OutboundHandler outboundHandler) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
@@ -584,24 +584,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         if (isCloseConnectionException(e)) {
-            logger.trace(() -> new ParameterizedMessage(
+            logger.debug(() -> new ParameterizedMessage(
                 "close connection exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         } else if (isConnectException(e)) {
-            logger.trace(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+            logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof BindException) {
-            logger.trace(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+            logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof CancelledKeyException) {
-            logger.trace(() -> new ParameterizedMessage(
+            logger.debug(() -> new ParameterizedMessage(
                 "cancelled key exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
-        } else if (e instanceof TcpTransport.HttpOnTransportException) {
+        } else if (e instanceof HttpRequestOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
@@ -618,7 +618,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     protected void onServerException(TcpServerChannel channel, Exception e) {
-        logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [channel={}]", channel), e);
+        if (e instanceof BindException) {
+            logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+        } else {
+            logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+        }
     }
 
     protected void serverAcceptedChannel(TcpChannel channel) {
@@ -674,7 +678,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param bytesReference the bytes available to consume
      * @return the number of bytes consumed
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -696,7 +700,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the message decoded
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -723,7 +727,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the length of the message
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -737,8 +741,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
-            if (appearsToBeHTTP(headerBuffer)) {
-                throw new TcpTransport.HttpOnTransportException("This is not an HTTP port");
+            if (appearsToBeHTTPRequest(headerBuffer)) {
+                throw new HttpRequestOnTransportException("This is not an HTTP port");
+            }
+
+            if (appearsToBeHTTPResponse(headerBuffer)) {
+                throw new StreamCorruptedException("received HTTP response on transport port, ensure that transport port (not " +
+                        "HTTP port) of a remote node is specified in the configuration");
             }
 
             String firstBytes = "("
@@ -772,16 +781,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return messageLength;
     }
 
-    private static boolean appearsToBeHTTP(BytesReference headerBuffer) {
-        return bufferStartsWith(headerBuffer, "GET") ||
-            bufferStartsWith(headerBuffer, "POST") ||
-            bufferStartsWith(headerBuffer, "PUT") ||
-            bufferStartsWith(headerBuffer, "HEAD") ||
-            bufferStartsWith(headerBuffer, "DELETE") ||
+    private static boolean appearsToBeHTTPRequest(BytesReference headerBuffer) {
+        return bufferStartsWith(headerBuffer, "GET")
+            || bufferStartsWith(headerBuffer, "POST")
+            || bufferStartsWith(headerBuffer, "PUT")
+            || bufferStartsWith(headerBuffer, "HEAD")
+            || bufferStartsWith(headerBuffer, "DELETE")
             // Actually 'OPTIONS'. But we are only guaranteed to have read six bytes at this point.
-            bufferStartsWith(headerBuffer, "OPTION") ||
-            bufferStartsWith(headerBuffer, "PATCH") ||
-            bufferStartsWith(headerBuffer, "TRACE");
+            || bufferStartsWith(headerBuffer, "OPTION")
+            || bufferStartsWith(headerBuffer, "PATCH")
+            || bufferStartsWith(headerBuffer, "TRACE");
+    }
+
+    private static boolean appearsToBeHTTPResponse(BytesReference headerBuffer) {
+        return bufferStartsWith(headerBuffer, "HTTP");
     }
 
     private static boolean appearsToBeTLS(BytesReference headerBuffer) {
@@ -802,9 +815,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * A helper exception to mark an incoming connection as potentially being HTTP
      * so an appropriate error code can be returned
      */
-    public static class HttpOnTransportException extends ElasticsearchException {
+    public static class HttpRequestOnTransportException extends ElasticsearchException {
 
-        private HttpOnTransportException(String msg) {
+        HttpRequestOnTransportException(String msg) {
             super(msg);
         }
 
@@ -813,7 +826,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return RestStatus.BAD_REQUEST;
         }
 
-        public HttpOnTransportException(StreamInput in) throws IOException {
+        public HttpRequestOnTransportException(StreamInput in) throws IOException {
             super(in);
         }
     }

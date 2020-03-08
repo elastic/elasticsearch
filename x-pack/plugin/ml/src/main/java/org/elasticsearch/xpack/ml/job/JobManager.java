@@ -30,13 +30,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -142,7 +143,7 @@ public class JobManager {
         jobConfigProvider.getJob(jobId, ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
                 e -> {
-                    if (e instanceof ResourceNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         // Try to get the job from the cluster state
                         getJobFromClusterState(jobId, jobListener);
                     } else {
@@ -272,7 +273,7 @@ public class JobManager {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IllegalArgumentException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
                     Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:of different type, " +
                             "current_type \\[.*\\], merged_type|with an object mapping) \\[.*\\]").matcher(e.getMessage());
@@ -294,7 +295,7 @@ public class JobManager {
                     return;
                 }
                 ElasticsearchMappings.addDocMappingIfMissing(
-                    AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, state, putJobListener);
+                    AnomalyDetectorsIndex.configIndexName(), MlConfigIndex::mapping, client, state, putJobListener);
             },
             putJobListener::onFailure
         );

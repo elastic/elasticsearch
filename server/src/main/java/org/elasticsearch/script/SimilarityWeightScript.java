@@ -32,7 +32,7 @@ public abstract class SimilarityWeightScript  {
     public abstract double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
             ScriptedSimilarity.Term term);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         SimilarityWeightScript newInstance();
     }
 

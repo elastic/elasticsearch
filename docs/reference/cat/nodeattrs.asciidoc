@@ -65,11 +65,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-nodeattrs-api-ex-default]]
 ===== Example with default columns
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodeattrs?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/\?v/\?v&s=node,attr/]
 // Sort the resulting attributes so we can assert on them more easily
 
@@ -97,11 +96,10 @@ The `attr` and `value` columns return custom node attributes, one per line.
 The following API request returns the `name`, `pid`, `attr`, and `value`
 columns.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodeattrs?v&h=name,pid,attr,value
 --------------------------------------------------
-// CONSOLE
 // TEST[s/,value/,value&s=node,attr/]
 // Sort the resulting attributes so we can assert on them more easily
 

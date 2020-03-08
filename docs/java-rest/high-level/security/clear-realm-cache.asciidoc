@@ -4,7 +4,7 @@
 :request: ClearRealmCacheRequest
 :response: ClearRealmCacheResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Clear Realm Cache API
 

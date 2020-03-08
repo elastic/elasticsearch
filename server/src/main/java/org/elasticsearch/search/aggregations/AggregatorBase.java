@@ -23,6 +23,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -74,13 +75,13 @@ public abstract class AggregatorBase extends Aggregator {
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(this);
+        this.subAggregators = factories.createSubAggregators(context, this);
         context.addReleasable(this, Lifetime.PHASE);
+        final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
             void badState(){
-                throw new QueryPhaseExecutionException(AggregatorBase.this.context,
-                        "preCollection not called on new Aggregator before use", null);
+                throw new QueryPhaseExecutionException(shardTarget, "preCollection not called on new Aggregator before use", null);
             }
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {

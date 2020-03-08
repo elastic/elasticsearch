@@ -82,7 +82,7 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse createServerTestInstance() {
+    protected org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse createServerTestInstance(XContentType xContentType) {
         return randomResponse();
     }
 

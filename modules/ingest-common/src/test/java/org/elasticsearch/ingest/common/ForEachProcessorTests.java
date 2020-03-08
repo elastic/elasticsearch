@@ -34,37 +34,42 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ForEachProcessorTests extends ESTestCase {
 
-    public void testExecute() throws Exception {
+    public void testExecuteWithAsyncProcessor() throws Exception {
         List<String> values = new ArrayList<>();
         values.add("foo");
         values.add("bar");
         values.add("baz");
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.singletonMap("values", values)
+            "_index", "_id", null, null, null, Collections.singletonMap("values", values)
         );
 
-        ForEachProcessor processor = new ForEachProcessor(
-            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value", false, "_ingest._value"),
-            false
-        );
-        processor.execute(ingestDocument);
+        ForEachProcessor processor = new ForEachProcessor("_tag", "values", new AsyncUpperCaseProcessor("_ingest._value"),
+            false);
+        processor.execute(ingestDocument, (result, e) -> {
+        });
 
-        @SuppressWarnings("unchecked")
-        List<String> result = ingestDocument.getFieldValue("values", List.class);
-        assertThat(result.get(0), equalTo("FOO"));
-        assertThat(result.get(1), equalTo("BAR"));
-        assertThat(result.get(2), equalTo("BAZ"));
+        assertBusy(() -> {
+            @SuppressWarnings("unchecked")
+            List<String> result = ingestDocument.getFieldValue("values", List.class);
+            assertEquals(values.size(), result.size());
+            assertThat(result.get(0), equalTo("FOO"));
+            assertThat(result.get(1), equalTo("BAR"));
+            assertThat(result.get(2), equalTo("BAZ"));
+        });
     }
 
     public void testExecuteWithFailure() throws Exception {
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.singletonMap("values", Arrays.asList("a", "b", "c"))
+            "_index", "_id", null, null, null, Collections.singletonMap("values", Arrays.asList("a", "b", "c"))
         );
 
         TestProcessor testProcessor = new TestProcessor(id -> {
@@ -73,12 +78,9 @@ public class ForEachProcessorTests extends ESTestCase {
             }
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", testProcessor, false);
-        try {
-            processor.execute(ingestDocument);
-            fail("exception expected");
-        } catch (RuntimeException e) {
-            assertThat(e.getMessage(), equalTo("failure"));
-        }
+        Exception[] exceptions = new Exception[1];
+        processor.execute(ingestDocument, (result, e) -> {exceptions[0] = e;});
+        assertThat(exceptions[0].getMessage(), equalTo("failure"));
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(Arrays.asList("a", "b", "c")));
 
@@ -95,7 +97,7 @@ public class ForEachProcessorTests extends ESTestCase {
             "_tag", "values", new CompoundProcessor(false, Arrays.asList(testProcessor), Arrays.asList(onFailureProcessor)),
             false
         );
-        processor.execute(ingestDocument);
+        processor.execute(ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(Arrays.asList("A", "B", "c")));
     }
@@ -105,23 +107,20 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add(new HashMap<>());
         values.add(new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.singletonMap("values", values)
+            "_index", "_id", null, null, null, Collections.singletonMap("values", values)
         );
 
         TestProcessor innerProcessor = new TestProcessor(id -> {
             id.setFieldValue("_ingest._value.index", id.getSourceAndMetadata().get("_index"));
-            id.setFieldValue("_ingest._value.type", id.getSourceAndMetadata().get("_type"));
             id.setFieldValue("_ingest._value.id", id.getSourceAndMetadata().get("_id"));
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", innerProcessor, false);
-        processor.execute(ingestDocument);
+        processor.execute(ingestDocument, (result, e) -> {});
 
         assertThat(innerProcessor.getInvokedCounter(), equalTo(2));
         assertThat(ingestDocument.getFieldValue("values.0.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.0.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.0.id", String.class), equalTo("_id"));
         assertThat(ingestDocument.getFieldValue("values.1.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.1.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.1.id", String.class), equalTo("_id"));
     }
 
@@ -136,13 +135,13 @@ public class ForEachProcessorTests extends ESTestCase {
         document.put("values", values);
         document.put("flat_values", new ArrayList<>());
         document.put("other", "value");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, document);
 
         ForEachProcessor processor = new ForEachProcessor(
             "_tag", "values", new SetProcessor("_tag",
             new TestTemplateService.MockTemplateScript.Factory("_ingest._value.new_field"),
             (model) -> model.get("other")), false);
-        processor.execute(ingestDocument);
+        processor.execute(ingestDocument, (result, e) -> {});
 
         assertThat(ingestDocument.getFieldValue("values.0.new_field", String.class), equalTo("value"));
         assertThat(ingestDocument.getFieldValue("values.1.new_field", String.class), equalTo("value"));
@@ -151,10 +150,10 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("values.4.new_field", String.class), equalTo("value"));
     }
 
-    public void testRandom() throws Exception {
+    public void testRandom() {
         Processor innerProcessor = new Processor() {
                 @Override
-                public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     String existingValue = ingestDocument.getFieldValue("_ingest._value", String.class);
                     ingestDocument.setFieldValue("_ingest._value", existingValue + ".");
                     return ingestDocument;
@@ -170,23 +169,20 @@ public class ForEachProcessorTests extends ESTestCase {
                     return null;
                 }
         };
-        int numValues = randomIntBetween(1, 32);
-        List<String> values = new ArrayList<>(numValues);
-        for (int i = 0; i < numValues; i++) {
-            values.add("");
-        }
+        int numValues = randomIntBetween(1, 10000);
+        List<String> values = IntStream.range(0, numValues).mapToObj(i->"").collect(Collectors.toList());
+
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.singletonMap("values", values)
+            "_index", "_id", null, null, null, Collections.singletonMap("values", values)
         );
 
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", innerProcessor, false);
-        processor.execute(ingestDocument);
+        processor.execute(ingestDocument, (result, e) -> {});
+
         @SuppressWarnings("unchecked")
         List<String> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.size(), equalTo(numValues));
-        for (String r : result) {
-            assertThat(r, equalTo("."));
-        }
+        result.forEach(r -> assertThat(r, equalTo(".")));
     }
 
     public void testModifyFieldsOutsideArray() throws Exception {
@@ -195,7 +191,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add(1);
         values.add(null);
         IngestDocument ingestDocument = new IngestDocument(
-                "_index", "_type", "_id", null, null, null, Collections.singletonMap("values", values)
+                "_index", "_id", null, null, null, Collections.singletonMap("values", values)
         );
 
         TemplateScript.Factory template = new TestTemplateService.MockTemplateScript.Factory("errors");
@@ -205,7 +201,7 @@ public class ForEachProcessorTests extends ESTestCase {
                 Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false, "_ingest._value")),
                 Collections.singletonList(new AppendProcessor("_tag", template, (model) -> (Collections.singletonList("added"))))
         ), false);
-        processor.execute(ingestDocument);
+        processor.execute(ingestDocument, (result, e) -> {});
 
         List<?> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("STRING"));
@@ -225,13 +221,13 @@ public class ForEachProcessorTests extends ESTestCase {
         source.put("_value", "new_value");
         source.put("values", values);
         IngestDocument ingestDocument = new IngestDocument(
-                "_index", "_type", "_id", null, null, null, source
+                "_index", "_id", null, null, null, source
         );
 
         TestProcessor processor = new TestProcessor(doc -> doc.setFieldValue("_ingest._value",
                 doc.getFieldValue("_source._value", String.class)));
         ForEachProcessor forEachProcessor = new ForEachProcessor("_tag", "values", processor, false);
-        forEachProcessor.execute(ingestDocument);
+        forEachProcessor.execute(ingestDocument, (result, e) -> {});
 
         List<?> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("new_value"));
@@ -256,15 +252,16 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add(value);
 
         IngestDocument ingestDocument = new IngestDocument(
-                "_index", "_type", "_id", null, null, null, Collections.singletonMap("values1", values)
+                "_index", "_id", null, null, null, Collections.singletonMap("values1", values)
         );
 
         TestProcessor testProcessor = new TestProcessor(
                 doc -> doc.setFieldValue("_ingest._value", doc.getFieldValue("_ingest._value", String.class).toUpperCase(Locale.ENGLISH))
         );
         ForEachProcessor processor = new ForEachProcessor(
-                "_tag", "values1", new ForEachProcessor("_tag", "_ingest._value.values2", testProcessor, false), false);
-        processor.execute(ingestDocument);
+                "_tag", "values1", new ForEachProcessor("_tag", "_ingest._value.values2", testProcessor, false),
+            false);
+        processor.execute(ingestDocument, (result, e) -> {});
 
         List<?> result = ingestDocument.getFieldValue("values1.0.values2", List.class);
         assertThat(result.get(0), equalTo("ABC"));
@@ -277,14 +274,51 @@ public class ForEachProcessorTests extends ESTestCase {
 
     public void testIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.emptyMap()
+            "_index", "_id", null, null, null, Collections.emptyMap()
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(doc -> {});
         ForEachProcessor processor = new ForEachProcessor("_tag", "_ingest._value", testProcessor, true);
-        processor.execute(ingestDocument);
+        processor.execute(ingestDocument, (result, e) -> {});
         assertIngestDocument(originalIngestDocument, ingestDocument);
         assertThat(testProcessor.getInvokedCounter(), equalTo(0));
+    }
+
+    private class AsyncUpperCaseProcessor implements Processor {
+
+        private final String field;
+
+        private AsyncUpperCaseProcessor(String field) {
+            this.field = field;
+        }
+
+        @Override
+        public void execute(IngestDocument document, BiConsumer<IngestDocument, Exception> handler) {
+            new Thread(() -> {
+                try {
+                    String value = document.getFieldValue(field, String.class, false);
+                    document.setFieldValue(field, value.toUpperCase(Locale.ROOT));
+                    handler.accept(document, null);
+                } catch (Exception e) {
+                    handler.accept(null, e);
+                }
+            }).start();
+        }
+
+        @Override
+        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+            throw new UnsupportedOperationException("this is an async processor, don't call this");
+        }
+
+        @Override
+        public String getType() {
+            return "uppercase-async";
+        }
+
+        @Override
+        public String getTag() {
+            return getType();
+        }
     }
 
 }

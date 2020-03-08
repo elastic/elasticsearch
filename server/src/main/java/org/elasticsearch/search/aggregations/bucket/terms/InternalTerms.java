@@ -192,7 +192,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     public abstract B getBucketByKey(String term);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         long sumDocCountError = 0;
         long otherDocCount = 0;
@@ -256,7 +256,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
+        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = reduceBucket(sameTermBuckets, reduceContext);
             if (sumDocCountError == -1) {

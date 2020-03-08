@@ -277,7 +277,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are {@code unified}, {@code plain} and {@code fvj}.
+     * are {@code unified}, {@code plain} and {@code fvh}.
      * Defaults to {@code unified}.
      * Details of the different highlighter types are covered in the reference guide.
      */

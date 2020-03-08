@@ -145,7 +145,7 @@ public final class TimestampFormatFinder {
             example -> CandidateTimestampFormat.expandDayAndAdjustFractionalSecondsFromExample(example, "MMM dd HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
             "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)(?:[:.,][0-9]{3,9})?\\b", "SYSLOGTIMESTAMP",
-            Arrays.asList("    11 11 11 11", "    1 11 11 11"), 4, 10),
+            Arrays.asList("    11 11 11 11", "    1 11 11 11"), 6, 10),
         new CandidateTimestampFormat(example -> Collections.singletonList("dd/MMM/yyyy:HH:mm:ss XX"),
             "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
             "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b", "HTTPDATE",
@@ -154,18 +154,23 @@ public final class TimestampFormatFinder {
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b", "CATALINA_DATESTAMP",
             Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"), 0, 3),
-        new CandidateTimestampFormat(example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"),
+        new CandidateTimestampFormat(example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
             "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
             "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP",
-            Arrays.asList("    11 1111 11 11 11", "     1 1111 11 11 11"), 0, 0),
+            Arrays.asList("    11 1111 11 11 11", "    1 1111 11 11 11"), 1, 0),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
-            // In DATESTAMP the month may be 1 or 2 digits, but the day must be 2
-            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11"), 0, 10),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
+            // In DATESTAMP the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11", "11 11 11 11 11 11", "1 11 11 11 11 11",
+                "11 1 11 11 11 11"), 1, 10),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE",
-            // In DATE the month may be 1 or 2 digits, but the day must be 2
-            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111"), 0, 0),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "\\b%{DATE}\\b", "DATE",
+            // In DATE the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111", "11 11 11", "11 1 11", "1 11 11"), 1, 0),
         UNIX_MS_CANDIDATE_FORMAT,
         UNIX_CANDIDATE_FORMAT,
         TAI64N_CANDIDATE_FORMAT,
@@ -1467,7 +1472,7 @@ public final class TimestampFormatFinder {
         static List<String> expandDayAndAdjustFractionalSecondsFromExample(String example, String formatWithddAndNoFraction) {
 
             String formatWithdd = adjustFractionalSecondsFromEndOfExample(example, formatWithddAndNoFraction);
-            return Arrays.asList(formatWithdd, formatWithdd.replace(" dd", "  d"));
+            return Arrays.asList(formatWithdd, formatWithdd.replace(" dd", "  d"), formatWithdd.replace(" dd", " d"));
         }
 
         static List<String> indeterminateDayMonthFormatFromExample(String example) {

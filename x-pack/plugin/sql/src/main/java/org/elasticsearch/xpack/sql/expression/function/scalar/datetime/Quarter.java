@@ -6,32 +6,33 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Quarter extends BaseDateTimeFunction {
 
     public Quarter(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId);
     }
-
+    
     @Override
-    public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(formatTemplate("{sql}.quarter(doc[{}].value, {})"),
-                paramsBuilder()
-                  .variable(field.name())
-                  .variable(zoneId().getId())
-                  .build(),
-                dataType());
+    public ScriptTemplate asScript() {
+        ScriptTemplate script = super.asScript();
+        String template = formatTemplate("{sql}.quarter(" + script.template() + ", {})");
+        
+        ParamsBuilder params = paramsBuilder().script(script.params()).variable(zoneId().getId());
+        
+        return new ScriptTemplate(template, params.build(), dataType());
     }
 
     @Override
@@ -51,6 +52,6 @@ public class Quarter extends BaseDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 }

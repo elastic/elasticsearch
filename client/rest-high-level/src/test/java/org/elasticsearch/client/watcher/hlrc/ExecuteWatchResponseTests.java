@@ -35,7 +35,7 @@ public class ExecuteWatchResponseTests extends AbstractResponseTestCase<
     ExecuteWatchResponse, org.elasticsearch.client.watcher.ExecuteWatchResponse> {
 
     @Override
-    protected ExecuteWatchResponse createServerTestInstance() {
+    protected ExecuteWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = "my_watch_0-2015-06-02T23:17:55.124Z";
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();

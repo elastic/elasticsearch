@@ -55,6 +55,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -816,7 +818,7 @@ public class NumberFieldMapper extends FieldMapper {
             return name;
         }
         /** Get the associated numeric type */
-        final NumericType numericType() {
+        public final NumericType numericType() {
             return numericType;
         }
         public abstract Query termQuery(String field, Object value);
@@ -909,6 +911,10 @@ public class NumberFieldMapper extends FieldMapper {
             return type.name;
         }
 
+        public NumericType numericType() {
+            return type.numericType();
+        }
+
         @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
@@ -952,6 +958,11 @@ public class NumberFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(type.numericType());
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.NUMERIC;
         }
 
         @Override

@@ -66,6 +66,6 @@ public class MapperTestUtils {
             xContentRegistry,
             similarityService,
             mapperRegistry,
-            () -> null);
+            () -> null, () -> false);
     }
 }

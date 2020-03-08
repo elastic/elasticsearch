@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 public interface EvaluationMetricResult extends ToXContentObject, NamedWriteable {
 
     /**
-     * Returns the name of the metric
+     * Returns the name of the metric (which may differ to the writeable name)
      */
-    String getName();
+    String getMetricName();
 }

@@ -21,8 +21,10 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-integTest {
-  includePackaged = true
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
 File repo = file("$buildDir/testclusters/repo")
@@ -38,9 +40,9 @@ integTest.runner {
   }
   if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'oss'))) {
     systemProperty 'tests.rest.blacklist', [
-        'cat.templates/10_basic/No templates',
-        'cat.templates/10_basic/Sort templates',
-        'cat.templates/10_basic/Multiple template',
-      ].join(',')
+      'cat.templates/10_basic/No templates',
+      'cat.templates/10_basic/Sort templates',
+      'cat.templates/10_basic/Multiple template',
+    ].join(',')
   }
 }

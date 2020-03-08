@@ -359,6 +359,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         clusterApplierService.addStateApplier(event -> {
             throw new RuntimeException("dummy exception");
         });
+        clusterApplierService.allowClusterStateApplicationFailure();
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
@@ -387,6 +388,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         AtomicReference<Throwable> error = new AtomicReference<>();
         clusterApplierService.clusterSettings.addSettingsUpdateConsumer(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             v -> {});
+        clusterApplierService.allowClusterStateApplicationFailure();
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state())
@@ -497,6 +499,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         final ClusterSettings clusterSettings;
         volatile Long currentTimeOverride = null;
+        boolean applicationMayFail;
 
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
             super("test_node", settings, clusterSettings, threadPool);
@@ -506,6 +509,15 @@ public class ClusterApplierServiceTests extends ESTestCase {
         @Override
         protected long currentTimeInMillis() {
             return Objects.requireNonNullElseGet(currentTimeOverride, super::currentTimeInMillis);
+        }
+
+        @Override
+        protected boolean applicationMayFail() {
+            return this.applicationMayFail;
+        }
+
+        void allowClusterStateApplicationFailure() {
+            this.applicationMayFail = true;
         }
     }
 

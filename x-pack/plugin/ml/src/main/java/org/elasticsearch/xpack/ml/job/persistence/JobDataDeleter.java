@@ -23,6 +23,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
@@ -79,11 +80,10 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(new IdsQueryBuilder().addIds(idsToDelete.toArray(new String[0])));
 
-        try {
-            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }
 
     /**
@@ -101,6 +101,10 @@ public class JobDataDeleter {
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
         deleteByQueryHolder.dbqRequest.setIndicesOptions(IndicesOptions.lenientExpandOpen());
         deleteByQueryHolder.dbqRequest.setQuery(query);
+
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryHolder.dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest,
                 ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure));
     }
@@ -115,6 +119,9 @@ public class JobDataDeleter {
         deleteByQueryHolder.dbqRequest.setIndicesOptions(IndicesOptions.lenientExpandOpen());
         QueryBuilder qb = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);
         deleteByQueryHolder.dbqRequest.setQuery(new ConstantScoreQueryBuilder(qb));
+
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryHolder.dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
@@ -133,6 +140,9 @@ public class JobDataDeleter {
             .setRefresh(true)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(new IdsQueryBuilder().addIds(DatafeedTimingStats.documentId(jobId)));
+
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }

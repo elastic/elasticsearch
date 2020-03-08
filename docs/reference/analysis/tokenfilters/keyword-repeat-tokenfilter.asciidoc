@@ -1,5 +1,8 @@
 [[analysis-keyword-repeat-tokenfilter]]
-=== Keyword Repeat Token Filter
+=== Keyword repeat token filter
+++++
+<titleabbrev>Keyword repeat</titleabbrev>
+++++
 
 The `keyword_repeat` token filter Emits each incoming token twice once
 as keyword and once as a non-keyword to allow an unstemmed version of a
@@ -12,7 +15,7 @@ unnecessary duplicates.
 Here is an example of using the `keyword_repeat` token filter to
 preserve both the stemmed and unstemmed version of tokens:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /keyword_repeat_example
 {
@@ -35,11 +38,10 @@ PUT /keyword_repeat_example
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 And you can test it with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /keyword_repeat_example/_analyze
 {
@@ -47,12 +49,11 @@ POST /keyword_repeat_example/_analyze
   "text" : "I like cats"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -87,7 +88,6 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Which preserves both the `cat` and `cats` tokens. Compare this to the example
 on the <<analysis-keyword-marker-tokenfilter>>.

@@ -14,6 +14,8 @@ docs, the bytes it takes on disk, and the node where it's located.
 
 `GET /_cat/shards/<index>`
 
+`GET /_cat/shards`
+
 
 [[cat-shards-path-params]]
 ==== {api-path-parms-title}
@@ -237,7 +239,7 @@ Time (UTC)].
 `unassigned.details`, `ud`::
 Details about why the shard became unassigned.
 
-`unassigned.for`, `ua`::
+`unassigned.for`, `uf`::
 Time at which the shard was requested to be unassigned in
 https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC)].
@@ -255,7 +257,7 @@ Reason the shard is unassigned. Returned values are:
 * `NEW_INDEX_RESTORED`: Unassigned as a result of restoring into a new index.
 * `NODE_LEFT`: Unassigned as a result of the node hosting it leaving the cluster.
 * `REALLOCATED_REPLICA`: A better replica location is identified and causes the existing replica allocation to be cancelled.
-* `REINITIALIZED`: When a shard moves from started back to initializing, for example, with shadow replicas.
+* `REINITIALIZED`: When a shard moves from started back to initializing.
 * `REPLICA_ADDED`: Unassigned as a result of explicit addition of a replica.
 * `REROUTE_CANCELLED`: Unassigned as a result of explicit cancel reroute command.
 
@@ -269,6 +271,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
@@ -278,11 +282,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-shards-api-example-single]]
 ===== Example with a single index
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The API returns the following response:
@@ -305,11 +308,10 @@ path parameter to limit the API request.
 The following request returns information for any indices beginning with
 `twitt`.
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards/twitt*
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The API returns the following response:
@@ -327,11 +329,10 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 [[relocation]]
 ===== Example with a relocating shard
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:for now, relocation cannot be recreated]
 
 The API returns the following response:
@@ -351,11 +352,10 @@ relocating.
 Before a shard is available for use, it goes through an `INITIALIZING` state.
 You can use the cat shards API to see which shards are initializing.
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:there is no guarantee to test for shards in initializing state]
 
 The API returns the following response:
@@ -373,11 +373,10 @@ The following request returns the `unassigned.reason` column, which indicates
 why a shard is unassigned. 
 
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards?h=index,shard,prirep,state,unassigned.reason
 ---------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:for now]
 
 The API returns the following response:

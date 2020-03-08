@@ -238,7 +238,7 @@ public class ReplicationResponse extends ActionResponse {
             }
 
             public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
-                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.detailedMessage(cause), status, cause);
+                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.stackTrace(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;
                 this.primary = primary;

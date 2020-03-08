@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Comparisons;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Comparisons;
 
 import java.util.ArrayList;
 import java.util.Collection;

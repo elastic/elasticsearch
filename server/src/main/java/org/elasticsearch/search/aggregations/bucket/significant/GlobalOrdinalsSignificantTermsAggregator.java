@@ -126,7 +126,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             }
 
             if (spare == null) {
-                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
+                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
             }
             spare.bucketOrd = bucketOrd;
             copy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);

@@ -3,6 +3,7 @@
 :request: DeleteCalendarJobRequest
 :response: PutCalendarResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete {anomaly-jobs} from calendar API
 Removes {anomaly-jobs} from an existing {ml} calendar.

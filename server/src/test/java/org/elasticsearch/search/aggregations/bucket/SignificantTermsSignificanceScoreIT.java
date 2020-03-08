@@ -22,17 +22,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -49,7 +45,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,7 +62,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -85,99 +79,19 @@ import static org.hamcrest.Matchers.is;
 public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     static final String INDEX_NAME = "testidx";
-    static final String DOC_TYPE = "_doc";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
+        return Arrays.asList(TestScriptPlugin.class);
     }
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
-    public void testPlugin() throws Exception {
-        String type = randomBoolean() ? "text" : "long";
-        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
-        SearchRequestBuilder request;
-        if ("text".equals(type) && randomBoolean()) {
-            // Use significant_text on text fields but occasionally run with alternative of
-            // significant_terms on legacy fieldData=true too.
-            request = client().prepareSearch(INDEX_NAME)
-                    .addAggregation(
-                            terms("class")
-                            .field(CLASS_FIELD)
-                                    .subAggregation((significantText("sig_terms", TEXT_FIELD))
-                                    .significanceHeuristic(new SimpleHeuristic())
-                                    .minDocCount(1)
-                            )
-                    );
-        }else
-        {
-            request = client().prepareSearch(INDEX_NAME)
-                    .addAggregation(
-                            terms("class")
-                            .field(CLASS_FIELD)
-                                    .subAggregation((significantTerms("sig_terms"))
-                                    .field(TEXT_FIELD)
-                                    .significanceHeuristic(new SimpleHeuristic())
-                                    .minDocCount(1)
-                            )
-                    );
-        }
-
-        SearchResponse response = request.get();
-        assertSearchResponse(response);
-        StringTerms classes = response.getAggregations().get("class");
-        assertThat(classes.getBuckets().size(), equalTo(2));
-        for (Terms.Bucket classBucket : classes.getBuckets()) {
-            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
-            assertTrue(aggs.containsKey("sig_terms"));
-            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
-            assertThat(agg.getBuckets().size(), equalTo(2));
-            Iterator<SignificantTerms.Bucket> bucketIterator = agg.iterator();
-            SignificantTerms.Bucket sigBucket = bucketIterator.next();
-            String term = sigBucket.getKeyAsString();
-            String classTerm = classBucket.getKeyAsString();
-            assertTrue(term.equals(classTerm));
-            assertThat(sigBucket.getSignificanceScore(), closeTo(2.0, 1.e-8));
-            sigBucket = bucketIterator.next();
-            assertThat(sigBucket.getSignificanceScore(), closeTo(1.0, 1.e-8));
-        }
-
-        // we run the same test again but this time we do not call assertSearchResponse() before the assertions
-        // the reason is that this would trigger toXContent and we would like to check that this has no potential side effects
-
-        response = request.get();
-
-        classes = (StringTerms) response.getAggregations().get("class");
-        assertThat(classes.getBuckets().size(), equalTo(2));
-        for (Terms.Bucket classBucket : classes.getBuckets()) {
-            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
-            assertTrue(aggs.containsKey("sig_terms"));
-            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
-            assertThat(agg.getBuckets().size(), equalTo(2));
-            Iterator<SignificantTerms.Bucket> bucketIterator = agg.iterator();
-            SignificantTerms.Bucket sigBucket = bucketIterator.next();
-            String term = sigBucket.getKeyAsString();
-            String classTerm = classBucket.getKeyAsString();
-            assertTrue(term.equals(classTerm));
-            assertThat(sigBucket.getSignificanceScore(), closeTo(2.0, 1.e-8));
-            sigBucket = bucketIterator.next();
-            assertThat(sigBucket.getSignificanceScore(), closeTo(1.0, 1.e-8));
-        }
-    }
-
-    public static class CustomSignificanceHeuristicPlugin extends MockScriptPlugin implements SearchPlugin {
-        @Override
-        public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
-            return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
-                    SimpleHeuristic::new, (parser) -> SimpleHeuristic.parse(parser)));
-        }
-
+    public static class TestScriptPlugin extends MockScriptPlugin implements SearchPlugin {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
@@ -193,72 +107,17 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             return scripts;
         }
 
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Math.random()", vars -> SignificantTermsSignificanceScoreIT.randomDouble());
+
+            return scripts;
+        }
+
         private static long longValue(Object value) {
             return ((ScriptHeuristic.LongAccessor) value).longValue();
-        }
-    }
-
-    public static class SimpleHeuristic extends SignificanceHeuristic {
-        public static final String NAME = "simple";
-
-        public SimpleHeuristic() {
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public SimpleHeuristic(StreamInput in) throws IOException {
-            // Nothing to read
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            // Nothing to write
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME).endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return 1;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            return true;
-        }
-
-        /**
-         * @param subsetFreq   The frequency of the term in the selected sample
-         * @param subsetSize   The size of the selected sample (typically number of docs)
-         * @param supersetFreq The frequency of the term in the superset from which the sample was taken
-         * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
-         * @return a "significance" score
-         */
-        @Override
-        public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-            return subsetFreq / subsetSize > supersetFreq / supersetSize ? 2.0 : 1.0;
-        }
-
-        public static SignificanceHeuristic parse(XContentParser parser)
-                throws IOException, QueryShardException {
-            parser.nextToken();
-            return new SimpleHeuristic();
         }
     }
 
@@ -339,19 +198,19 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("_doc", "text", "type=keyword", CLASS_FIELD, "type=keyword"));
+                .setMapping("text", "type=keyword", CLASS_FIELD, "type=keyword"));
         String[] cat1v1 = {"constant", "one"};
         String[] cat1v2 = {"constant", "uno"};
         String[] cat2v1 = {"constant", "two"};
         String[] cat2v2 = {"constant", "duo"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1")
                 .setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("2")
                 .setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("3")
                 .setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("4")
                 .setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
         indexRandom(true, false, indexRequestBuilderList);
 
@@ -363,7 +222,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRequestBuilderList.clear();
         for (int i = 0; i < 50; i++) {
             text = text == cat1v2 ? cat1v1 : cat1v2;
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
         }
         indexRandom(true, false, indexRequestBuilderList);
 
@@ -574,7 +433,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .addMapping("_doc", "text", "type=text,fielddata=true", "class", "type=keyword"));
+            .setMapping("text", "type=text,fielddata=true", "class", "type=keyword"));
         createIndex("idx_unmapped");
 
         ensureGreen();
@@ -600,7 +459,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split("\t");
-            indexRequestBuilders.add(client().prepareIndex("test", "_doc", "" + i)
+            indexRequestBuilders.add(client().prepareIndex("test").setId("" + i)
                     .setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
@@ -656,7 +515,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         if (type.equals("text")) {
             textMappings += ",fielddata=true";
         }
-        assertAcked(prepareCreate(INDEX_NAME).addMapping(DOC_TYPE, TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate(INDEX_NAME).setMapping(TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < randomInt(20); i++) {
@@ -667,7 +526,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             } else {
                 text[0] = gb[randNum];
             }
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE)
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME)
                     .setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero"));
         }
         indexRandom(true, indexRequestBuilderList);
@@ -678,15 +537,15 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+    public void testScriptCaching() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -694,8 +553,10 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
-        ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
+        // Test that a request using a nondeterministic script does not get cached
+        ScriptHeuristic scriptHeuristic = new ScriptHeuristic(
+            new Script(ScriptType.INLINE, "mockscript", "Math.random()", Collections.emptyMap())
+        );
         boolean useSigText = randomBoolean();
         SearchResponse r;
         if (useSigText) {
@@ -712,8 +573,24 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Test that a request using a deterministic script gets cached
+        scriptHeuristic = getScriptSignificanceHeuristic();
+        useSigText = randomBoolean();
+        if (useSigText) {
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
+        } else {
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
+        }
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
+
+        // Ensure that non-scripted requests are cached as normal
         if (useSigText) {
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "s")).get();
         } else {
@@ -724,9 +601,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(2L));
     }
-
-
-
 }

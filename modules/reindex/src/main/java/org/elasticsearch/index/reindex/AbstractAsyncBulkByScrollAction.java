@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.script.Script;
@@ -195,7 +194,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              * change the "fields" part of the search request it is unlikely that we got here because we didn't fetch _source.
              * Thus the error message assumes that it wasn't stored.
              */
-            throw new IllegalArgumentException("[" + doc.getIndex() + "][" + doc.getType() + "][" + doc.getId() + "] didn't store _source");
+            throw new IllegalArgumentException("[" + doc.getIndex() + "][" + doc.getId() + "] didn't store _source");
         }
         return true;
     }
@@ -527,10 +526,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         String getIndex();
 
-        void setType(String type);
-
-        String getType();
-
         void setId(String id);
 
         String getId();
@@ -571,16 +566,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public String getIndex() {
             return request.index();
-        }
-
-        @Override
-        public void setType(String type) {
-            request.type(type);
-        }
-
-        @Override
-        public String getType() {
-            return request.type();
         }
 
         @Override
@@ -660,16 +645,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public String getIndex() {
             return request.index();
-        }
-
-        @Override
-        public void setType(String type) {
-            request.type(type);
-        }
-
-        @Override
-        public String getType() {
-            return request.type();
         }
 
         @Override
@@ -759,7 +734,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
             Map<String, Object> context = new HashMap<>();
             context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(TypeFieldMapper.NAME, doc.getType());
             context.put(IdFieldMapper.NAME, doc.getId());
             Long oldVersion = doc.getVersion();
             context.put(VersionFieldMapper.NAME, oldVersion);
@@ -788,10 +762,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             Object newValue = context.remove(IndexFieldMapper.NAME);
             if (false == doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
-            }
-            newValue = context.remove(TypeFieldMapper.NAME);
-            if (false == doc.getType().equals(newValue)) {
-                scriptChangedType(request, newValue);
             }
             newValue = context.remove(IdFieldMapper.NAME);
             if (false == doc.getId().equals(newValue)) {
@@ -827,7 +797,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 taskWorker.countNoop();
                 return null;
             case DELETE:
-                RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getType(), request.getId()));
+                RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                 delete.setVersion(request.getVersion());
                 delete.setVersionType(VersionType.INTERNAL);
                 delete.setRouting(request.getRouting());
@@ -838,8 +808,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
 
         protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedType(RequestWrapper<?> request, Object to);
 
         protected abstract void scriptChangedId(RequestWrapper<?> request, Object to);
 

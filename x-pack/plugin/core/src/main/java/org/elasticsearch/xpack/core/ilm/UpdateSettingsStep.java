@@ -29,8 +29,15 @@ public class UpdateSettingsStep extends AsyncActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName()).settings(settings);
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName())
+            .masterNodeTimeout(getMasterTimeout(currentState))
+            .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest,
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }

@@ -1,5 +1,8 @@
 [[cluster-health]]
-=== Cluster Health
+=== Cluster health API
+++++
+<titleabbrev>Cluster health</titleabbrev>
+++++
 
 Returns the health status of a cluster.
 
@@ -28,11 +31,10 @@ wait for 50 seconds for the cluster to reach the `yellow` level (if it reaches
 the `green` or `yellow` status before 50 seconds elapse, it will return at that 
 point):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/health?wait_for_status=yellow&timeout=50s
 --------------------------------------------------
-// CONSOLE
 
 [[cluster-health-api-path-params]]
 ==== {api-path-parms-title}
@@ -89,7 +91,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     (string) The name of the cluster.
 
 `status`::
-    (string) The health status of the cluster.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
     (boolean) If `false` the response returned within the period of 
@@ -137,17 +139,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[cluster-health-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _cluster/health
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test1\n/]
 
 The API returns the following response in case of a quiet single node cluster 
 with a single index with one shard and one replica:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "cluster_name" : "testcluster",
@@ -174,9 +175,8 @@ with a single index with one shard and one replica:
 The following is an example of getting the cluster health at the
 `shards` level:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/health/twitter?level=shards
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

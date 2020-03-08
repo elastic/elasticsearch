@@ -34,11 +34,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-repositories-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/repositories?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]
 
 The API returns the following response:

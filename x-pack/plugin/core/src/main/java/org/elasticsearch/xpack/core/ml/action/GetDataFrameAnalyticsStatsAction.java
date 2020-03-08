@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
@@ -164,16 +165,20 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             private final List<PhaseProgress> progress;
 
             @Nullable
+            private final MemoryUsage memoryUsage;
+
+            @Nullable
             private final DiscoveryNode node;
             @Nullable
             private final String assignmentExplanation;
 
             public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, List<PhaseProgress> progress,
-                         @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
+                         @Nullable MemoryUsage memoryUsage, @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
                 this.progress = Objects.requireNonNull(progress);
+                this.memoryUsage = memoryUsage;
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
             }
@@ -186,6 +191,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     progress = readProgressFromLegacy(state, in);
                 } else {
                     progress = in.readList(PhaseProgress::new);
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    memoryUsage = in.readOptionalWriteable(MemoryUsage::new);
+                } else {
+                    memoryUsage = null;
                 }
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
@@ -209,6 +219,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     case REINDEXING:
                         reindexingProgress = legacyProgressPercent;
                         break;
+                    case STARTING:
                     case STARTED:
                     case STOPPED:
                     case STOPPING:
@@ -231,8 +242,25 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return state;
             }
 
+            public String getFailureReason() {
+                return failureReason;
+            }
+
             public List<PhaseProgress> getProgress() {
                 return progress;
+            }
+
+            @Nullable
+            public MemoryUsage getMemoryUsage() {
+                return memoryUsage;
+            }
+
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            public String getAssignmentExplanation() {
+                return assignmentExplanation;
             }
 
             @Override
@@ -253,6 +281,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
                 if (progress != null) {
                     builder.field("progress", progress);
+                }
+                if (memoryUsage != null) {
+                    builder.field("memory_usage", memoryUsage);
                 }
                 if (node != null) {
                     builder.startObject("node");
@@ -284,6 +315,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 } else {
                     out.writeList(progress);
                 }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    out.writeOptionalWriteable(memoryUsage);
+                }
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
             }
@@ -297,6 +331,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     case REINDEXING:
                         targetPhase = "reindexing";
                         break;
+                    case STARTING:
                     case STARTED:
                     case STOPPED:
                     case STOPPING:
@@ -315,7 +350,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
+                return Objects.hash(id, state, failureReason, progress, memoryUsage, node, assignmentExplanation);
             }
 
             @Override
@@ -330,6 +365,8 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return Objects.equals(id, other.id)
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.failureReason, other.failureReason)
+                        && Objects.equals(this.progress, other.progress)
+                        && Objects.equals(this.memoryUsage, other.memoryUsage)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }

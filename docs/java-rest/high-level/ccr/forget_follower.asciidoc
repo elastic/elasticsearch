@@ -3,7 +3,7 @@
 :request: ForgetFollowerRequest
 :response: BroadcastResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Forget Follower API
 

@@ -87,8 +87,10 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @InputFiles
     @SkipWhenEmpty
-    public FileCollection files() {
-        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()
+    public FileCollection getFiles() {
+        return getProject().getConvention()
+            .getPlugin(JavaPluginConvention.class)
+            .getSourceSets()
             .stream()
             .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
             .reduce(FileTree::plus)
@@ -99,10 +101,10 @@ public class ForbiddenPatternsTask extends DefaultTask {
     public void checkInvalidPatterns() throws IOException {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<String> failures = new ArrayList<>();
-        for (File f : files()) {
+        for (File f : getFiles()) {
             List<String> lines;
-            try(Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
-                    lines = stream.collect(Collectors.toList());
+            try (Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
+                lines = stream.collect(Collectors.toList());
             } catch (UncheckedIOException e) {
                 throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
             }
@@ -112,13 +114,17 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 .collect(Collectors.toList());
 
             String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
-            failures.addAll(invalidLines.stream()
-                .map(l -> new AbstractMap.SimpleEntry<>(l+1, lines.get(l)))
-                .flatMap(kv -> patterns.entrySet().stream()
-                    .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
-                    .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
-                )
-                .collect(Collectors.toList()));
+            failures.addAll(
+                invalidLines.stream()
+                    .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
+                    .flatMap(
+                        kv -> patterns.entrySet()
+                            .stream()
+                            .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
+                            .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
+                    )
+                    .collect(Collectors.toList())
+            );
         }
         if (failures.isEmpty() == false) {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
@@ -143,7 +149,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
         filesFilter.exclude(excludes);
     }
 
-    public void rule(Map<String,String> props) {
+    public void rule(Map<String, String> props) {
         String name = props.remove("name");
         if (name == null) {
             throw new InvalidUserDataException("Missing [name] for invalid pattern rule");
@@ -153,8 +159,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
             throw new InvalidUserDataException("Missing [pattern] for invalid pattern rule");
         }
         if (props.isEmpty() == false) {
-            throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: "
-                + props.keySet().toString());
+            throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: " + props.keySet().toString());
         }
         // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern);

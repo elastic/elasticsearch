@@ -7,16 +7,16 @@ dependencies {
   compile project(":test:framework")
 
   // JDBC testing dependencies
-  compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+  compile project(path: xpackModule('sql:jdbc'))
 
   compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
   // CLI testing dependencies
-  compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
-  
+  compile project(path: xpackModule('sql:sql-cli'))
+
   // H2GIS testing dependencies
-  compile ("org.orbisgis:h2gis:${h2gisVersion}") {
+  compile("org.orbisgis:h2gis:${h2gisVersion}") {
     exclude group: "org.locationtech.jts"
   }
 
@@ -47,9 +47,22 @@ forbiddenApisMain {
 thirdPartyAudit.enabled = false
 
 subprojects {
-  apply plugin: 'elasticsearch.standalone-rest-test'
+  if (subprojects.isEmpty()) {
+    // leaf project
+    apply plugin: 'elasticsearch.standalone-rest-test'
+  } else {
+    apply plugin: 'elasticsearch.build'
+  }
+
+  configurations.testRuntimeClasspath {
+    resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+  }
+  configurations.testRuntime {
+    // This is also required to make resolveAllDependencies work
+    resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+  }
   dependencies {
-    
+
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
@@ -64,11 +77,12 @@ subprojects {
     testRuntime "com.h2database:h2:${h2Version}"
 
     // H2GIS testing dependencies
-    testRuntime ("org.orbisgis:h2gis:${h2gisVersion}") {
-        exclude group: "org.locationtech.jts"
+    testRuntime("org.orbisgis:h2gis:${h2gisVersion}") {
+      exclude group: "org.locationtech.jts"
+      exclude group: "com.fasterxml.jackson.core"
     }
-  
-    testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+
+    testRuntime project(path: xpackModule('sql:jdbc'))
     testRuntime xpackProject('plugin:sql:sql-client')
 
     // TODO check if needed
@@ -77,8 +91,8 @@ subprojects {
     }
 
     // CLI testing dependencies
-    testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
-    testRuntime (xpackProject('plugin:sql:sql-action')) {
+    testRuntime project(path: xpackModule('sql:sql-cli'))
+    testRuntime(xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }
 

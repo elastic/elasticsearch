@@ -35,10 +35,19 @@ public final class GroupShardsIterator<ShardIt extends ShardIterator> implements
     private final List<ShardIt> iterators;
 
     /**
-     * Constructs a enw GroupShardsIterator from the given list.
+     * Constructs a new sorted GroupShardsIterator from the given list. Items are sorted based on their natural ordering.
+     * @see PlainShardIterator#compareTo(ShardIterator)
+     * @see org.elasticsearch.action.search.SearchShardIterator#compareTo(ShardIterator)
+     */
+    public static <ShardIt extends ShardIterator> GroupShardsIterator<ShardIt> sortAndCreate(List<ShardIt> iterators) {
+        CollectionUtil.timSort(iterators);
+        return new GroupShardsIterator<>(iterators);
+    }
+
+    /**
+     * Constructs a new GroupShardsIterator from the given list.
      */
     public GroupShardsIterator(List<ShardIt> iterators) {
-        CollectionUtil.timSort(iterators);
         this.iterators = iterators;
     }
 

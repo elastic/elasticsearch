@@ -29,6 +29,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,8 @@ import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
@@ -130,7 +133,11 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        FilterScript.Factory factory = context.getScriptService().compile(script, FilterScript.CONTEXT);
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[script] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+        FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
         FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
         return new ScriptQuery(script, filterScript);
     }

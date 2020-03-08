@@ -3,7 +3,7 @@
 
 Returns a version for each search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -13,4 +13,3 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE

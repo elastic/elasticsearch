@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
@@ -36,7 +37,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -76,10 +76,46 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(result.name(), equalTo("name"));
     }
 
+    public void testToQueryFails() {
+        QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, null);
+        Exception exc = expectThrows(Exception.class,
+            () -> context.toQuery(new AbstractQueryBuilder() {
+                @Override
+                public String getWriteableName() {
+                    return null;
+                }
+
+                @Override
+                protected void doWriteTo(StreamOutput out) throws IOException {
+
+                }
+
+                @Override
+                protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+                }
+
+                @Override
+                protected Query doToQuery(QueryShardContext context) throws IOException {
+                    throw new RuntimeException("boom");
+                }
+
+                @Override
+                protected boolean doEquals(AbstractQueryBuilder other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            }));
+        assertThat(exc.getMessage(), equalTo("failed to create query: boom"));
+    }
+
     public void testClusterAlias() throws IOException {
         final String clusterAlias = randomBoolean() ? null : "remote_cluster";
         QueryShardContext context = createQueryShardContext(IndexMetaData.INDEX_UUID_NA_VALUE, clusterAlias);
-
 
         Mapper.BuilderContext ctx = new Mapper.BuilderContext(context.getIndexSettings().getSettings(), new ContentPath());
         IndexFieldMapper mapper = new IndexFieldMapper.Builder(null).build(ctx);
@@ -88,21 +124,6 @@ public class QueryShardContextTests extends ESTestCase {
         String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetaData().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
         assertEquals(expected, ((AbstractAtomicOrdinalsFieldData)forField.load(null)).getOrdinalsValues().lookupOrd(0).utf8ToString());
-        Query query = mapper.fieldType().termQuery("index", context);
-        if (clusterAlias == null) {
-            assertEquals(Queries.newMatchAllQuery(), query);
-        } else {
-            assertThat(query, Matchers.instanceOf(MatchNoDocsQuery.class));
-        }
-        query = mapper.fieldType().termQuery("remote_cluster:index", context);
-        if (clusterAlias != null) {
-            assertEquals(Queries.newMatchAllQuery(), query);
-        } else {
-            assertThat(query, Matchers.instanceOf(MatchNoDocsQuery.class));
-        }
-
-        query = mapper.fieldType().termQuery("something:else", context);
-        assertThat(query, Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testGetFullyQualifiedIndex() {
@@ -128,9 +149,10 @@ public class QueryShardContextTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
 
         return new QueryShardContext(
-            0, indexSettings, null, null, (mappedFieldType, idxName) ->
-            mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null)
-            , mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()), null, null,
-            () -> nowInMillis, clusterAlias);
+            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+                (mappedFieldType, idxName) ->
+                    mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
+                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true);
     }
 }

@@ -171,6 +171,23 @@ public class ActionListenerTests extends ESTestCase {
         }
     }
 
+    public void testRunBefore() {
+        {
+            AtomicBoolean afterSuccess = new AtomicBoolean();
+            ActionListener<Object> listener =
+                ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterSuccess.set(true));
+            listener.onResponse(null);
+            assertThat(afterSuccess.get(), equalTo(true));
+        }
+        {
+            AtomicBoolean afterFailure = new AtomicBoolean();
+            ActionListener<Object> listener =
+                ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterFailure.set(true));
+            listener.onFailure(null);
+            assertThat(afterFailure.get(), equalTo(true));
+        }
+    }
+
     public void testNotifyOnce() {
         AtomicInteger onResponseTimes = new AtomicInteger();
         AtomicInteger onFailureTimes = new AtomicInteger();
@@ -216,5 +233,81 @@ public class ActionListenerTests extends ESTestCase {
         ActionListener.completeWith(onFailureListener, () -> { throw new IOException("not found"); });
         assertThat(onFailureListener.isDone(), equalTo(true));
         assertThat(expectThrows(ExecutionException.class, onFailureListener::get).getCause(), instanceOf(IOException.class));
+
+        AtomicReference<Exception> exReference = new AtomicReference<>();
+        ActionListener<String> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                if (s == null) {
+                    throw new IllegalArgumentException("simulate onResponse exception");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exReference.set(e);
+                if (e instanceof IllegalArgumentException) {
+                    throw (IllegalArgumentException) e;
+                }
+            }
+        };
+
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> null));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertNull(exReference.get());
+
+        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener,
+            () -> { throw new IllegalArgumentException(); }));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+    }
+
+    /**
+     * Test that map passes the output of the function to its delegate listener and that exceptions in the function are propagated to the
+     * onFailure handler. Also verify that exceptions from ActionListener.onResponse does not invoke onFailure, since it is the
+     * responsibility of the ActionListener implementation (the client of the API) to handle exceptions in onResponse and onFailure.
+     */
+    public void testMap() {
+        AtomicReference<Exception> exReference = new AtomicReference<>();
+
+        ActionListener<String> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(String s) {
+                if (s == null) {
+                    throw new IllegalArgumentException("simulate onResponse exception");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exReference.set(e);
+                if (e instanceof IllegalArgumentException) {
+                    throw (IllegalArgumentException) e;
+                }
+            }
+        };
+        ActionListener<Boolean> mapped = ActionListener.map(listener, b -> {
+            if (b == null) {
+                return null;
+            } else if (b) {
+                throw new IllegalStateException("simulate map function exception");
+            } else {
+                return b.toString();
+            }
+        });
+
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> mapped.onResponse(null));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertNull(exReference.get());
+        mapped.onResponse(false);
+        assertNull(exReference.get());
+        mapped.onResponse(true);
+        assertThat(exReference.get(), instanceOf(IllegalStateException.class));
+
+        assertionError = expectThrows(AssertionError.class, () -> mapped.onFailure(new IllegalArgumentException()));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+        mapped.onFailure(new IllegalStateException());
+        assertThat(exReference.get(), instanceOf(IllegalStateException.class));
     }
 }

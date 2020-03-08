@@ -23,6 +23,6 @@ esplugin {
 }
 
 dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.3"
+  compile "com.github.spullara.mustache.java:compiler:0.9.6"
 }
 

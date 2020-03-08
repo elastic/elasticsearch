@@ -1,5 +1,8 @@
 [[cluster-update-settings]]
-=== Cluster Update Settings
+=== Cluster update settings API
+++++
+<titleabbrev>Cluster update settings</titleabbrev>
+++++
 
 Updates cluster-wide settings. 
 
@@ -58,7 +61,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 An example of a persistent update:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -67,12 +70,11 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 An example of a transient update:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings?flat_settings=true
 {
@@ -81,13 +83,12 @@ PUT /_cluster/settings?flat_settings=true
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 The response to an update returns the changed setting, as in this response to 
 the transient example:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -102,7 +103,7 @@ the transient example:
 
 This example resets a setting:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -111,12 +112,11 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 The response does not include settings that have been reset:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -130,7 +130,7 @@ The response does not include settings that have been reset:
 You can also reset settings using wildcards. For example, to reset
 all dynamic `indices.recovery` settings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -139,5 +139,3 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
-

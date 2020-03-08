@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 tableAlias
 SELECT emp_no, first_name FROM test_alias ORDER BY emp_no LIMIT 6;
 

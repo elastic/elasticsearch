@@ -3,6 +3,7 @@
 :request: GetCalendarsRequest
 :response: GetCalendarsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get calendars API
 Retrieves one or more calendar objects.

@@ -6,7 +6,6 @@ setup:
 
   - do:
       indices.create:
-        include_type_name: false
         index: test-index
         body:
           settings:
@@ -53,7 +52,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "l1norm(params.query_vector, doc['my_dense_vector'])"
+                source: "l1norm(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 
@@ -65,7 +64,7 @@ setup:
 
   - match: {hits.hits.1._id: "2"}
   - gte: {hits.hits.1._score: 12.29}
-  - lte: {hits.hits.1._score: 12.30}
+  - lte: {hits.hits.1._score: 12.31}
 
   - match: {hits.hits.2._id: "3"}
   - gte: {hits.hits.2._score: 0.00}
@@ -83,7 +82,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "l2norm(params.query_vector, doc['my_dense_vector'])"
+                source: "l2norm(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 

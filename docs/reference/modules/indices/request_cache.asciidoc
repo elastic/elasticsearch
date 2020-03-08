@@ -21,6 +21,9 @@ but it will cache `hits.total`,  <<search-aggregations,aggregations>>, and
 <<search-suggesters,suggestions>>.
 
 Most queries that use `now` (see <<date-math>>) cannot be cached.
+
+Scripted queries that use the API calls which are non-deterministic, such as
+`Math.random()` or `new Date()` are not cached.
 ===================================
 
 [float]
@@ -40,11 +43,10 @@ evicted.
 
 The cache can be expired manually with the <<indices-clearcache,`clear-cache` API>>:
 
-[source,js]
+[source,console]
 ------------------------
 POST /kimchy,elasticsearch/_cache/clear?request=true
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [float]
@@ -53,7 +55,7 @@ POST /kimchy,elasticsearch/_cache/clear?request=true
 The cache is enabled by default, but can be disabled when creating a new
 index as follows:
 
-[source,js]
+[source,console]
 -----------------------------
 PUT /my_index
 {
@@ -62,17 +64,15 @@ PUT /my_index
   }
 }
 -----------------------------
-// CONSOLE
 
 It can also be enabled or disabled dynamically on an existing index with the
 <<indices-update-settings,`update-settings`>> API:
 
-[source,js]
+[source,console]
 -----------------------------
 PUT /my_index/_settings
 { "index.requests.cache.enable": true }
 -----------------------------
-// CONSOLE
 // TEST[continued]
 
 
@@ -82,7 +82,7 @@ PUT /my_index/_settings
 The `request_cache` query-string parameter can be used to enable or disable
 caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
-[source,js]
+[source,console]
 -----------------------------
 GET /my_index/_search?request_cache=true
 {
@@ -96,12 +96,7 @@ GET /my_index/_search?request_cache=true
   }
 }
 -----------------------------
-// CONSOLE
 // TEST[continued]
-
-IMPORTANT: If your query uses a script whose result is not deterministic (e.g.
-it uses a random function or references the current time) you should set the
-`request_cache` flag to `false` to disable caching for that request.
 
 Requests where `size` is greater than 0 will not be cached even if the request cache is
 enabled in the index settings. To cache these requests you will need to use the
@@ -140,16 +135,14 @@ setting is provided for completeness' sake only.
 The size of the cache (in bytes) and the number of evictions can be viewed
 by index, with the <<indices-stats,`indices-stats`>> API:
 
-[source,js]
+[source,console]
 ------------------------
 GET /_stats/request_cache?human
 ------------------------
-// CONSOLE
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
-[source,js]
+[source,console]
 ------------------------
 GET /_nodes/stats/indices/request_cache?human
 ------------------------
-// CONSOLE

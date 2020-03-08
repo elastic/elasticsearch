@@ -9,7 +9,7 @@ CREATE TABLE mock (
   SELF_REFERENCING_COL_NAME VARCHAR,
   REF_GENERATION VARCHAR
 ) AS
-SELECT '', 'test1', 'BASE TABLE', '', null, null, null, null, null FROM DUAL
+SELECT null, 'test1', 'BASE TABLE', '', null, null, null, null, null FROM DUAL
 UNION ALL
-SELECT '', 'test2', 'BASE TABLE', '', null, null, null, null, null FROM DUAL
+SELECT null, 'test2', 'BASE TABLE', '', null, null, null, null, null FROM DUAL
 ;

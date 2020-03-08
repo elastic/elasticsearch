@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -118,8 +119,7 @@ public class AggregatorFactories {
                                     + aggregationName + "]: [" + aggBuilder.getType() + "] and [" + fieldName + "]");
                         }
 
-                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
-                                new AggParseContext(aggregationName));
+                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["
@@ -150,17 +150,6 @@ public class AggregatorFactories {
         return factories;
     }
 
-    /**
-     * Context to parse and aggregation. This should eventually be removed and replaced with a String.
-     */
-    public static final class AggParseContext {
-        public final String name;
-
-        public AggParseContext(String name) {
-            this.name = name;
-        }
-    }
-
     public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0], new ArrayList<>());
 
     private AggregatorFactory[] factories;
@@ -187,7 +176,7 @@ public class AggregatorFactories {
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
      */
-    public Aggregator[] createSubAggregators(Aggregator parent) throws IOException {
+    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent) throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
             // TODO: sometimes even sub aggregations always get called with bucket 0, eg. if
@@ -195,7 +184,7 @@ public class AggregatorFactories {
             // propagate the fact that only bucket 0 will be collected with single-bucket
             // aggs
             final boolean collectsFromSingleBucket = false;
-            Aggregator factory = factories[i].create(parent, collectsFromSingleBucket);
+            Aggregator factory = factories[i].create(searchContext, parent, collectsFromSingleBucket);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
@@ -205,13 +194,13 @@ public class AggregatorFactories {
         return aggregators;
     }
 
-    public Aggregator[] createTopLevelAggregators() throws IOException {
+    public Aggregator[] createTopLevelAggregators(SearchContext searchContext) throws IOException {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
             // top-level aggs only get called with bucket 0
             final boolean collectsFromSingleBucket = true;
-            Aggregator factory = factories[i].create(null, collectsFromSingleBucket);
+            Aggregator factory = factories[i].create(searchContext, null, collectsFromSingleBucket);
             Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
@@ -314,7 +303,7 @@ public class AggregatorFactories {
             return this;
         }
 
-        public AggregatorFactories build(SearchContext context, AggregatorFactory parent) throws IOException {
+        public AggregatorFactories build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }
@@ -329,7 +318,7 @@ public class AggregatorFactories {
 
             int i = 0;
             for (AggregationBuilder agg : aggregationBuilders) {
-                aggFactories[i] = agg.build(context, parent);
+                aggFactories[i] = agg.build(queryShardContext, parent);
                 ++i;
             }
             return new AggregatorFactories(aggFactories, orderedpipelineAggregators);

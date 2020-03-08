@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -25,7 +26,7 @@ esplugin {
 }
 
 versions << [
-  'azure': '0.9.3',
+  'azure' : '0.9.3',
   'jersey': '1.13'
 ]
 
@@ -44,15 +45,15 @@ dependencies {
   compile "com.sun.jersey:jersey-client:${versions.jersey}"
   compile "com.sun.jersey:jersey-core:${versions.jersey}"
   compile "com.sun.jersey:jersey-json:${versions.jersey}"
-  compile 'org.codehaus.jettison:jettison:1.1' 
+  compile 'org.codehaus.jettison:jettison:1.1'
   compile 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
   compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
-  compile 'org.codehaus.jackson:jackson-xc:1.9.2'  
+  compile 'org.codehaus.jackson:jackson-xc:1.9.2'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell 
+  // and whitelist this hack in JarHell
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
@@ -69,17 +70,17 @@ task createKey(type: LoggedExec) {
     keystore.parentFile.mkdirs()
   }
   outputs.file(keystore).withPropertyName('keystoreFile')
-  executable = new File(project.runtimeJavaHome, 'bin/keytool')
+  executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
-          '-alias', 'test-node',
-          '-keystore', keystore,
-          '-keyalg', 'RSA',
-          '-keysize', '2048',
-          '-validity', '712',
-          '-dname', 'CN=' + host,
-          '-keypass', 'keypass',
-          '-storepass', 'keypass'
+    '-alias', 'test-node',
+    '-keystore', keystore,
+    '-keyalg', 'RSA',
+    '-keysize', '2048',
+    '-validity', '712',
+    '-dname', 'CN=' + host,
+    '-keypass', 'keypass',
+    '-storepass', 'keypass'
 }
 
 // add keystore to test classpath: it expects it there
@@ -100,7 +101,7 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   'javax.activation.ActivationDataFlavor',
   'javax.activation.DataContentHandler',
   'javax.activation.DataHandler',
@@ -109,36 +110,36 @@ thirdPartyAudit.ignoreMissingClasses (
   'javax.activation.FileTypeMap',
   'javax.activation.MimeType',
   'javax.activation.MimeTypeParseException',
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger', 
-  'org.eclipse.persistence.descriptors.ClassDescriptor', 
-  'org.eclipse.persistence.internal.oxm.MappingNodeValue', 
-  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder', 
-  'org.eclipse.persistence.internal.oxm.XPathFragment', 
-  'org.eclipse.persistence.internal.oxm.XPathNode', 
-  'org.eclipse.persistence.internal.queries.ContainerPolicy', 
-  'org.eclipse.persistence.jaxb.JAXBContext', 
-  'org.eclipse.persistence.jaxb.JAXBHelper', 
-  'org.eclipse.persistence.mappings.DatabaseMapping', 
-  'org.eclipse.persistence.mappings.converters.TypeConversionConverter', 
-  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping', 
-  'org.eclipse.persistence.oxm.XMLContext', 
-  'org.eclipse.persistence.oxm.XMLDescriptor', 
-  'org.eclipse.persistence.oxm.XMLField', 
-  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping', 
-  'org.eclipse.persistence.sessions.DatabaseSession', 
-  'org.jvnet.fastinfoset.VocabularyApplicationData', 
-  'org.jvnet.staxex.Base64Data', 
-  'org.jvnet.staxex.XMLStreamReaderEx', 
-  'org.jvnet.staxex.XMLStreamWriterEx', 
-  'org.osgi.framework.Bundle', 
-  'org.osgi.framework.BundleActivator', 
-  'org.osgi.framework.BundleContext', 
-  'org.osgi.framework.BundleEvent', 
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+  'org.eclipse.persistence.descriptors.ClassDescriptor',
+  'org.eclipse.persistence.internal.oxm.MappingNodeValue',
+  'org.eclipse.persistence.internal.oxm.TreeObjectBuilder',
+  'org.eclipse.persistence.internal.oxm.XPathFragment',
+  'org.eclipse.persistence.internal.oxm.XPathNode',
+  'org.eclipse.persistence.internal.queries.ContainerPolicy',
+  'org.eclipse.persistence.jaxb.JAXBContext',
+  'org.eclipse.persistence.jaxb.JAXBHelper',
+  'org.eclipse.persistence.mappings.DatabaseMapping',
+  'org.eclipse.persistence.mappings.converters.TypeConversionConverter',
+  'org.eclipse.persistence.mappings.foundation.AbstractCompositeDirectCollectionMapping',
+  'org.eclipse.persistence.oxm.XMLContext',
+  'org.eclipse.persistence.oxm.XMLDescriptor',
+  'org.eclipse.persistence.oxm.XMLField',
+  'org.eclipse.persistence.oxm.mappings.XMLCompositeCollectionMapping',
+  'org.eclipse.persistence.sessions.DatabaseSession',
+  'org.jvnet.fastinfoset.VocabularyApplicationData',
+  'org.jvnet.staxex.Base64Data',
+  'org.jvnet.staxex.XMLStreamReaderEx',
+  'org.jvnet.staxex.XMLStreamWriterEx',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
   'org.osgi.framework.SynchronousBundleListener',
-  'com.sun.xml.fastinfoset.stax.StAXDocumentParser', 
+  'com.sun.xml.fastinfoset.stax.StAXDocumentParser',
   'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
 )

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -61,7 +64,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         .indices("i1", "i2")
                         .privileges("read")
                         .grantedFields("body", "title")
-                        .query("{\"query\": {\"match_all\": {}}}")
+                        .query("{\"match_all\": {}}")
                         .build()
         };
         final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
@@ -82,7 +85,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
                 ", global=[{APPLICATION:manage:applications=app01,app02}]" +
                 ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]" +
-                ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
+                ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
                 ", runAs=[sudo], metadata=[{}]]"));
     }
@@ -94,7 +97,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         .privileges("read")
                         .grantedFields("body", "title")
                         .allowRestrictedIndices(randomBoolean())
-                        .query("{\"query\": {\"match_all\": {}}}")
+                        .query("{\"match_all\": {}}")
                         .build()
         };
         final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
@@ -136,7 +139,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 "\"p2\"]}, {\"names\": \"idx2\", \"allow_restricted_indices\": true, \"privileges\": [\"p3\"], \"field_security\": " +
                 "{\"grant\": [\"f1\", \"f2\"]}}, {\"names\": " +
                 "\"idx2\", \"allow_restricted_indices\": false," +
-                "\"privileges\": [\"p3\"], \"field_security\": {\"grant\": [\"f1\", \"f2\"]}, \"query\": \"{\\\"match_all\\\": {}}\"}]}";
+                "\"privileges\": [\"p3\"], \"field_security\": {\"grant\": [\"f1\", \"f2\"]}, \"query\": {\"match_all\": {}} }]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
@@ -261,6 +264,18 @@ public class RoleDescriptorTests extends ESTestCase {
         assertNull(rd.getIndicesPrivileges()[0].getQuery());
     }
 
+    public void testParseNullQuery() throws Exception {
+        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], " +
+            "\"privileges\": [\"p1\", \"p2\"], \"query\": null}]}";
+        RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
+        assertEquals("test", rd.getName());
+        assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertNull(rd.getIndicesPrivileges()[0].getQuery());
+    }
+
     public void testParseEmptyQueryUsingDeprecatedIndicesField() throws Exception {
         String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], " +
                 "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
@@ -282,5 +297,32 @@ public class RoleDescriptorTests extends ESTestCase {
         assertNotNull(parsed);
         assertEquals(1, parsed.getTransientMetadata().size());
         assertEquals(true, parsed.getTransientMetadata().get("enabled"));
+    }
+
+    public void testParseIndicesPrivilegesSucceedsWhenExceptFieldsIsSubsetOfGrantedFields() throws IOException {
+        final boolean grantAll = randomBoolean();
+        final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
+        final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
+
+        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
+            "\"grant\" : [" + grant + "], \"except\" : [" + except + "] } }] }";
+        final RoleDescriptor rd = RoleDescriptor.parse("test",
+            new BytesArray(json), false, XContentType.JSON);
+        assertEquals("test", rd.getName());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[]{"idx1", "idx2"}, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals((grantAll) ? new String[]{"*"} : new String[]{"f1", "f2"}, rd.getIndicesPrivileges()[0].getGrantedFields());
+        assertArrayEquals((grantAll) ? new String[]{"_fx", "f8"} : new String[]{"f1"}, rd.getIndicesPrivileges()[0].getDeniedFields());
+    }
+
+    public void testParseIndicesPrivilegesFailsWhenExceptFieldsAreNotSubsetOfGrantedFields() {
+        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
+            "\"grant\" : [\"f1\",\"f2\"], \"except\" : [\"f3\"] } }] }";
+        final ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test",
+            new BytesArray(json), false, XContentType.JSON));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("must be a subset of the granted fields ")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
     }
 }

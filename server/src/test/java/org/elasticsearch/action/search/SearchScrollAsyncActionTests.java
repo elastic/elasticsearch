@@ -40,6 +40,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
+
 public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testSendRequestsToNodes() throws InterruptedException {
@@ -267,7 +270,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        assertEquals("IllegalStateException[node [node2] is not available]", shardSearchFailures[0].reason());
+        // .reason() returns the full stack trace
+        assertThat(shardSearchFailures[0].reason(), startsWith("java.lang.IllegalStateException: node [node2] is not available"));
 
         ScrollIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -345,7 +349,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        assertEquals("IllegalArgumentException[BOOM on shard]", shardSearchFailures[0].reason());
+        assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
         ScrollIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -431,7 +435,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(context.length, shardSearchFailures.length);
-        assertEquals("IllegalArgumentException[BOOM on shard]", shardSearchFailures[0].reason());
+        assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
         for (int i = 0; i < results.length(); i++) {
             assertNull(results.get(i));

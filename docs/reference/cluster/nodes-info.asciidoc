@@ -1,5 +1,8 @@
 [[cluster-nodes-info]]
-=== Nodes Info
+=== Nodes info API
+++++
+<titleabbrev>Nodes info</titleabbrev>
+++++
 
 Returns cluster nodes information.
 
@@ -158,7 +161,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[cluster-nodes-info-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # return just process
 GET /_nodes/process
@@ -175,7 +178,6 @@ GET /_nodes/nodeId1,nodeId2/info/jvm,process
 # return all the information of only nodeId1 and nodeId2
 GET /_nodes/nodeId1,nodeId2/_all
 --------------------------------------------------
-// CONSOLE
 
 The `_all` flag can be set to return all the information - or you can omit it.
 
@@ -186,16 +188,15 @@ The `_all` flag can be set to return all the information - or you can omit it.
 If `plugins` is specified, the result will contain details about the installed 
 plugins and modules:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_nodes/plugins
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": ...
@@ -258,16 +259,15 @@ The API returns the following response:
 If `ingest` is specified, the response contains details about the available 
 processors per node:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_nodes/ingest
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": ...

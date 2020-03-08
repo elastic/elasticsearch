@@ -19,25 +19,23 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a function reference.
  */
 public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     private final String type;
-
-    private CompilerSettings settings;
 
     private SFunction function;
     private FunctionRef ref;
@@ -50,25 +48,15 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        // do nothing
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(location, type, locals.getNextSyntheticName(),
-                Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true);
-        function.storeSettings(settings);
-        function.generateSignature(locals.getPainlessLookup());
-        function.extractVariables(null);
-        function.analyze(Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
-                function.parameters, 0, settings.getMaxLoopCounter()));
+        function = new SFunction(
+                location, type, scriptRoot.getNextSyntheticName("newarray"),
+                Collections.singletonList("int"), Collections.singletonList("size"),
+                new SBlock(location, Collections.singletonList(code)), true, true, true, false);
+        function.generateSignature(scriptRoot.getPainlessLookup());
+        function.analyze(scriptRoot);
+        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
 
         if (expected == null) {
             ref = null;
@@ -76,22 +64,23 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             defPointer = "Sthis." + function.name + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location, expected, "this", function.name, 0);
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+                    location, expected, "this", function.name, 0);
             actual = expected;
         }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        if (ref != null) {
-            writer.writeDebugInfo(location);
-            writer.invokeLambdaCall(ref);
-        } else {
-            // push a null instruction as a placeholder for future lambda instructions
-            writer.push((String)null);
-        }
+    NewArrayFuncRefNode write(ClassNode classNode) {
+        classNode.addFunctionNode(function.write(classNode));
 
-        globals.addSyntheticMethod(function);
+        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
+
+        newArrayFuncRefNode.setLocation(location);
+        newArrayFuncRefNode.setExpressionType(actual);
+        newArrayFuncRefNode.setFuncRef(ref);
+
+        return newArrayFuncRefNode;
     }
 
     @Override
@@ -100,8 +89,8 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[0]; // no captures
+    public List<Class<?>> getCaptures() {
+        return Collections.emptyList();
     }
 
     @Override

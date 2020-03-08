@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceIT extends ESIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .field("ip", "10.0.0." + value)
@@ -79,7 +79,7 @@ public class ShardReduceIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "ip", "type=ip",
+                .setMapping("nested", "type=nested", "ip", "type=ip",
                         "location", "type=geo_point", "term-s", "type=keyword"));
 
         indexRandom(true,

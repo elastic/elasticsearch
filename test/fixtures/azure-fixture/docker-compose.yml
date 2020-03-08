@@ -1,0 +1,10 @@
+version: '3'
+services:
+  azure-fixture:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "8091"

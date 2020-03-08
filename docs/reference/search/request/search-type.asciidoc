@@ -43,18 +43,17 @@ The request is processed in two phases. In the first phase, the query
 is forwarded to *all involved shards*. Each shard executes the search
 and generates a sorted list of results, local to that shard. Each
 shard returns *just enough information* to the coordinating node
-to allow it merge and re-sort the shard level results into a globally
+to allow it to merge and re-sort the shard level results into a globally
 sorted set of results, of maximum length `size`. 
 
 During the second phase, the coordinating node requests the document
 content (and highlighted snippets, if any) from *only the relevant
 shards*.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_search?search_type=query_then_fetch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 NOTE: This is the default setting, if you do not specify a `search_type`
@@ -69,9 +68,8 @@ Same as "Query Then Fetch", except for an initial scatter phase which
 goes and computes the distributed term frequencies for more accurate
 scoring.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_search?search_type=dfs_query_then_fetch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

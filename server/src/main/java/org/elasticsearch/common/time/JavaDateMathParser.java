@@ -28,14 +28,12 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -48,14 +46,14 @@ import java.util.function.LongSupplier;
 public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
-    private final DateTimeFormatter roundUpFormatter;
     private final String format;
+    private final JavaDateFormatter roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, DateTimeFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
         this.format = format;
+        this.roundupParser = roundupParser;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
-        this.roundUpFormatter = roundUpFormatter;
     }
 
     @Override
@@ -217,12 +215,12 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundUpFormatter::parse : this.formatter::parse;
+        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.apply(value)).toInstant();
+                return DateFormatters.from(formatter.parse(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.apply(value);
+                TemporalAccessor accessor = formatter.parse(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
                 if (zoneId != null) {
                     timeZone = zoneId;

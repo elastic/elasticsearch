@@ -7,8 +7,7 @@ flexible ways to analyze data for anomalies.
 
 When you create {anomaly-jobs}, you specify one or more detectors, which define
 the type of analysis that needs to be done. If you are creating your job by
-using {ml} APIs, you specify the functions in
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+using {ml} APIs, you specify the functions in detector configuration objects.
 If you are creating your job in {kib}, you specify the functions differently
 depending on whether you are creating single metric, multi-metric, or advanced
 jobs.

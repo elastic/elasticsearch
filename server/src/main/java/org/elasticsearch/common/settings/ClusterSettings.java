@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -65,12 +66,15 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -94,18 +98,22 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -175,7 +183,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS;
+    static {
+        final Set<Setting<?>> alwaysEnabled = Set.of(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
@@ -183,6 +193,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.THRESHOLD_SETTING,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+            DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
@@ -193,7 +204,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
             IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
             IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+            IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
+            IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
+            MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
             MetaData.SETTING_READ_ONLY_SETTING,
             MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
             MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
@@ -212,7 +226,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
@@ -226,6 +239,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
+            PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
             NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
             NetworkModule.HTTP_TYPE_SETTING,
@@ -262,6 +276,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
             HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
             HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+            HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
+            HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
             HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -279,15 +295,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
-            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-            RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-            RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
+            SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
             RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
+            ProxyConnectionStrategy.PROXY_ADDRESS,
+            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategy.SERVER_NAME,
+            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
+            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
             TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
             ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
             NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
@@ -374,6 +395,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_KEEPALIVE_SETTING,
             SearchService.KEEPALIVE_INTERVAL_SETTING,
             SearchService.MAX_KEEPALIVE_SETTING,
+            SearchService.ALLOW_EXPENSIVE_QUERIES,
             MultiBucketConsumerService.MAX_BUCKET_SETTING,
             SearchService.LOW_LEVEL_CANCELLATION_SETTING,
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
@@ -453,8 +475,19 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
             ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
-            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING);
+            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
+            HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING);
 
-    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+        if (Build.CURRENT.isSnapshot()) {
+            Set<Setting<?>> modifiable = new HashSet<>(alwaysEnabled);
+            modifiable.add(RestController.RESTRICT_SYSTEM_INDICES);
+            BUILT_IN_CLUSTER_SETTINGS = Set.copyOf(modifiable);
+        } else {
+            BUILT_IN_CLUSTER_SETTINGS = alwaysEnabled;
+        }
+    }
+
+    static final List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
 }

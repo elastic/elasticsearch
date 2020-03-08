@@ -23,18 +23,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,18 +41,13 @@ import java.util.Map;
 public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregationBuilder> {
     public static final String NAME = "max";
 
-    private static final ObjectParser<MaxAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<MaxAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, MaxAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(MaxAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new MaxAggregationBuilder(aggregationName), null);
-    }
-
     public MaxAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     protected MaxAggregationBuilder(MaxAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -69,7 +63,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      * Read from a stream.
      */
     public MaxAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
@@ -78,9 +72,9 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected MaxAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new MaxAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
+    protected MaxAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+                                              AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        return new MaxAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

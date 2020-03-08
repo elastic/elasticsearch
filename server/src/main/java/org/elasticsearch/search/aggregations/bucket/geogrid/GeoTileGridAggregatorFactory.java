@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -26,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,23 +42,27 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
+    private final GeoBoundingBox geoBoundingBox;
 
-    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-                                 int shardSize, SearchContext context, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData
-    ) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize,
+                                 int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
+                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                 Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.geoBoundingBox = geoBoundingBox;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize,
                 Collections.emptyList(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -66,13 +71,17 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoTileUtils::longEncode);
-        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
-                pipelineAggregators, metaData);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, GeoTileUtils::longEncode);
+        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+            searchContext, parent, pipelineAggregators, metaData);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -38,24 +39,25 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     MedianAbsoluteDeviationAggregatorFactory(String name,
                                                     ValuesSourceConfig<ValuesSource.Numeric> config,
-                                                    SearchContext context,
+                                                    QueryShardContext queryShardContext,
                                                     AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder,
                                                     Map<String, Object> metaData,
                                                     double compression) throws IOException {
 
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.compression = compression;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
-            context,
+            searchContext,
             parent,
             pipelineAggregators,
             metaData,
@@ -67,14 +69,15 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource,
-                                          Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
-            context,
+            searchContext,
             parent,
             pipelineAggregators,
             metaData,

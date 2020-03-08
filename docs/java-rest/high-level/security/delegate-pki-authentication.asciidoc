@@ -3,7 +3,7 @@
 :request: DelegatePkiAuthenticationRequest
 :response: DelegatePkiAuthenticationResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delegate PKI Authentication API
 

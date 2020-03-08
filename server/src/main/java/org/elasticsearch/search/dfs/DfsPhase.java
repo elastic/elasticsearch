@@ -21,7 +21,6 @@ package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -54,11 +53,11 @@ public class DfsPhase implements SearchPhase {
             Map<Term, TermStatistics> stats = new HashMap<>();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
                 @Override
-                public TermStatistics termStatistics(Term term, TermStates states) throws IOException {
+                public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }
-                    TermStatistics ts = super.termStatistics(term, states);
+                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
                     }
@@ -95,7 +94,7 @@ public class DfsPhase implements SearchPhase {
                     .fieldStatistics(fieldStatistics)
                     .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
+            throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
     }
 

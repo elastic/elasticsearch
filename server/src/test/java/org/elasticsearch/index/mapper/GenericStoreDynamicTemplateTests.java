@@ -34,14 +34,14 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-mapping.json");
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
 
         MapperService mapperService = index.mapperService();
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "person", "1", new BytesArray(json), XContentType.JSON));
-        client().admin().indices().preparePutMapping("test").setType("person")
+            new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
+        client().admin().indices().preparePutMapping("test")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
         Document doc = parsedDoc.rootDoc();
 
@@ -50,7 +50,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        MappedFieldType fieldType = mapperService.fullName("name");
+        MappedFieldType fieldType = mapperService.fieldType("name");
         assertThat(fieldType.stored(), equalTo(true));
 
         boolean stored = false;
@@ -59,7 +59,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         }
         assertTrue(stored);
 
-        fieldType = mapperService.fullName("age");
+        fieldType = mapperService.fieldType("age");
         assertThat(fieldType.stored(), equalTo(true));
     }
 }

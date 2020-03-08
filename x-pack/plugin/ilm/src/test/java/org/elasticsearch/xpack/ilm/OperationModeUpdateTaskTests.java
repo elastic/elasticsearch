@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.util.Collections;
 
@@ -58,7 +59,8 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
     private OperationMode executeUpdate(boolean metadataInstalled, OperationMode currentMode, OperationMode requestMode,
                                         boolean assertSameClusterState) {
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
-        SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(Collections.emptyMap(), currentMode);
+        SnapshotLifecycleMetadata snapshotLifecycleMetadata =
+            new SnapshotLifecycleMetadata(Collections.emptyMap(), currentMode, new SnapshotLifecycleStats());
         ImmutableOpenMap.Builder<String, MetaData.Custom> customsMapBuilder = ImmutableOpenMap.builder();
         MetaData.Builder metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build());
@@ -69,7 +71,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
                 .build());
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        OperationModeUpdateTask task = new OperationModeUpdateTask(requestMode);
+        OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
             assertSame(state, newState);

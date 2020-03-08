@@ -19,17 +19,17 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -48,14 +48,14 @@ public class FunctionRef {
     /**
      * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
      * @param painlessLookup the whitelist against which this script is being compiled
-     * @param localMethods user-defined and synthetic methods generated directly on the script class
+     * @param functionTable user-defined and synthetic methods generated directly on the script class
      * @param location the character number within the script at compile-time
      * @param targetClass functional interface type to implement.
      * @param typeName the left hand side of a method reference expression
      * @param methodName the right hand side of a method reference expression
      * @param numberOfCaptures number of captured arguments
      */
-    public static FunctionRef create(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods, Location location,
+    public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
             Class<?> targetClass, String typeName, String methodName, int numberOfCaptures) {
 
         Objects.requireNonNull(painlessLookup);
@@ -87,30 +87,30 @@ public class FunctionRef {
             int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
 
             if ("this".equals(typeName)) {
-                Objects.requireNonNull(localMethods);
+                Objects.requireNonNull(functionTable);
 
                 if (numberOfCaptures < 0) {
                     throw new IllegalStateException("internal error");
                 }
 
-                String localMethodKey = Locals.buildLocalMethodKey(methodName, numberOfCaptures + interfaceTypeParametersSize);
-                LocalMethod localMethod = localMethods.get(localMethodKey);
+                String localFunctionKey = FunctionTable.buildLocalFunctionKey(methodName, numberOfCaptures + interfaceTypeParametersSize);
+                LocalFunction localFunction = functionTable.getFunction(localFunctionKey);
 
-                if (localMethod == null) {
-                    throw new IllegalArgumentException("function reference [this::" + localMethodKey + "] " +
+                if (localFunction == null) {
+                    throw new IllegalArgumentException("function reference [this::" + localFunctionKey + "] " +
                             "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found" + (localMethodKey.contains("$") ? " due to an incorrect number of arguments" : "")
+                            "not found" + (localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : "")
                     );
                 }
 
                 delegateClassName = CLASS_NAME;
                 isDelegateInterface = false;
                 delegateInvokeType = H_INVOKESTATIC;
-                delegateMethodName = localMethod.name;
-                delegateMethodType = localMethod.methodType;
+                delegateMethodName = localFunction.getFunctionName();
+                delegateMethodType = localFunction.getMethodType();
 
-                delegateMethodReturnType = localMethod.returnType;
-                delegateMethodParameters = localMethod.typeParameters;
+                delegateMethodReturnType = localFunction.getReturnType();
+                delegateMethodParameters = localFunction.getTypeParameters();
             } else if ("new".equals(methodName)) {
                 if (numberOfCaptures != 0) {
                     throw new IllegalStateException("internal error");

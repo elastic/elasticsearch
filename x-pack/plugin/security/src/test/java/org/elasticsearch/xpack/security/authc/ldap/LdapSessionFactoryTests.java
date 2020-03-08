@@ -63,7 +63,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put("path.home", createTempDir())
             .putList(RealmSettings.realmSslPrefix(REALM_IDENTIFIER) + "certificate_authorities", ldapCaPath.toString())
             .build();
-        sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        sslService = new SSLService(TestEnvironment.newEnvironment(globalSettings));
         threadPool = new TestThreadPool("LdapSessionFactoryTests thread pool");
     }
 
@@ -87,7 +87,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "1ms")
                 .put("path.home", createTempDir())
                 .build();
 
@@ -239,6 +239,9 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * (one failure, one success) depending on which file content is in place.
      */
     public void testSslTrustIsReloaded() throws Exception {
+        assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
+            "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
+            inFipsJvm());
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         InetAddress listenAddress = ldapServer.getListenAddress("ldaps");
         if (listenAddress == null) {

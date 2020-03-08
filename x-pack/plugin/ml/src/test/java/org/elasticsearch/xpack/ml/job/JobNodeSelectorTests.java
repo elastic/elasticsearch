@@ -175,9 +175,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         int currentlyRunningJobsPerNode = randomIntBetween(1, 100);
         int maxRunningJobsPerNode = currentlyRunningJobsPerNode + 1;
         // Be careful if changing this - in order for the error message to be exactly as expected
-        // the value here must divide exactly into (JOB_MEMORY_REQUIREMENT.getBytes() * 100)
-        int maxMachineMemoryPercent = 40;
-        long machineMemory = currentlyRunningJobsPerNode * JOB_MEMORY_REQUIREMENT.getBytes() * 100 / maxMachineMemoryPercent;
+        // the value here must divide exactly into both (JOB_MEMORY_REQUIREMENT.getBytes() * 100) and
+        // MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
+        int maxMachineMemoryPercent = 20;
+        long currentlyRunningJobMemory = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() +
+            currentlyRunningJobsPerNode * JOB_MEMORY_REQUIREMENT.getBytes();
+        long machineMemory = currentlyRunningJobMemory * 100 / maxMachineMemoryPercent;
 
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
@@ -193,9 +196,54 @@ public class JobNodeSelectorTests extends ESTestCase {
             jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
-            + "Available memory for ML [" + (machineMemory * maxMachineMemoryPercent / 100) + "], memory required by existing jobs ["
-            + (JOB_MEMORY_REQUIREMENT.getBytes() * currentlyRunningJobsPerNode) + "], estimated memory required for this job ["
-            + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
+            + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
+            + currentlyRunningJobMemory + "], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
+    }
+
+    public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_givenTaskHasNullState() {
+        int numNodes = randomIntBetween(1, 10);
+        int maxRunningJobsPerNode = 10;
+        int maxMachineMemoryPercent = 30;
+
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
+
+        ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 1, JobState.OPENED, null);
+
+        String dataFrameAnalyticsId = "data_frame_analytics_id_new";
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
+            node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, dataFrameAnalyticsId));
+        PersistentTasksCustomMetaData.Assignment result =
+            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+        assertNotNull(result.getExecutorNode());
+    }
+
+    public void testSelectLeastLoadedMlNodeForAnomalyDetectorJob_firstJobTooBigMemoryLimiting() {
+        int numNodes = randomIntBetween(1, 10);
+        int maxRunningJobsPerNode = randomIntBetween(1, 100);
+        int maxMachineMemoryPercent = 20;
+        long firstJobTotalMemory = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + JOB_MEMORY_REQUIREMENT.getBytes();
+        long machineMemory = (firstJobTotalMemory - 1) * 100 / maxMachineMemoryPercent;
+
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+
+        ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 0);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker,
+            0, node -> TransportOpenJobAction.nodeFilter(node, job));
+        PersistentTasksCustomMetaData.Assignment result =
+            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+        assertNull(result.getExecutorNode());
+        assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
+            + "Available memory for ML [" + (firstJobTotalMemory - 1)
+            + "], memory required by existing jobs [0], estimated memory required for this job [" + firstJobTotalMemory + "]"));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_maxCapacityMemoryLimiting() {
@@ -203,9 +251,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         int currentlyRunningJobsPerNode = randomIntBetween(1, 100);
         int maxRunningJobsPerNode = currentlyRunningJobsPerNode + 1;
         // Be careful if changing this - in order for the error message to be exactly as expected
-        // the value here must divide exactly into (JOB_MEMORY_REQUIREMENT.getBytes() * 100)
-        int maxMachineMemoryPercent = 40;
-        long machineMemory = currentlyRunningJobsPerNode * JOB_MEMORY_REQUIREMENT.getBytes() * 100 / maxMachineMemoryPercent;
+        // the value here must divide exactly into both (JOB_MEMORY_REQUIREMENT.getBytes() * 100) and
+        // MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
+        int maxMachineMemoryPercent = 20;
+        long currentlyRunningJobMemory = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() +
+            currentlyRunningJobsPerNode * JOB_MEMORY_REQUIREMENT.getBytes();
+        long machineMemory = currentlyRunningJobMemory * 100 / maxMachineMemoryPercent;
 
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
@@ -222,9 +273,34 @@ public class JobNodeSelectorTests extends ESTestCase {
             jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
-            + "Available memory for ML [" + (machineMemory * maxMachineMemoryPercent / 100) + "], memory required by existing jobs ["
-            + (JOB_MEMORY_REQUIREMENT.getBytes() * currentlyRunningJobsPerNode) + "], estimated memory required for this job ["
-            + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
+            + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
+            + currentlyRunningJobMemory + "], estimated memory required for this job [" + JOB_MEMORY_REQUIREMENT.getBytes() + "]"));
+    }
+
+    public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_firstJobTooBigMemoryLimiting() {
+        int numNodes = randomIntBetween(1, 10);
+        int maxRunningJobsPerNode = randomIntBetween(1, 100);
+        int maxMachineMemoryPercent = 20;
+        long firstJobTotalMemory = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + JOB_MEMORY_REQUIREMENT.getBytes();
+        long machineMemory = (firstJobTotalMemory - 1) * 100 / maxMachineMemoryPercent;
+
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+
+        ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 0);
+
+        String dataFrameAnalyticsId = "data_frame_analytics_id1000";
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
+            node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, dataFrameAnalyticsId));
+        PersistentTasksCustomMetaData.Assignment result =
+            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+        assertNull(result.getExecutorNode());
+        assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
+            + "Available memory for ML [" + (firstJobTotalMemory - 1)
+            + "], memory required by existing jobs [0], estimated memory required for this job [" + firstJobTotalMemory + "]"));
     }
 
     public void testSelectLeastLoadedMlNode_noMlNodes() {
@@ -524,6 +600,12 @@ public class JobNodeSelectorTests extends ESTestCase {
 
     private ClusterState.Builder fillNodesWithRunningJobs(Map<String, String> nodeAttr, int numNodes, int numRunningJobsPerNode) {
 
+        return fillNodesWithRunningJobs(nodeAttr, numNodes, numRunningJobsPerNode, JobState.OPENED, DataFrameAnalyticsState.STARTED);
+    }
+
+    private ClusterState.Builder fillNodesWithRunningJobs(Map<String, String> nodeAttr, int numNodes, int numRunningJobsPerNode,
+                                                          JobState anomalyDetectionJobState, DataFrameAnalyticsState dfAnalyticsJobState) {
+
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         String[] jobIds = new String[numNodes * numRunningJobsPerNode];
@@ -536,10 +618,10 @@ public class JobNodeSelectorTests extends ESTestCase {
                 // Both anomaly detector jobs and data frame analytics jobs should count towards the limit
                 if (randomBoolean()) {
                     jobIds[id] = "job_id" + id;
-                    TransportOpenJobActionTests.addJobTask(jobIds[id], nodeId, JobState.OPENED, tasksBuilder);
+                    TransportOpenJobActionTests.addJobTask(jobIds[id], nodeId, anomalyDetectionJobState, tasksBuilder);
                 } else {
                     jobIds[id] = "data_frame_analytics_id" + id;
-                    addDataFrameAnalyticsJobTask(jobIds[id], nodeId, DataFrameAnalyticsState.STARTED, tasksBuilder);
+                    addDataFrameAnalyticsJobTask(jobIds[id], nodeId, dfAnalyticsJobState, tasksBuilder);
                 }
             }
         }
@@ -556,13 +638,13 @@ public class JobNodeSelectorTests extends ESTestCase {
 
     static void addDataFrameAnalyticsJobTask(String id, String nodeId, DataFrameAnalyticsState state,
                                              PersistentTasksCustomMetaData.Builder builder) {
-        addDataFrameAnalyticsJobTask(id, nodeId, state, builder, false);
+        addDataFrameAnalyticsJobTask(id, nodeId, state, builder, false, false);
     }
 
     static void addDataFrameAnalyticsJobTask(String id, String nodeId, DataFrameAnalyticsState state,
-                                             PersistentTasksCustomMetaData.Builder builder, boolean isStale) {
+                                             PersistentTasksCustomMetaData.Builder builder, boolean isStale, boolean allowLazyStart) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(id), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT),
+            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, Collections.emptyList(), allowLazyStart),
             new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
         if (state != null) {
             builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(id),

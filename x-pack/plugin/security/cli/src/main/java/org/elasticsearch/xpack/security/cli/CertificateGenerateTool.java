@@ -529,7 +529,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             terminal.println("      the certificate and private key will also be included in the output file.");
         }
         terminal.println("* Information about each instance");
-        terminal.println("    * An instance is any piece of the Elastic Stack that requires a SSL certificate.");
+        terminal.println("    * An instance is any piece of the Elastic Stack that requires an SSL certificate.");
         terminal.println("      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats");
         terminal.println("      may all require a certificate and private key.");
         terminal.println("    * The minimum required value for each instance is a name. This can simply be the");

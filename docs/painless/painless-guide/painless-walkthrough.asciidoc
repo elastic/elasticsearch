@@ -3,7 +3,7 @@
 
 To illustrate how Painless works, let's load some hockey stats into an Elasticsearch index:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 PUT hockey/_bulk?refresh
 {"index":{"_id":1}}
@@ -29,7 +29,6 @@ PUT hockey/_bulk?refresh
 {"index":{"_id":11}}
 {"first":"joe","last":"colborne","goals":[3,18,13],"assists":[6,20,24],"gp":[26,67,82],"born":"1990/01/30"}
 ----------------------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 [float]
@@ -39,7 +38,7 @@ Document values can be accessed from a `Map` named `doc`.
 
 For example, the following script calculates a player's total goals. This example uses a strongly typed `int` and a `for` loop.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET hockey/_search
 {
@@ -61,11 +60,10 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 Alternatively, you could do the same thing using a script field instead of a function score:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET hockey/_search
 {
@@ -88,12 +86,11 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
 `doc['first'].value` and `doc['last'].value`.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET hockey/_search
 {
@@ -112,7 +109,6 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 
 [float]
@@ -132,7 +128,7 @@ You can also easily update fields. You access the original source for a field as
 
 First, let's look at the source data for a player by submitting the following request:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET hockey/_search
 {
@@ -147,11 +143,10 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 To change player 1's last name to `hockey`, simply set `ctx._source.last` to the new value:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update/1
 {
@@ -164,12 +159,11 @@ POST hockey/_update/1
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 You can also add fields to a document. For example, this script adds a new field that contains
 the player's nickname,  _hockey_.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update/1
 {
@@ -186,7 +180,6 @@ POST hockey/_update/1
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 [float]
 [[modules-scripting-painless-dates]]
@@ -199,7 +192,7 @@ in a script, leave out the `get` prefix and continue with lowercasing the
 rest of the method name. For example, the following returns every hockey 
 player's birth year:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET hockey/_search
 {
@@ -212,7 +205,6 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 [float]
 [[modules-scripting-painless-regex]]
@@ -241,7 +233,7 @@ text matches, `false` otherwise.
 Using the find operator (`=~`) you can update all hockey players with "b" in
 their last name:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update_by_query
 {
@@ -257,12 +249,11 @@ POST hockey/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 Using the match operator (`==~`) you can update all the hockey players whose
 names start with a consonant and end with a vowel:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update_by_query
 {
@@ -278,12 +269,11 @@ POST hockey/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 You can use the `Pattern.matcher` directly to get a `Matcher` instance and
 remove all of the vowels in all of their last names:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update_by_query
 {
@@ -293,13 +283,12 @@ POST hockey/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 `Matcher.replaceAll` is just a call to Java's `Matcher`'s
 http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
 method so it supports `$1` and `\1` for replacements:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update_by_query
 {
@@ -309,7 +298,6 @@ POST hockey/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 If you need more control over replacements you can call `replaceAll` on a
 `CharSequence` with a `Function<Matcher, String>` that builds the replacement.
@@ -321,7 +309,7 @@ replacement is rude and will likely break the replacement process.
 
 This will make all of the vowels in the hockey player's last names upper case:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update_by_query
 {
@@ -334,12 +322,11 @@ POST hockey/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 Or you can use the `CharSequence.replaceFirst` to make the first vowel in their
 last names upper case:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST hockey/_update_by_query
 {
@@ -352,8 +339,6 @@ POST hockey/_update_by_query
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
-
 
 Note: all of the `_update_by_query` examples above could really do with a
 `query` to limit the data that they pull back. While you *could* use a

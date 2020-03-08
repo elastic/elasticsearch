@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -42,22 +41,8 @@ public class RestUpdateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateAction(controller());
-    }
-
-    public void testTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
-            .withPath("/some_index/some_type/some_id/_update")
-            .build();
-        dispatchRequest(deprecatedRequest);
-        assertWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE);
-
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
-            .withPath("/some_index/_update/some_id")
-            .build();
-        dispatchRequest(validRequest);
+        action = new RestUpdateAction();
+        controller().registerHandler(action);
     }
 
     public void testUpdateDocVersion() {

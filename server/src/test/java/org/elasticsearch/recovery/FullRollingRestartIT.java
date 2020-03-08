@@ -60,12 +60,12 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         final String healthTimeout = "1m";
 
         for (int i = 0; i < 1000; i++) {
-            client().prepareIndex("test", "type1", Long.toString(i))
+            client().prepareIndex("test").setId(Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
-            client().prepareIndex("test", "type1", Long.toString(i))
+            client().prepareIndex("test").setId(Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
 
@@ -142,7 +142,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))).get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Long.toString(i))
+            client().prepareIndex("test").setId(Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
         ensureGreen();

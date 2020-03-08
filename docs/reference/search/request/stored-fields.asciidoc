@@ -9,7 +9,7 @@ subsets of the original source document to be returned.
 Allows to selectively load specific stored fields for each document represented
 by a search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -19,14 +19,13 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 `*` can be used to load all stored fields from the document.
 
 An empty array will cause only the `_id` and `_type` for each hit to be
 returned, for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -36,7 +35,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 If the requested fields are not stored (`store` mapping set to `false`), they will be ignored.
 
@@ -58,7 +56,7 @@ must be used within an <<request-body-search-inner-hits, `inner_hits`>> block.
 
 To disable the stored fields (and metadata fields) entirely use: `_none_`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -68,7 +66,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: <<request-body-search-source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
 

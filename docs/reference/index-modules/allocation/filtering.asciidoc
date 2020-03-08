@@ -7,7 +7,7 @@ a particular index. These per-index filters are applied in conjunction with
 <<allocation-awareness, allocation awareness>>.
 
 Shard allocation filters can be based on custom node attributes or the built-in
-`_name`, `host_ip`, `publish_ip`, `_ip`, and `_host` attributes.
+`_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host` and `_id` attributes.
 <<index-lifecycle-management, Index lifecycle management>> uses filters based
 on custom node attributes to determine how to reallocate shards when moving
 between phases.
@@ -50,21 +50,20 @@ For example, to tell {es} to allocate shards from the `test` index to either
 `big` or `medium` nodes, use `index.routing.allocation.include`:
 +
 --
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
   "index.routing.allocation.include.size": "big,medium"
 }
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 If you specify multiple filters, all conditions must be satisfied for shards to
 be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
 you could specify:
 
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
@@ -72,7 +71,6 @@ PUT test/_settings
   "index.routing.allocation.include.rack": "rack1"
 }
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 --
 
@@ -103,15 +101,15 @@ The index allocation settings support the following built-in attributes:
 `_publish_ip`:: Match nodes by publish IP address
 `_ip`::         Match either `_host_ip` or `_publish_ip`
 `_host`::       Match nodes by hostname
+`_id`::         Match nodes by node id
 
 You can use wildcards when specifying attribute values, for example:
 
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]

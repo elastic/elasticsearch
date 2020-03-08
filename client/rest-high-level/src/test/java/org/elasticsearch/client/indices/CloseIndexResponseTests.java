@@ -51,7 +51,7 @@ public class CloseIndexResponseTests extends
     AbstractResponseTestCase<org.elasticsearch.action.admin.indices.close.CloseIndexResponse, CloseIndexResponse> {
 
     @Override
-    protected org.elasticsearch.action.admin.indices.close.CloseIndexResponse createServerTestInstance() {
+    protected org.elasticsearch.action.admin.indices.close.CloseIndexResponse createServerTestInstance(XContentType xContentType) {
         boolean acknowledged = true;
         final String[] indicesNames = generateRandomStringArray(10, 10, false, true);
 

@@ -87,7 +87,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         InternalRareTerms<A, B> referenceTerms = null;
         SetBackedScalingCuckooFilter filter = null;
@@ -138,7 +138,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                 addToFilter(filter, b);
             }
         }
-        CollectionUtil.introSort(rare, order.comparator(null));
+        CollectionUtil.introSort(rare, order.comparator());
         return createWithFilter(name, rare, filter);
     }
 

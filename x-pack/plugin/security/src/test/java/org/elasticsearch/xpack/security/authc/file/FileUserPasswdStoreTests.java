@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
@@ -53,7 +54,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-            .put("resource.reload.interval.high", "2s")
+            .put("resource.reload.interval.high", "100ms")
             .put("path.home", createTempDir())
             .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
                 "pbkdf2_50000"))
@@ -104,6 +105,20 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         watcherService.start();
 
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.append("\n");
+        }
+
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        if (latch.getCount() != 1) {
+            fail("Listener should not be called as users passwords are not changed.");
+        }
+
+        assertThat(store.userExists(username), is(true));
+        result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), is(user));
+
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
             writer.append("foobar:").append(new String(hasher.hash(new SecureString("barfoo"))));
         }
@@ -120,7 +135,9 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     private RealmConfig getRealmConfig() {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("file", "file-test");
-        return new RealmConfig(identifier, settings, env, threadPool.getThreadContext());
+        return new RealmConfig(identifier,
+            Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
+            env, threadPool.getThreadContext());
     }
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {

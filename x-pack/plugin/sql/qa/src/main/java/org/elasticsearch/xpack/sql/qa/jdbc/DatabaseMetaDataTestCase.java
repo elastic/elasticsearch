@@ -71,6 +71,24 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
         }
     }
 
+    public void testGetTablesForEmptyIndices() throws Exception {
+        DataLoader.createEmptyIndex(client(), "test_empty");
+        DataLoader.createEmptyIndex(client(), "test_empty_again");
+
+        try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
+            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_tables_empty.sql'");
+
+            CheckedSupplier<ResultSet, SQLException> all = () -> h2.createStatement()
+                    .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "te%", null));
+            assertResultSets(
+                    h2.createStatement()
+                            .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test_empty'"),
+                    es.getMetaData().getTables("%", "%", "test_empty", null));
+        }
+    }
+
     public void testGetTypeOfTables() throws Exception {
         index("test1", body -> body.field("name", "bob"));
         index("test2", body -> body.field("name", "bob"));
@@ -116,6 +134,15 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
         try (Connection h2 = LocalH2.anonymousDb();
                 Connection es = esJdbc()) {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_columns.sql'");
+
+            ResultSet expected = h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
+            assertResultSets(expected, es.getMetaData().getColumns(null, "%", "%", null));
+        }
+    }
+
+    public void testColumnsForEmptyTable() throws Exception {
+        try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
+            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_columns_empty.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
             assertResultSets(expected, es.getMetaData().getColumns(null, "%", "%", null));

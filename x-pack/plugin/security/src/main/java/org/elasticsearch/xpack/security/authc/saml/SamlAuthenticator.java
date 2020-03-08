@@ -68,7 +68,8 @@ class SamlAuthenticator extends SamlRequestHandler {
             try {
                 return authenticateResponse(root, token.getAllowedSamlRequestIds());
             } catch (ElasticsearchSecurityException e) {
-                logger.trace("Rejecting SAML response {} because {}", SamlUtils.toString(root), e.getMessage());
+                logger.trace("Rejecting SAML response [{}...] because {}", Strings.cleanTruncate(SamlUtils.toString(root), 512),
+                    e.getMessage());
                 throw e;
             }
         } else {
@@ -94,9 +95,9 @@ class SamlAuthenticator extends SamlRequestHandler {
         }
 
         if (Strings.hasText(response.getInResponseTo()) && allowedSamlRequestIds.contains(response.getInResponseTo()) == false) {
-            logger.debug("The SAML Response with ID {} is unsolicited. A user might have used a stale URL or the Identity Provider " +
+            logger.debug("The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider " +
                     "incorrectly populates the InResponseTo attribute", response.getID());
-            throw samlException("SAML content is in-response-to {} but expected one of {} ",
+            throw samlException("SAML content is in-response-to [{}] but expected one of {} ",
                     response.getInResponseTo(), allowedSamlRequestIds);
         }
 
@@ -126,8 +127,8 @@ class SamlAuthenticator extends SamlRequestHandler {
             logger.trace(sb.toString());
         }
         if (attributes.isEmpty() && nameId == null) {
-            logger.debug("The Attribute Statements of SAML Response with ID {} contained no attributes and the SAML Assertion Subject did" +
-                    "not contain a SAML NameID. Please verify that the Identity Provider configuration with regards to attribute " +
+            logger.debug("The Attribute Statements of SAML Response with ID [{}] contained no attributes and the SAML Assertion Subject " +
+                "did not contain a SAML NameID. Please verify that the Identity Provider configuration with regards to attribute " +
                     "release is correct. ", response.getID());
             throw samlException("Could not process any SAML attributes in {}", response.getElementQName());
         }
@@ -262,7 +263,7 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private void checkAuthnStatement(List<AuthnStatement> authnStatements) {
         if (authnStatements.size() != 1) {
-            throw samlException("SAML Assertion subject contains {} Authn Statements while exactly one was expected.",
+            throw samlException("SAML Assertion subject contains [{}] Authn Statements while exactly one was expected.",
                 authnStatements.size());
         }
         final AuthnStatement authnStatement = authnStatements.get(0);
@@ -322,7 +323,7 @@ class SamlAuthenticator extends SamlRequestHandler {
                 .filter(data -> data.getMethod().equals(METHOD_BEARER))
                 .map(SubjectConfirmation::getSubjectConfirmationData).filter(Objects::nonNull).collect(Collectors.toList());
         if (confirmationData.size() != 1) {
-            throw samlException("SAML Assertion subject contains {} bearer SubjectConfirmation, while exactly one was expected.",
+            throw samlException("SAML Assertion subject contains [{}] bearer SubjectConfirmation, while exactly one was expected.",
                     confirmationData.size());
         }
         if (logger.isTraceEnabled()) {
@@ -338,7 +339,7 @@ class SamlAuthenticator extends SamlRequestHandler {
     private void checkRecipient(SubjectConfirmationData subjectConfirmationData) {
         final SpConfiguration sp = getSpConfiguration();
         if (sp.getAscUrl().equals(subjectConfirmationData.getRecipient()) == false) {
-            throw samlException("SAML Assertion SubjectConfirmationData Recipient {} does not match expected value {}",
+            throw samlException("SAML Assertion SubjectConfirmationData Recipient [{}] does not match expected value [{}]",
                     subjectConfirmationData.getRecipient(), sp.getAscUrl());
         }
     }
@@ -347,7 +348,7 @@ class SamlAuthenticator extends SamlRequestHandler {
         // Allow for IdP initiated SSO where InResponseTo MUST be missing
         if (Strings.hasText(subjectConfirmationData.getInResponseTo())
                 && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {
-            throw samlException("SAML Assertion SubjectConfirmationData is in-response-to {} but expected one of {} ",
+            throw samlException("SAML Assertion SubjectConfirmationData is in-response-to [{}] but expected one of [{}]",
                     subjectConfirmationData.getInResponseTo(), allowedSamlRequestIds);
         }
     }

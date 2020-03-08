@@ -19,22 +19,21 @@ To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
 `kibana.yml`. To control how monitoring data is collected from
 Logstash, configure
-{logstash-ref}/configuring-logstash.html#monitoring-settings[`xpack.monitoring` settings]
+{logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
 in `logstash.yml`.
 
-For more information, see
-{xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
+For more information, see <<monitor-elasticsearch-cluster>>.
 
 [float]
 [[general-monitoring-settings]]
 ==== General Monitoring Settings
 
 `xpack.monitoring.enabled`::
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node. 
+Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
 +
 --
-NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled` 
-to `true`. Its default value is `false`. 
+NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled`
+to `true`. Its default value is `false`.
 --
 
 [float]
@@ -52,7 +51,7 @@ this setting is `false` (default), {es} monitoring data is not collected and
 all monitoring data from other sources such as {kib}, Beats, and Logstash is
 ignored.
 
-`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>):: 
+`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>)::
 
 Setting to `-1` to disable data collection is no longer supported beginning with
 7.0.0. deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to `false` instead.]
@@ -117,9 +116,9 @@ the `http` exporter will not be deleted automatically.
 Configures where the agent stores monitoring data. By default, the agent uses a
 local exporter that indexes monitoring data on the cluster where it is installed.
 Use an HTTP exporter to send data to a separate monitoring cluster. For more
-information, see <<local-exporter-settings,Local Exporter Settings>>,
-<<http-exporter-settings,HTTP Exporter Settings>>, and
-{xpack-ref}/how-monitoring-works.html[How Monitoring Works].
+information, see <<local-exporter-settings,Local exporter settings>>,
+<<http-exporter-settings,HTTP exporter settings>>, and
+<<how-monitoring-works>>.
 
 [float]
 [[local-exporter-settings]]
@@ -199,11 +198,17 @@ xpack.monitoring.exporters:
 
 `auth.username`::
 
-The username is required if a `auth.password` is supplied.
+The username is required if `auth.secure_password` or `auth.password` is supplied.
+
+`auth.secure_password` (<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)::
+
+The password for the `auth.username`. Takes precedence over `auth.password` if it is also specified.
 
 `auth.password`::
 
-The password for the `auth.username`.
+The password for the `auth.username`. If `auth.secure_password` is also specified, this setting is ignored.
+
+deprecated[7.7.0, Use `auth.secure_password` instead.]
 
 `connection.timeout`::
 

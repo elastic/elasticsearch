@@ -10,7 +10,7 @@ Though `from` and `size` can be set as request parameters, they can also
 be set within the search body. `from` defaults to `0`, and `size`
 defaults to `10`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -20,7 +20,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 Note that `from` + `size` can not be more than the `index.max_result_window`

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
 
 /**
  * Aggregation reference pointing to the (so called) global count, meaning

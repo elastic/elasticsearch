@@ -3,6 +3,7 @@
 :request: SetUpgradeModeRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Set Upgrade Mode API
 

@@ -37,6 +37,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -56,6 +57,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
+import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
@@ -78,6 +80,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
@@ -585,6 +588,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
+            follower0.allowClusterStateApplicationFailure();
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
@@ -604,6 +608,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
             final long startingTerm = leader.coordinator.getCurrentTerm();
 
+            leader.allowClusterStateApplicationFailure();
             leader.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing value");
@@ -989,16 +994,17 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster1.runRandomly();
             cluster1.stabilise();
 
-            final ClusterNode newNode;
+            final ClusterNode nodeInOtherCluster;
             try (Cluster cluster2 = new Cluster(3)) {
                 cluster2.runRandomly();
                 cluster2.stabilise();
 
-                final ClusterNode nodeInOtherCluster = randomFrom(cluster2.clusterNodes);
-                newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
-                    nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
-                    Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings);
+                nodeInOtherCluster = randomFrom(cluster2.clusterNodes);
             }
+
+            final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
+                nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
+                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings);
 
             cluster1.clusterNodes.add(newNode);
 
@@ -1047,7 +1053,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             partitionedNode.heal();
-            cluster.runRandomly(false);
+            cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
             cluster.stabilise();
         }
     }
@@ -1125,6 +1131,36 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster.runRandomly();
             cluster.stabilise();
+        }
+    }
+
+    public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
+        try (Cluster cluster = new Cluster(1, randomBoolean(), Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build())) {
+
+            // A cluster using single-node discovery should not apply any timeouts to joining or cluster state publication. There are no
+            // other options, so there's no point in failing and retrying from scratch no matter how badly disrupted we are and we may as
+            // well just wait.
+
+            // larger variability is are good for checking that we don't time out, but smaller variability also tightens up the time bound
+            // within which we expect to converge, so use a mix of both
+            final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
+            if (randomBoolean()) {
+                cluster.runRandomly(true, false, delayVariabilityMillis);
+            } else {
+                cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
+            }
+
+            final ClusterNode clusterNode = cluster.getAnyNode();
+
+            // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
+            // detection and ongoing publications do not time out
+            cluster.runFor(ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + delayVariabilityMillis
+                + 4 * delayVariabilityMillis // two round trips for pre-voting and voting
+                + 7 * delayVariabilityMillis, // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                "stabilising");
+
+            assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
         }
     }
 
@@ -1215,8 +1251,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 clusterNode.disconnect();
             }
 
-            cluster.runFor(defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING),
+            cluster.runFor(defaultMillis(LEADER_CHECK_TIMEOUT_SETTING) // to wait for any in-flight check to time out
+                    + defaultMillis(LEADER_CHECK_INTERVAL_SETTING) // to wait for the next check to be sent
+                    + 2 * DEFAULT_DELAY_VARIABILITY, // to send the failing check and receive the disconnection response
                 "waiting for leader failure");
+
+            for (final ClusterNode clusterNode : cluster.clusterNodes) {
+                assertThat(clusterNode.getId() + " is CANDIDATE", clusterNode.coordinator.getMode(), is(CANDIDATE));
+            }
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
                 final MockLogAppender mockLogAppender = new MockLogAppender();

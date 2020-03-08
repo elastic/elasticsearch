@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -31,6 +32,11 @@ public class RolloverStep extends AsyncActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());
@@ -49,6 +55,13 @@ public class RolloverStep extends AsyncActionStep {
             return;
         }
 
+        if (indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
+            logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
+                indexMetaData.getIndex().getName(), rolloverAlias);
+            listener.onResponse(true);
+            return;
+        }
+
         if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
@@ -57,7 +70,11 @@ public class RolloverStep extends AsyncActionStep {
         }
 
         // Calling rollover with no conditions will always roll over the index
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null)
+            .masterNodeTimeout(getMasterTimeout(currentClusterState));
+        // We don't wait for active shards when we perform the rollover because the
+        // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
+        rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";

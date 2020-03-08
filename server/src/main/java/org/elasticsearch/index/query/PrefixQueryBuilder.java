@@ -19,20 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -168,25 +168,41 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public String getWriteableName() {
         return NAME;
     }
+    
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        if (context != null) {
+            MappedFieldType fieldType = context.fieldMapper(this.fieldName);
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof ConstantFieldType) {
+                // This logic is correct for all field types, but by only applying it to constant
+                // fields we also have the guarantee that it doesn't perform I/O, which is important
+                // since rewrites might happen on a network thread.
+                Query query = fieldType.prefixQuery(value, null, context); // the rewrite method doesn't matter
+                if (query instanceof MatchAllDocsQuery) {
+                    return new MatchAllQueryBuilder();
+                } else if (query instanceof MatchNoDocsQuery) {
+                    return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                }
+            }
+        }
+
+        return super.doRewrite(queryRewriteContext);
+    }    
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            query = fieldType.prefixQuery(value, method, context);
+        if (fieldType == null) {
+            throw new IllegalStateException("Rewrite first");
         }
-        if (query == null) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
-            if (method != null) {
-                prefixQuery.setRewriteMethod(method);
-            }
-            query = prefixQuery;
-        }
-
-        return query;
+        return fieldType.prefixQuery(value, method, context);
     }
 
     @Override

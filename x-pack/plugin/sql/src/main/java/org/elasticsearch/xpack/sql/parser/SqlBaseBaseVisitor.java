@@ -192,6 +192,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitSelectItems(SqlBaseParser.SelectItemsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitSelectExpression(SqlBaseParser.SelectExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -242,6 +249,27 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitAliasedRelation(SqlBaseParser.AliasedRelationContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitPivotClause(SqlBaseParser.PivotClauseContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitPivotArgs(SqlBaseParser.PivotArgsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

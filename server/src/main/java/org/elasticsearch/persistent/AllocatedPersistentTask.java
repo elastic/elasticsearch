@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
@@ -37,13 +38,13 @@ import java.util.function.Predicate;
  */
 public class AllocatedPersistentTask extends CancellableTask {
 
+    private static final Logger logger = LogManager.getLogger(AllocatedPersistentTask.class);
     private final AtomicReference<State> state;
 
     private volatile String persistentTaskId;
     private volatile long allocationId;
     private volatile @Nullable Exception failure;
     private volatile PersistentTasksService persistentTasksService;
-    private volatile Logger logger;
     private volatile TaskManager taskManager;
 
     public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
@@ -85,10 +86,9 @@ public class AllocatedPersistentTask extends CancellableTask {
         return persistentTaskId;
     }
 
-    void init(PersistentTasksService persistentTasksService, TaskManager taskManager, Logger logger, String persistentTaskId, long
-            allocationId) {
+    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
+                        String persistentTaskId, long allocationId) {
         this.persistentTasksService = persistentTasksService;
-        this.logger = logger;
         this.taskManager = taskManager;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;

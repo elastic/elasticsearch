@@ -316,6 +316,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSelectItems(SqlBaseParser.SelectItemsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSelectItems(SqlBaseParser.SelectItemsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSelectExpression(SqlBaseParser.SelectExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -407,6 +419,42 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitAliasedRelation(SqlBaseParser.AliasedRelationContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPivotClause(SqlBaseParser.PivotClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPivotClause(SqlBaseParser.PivotClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPivotArgs(SqlBaseParser.PivotArgsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPivotArgs(SqlBaseParser.PivotArgsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

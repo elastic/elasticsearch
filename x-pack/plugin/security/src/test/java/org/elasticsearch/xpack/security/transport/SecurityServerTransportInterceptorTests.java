@@ -399,51 +399,50 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testContextRestoreResponseHandlerRestoreOriginalContext() throws Exception {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            threadContext.putTransient("foo", "bar");
-            threadContext.putHeader("key", "value");
-            TransportResponseHandler<Empty> handler;
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                threadContext.putTransient("foo", "different_bar");
-                threadContext.putHeader("key", "value2");
-                handler = new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true),
-                        new TransportResponseHandler<Empty>() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient("foo", "bar");
+        threadContext.putHeader("key", "value");
+        TransportResponseHandler<Empty> handler;
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putTransient("foo", "different_bar");
+            threadContext.putHeader("key", "value2");
+            handler = new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true),
+                    new TransportResponseHandler<Empty>() {
 
-                            @Override
-                            public Empty read(StreamInput in) {
-                                return Empty.INSTANCE;
-                            }
+                        @Override
+                        public Empty read(StreamInput in) {
+                            return Empty.INSTANCE;
+                        }
 
-                            @Override
-                            public void handleResponse(Empty response) {
-                                assertEquals("different_bar", threadContext.getTransient("foo"));
-                                assertEquals("value2", threadContext.getHeader("key"));
-                            }
+                        @Override
+                        public void handleResponse(Empty response) {
+                            assertEquals("different_bar", threadContext.getTransient("foo"));
+                            assertEquals("value2", threadContext.getHeader("key"));
+                        }
 
-                            @Override
-                            public void handleException(TransportException exp) {
-                                assertEquals("different_bar", threadContext.getTransient("foo"));
-                                assertEquals("value2", threadContext.getHeader("key"));
-                            }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            assertEquals("different_bar", threadContext.getTransient("foo"));
+                            assertEquals("value2", threadContext.getHeader("key"));
+                        }
 
-                            @Override
-                            public String executor() {
-                                return null;
-                            }
-                        });
-            }
-
-            assertEquals("bar", threadContext.getTransient("foo"));
-            assertEquals("value", threadContext.getHeader("key"));
-            handler.handleResponse(null);
-
-            assertEquals("bar", threadContext.getTransient("foo"));
-            assertEquals("value", threadContext.getHeader("key"));
-            handler.handleException(null);
-
-            assertEquals("bar", threadContext.getTransient("foo"));
-            assertEquals("value", threadContext.getHeader("key"));
+                        @Override
+                        public String executor() {
+                            return null;
+                        }
+                    });
         }
+
+        assertEquals("bar", threadContext.getTransient("foo"));
+        assertEquals("value", threadContext.getHeader("key"));
+        handler.handleResponse(null);
+
+        assertEquals("bar", threadContext.getTransient("foo"));
+        assertEquals("value", threadContext.getHeader("key"));
+        handler.handleException(null);
+
+        assertEquals("bar", threadContext.getTransient("foo"));
+        assertEquals("value", threadContext.getHeader("key"));
     }
 
     private String[] randomRoles() {

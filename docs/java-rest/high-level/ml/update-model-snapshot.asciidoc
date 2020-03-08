@@ -3,6 +3,7 @@
 :request: UpdateModelSnapshotRequest
 :response: UpdateModelSnapshotResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Update model snapshot API
 

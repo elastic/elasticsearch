@@ -226,7 +226,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -238,7 +238,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), e);
                 listener.onFailure(e);
             }
         });

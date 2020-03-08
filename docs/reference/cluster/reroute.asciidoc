@@ -1,5 +1,8 @@
 [[cluster-reroute]]
-=== Cluster Reroute
+=== Cluster reroute API
+++++
+<titleabbrev>Cluster reroute</titleabbrev>
+++++
 
 Changes the allocation of shards in a cluster.
 
@@ -173,7 +176,7 @@ will be deleted or overwritten.
 
 This is a short example of a simple reroute API call:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_cluster/reroute
 {
@@ -193,5 +196,4 @@ POST /_cluster/reroute
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:doc tests run with only a single node]

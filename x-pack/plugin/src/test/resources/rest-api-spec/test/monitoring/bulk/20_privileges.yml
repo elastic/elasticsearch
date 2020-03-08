@@ -77,6 +77,8 @@ teardown:
 "Monitoring Bulk API":
   - skip:
       features: catch_unauthorized
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
 
   - do:
       headers:

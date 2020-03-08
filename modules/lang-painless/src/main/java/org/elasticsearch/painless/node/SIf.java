@@ -19,16 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.IfNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an if block.
@@ -46,30 +43,12 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-
-        if (ifblock != null) {
-            ifblock.storeSettings(settings);
-        }
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
+        condition.analyze(scriptRoot, scope);
+        condition.cast();
 
-        if (condition.constant != null) {
+        if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -81,7 +60,7 @@ public final class SIf extends AStatement {
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        ifblock.analyze(Locals.newLocalScope(locals));
+        ifblock.analyze(scriptRoot, scope.newLocalScope());
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
@@ -89,19 +68,15 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    IfNode write(ClassNode classNode) {
+        IfNode ifNode = new IfNode();
 
-        Label fals = new Label();
+        ifNode.setConditionNode(condition.cast(condition.write(classNode)));
+        ifNode.setBlockNode(ifblock.write(classNode));
 
-        condition.write(writer, globals);
-        writer.ifZCmp(Opcodes.IFEQ, fals);
+        ifNode.setLocation(location);
 
-        ifblock.continu = continu;
-        ifblock.brake = brake;
-        ifblock.write(writer, globals);
-
-        writer.mark(fals);
+        return ifNode;
     }
 
     @Override

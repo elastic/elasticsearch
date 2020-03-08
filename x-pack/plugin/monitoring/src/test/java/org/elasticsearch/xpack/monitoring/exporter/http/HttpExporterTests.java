@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
@@ -19,6 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
+import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -39,13 +40,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -80,6 +87,114 @@ public class HttpExporterTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(nodes);
         // always let the watcher resources run for these tests; HttpExporterResourceTests tests it flipping on/off
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
+    }
+
+    public void testEmptyHostListDefault() {
+        runTestEmptyHostList(true);
+    }
+
+    public void testEmptyHostListExplicit() {
+        runTestEmptyHostList(false);
+    }
+
+    private void runTestEmptyHostList(final boolean useDefault) {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "http");
+        if (useDefault == false) {
+            builder.putList(prefix + ".host", Collections.emptyList());
+        }
+        final Settings settings = builder.build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(e, hasToString(containsString("Failed to parse value [[]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
+    }
+
+    public void testEmptyHostListOkayIfTypeNotSetDefault() {
+        runTestEmptyHostListOkayIfTypeNotSet(true);
+    }
+
+    public void testEmptyHostListOkayIfTypeNotSetExplicit() {
+        runTestEmptyHostListOkayIfTypeNotSet(true);
+    }
+
+    private void runTestEmptyHostListOkayIfTypeNotSet(final boolean useDefault) {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder();
+        if (useDefault == false) {
+            builder.put(prefix + ".type", Exporter.TYPE_SETTING.getConcreteSettingForNamespace("example").get(Settings.EMPTY));
+        }
+        builder.putList(prefix + ".host", Collections.emptyList());
+        final Settings settings = builder.build();
+        HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings);
+    }
+
+    public void testHostListIsRejectedIfTypeIsNotHttp() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
+        builder.putList(prefix + ".host", List.of("https://example.com:443"));
+        final Settings settings = builder.build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(HttpExporter.HOST_SETTING, Exporter.TYPE_SETTING));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + ".host] is set but type is [local]")));
+    }
+
+    public void testSecurePasswordIsRejectedIfTypeIsNotHttp() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
+
+        final String settingName = ".auth.secure_password";
+        final String settingValue = "securePassword";
+        MockSecureSettings mockSecureSettings  = new MockSecureSettings();
+        mockSecureSettings.setString(prefix + settingName, settingValue);
+
+        builder.setSecureSettings(mockSecureSettings);
+
+        final Settings settings = builder.build();
+        final ClusterSettings clusterSettings =
+            new ClusterSettings(settings, Set.of(HttpExporter.AUTH_SECURE_PASSWORD_SETTING, Exporter.TYPE_SETTING));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + settingName + "] is set but type is [local]")));
+    }
+
+    public void testInvalidHost() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final String host = "https://example.com:443/";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", "http")
+            .put(prefix + ".host", host)
+            .build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(
+            e,
+            hasToString(containsString("Failed to parse value [[\"" + host + "\"]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("[" + prefix + ".host] invalid host: [" + host + "]")));
+        assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getCause(), hasToString(containsString("HttpHosts do not use paths [/].")));
+    }
+
+    public void testMixedSchemes() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final String httpHost = "http://example.com:443";
+        final String httpsHost = "https://example.com:443";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", "http")
+            .putList(prefix + ".host", List.of(httpHost, httpsHost))
+            .build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(
+            e,
+            hasToString(containsString(
+                "Failed to parse value [[\"" + httpHost + "\",\"" + httpsHost + "\"]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("[" + prefix + ".host] must use a consistent scheme: http or https")));
     }
 
     public void testExporterWithBlacklistedHeaders() {
@@ -126,77 +241,19 @@ public class HttpExporterTests extends ESTestCase {
     public void testExporterWithPasswordButNoUsername() {
         final String expected =
                 "[xpack.monitoring.exporters._http.auth.password] without [xpack.monitoring.exporters._http.auth.username]";
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .put("xpack.monitoring.exporters._http.host", "localhost:9200")
-                .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+        final String prefix = "xpack.monitoring.exporters._http";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + ".auth.password", "_pass")
+            .build();
 
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception = expectThrows(SettingsException.class,
-                () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo(expected));
-    }
-
-    public void testExporterWithMissingHost() {
-        // forgot host!
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE);
-
-        if (randomBoolean()) {
-            builder.put("xpack.monitoring.exporters._http.host", "");
-        } else if (randomBoolean()) {
-            builder.putList("xpack.monitoring.exporters._http.host");
-        } else if (randomBoolean()) {
-            builder.putNull("xpack.monitoring.exporters._http.host");
-        }
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo("missing required setting [xpack.monitoring.exporters._http.host]"));
-    }
-
-    public void testExporterWithInconsistentSchemes() {
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .putList("xpack.monitoring.exporters._http.host", "http://localhost:9200", "https://localhost:9201");
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(),
-                   equalTo("[xpack.monitoring.exporters._http.host] must use a consistent scheme: http or https"));
-    }
-
-    public void testExporterWithInvalidHost() {
-        final String invalidHost = randomFrom("://localhost:9200", "gopher!://xyz.my.com");
-
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE);
-
-        // sometimes add a valid URL with it
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                builder.putList("xpack.monitoring.exporters._http.host", "localhost:9200", invalidHost);
-            } else {
-                builder.putList("xpack.monitoring.exporters._http.host", invalidHost, "localhost:9200");
-            }
-        } else {
-            builder.put("xpack.monitoring.exporters._http.host", invalidHost);
-        }
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo("[xpack.monitoring.exporters._http.host] invalid host: [" + invalidHost + "]"));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
+        assertThat(e, hasToString(containsString(expected)));
+        assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
@@ -240,6 +297,29 @@ public class HttpExporterTests extends ESTestCase {
         new HttpExporter(config, sslService, threadContext).close();
     }
 
+    public void testExporterWithInvalidProxyBasePath() throws Exception {
+        final String prefix = "xpack.monitoring.exporters._http";
+        final String settingName = ".proxy.base_path";
+        final String settingValue = "z//";
+        final String expected = "[" + prefix + settingName + "] is malformed [" + settingValue + "]";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", HttpExporter.TYPE)
+            .put(prefix + ".host", "localhost:9200")
+            .put(prefix + settingName, settingValue)
+            .build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.PROXY_BASE_PATH_SETTING.getConcreteSetting(prefix + settingName).get(settings));
+        assertThat(
+            e,
+            hasToString(
+                containsString("Failed to parse value [" + settingValue + "] for setting [" + prefix + settingName + "]")));
+
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString(expected)));
+    }
+
     public void testCreateRestClient() throws IOException {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
@@ -250,7 +330,8 @@ public class HttpExporterTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
 
         // use basic auth
-        if (randomBoolean()) {
+        final boolean useBasicAuth = randomBoolean();
+        if (useBasicAuth) {
             builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
                    .put("xpack.monitoring.exporters._http.auth.password", "_pass");
         }
@@ -265,6 +346,10 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
+        if (useBasicAuth) {
+            assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testCreateSnifferDisabledByDefault() {
@@ -275,18 +360,6 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(HttpExporter.createSniffer(config, client, listener), nullValue());
 
         verifyZeroInteractions(client, listener);
-    }
-
-    public void testCreateSnifferWithoutHosts() {
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.sniff.enabled", true);
-
-        final Config config = createConfig(builder.build());
-        final RestClient client = mock(RestClient.class);
-        final NodeFailureListener listener = mock(NodeFailureListener.class);
-
-        expectThrows(IndexOutOfBoundsException.class, () -> HttpExporter.createSniffer(config, client, listener));
     }
 
     public void testCreateSniffer() throws IOException {

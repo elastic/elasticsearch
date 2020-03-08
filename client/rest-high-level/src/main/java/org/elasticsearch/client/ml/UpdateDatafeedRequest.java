@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,7 +31,7 @@ import java.util.Objects;
  * Requests an update to a {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} with the passed {@link DatafeedUpdate}
  * settings
  */
-public class UpdateDatafeedRequest extends ActionRequest implements ToXContentObject {
+public class UpdateDatafeedRequest implements Validatable, ToXContentObject {
 
     private final DatafeedUpdate update;
 
@@ -73,8 +72,4 @@ public class UpdateDatafeedRequest extends ActionRequest implements ToXContentOb
         return Strings.toString(this);
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

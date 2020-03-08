@@ -58,7 +58,7 @@ public class ExistsIT extends ESIntegTestCase {
     public void testExists() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "text")
@@ -86,7 +86,7 @@ public class ExistsIT extends ESIntegTestCase {
                 .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(mapping));
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
@@ -102,7 +102,7 @@ public class ExistsIT extends ESIntegTestCase {
         };
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (Map<String, Object> source : sources) {
-            reqs.add(client().prepareIndex("idx", "type").setSource(source));
+            reqs.add(client().prepareIndex("idx").setSource(source));
         }
         // We do NOT index dummy documents, otherwise the type for these dummy documents
         // would have _field_names indexed while the current type might not which might
@@ -135,9 +135,8 @@ public class ExistsIT extends ESIntegTestCase {
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();
-                    final String type = searchHit.getType();
                     final String id = searchHit.getId();
-                    final ExplainResponse explanation = client().prepareExplain(index, type, id)
+                    final ExplainResponse explanation = client().prepareExplain(index, id)
                             .setQuery(QueryBuilders.existsQuery(fieldName)).get();
                     logger.info("Explanation for [{}] / [{}] / [{}]: [{}]", fieldName, id, searchHit.getSourceAsString(),
                             explanation.getExplanation());
@@ -150,7 +149,7 @@ public class ExistsIT extends ESIntegTestCase {
     public void testFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("bar")
                             .field("type", "long")
@@ -170,15 +169,15 @@ public class ExistsIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("bar", 3));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 2.718)));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 6.283)));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource("bar", 3));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", singletonMap("bar", 2.718)));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", singletonMap("bar", 6.283)));
         indexRandom(true, false, indexRequests);
 
         Map<String, Integer> expected = new LinkedHashMap<>();
@@ -202,7 +201,7 @@ public class ExistsIT extends ESIntegTestCase {
     public void testFieldAliasWithNoDocValues() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "long")
@@ -215,14 +214,14 @@ public class ExistsIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 3));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 43));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", 3));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", 43));
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx")

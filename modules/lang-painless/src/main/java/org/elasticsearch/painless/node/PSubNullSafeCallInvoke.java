@@ -19,14 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-
-import java.util.Set;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import static java.util.Objects.requireNonNull;
 
@@ -45,18 +42,8 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        guarded.analyze(locals);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        guarded.analyze(scriptRoot, scope);
         actual = guarded.actual;
         if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
@@ -64,14 +51,15 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    NullSafeSubNode write(ClassNode classNode) {
+        NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
 
-        Label end = new Label();
-        writer.dup();
-        writer.ifNull(end);
-        guarded.write(writer, globals);
-        writer.mark(end);
+        nullSafeSubNode.setChildNode(guarded.write(classNode));
+
+        nullSafeSubNode.setLocation(location);
+        nullSafeSubNode.setExpressionType(actual);
+
+        return nullSafeSubNode;
     }
 
     @Override

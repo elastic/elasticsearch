@@ -33,9 +33,16 @@ public class Distribution {
     public Distribution(Path path) {
         this.path = path;
         String filename = path.getFileName().toString();
-        int lastDot = filename.lastIndexOf('.');
-        String extension = filename.substring(lastDot + 1);
-        this.packaging = Packaging.valueOf(extension.equals("gz") ? "TAR" : extension.toUpperCase(Locale.ROOT));
+
+        if (filename.endsWith(".gz")) {
+            this.packaging = Packaging.TAR;
+        } else if (filename.endsWith(".docker.tar")) {
+            this.packaging = Packaging.DOCKER;
+        } else {
+            int lastDot = filename.lastIndexOf('.');
+            this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
+        }
+
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
@@ -57,12 +64,17 @@ public class Distribution {
         return packaging == Packaging.RPM || packaging == Packaging.DEB;
     }
 
+    public boolean isDocker() {
+        return packaging == Packaging.DOCKER;
+    }
+
     public enum Packaging {
 
         TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),
         ZIP(".zip", Platforms.WINDOWS),
         DEB(".deb", Platforms.isDPKG()),
-        RPM(".rpm", Platforms.isRPM());
+        RPM(".rpm", Platforms.isRPM()),
+        DOCKER(".docker.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

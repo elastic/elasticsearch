@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZoneId;
-import java.util.Locale;
 
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /*
  * Base class for "named" date/time functions like month_name and day_name
@@ -33,14 +32,14 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
     }
 
     @Override
-    public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(
-                formatTemplate(format(Locale.ROOT, "{sql}.%s(doc[{}].value, {})",
-                        StringUtils.underscoreToLowerCamelCase(nameExtractor.name()))),
-                paramsBuilder()
-                  .variable(field.name())
-                  .variable(zoneId().getId()).build(),
-                dataType());
+    public ScriptTemplate asScript() {
+        ScriptTemplate script = super.asScript();
+        String template = formatTemplate("{sql}." + StringUtils.underscoreToLowerCamelCase(nameExtractor.name())
+            + "(" + script.template() + ", {})");
+        
+        ParamsBuilder params = paramsBuilder().script(script.params()).variable(zoneId().getId());
+        
+        return new ScriptTemplate(template, params.build(), dataType());
     }
 
     @Override
@@ -50,6 +49,6 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 }

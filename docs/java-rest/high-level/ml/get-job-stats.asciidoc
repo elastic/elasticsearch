@@ -3,6 +3,7 @@
 :request: GetJobStatsRequest
 :response: GetJobStatsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get {anomaly-job} stats API
 

@@ -167,7 +167,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
                 try {
-                    awaitBusy(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new TaskCancelledException("Cancelled");
                         }

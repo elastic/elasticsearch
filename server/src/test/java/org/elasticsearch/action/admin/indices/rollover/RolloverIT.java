@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.CombinableMatcher.both;
 import static org.hamcrest.number.OrderingComparison.greaterThanOrEqualTo;
@@ -87,7 +88,7 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRollover() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
@@ -110,7 +111,7 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRolloverWithExplicitWriteIndex() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias").writeIndex(true)).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
@@ -150,7 +151,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
-        index("test_index-2", "type1", "1", "field", "value");
+        indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -180,7 +181,7 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverDryRun() throws Exception {
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
-        index("test_index-1", "type1", "1", "field", "value");
+        indexDoc("test_index-1", "1", "field", "value");
         flush("test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
@@ -202,7 +203,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-0").addAlias(testAlias).get());
-        index("test_index-0", "type1", "1", "field", "value");
+        indexDoc("test_index-0", "1", "field", "value");
         flush("test_index-0");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .addMaxIndexSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB))
@@ -237,7 +238,7 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index").addAlias(testAlias).get());
-        index("test_index", "type1", "1", "field", "value");
+        indexDoc("test_index", "1", "field", "value");
         flush("test_index");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .setNewIndexName("test_new_index").get();
@@ -260,9 +261,9 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverOnExistingIndex() throws Exception {
         assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
-        index("test_index-0", "type1", "1", "field", "value");
+        indexDoc("test_index-0", "1", "field", "value");
         assertAcked(prepareCreate("test_index-000001").get());
-        index("test_index-000001", "type1", "1", "field", "value");
+        indexDoc("test_index-000001", "1", "field", "value");
         flush("test_index-0", "test_index-000001");
         try {
             client().admin().indices().prepareRolloverIndex("test_alias").get();
@@ -320,7 +321,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test-1").addAlias(new Alias("test_alias")).get());
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            index("test-1", "doc", Integer.toString(i), "field", "foo-" + i);
+            indexDoc("test-1", Integer.toString(i), "field", "foo-" + i);
         }
         flush("test-1");
         refresh("test_alias");
@@ -380,5 +381,117 @@ public class RolloverIT extends ESIntegTestCase {
             () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get());
         assertThat(error.getMessage(), equalTo(
             "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
+    }
+
+    public void testRolloverWithClosedIndexInAlias() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
+    }
+
+    public void testRolloverWithClosedWriteIndex() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+        assertAcked(client().admin().indices().prepareClose(writeIndexPrefix + "000001").get());
+        ensureGreen(aliasName);
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
+    }
+
+    public void testRolloverWithHiddenAliasesAndExplicitWriteIndex() {
+        long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
+        final String indexNamePrefix = "test_index_hidden-";
+        final String firstIndexName = indexNamePrefix + "000001";
+        final String secondIndexName = indexNamePrefix + "000002";
+
+        final String aliasName = "test_alias";
+        assertAcked(prepareCreate(firstIndexName).addAlias(new Alias(aliasName).writeIndex(true).isHidden(true)).get());
+        indexDoc(aliasName, "1", "field", "value");
+        refresh();
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex(aliasName).get();
+        assertThat(response.getOldIndex(), equalTo(firstIndexName));
+        assertThat(response.getNewIndex(), equalTo(secondIndexName));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetaData oldIndex = state.metaData().index(firstIndexName);
+        assertTrue(oldIndex.getAliases().containsKey(aliasName));
+        assertTrue(oldIndex.getAliases().get(aliasName).isHidden());
+        assertFalse(oldIndex.getAliases().get(aliasName).writeIndex());
+        final IndexMetaData newIndex = state.metaData().index(secondIndexName);
+        assertTrue(newIndex.getAliases().containsKey(aliasName));
+        assertTrue(newIndex.getAliases().get(aliasName).isHidden());
+        assertTrue(newIndex.getAliases().get(aliasName).writeIndex());
+        assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
+        assertThat(oldIndex.getRolloverInfos().get(aliasName).getAlias(), equalTo(aliasName));
+        assertThat(oldIndex.getRolloverInfos().get(aliasName).getMetConditions(), is(empty()));
+        assertThat(oldIndex.getRolloverInfos().get(aliasName).getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+    }
+
+    public void testRolloverWithHiddenAliasesAndImplicitWriteIndex() {
+        long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
+        final String indexNamePrefix = "test_index_hidden-";
+        final String firstIndexName = indexNamePrefix + "000001";
+        final String secondIndexName = indexNamePrefix + "000002";
+
+        final String aliasName = "test_alias";
+        assertAcked(prepareCreate(firstIndexName).addAlias(new Alias(aliasName).isHidden(true)).get());
+        indexDoc(aliasName, "1", "field", "value");
+        refresh();
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex(aliasName).get();
+        assertThat(response.getOldIndex(), equalTo(firstIndexName));
+        assertThat(response.getNewIndex(), equalTo(secondIndexName));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetaData oldIndex = state.metaData().index(firstIndexName);
+        assertFalse(oldIndex.getAliases().containsKey(aliasName));
+        final IndexMetaData newIndex = state.metaData().index(secondIndexName);
+        assertTrue(newIndex.getAliases().containsKey(aliasName));
+        assertTrue(newIndex.getAliases().get(aliasName).isHidden());
+        assertThat(newIndex.getAliases().get(aliasName).writeIndex(), nullValue());
+        assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
+        assertThat(oldIndex.getRolloverInfos().get(aliasName).getAlias(), equalTo(aliasName));
+        assertThat(oldIndex.getRolloverInfos().get(aliasName).getMetConditions(), is(empty()));
+        assertThat(oldIndex.getRolloverInfos().get(aliasName).getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
     }
 }

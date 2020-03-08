@@ -172,7 +172,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";
         assertIllegalXContent(directGenerator, IllegalArgumentException.class,
-                "[direct_generator] unknown field [unknown_param], parser not found");
+                "[direct_generator] unknown field [unknown_param]");
 
         // test bad value for field (e.g. size expects an int)
         directGenerator = "{ \"size\" : \"xxl\" }";

@@ -21,7 +21,6 @@ teardown:
   - do:
       delete:
         index: foo
-        type: doc
         id: 1
         ignore: 404
 
@@ -56,7 +55,6 @@ teardown:
   - do:
       index:
         index: foo
-        type: doc
         id: 1
         body: { foo: bar }
 
@@ -65,10 +63,8 @@ teardown:
         Authorization: "Basic am9lOnMza3JpdA=="
       get:
         index: foo
-        type: doc
         id: 1
   - match: { _index: foo }
-  - match: { _type: doc }
   - match: { _id: "1"}
   - match: { _source: { foo: bar }}
 

@@ -302,6 +302,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
+    public long getParentLimit() {
+        return this.parentSettings.getLimit();
+    }
+
     /**
      * Checks whether the parent breaker has been tripped
      */
@@ -339,6 +343,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             // child circuit breakers is categorized as transient or permanent.
             CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage ?
                 CircuitBreaker.Durability.TRANSIENT : CircuitBreaker.Durability.PERMANENT;
+            logger.debug("{}", message);
             throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
         }
     }

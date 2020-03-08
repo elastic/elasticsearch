@@ -249,7 +249,12 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     source = StoredScriptSource.fromXContent(parser, true);
 
                     if (exists == null) {
-                        scripts.put(id, source);
+                        // due to a bug (https://github.com/elastic/elasticsearch/issues/47593)
+                        // scripts may have been retained during upgrade that include the old-style
+                        // id of lang#id; these scripts are unreachable after 7.0, so they are dropped
+                        if (id.contains("#") == false) {
+                            scripts.put(id, source);
+                        }
                     } else if (exists.getLang().equals(source.getLang()) == false) {
                         throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with " +
                             "different languages [" + exists.getLang() + "] and [" + source.getLang() + "]; scripts using the old " +

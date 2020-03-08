@@ -3,7 +3,7 @@
 :request: GetBuiltinPrivilegesRequest
 :response: GetBuiltinPrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Builtin Privileges API
 

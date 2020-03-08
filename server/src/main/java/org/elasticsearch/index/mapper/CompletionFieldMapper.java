@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.suggest.document.Completion50PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -265,7 +265,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
          */
         public static synchronized PostingsFormat postingsFormat() {
             if (postingsFormat == null) {
-                postingsFormat = new Completion50PostingsFormat();
+                postingsFormat = new Completion84PostingsFormat();
             }
             return postingsFormat;
         }

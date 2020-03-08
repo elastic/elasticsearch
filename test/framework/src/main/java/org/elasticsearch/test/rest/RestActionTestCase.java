@@ -39,13 +39,15 @@ import static org.mockito.Mockito.mock;
  */
 public abstract class RestActionTestCase extends ESTestCase {
     private RestController controller;
+    protected NodeClient nodeClient;
 
     @Before
     public void setUpController() {
+        nodeClient = mock(NodeClient.class);
         controller = new RestController(Collections.emptySet(), null,
-            mock(NodeClient.class),
+            nodeClient,
             new NoneCircuitBreakerService(),
-            new UsageService());
+            new UsageService(), randomBoolean());
     }
 
     /**

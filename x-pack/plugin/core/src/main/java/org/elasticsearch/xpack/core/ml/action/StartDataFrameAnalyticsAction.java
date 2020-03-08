@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,8 +30,11 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedResponse> {
@@ -150,12 +154,18 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
 
-        public static ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true, a -> new TaskParams((String) a[0], (String) a[1]));
+        private static final ParseField PROGRESS_ON_START = new ParseField("progress_on_start");
+
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
+            a -> new TaskParams((String) a[0], (String) a[1], (List<PhaseProgress>) a[2], (Boolean) a[3]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.ID);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.VERSION);
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS_ON_START);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DataFrameAnalyticsConfig.ALLOW_LAZY_START);
         }
 
         public static TaskParams fromXContent(XContentParser parser) {
@@ -164,23 +174,46 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
 
         private final String id;
         private final Version version;
+        private final List<PhaseProgress> progressOnStart;
+        private final boolean allowLazyStart;
 
-        public TaskParams(String id, Version version) {
+        public TaskParams(String id, Version version, List<PhaseProgress> progressOnStart, boolean allowLazyStart) {
             this.id = Objects.requireNonNull(id);
             this.version = Objects.requireNonNull(version);
+            this.progressOnStart = Collections.unmodifiableList(progressOnStart);
+            this.allowLazyStart = allowLazyStart;
         }
 
-        private TaskParams(String id, String version) {
-            this(id, Version.fromString(version));
+        private TaskParams(String id, String version, @Nullable List<PhaseProgress> progressOnStart, Boolean allowLazyStart) {
+            this(id, Version.fromString(version), progressOnStart == null ? Collections.emptyList() : progressOnStart,
+                allowLazyStart != null && allowLazyStart);
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
             this.version = Version.readVersion(in);
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+                progressOnStart = in.readList(PhaseProgress::new);
+            } else {
+                progressOnStart = Collections.emptyList();
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+                allowLazyStart = in.readBoolean();
+            } else {
+                allowLazyStart = false;
+            }
         }
 
         public String getId() {
             return id;
+        }
+
+        public List<PhaseProgress> getProgressOnStart() {
+            return progressOnStart;
+        }
+
+        public boolean isAllowLazyStart() {
+            return allowLazyStart;
         }
 
         @Override
@@ -197,6 +230,12 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             Version.writeVersion(version, out);
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+                out.writeList(progressOnStart);
+            }
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+                out.writeBoolean(allowLazyStart);
+            }
         }
 
         @Override
@@ -204,13 +243,15 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
             builder.startObject();
             builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
             builder.field(DataFrameAnalyticsConfig.VERSION.getPreferredName(), version);
+            builder.field(PROGRESS_ON_START.getPreferredName(), progressOnStart);
+            builder.field(DataFrameAnalyticsConfig.ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, version);
+            return Objects.hash(id, version, progressOnStart, allowLazyStart);
         }
 
         @Override
@@ -219,7 +260,10 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
             if (o == null || getClass() != o.getClass()) return false;
 
             TaskParams other = (TaskParams) o;
-            return Objects.equals(id, other.id) && Objects.equals(version, other.version);
+            return Objects.equals(id, other.id)
+                && Objects.equals(version, other.version)
+                && Objects.equals(progressOnStart, other.progressOnStart)
+                && Objects.equals(allowLazyStart, other.allowLazyStart);
         }
     }
 

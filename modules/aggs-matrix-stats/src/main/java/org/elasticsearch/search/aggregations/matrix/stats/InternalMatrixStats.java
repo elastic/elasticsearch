@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Adds correlation computation to Computes distribution statistics over multiple fields
+ * Computes distribution statistics over multiple fields
  */
 public class InternalMatrixStats extends BaseInternalMatrixStats {
 

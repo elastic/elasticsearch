@@ -59,10 +59,8 @@ public class PCAAggregationTests extends AbstractMatrixStatsTestCase {
             // eigen values & vectors : note we're only checking that the values are not null because
             // subtle differences in the covariance matrix (out to e-7) can change
             // eigenvalue & eigenvector results by +/- 10 to 20, its not significant enough to change interpretation
-            assertFalse(Double.isNaN(resultA.getEigenValue(field).getReal()));
-            assertFalse(Double.isNaN(resultB.getEigenValue(field).getReal()));
-            assertFalse(Double.isNaN(resultA.getEigenValue(field).getImaginary()));
-            assertFalse(Double.isNaN(resultB.getEigenValue(field).getImaginary()));
+            assertFalse(Double.isNaN(resultA.getEigenValue(field)));
+            assertFalse(Double.isNaN(resultB.getEigenValue(field)));
             // eigen vectors
             double[] eigenVectorA = resultA.getEigenVector(field);
             double[] eigenVectorB = resultB.getEigenVector(field);

@@ -95,7 +95,7 @@ public class InternalPCAStats extends BaseInternalMatrixStats implements MatrixS
             builder.startArray(Fields.PRINCIPAL_COMPONENTS);
             for (String fieldName : results.getFieldCounts().keySet()) {
                 builder.startObject();
-                builder.field(Fields.EIGENVALUE, results.getEigenValue(fieldName).toString());
+                builder.field(Fields.EIGENVALUE, results.getEigenValue(fieldName));
                 double[] eigenVec = results.getEigenVector(fieldName);
                 builder.array(Fields.EIGENVECTOR, eigenVec);
                 builder.endObject();

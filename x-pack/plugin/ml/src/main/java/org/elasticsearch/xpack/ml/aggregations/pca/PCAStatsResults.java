@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class PCAStatsResults extends MatrixStatsResults {
     /** eigen values from PCA */
-    protected final Map<String, Complex_F64> eigenVals;
+    protected final Map<String, Double> eigenVals;
     /** eigen vectors from PCA */
     protected final Map<String, DMatrixRMaj> eigenVectors;
     /** use the covariance matrix, instead of correlation matrix (default) to compute PCA **/
@@ -53,8 +53,7 @@ public class PCAStatsResults extends MatrixStatsResults {
             for (int i = 0; i < mapSize; ++i) {
                 String field = in.readString();
                 double real = in.readDouble();
-                double imag = in.readDouble();
-                this.eigenVals.put(field, new Complex_F64(real, imag));
+                this.eigenVals.put(field, real);
             }
 
             // read eigen vectors
@@ -82,12 +81,11 @@ public class PCAStatsResults extends MatrixStatsResults {
     private void writeEigenVals(StreamOutput out) {
         try {
             out.writeVInt(eigenVals.size());
-            Complex_F64 eigenValue;
-            for (Map.Entry<String, Complex_F64> entry : eigenVals.entrySet()) {
+            Double eigenValue;
+            for (Map.Entry<String, Double> entry : eigenVals.entrySet()) {
                 out.writeString(entry.getKey());
                 eigenValue = entry.getValue();
-                out.writeDouble(eigenValue.real);
-                out.writeDouble(eigenValue.imaginary);
+                out.writeDouble(eigenValue);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("Error trying to write eigen values to stream output", e);
@@ -106,7 +104,7 @@ public class PCAStatsResults extends MatrixStatsResults {
         }
     }
 
-    public Complex_F64 getEigenValue(String field) {
+    public double getEigenValue(String field) {
         checkField(field, eigenVals);
         return eigenVals.get(field);
     }
@@ -138,14 +136,14 @@ public class PCAStatsResults extends MatrixStatsResults {
         }
 
         // compute PCA as an eigendecomposition of the covariance matrix
-        EigenDecomposition_F64<DMatrixRMaj> decomp = DecompositionFactory_DDRM.eig(A.numRows, true);
-        if( !decomp.decompose(A) ) {
+        EigenDecomposition_F64<DMatrixRMaj> decomp = DecompositionFactory_DDRM.eig(A.numRows, true, true);
+        if (decomp.decompose(A) == false) {
             throw new ElasticsearchException("Unable to dompute PCA. Eigen decomposition failed.");
         }
 
         int i = 0;
         for (String fieldName : results.getMeans().keySet()) {
-            eigenVals.put(fieldName, decomp.getEigenvalue(i));
+            eigenVals.put(fieldName, decomp.getEigenvalue(i).getReal());
             eigenVectors.put(fieldName, decomp.getEigenVector(i++));
         }
     }

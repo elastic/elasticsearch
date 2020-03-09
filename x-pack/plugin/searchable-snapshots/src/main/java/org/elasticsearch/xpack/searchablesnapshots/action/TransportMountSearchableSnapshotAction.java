@@ -98,6 +98,7 @@ public class TransportMountSearchableSnapshotAction
     @Override
     protected void masterOperation(Task task, final MountSearchableSnapshotRequest request, final ClusterState state,
                                    final ActionListener<RestoreSnapshotResponse> listener) {
+
         final String repoName = request.repositoryName();
         final String snapName = request.snapshotName();
         final String indexName = request.snapshotIndexName();
@@ -121,7 +122,9 @@ public class TransportMountSearchableSnapshotAction
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            // NORELEASE TODO should we ensure that the IDs we just obtained match the ones that we ultimately restore?
+            // We must fail the restore if it obtains different IDs from the ones we just obtained (e.g. the target snapshot was replaced
+            // by one with the same name while we are restoring it) or else the index metadata might bear no relation to the snapshot we're
+            // searching. TODO NORELEASE validate IDs in the restore.
 
             client.admin().cluster().restoreSnapshot(new RestoreSnapshotRequest(repoName, snapName)
                 // Restore the single index specified

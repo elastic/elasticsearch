@@ -442,7 +442,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         final String aliasName = "test_alias";
         assertAcked(prepareCreate(firstIndexName).addAlias(new Alias(aliasName).writeIndex(true).isHidden(true)).get());
-        indexDoc(aliasName, "1", "field", "value");
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "field", "value");
         refresh();
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex(aliasName).get();
         assertThat(response.getOldIndex(), equalTo(firstIndexName));
@@ -474,7 +474,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         final String aliasName = "test_alias";
         assertAcked(prepareCreate(firstIndexName).addAlias(new Alias(aliasName).isHidden(true)).get());
-        indexDoc(aliasName, "1", "field", "value");
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "field", "value");
         refresh();
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex(aliasName).get();
         assertThat(response.getOldIndex(), equalTo(firstIndexName));

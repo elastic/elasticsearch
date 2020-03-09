@@ -48,7 +48,7 @@ public class SearchWithFailingNodesIT extends ESIntegTestCase {
             .put("index.number_of_shards", cluster().numDataNodes() + 2).put("index.number_of_replicas", 1)));
         ensureGreen();
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test", "_doc", ""+i).setSource("field1", i).get();
+            client().prepareIndex("test").setId(""+i).setSource("field1", i).get();
         }
         refresh("test");
 

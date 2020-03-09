@@ -86,7 +86,6 @@ public class SamlIdentityProviderBuilder {
         this.serviceProviderResolver = serviceProviderResolver;
         this.ssoEndpoints = new HashMap<>();
         this.sloEndpoints = new HashMap<>();
-        // TODO
     }
 
     public SamlIdentityProvider build() throws ValidationException {
@@ -114,6 +113,14 @@ public class SamlIdentityProviderBuilder {
             } catch (ElasticsearchSecurityException e) {
                 ex.addValidationError("Metadata signing credential is invalid - " + e.getMessage());
             }
+        }
+
+        if (serviceProviderDefaults == null) {
+            ex.addValidationError("Service provider defaults must be specified");
+        }
+
+        if (ex.validationErrors().isEmpty() == false) {
+            throw ex;
         }
 
         return new SamlIdentityProvider(

@@ -125,7 +125,9 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             null, false, false);
         mockRegisteredServiceProvider(resolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).build();
+        final SamlIdentityProvider.ServiceProviderDefaults defaults = new SamlIdentityProvider.ServiceProviderDefaults(
+            "elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(15));
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build();
         final SamlFactory factory = new SamlFactory();
         return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext, idp, factory);
     }

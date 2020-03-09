@@ -192,7 +192,7 @@ public class SamlAuthnRequestValidator {
                 if (allowedFormat != null && requestedFormat.equals(UNSPECIFIED) == false
                     && requestedFormat.equals(allowedFormat) == false) {
                     throw new ElasticsearchSecurityException("The requested NameID format [{}] doesn't match the allowed NameID format" +
-                        "for this Service Provider which is [{}]", requestedFormat, sp.getAllowedNameIdFormat());
+                        " for this Service Provider which is [{}]", requestedFormat, sp.getAllowedNameIdFormat());
                 } else {
                     authnState.put(SamlAuthenticationState.Fields.NAMEID_FORMAT.getPreferredName(), requestedFormat);
                 }

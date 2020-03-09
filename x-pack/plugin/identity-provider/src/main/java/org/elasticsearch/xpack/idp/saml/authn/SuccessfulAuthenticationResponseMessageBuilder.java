@@ -108,7 +108,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     private Subject buildSubject(DateTime now, UserServiceAuthentication user, SamlAuthenticationState authnState) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
-        final NameID nameID = buildNameId(serviceProvider, authnState);
+        final NameID nameID = buildNameId(user, authnState);
 
         final Subject subject = samlFactory.object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
         subject.setNameID(nameID);
@@ -213,15 +213,16 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return status;
     }
 
-    private NameID buildNameId(SamlServiceProvider serviceProvider, @Nullable SamlAuthenticationState authnState) {
+    private NameID buildNameId(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
+        final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final NameID nameID = samlFactory.object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
         if (authnState != null && authnState.getRequestedNameidFormat() != null) {
             nameID.setFormat(authnState.getRequestedNameidFormat());
         } else {
             nameID.setFormat(serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
                 idp.getServiceProviderDefaults().nameIdFormat);
-
         }
+        // TODO: Set the value according to the format
         return nameID;
     }
 }

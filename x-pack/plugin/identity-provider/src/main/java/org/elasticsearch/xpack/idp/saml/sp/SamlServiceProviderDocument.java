@@ -241,7 +241,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public String entityId;
 
     public String acs;
-
+    
+    @Nullable
     public String nameIdFormat;
 
     public boolean enabled = true;

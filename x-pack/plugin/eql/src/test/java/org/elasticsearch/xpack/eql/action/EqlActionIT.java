@@ -61,7 +61,6 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
                 // Add @timestamp field
                 entry.put("@timestamp", entry.get("timestamp"));
 
-                //BytesReference bytes = XContentHelper.toXContent(entry, XContentType.JSON, false);
                 bulkBuilder.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
@@ -114,7 +113,7 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
     private static long[] extractIds(List<SearchHit> events) {
         final int len = events.size();
         final long ids[] = new long[len];
-        for (int i = 0; i < events.size(); i++) {
+        for (int i = 0; i < len; i++) {
             ids[i] = ((Number) events.get(i).getSourceAsMap().get("serial_event_id")).longValue();
         }
         return ids;

@@ -24,27 +24,37 @@ public class LogicalPlanTests extends ESTestCase {
 
     private final EqlParser parser = new EqlParser();
 
-    public Expression expr(String source) {
+    private Expression expr(String source) {
         return parser.createExpression(source);
+    }
+
+    public void testAnyQuery() {
+        LogicalPlan fullQuery = parser.createStatement("any where process_name == 'net.exe'");
+        Expression fullExpression = expr("process_name == 'net.exe'");
+
+        LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
+        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
+        LogicalPlan expected = new OrderBy(Source.EMPTY, filter, singletonList(order));
+        assertEquals(expected, fullQuery);
     }
 
     public void testEventQuery() {
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'");
-        Expression fullExpression = expr("event_type == 'process' and process_name == 'net.exe'");
+        Expression fullExpression = expr("event.category == 'process' and process_name == 'net.exe'");
 
         LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
-        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
+        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
         LogicalPlan expected = new OrderBy(Source.EMPTY, filter, singletonList(order));
         assertEquals(expected, fullQuery);
     }
 
     public void testParameterizedEventQuery() {
-        ParserParams params = new ParserParams().fieldEventType("myCustomEvent");
+        ParserParams params = new ParserParams().fieldEventCategory("myCustomEvent");
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
         Expression fullExpression = expr("myCustomEvent == 'process' and process_name == 'net.exe'");
 
         LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
-        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
+        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
         LogicalPlan expected = new OrderBy(Source.EMPTY, filter, singletonList(order));
         assertEquals(expected, fullQuery);
     }

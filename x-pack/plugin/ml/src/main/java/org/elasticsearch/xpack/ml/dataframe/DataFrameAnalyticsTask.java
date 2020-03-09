@@ -130,7 +130,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void stop(String reason, TimeValue timeout) {
-        LOGGER.debug("[{}] stop called with reason [{}]", taskParams.getId(), reason);
         isStopping = true;
 
         ActionListener<Void> reindexProgressListener = ActionListener.wrap(
@@ -147,7 +146,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     private void doStop(String reason, TimeValue timeout) {
-        LOGGER.debug("[{}] doStop called with reason [{}] and reindexTaskId [{}]", taskParams.getId(), reason, reindexingTaskId);
         if (reindexingTaskId != null) {
             cancelReindexingTask(reason, timeout);
         }
@@ -282,6 +280,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .id(progressDocId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+                    LOGGER.debug("[{}] Persisting progress is: {}", jobId, stats.get().getProgress());
                     new StoredProgress(stats.get().getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }

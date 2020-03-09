@@ -38,11 +38,11 @@ aggregation which provides a metric output.
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> Creates a long type `timestamp_latest` and a string type `last_doc` in the 
-`state` object.
-<2> Defines `current_date` based on the timestamp of the document, then compares 
-`current_date` with `state.timestamp_latest`, finally returns `state.last_doc` 
-from the shard.
+<1> The `init_script` creates a long type `timestamp_latest` and a string type 
+`last_doc` in the `state` object.
+<2> The `map_script` defines `current_date` based on the timestamp of the 
+document, then compares `current_date` with `state.timestamp_latest`, finally 
+returns `state.last_doc` from the shard.
 <3> The `combine_script` returns `state` from each shard.
 <4> The `reduce_script` iterates through the value of `s.timestamp_latest` 
 returned by each shard and returns the document with the latest timestamp 

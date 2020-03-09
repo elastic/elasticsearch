@@ -126,7 +126,6 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
     private void assertSearchResponse(Response searchResp) throws IOException {
         assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
-        System.out.println(searchResp.getEntity());
         assertEquals(removeWhiteSpace("{\n" +
                 "  \"hits\": {\n" +
                 "    \"total\": 4,\n" +

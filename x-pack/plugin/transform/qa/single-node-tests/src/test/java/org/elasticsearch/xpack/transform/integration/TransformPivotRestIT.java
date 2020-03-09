@@ -104,6 +104,58 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
+    public void testSimplePivotWithScript() throws Exception {
+        String transformId = "simple-pivot-script";
+        String transformIndex = "pivot_reviews_script";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        // same pivot as testSimplePivot, but we retrieve the grouping key using a script and add prefix
+        String config = "{"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"script\": {"
+            + "           \"source\": \"'reviewer_' + doc['user_id'].value\""
+            + " } } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } },"
+            + "\"frequency\":\"1s\""
+            + "}";
+        createTransformRequest.setJsonEntity(config);
+
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_5", 3.72);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_26", 3.918918918);
+    }
+
     public void testPivotWithPipeline() throws Exception {
         String transformId = "simple_pivot_with_pipeline";
         String transformIndex = "pivot_with_pipeline";

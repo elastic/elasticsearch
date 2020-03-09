@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,16 +30,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> {
 
-    public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RequestParams> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RestRequest> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot", true,
-        (a, p) -> new MountSearchableSnapshotRequest(
+        (a, request) -> new MountSearchableSnapshotRequest(
             Objects.requireNonNullElse((String)a[1], (String)a[0]),
-            p.repositoryName,
-            p.snapshotName,
+            request.param("repository"),
+            request.param("snapshot"),
             (String)a[0],
             Objects.requireNonNullElse((Settings)a[2], Settings.EMPTY),
             Objects.requireNonNullElse((String[])a[3], Strings.EMPTY_ARRAY),
-            p.waitForCompletion));
+            request.paramAsBoolean("wait_for_completion", false)));
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField RENAMED_INDEX_FIELD = new ParseField("renamed_index");
@@ -52,18 +53,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         PARSER.declareField(optionalConstructorArg(),
             p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
             IGNORE_INDEX_SETTINGS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
-    }
-
-    public static class RequestParams {
-        private final String repositoryName;
-        private final String snapshotName;
-        final boolean waitForCompletion;
-
-        public RequestParams(String repositoryName, String snapshotName, boolean waitForCompletion) {
-            this.repositoryName = repositoryName;
-            this.snapshotName = snapshotName;
-            this.waitForCompletion = waitForCompletion;
-        }
     }
 
     private final String mountedIndexName;

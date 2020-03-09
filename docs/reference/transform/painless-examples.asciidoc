@@ -7,9 +7,10 @@
 ++++
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
-more about Painless scripting language in the <<painless-guide>>. The example 
-snippets below help you being able to infer how to use Painless for your use 
-case.
+more about the Painless scripting language in the 
+https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html[Painless guide]. 
+The example snippets below help you being able to infer how to use Painless for 
+your use case.
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
@@ -39,9 +40,9 @@ aggregation which provides a metric output.
 
 <1> Creates a long type `timestamp_latest` and a string type `last_doc` in the 
 `state` object.
-<2> Defines `current_date`based on the timestamp of the document, then compares 
-`current_date` with `state.timestamp_latest`. Based on the comparison, returns 
-`state.last_doc` from the shard.
+<2> Defines `current_date` based on the timestamp of the document, then compares 
+`current_date` with `state.timestamp_latest`, finally returns `state.last_doc` 
+from the shard.
 <3> The `combine_script` returns `state` from each shard.
 <4> The `reduce_script` iterates through the value of `s.timestamp_latest` 
 returned by each shard and returns the document with the latest timestamp 

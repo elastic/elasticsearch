@@ -1506,6 +1506,13 @@ The estimated number of operations to use the trained model.
 `license_level`:::
 (string)
 The license level of the trained model.
+
+`default_field_mappings` :::
+(object)
+A string to string mapping that contains the default field mappings to use
+when inferring against the model. Any field mapping described in the
+inference configuration takes precedence.
+
 end::trained-model-configs[]
 
 tag::training-percent[]

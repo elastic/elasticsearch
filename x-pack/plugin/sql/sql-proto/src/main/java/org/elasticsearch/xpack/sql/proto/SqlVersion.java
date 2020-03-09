@@ -12,8 +12,8 @@ import java.security.InvalidParameterException;
  * Elasticsearch's version modeler for the SQL plugin.
  * <p>
  *     The class models the version that the Elasticsearch server and the clients use to identify their release by. It is similar to
- *     {@link org.elasticsearch.Version} (which is unavailable in this package), specific to the SQL plugin and its clients, and an aid to
- *     establish the compatibility between them.
+ *     server's <strong>Version</strong> class (which is unavailable in this package), specific to the SQL plugin and its clients, and an
+ *     aid to establish the compatibility between them.
  * </p>
  */
 public class SqlVersion implements Comparable<SqlVersion>{

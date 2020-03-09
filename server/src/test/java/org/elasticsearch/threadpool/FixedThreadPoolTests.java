@@ -88,6 +88,10 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
+
+        if ("listener".equals(threadPoolName)) {
+            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size", "thread_pool.listener.size"});
+        }
     }
 
 }

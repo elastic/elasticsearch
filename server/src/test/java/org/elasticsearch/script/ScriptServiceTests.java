@@ -51,6 +51,7 @@ import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTI
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE;
+import static org.elasticsearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -375,7 +376,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private TimeValue randomTimeValueObject() {
-        return TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
+        return TimeValue.timeValueSeconds(randomIntBetween(0, 3600));
     }
 
     private CacheSettings randomCacheSettings() {
@@ -402,10 +403,90 @@ public class ScriptServiceTests extends ESTestCase {
         AtomicReference<Cache> cacheRef = new AtomicReference<>();
         ScriptService.CacheUpdater updater = new ScriptService.CacheUpdater(settings, contexts, true, cacheRef);
 
-        assertNotNull(cacheRef.get().general);
+        // SCRIPT_GENERAL_MAX_COMPILATIONS_RATE is set, should get general settings
         assertFalse(updater.isContextCacheEnabled());
+        assertNotNull(cacheRef.get().general);
         assertEquals(0, updater.contextSizeSet.size());
         assertEquals(0, updater.contextExpireSet.size());
+
+        // Test flipping to the "use-context" rate
+        updater.setMaxCompilationRate(ScriptService.USE_CONTEXT_RATE_VALUE);
+        assertTrue(updater.isContextCacheEnabled());
+        assertNull(cacheRef.get().general);
+
+        HashMap<String, CacheSettings> contextSettings = new HashMap<>();
+        for (String context: contexts.keySet()) {
+            CacheSettings cacheSetting = randomCacheSettings();
+            contextSettings.put(context, cacheSetting);
+            updater.setMaxCompilationRate(context, cacheSetting.compileRate);
+            updater.setScriptCacheExpire(context, cacheSetting.expire);
+            updater.setScriptCacheSize(context, cacheSetting.size);
+        }
+
+        Map<String, ScriptCache> contextCaches = cacheRef.get().contextCache;
+        for (String context: contexts.keySet()) {
+            ScriptCache cache = contextCaches.get(context);
+            assertNotNull(cache);
+            CacheSettings contextSetting = contextSettings.get(context);
+            assertEquals(cache.cacheExpire, contextSetting.expire);
+            assertEquals(cache.cacheSize, contextSetting.size.intValue());
+            assertEquals(cache.rate, contextSetting.compileRate);
+        }
+
+        // Test flipping back from the "use-context" rate
+        updater.setMaxCompilationRate(new Tuple<>(80, TimeValue.timeValueMinutes(3)));
+        assertFalse(updater.isContextCacheEnabled());
+        assertNotNull(cacheRef.get().general);
+    }
+
+    public void testContextSettingsCacheUpdater() {
+        List<ScriptContext<?>> contextList = List.of(FieldScript.CONTEXT, AggregationScript.CONTEXT, UpdateScript.CONTEXT,
+                                                    IngestScript.CONTEXT);
+        Map<String, ScriptContext<?>> contexts = new HashMap<>();
+        for (ScriptContext<?> context : contextList) {
+            contexts.put(context.name, context);
+        }
+
+        Map<String, CacheSettings> contextSettings = new HashMap<>();
+        Settings.Builder settingBuilder = Settings.builder();
+        for (ScriptContext<?> context: contextList.subList(0, 2)) {
+            CacheSettings cs = randomCacheSettings();
+            contextSettings.put(context.name, cs);
+            settingBuilder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name).getKey(),
+                               cs.size.toString());
+            settingBuilder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name).getKey(),
+                               cs.expire.seconds() + "s");
+            settingBuilder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getConcreteSettingForNamespace(context.name).getKey(),
+                               cs.compileRate.v1() + "/" +  cs.compileRate.v2().getMillis() + "ms"
+            );
+        }
+
+        CacheSettings generalSettings = randomCacheSettings();
+        settingBuilder.put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), generalSettings.size.toString());
+        settingBuilder.put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), generalSettings.expire.seconds() + "s");
+        settingBuilder.put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.getKey(), ScriptService.USE_CONTEXT_RATE_KEY);
+
+        AtomicReference<Cache> cacheRef = new AtomicReference<>();
+        ScriptService.CacheUpdater updater = new ScriptService.CacheUpdater(settingBuilder.build(), contexts, true, cacheRef);
+        assertTrue(updater.isContextCacheEnabled());
+        Cache cache = cacheRef.get();
+        assertNull(cache.general);
+
+        for (ScriptContext<?> context: contextList) {
+            String name = context.name;
+            ScriptCache sc = cache.contextCache.get(name);
+            assertNotNull(sc);
+            if (contextSettings.containsKey(name)) {
+                CacheSettings cs = contextSettings.get(name);
+                assertEquals(sc.cacheExpire, cs.expire);
+                assertEquals(sc.cacheSize, cs.size.intValue());
+                assertEquals(sc.rate, cs.compileRate);
+            } else {
+                assertEquals(sc.cacheExpire, generalSettings.expire);
+                assertEquals(sc.cacheSize, generalSettings.size.intValue());
+                assertEquals(sc.rate, SCRIPT_MAX_COMPILATIONS_RATE.getDefault(Settings.EMPTY));
+            }
+        }
     }
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {

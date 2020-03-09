@@ -64,8 +64,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     // Special setting value for SCRIPT_GENERAL_MAX_COMPILATIONS_RATE to indicate the script service should use context
     // specific caches
-    private static final Tuple<Integer, TimeValue> USE_CONTEXT_RATE_VALUE = new Tuple<>(-1, TimeValue.MINUS_ONE);
-    private static final String USE_CONTEXT_RATE_KEY = "use-context";
+    static final Tuple<Integer, TimeValue> USE_CONTEXT_RATE_VALUE = new Tuple<>(-1, TimeValue.MINUS_ONE);
+    static final String USE_CONTEXT_RATE_KEY = "use-context";
 
     // a parsing function that requires a non negative int and a timevalue as arguments split by a slash
     // this allows you to easily define rates

@@ -68,7 +68,7 @@ public class ThreadPool implements Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
-        public static final String LISTENER = "listener";
+        @Deprecated public static final String LISTENER = "listener";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";

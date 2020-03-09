@@ -50,4 +50,17 @@ public class BitArrayTests extends ESTestCase {
             }
         }
     }
+
+    public void testTooBigIsNotSet() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            for (int i = 0; i < 1000; i++) {
+                /*
+                 * The first few times this is called we check within the
+                 * array. But we quickly go beyond it and those all return
+                 * false as well.
+                 */
+                assertFalse(bitArray.get(i));
+            }
+        }
+    }
 }

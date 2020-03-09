@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -163,7 +164,6 @@ public class TransportStartDataFrameAnalyticsAction
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
-                    logger.debug("[{}] waiting for task to start", task.getParams().getId());
                     waitForAnalyticsStarted(task, request.getTimeout(), listener);
                 }
 
@@ -398,7 +398,6 @@ public class TransportStartDataFrameAnalyticsAction
                         // what would have happened if the error had been detected in the "fast fail" validation
                         cancelAnalyticsStart(task, predicate.exception, listener);
                     } else {
-                        logger.debug("[{}] task is now started", task.getParams().getId());
                         auditor.info(task.getParams().getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED);
                         listener.onResponse(new AcknowledgedResponse(true));
                     }
@@ -512,6 +511,10 @@ public class TransportStartDataFrameAnalyticsAction
         String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
+            // This is OK as indices are created on demand
+            if (clusterState.metaData().hasIndex(index) == false) {
+                continue;
+            }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
                 unavailableIndices.add(index);
@@ -574,7 +577,11 @@ public class TransportStartDataFrameAnalyticsAction
             String id = params.getId();
 
             List<String> unavailableIndices =
-                verifyIndicesPrimaryShardsAreActive(clusterState, resolver, AnomalyDetectorsIndex.configIndexName());
+                verifyIndicesPrimaryShardsAreActive(clusterState,
+                    resolver,
+                    AnomalyDetectorsIndex.configIndexName(),
+                    MlStatsIndex.indexPattern(),
+                    AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
                 String reason = "Not opening data frame analytics job [" + id +
                     "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";

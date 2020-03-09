@@ -7,8 +7,9 @@ setup:
           - index:
               _index: eql_test
               _id:    1
-          - event_type: process
-            timestamp: 2020-02-03T12:34:56Z
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
             user: SYSTEM
 
 ---

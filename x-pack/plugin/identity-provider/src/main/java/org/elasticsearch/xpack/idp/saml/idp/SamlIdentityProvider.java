@@ -122,7 +122,7 @@ public class SamlIdentityProvider {
                         "https://saml.elasticsearch.org/attributes/principal",
                         "https://saml.elasticsearch.org/attributes/name",
                         "https://saml.elasticsearch.org/attributes/email",
-                        "https://saml.elasticsearch.org/attributes/groups"),
+                        "https://saml.elasticsearch.org/attributes/roles"),
                     null, false, false));
         } catch (MalformedURLException e) {
             throw new UncheckedIOException(e);

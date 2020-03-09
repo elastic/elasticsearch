@@ -62,7 +62,7 @@
             "login": {
               "type": "keyword"
             },
-            "groups": {
+            "roles": {
               "type": "object",
               "dynamic": false
             }
@@ -80,7 +80,7 @@
             "name": {
               "type": "keyword"
             },
-            "groups": {
+            "roles": {
               "type": "keyword"
             }
           }

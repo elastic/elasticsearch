@@ -32,15 +32,15 @@ public class UserPrivilegeResolver {
     public static class UserPrivileges {
         public final String principal;
         public final boolean hasAccess;
-        public final Set<String> groups;
+        public final Set<String> roles;
 
-        public UserPrivileges(String principal, boolean hasAccess, Set<String> groups) {
+        public UserPrivileges(String principal, boolean hasAccess, Set<String> roles) {
             this.principal = Objects.requireNonNull(principal, "principal may not be null");
-            if (hasAccess == false && groups.isEmpty() == false) {
-                throw new IllegalArgumentException("a user without access ([" + hasAccess + "]) may not have groups ([" + groups + "])");
+            if (hasAccess == false && roles.isEmpty() == false) {
+                throw new IllegalArgumentException("a user without access ([" + hasAccess + "]) may not have roles ([" + roles + "])");
             }
             this.hasAccess = hasAccess;
-            this.groups = Set.copyOf(Objects.requireNonNull(groups, "groups may not be null"));
+            this.roles = Set.copyOf(Objects.requireNonNull(roles, "roles may not be null"));
         }
 
         @Override
@@ -52,7 +52,7 @@ public class UserPrivilegeResolver {
                 .append(", ")
                 .append(hasAccess);
             if (hasAccess) {
-                str.append(", ").append(groups);
+                str.append(", ").append(roles);
             }
             str.append("}");
             return str.toString();
@@ -102,11 +102,11 @@ public class UserPrivilegeResolver {
         if (hasAccess == false) {
             return UserPrivileges.noAccess(response.getUsername());
         }
-        final Set<String> groups = service.getGroupActions().entrySet().stream()
+        final Set<String> roles = service.getRoleActions().entrySet().stream()
             .filter(entry -> checkAccess(appPrivileges, entry.getValue(), service.getResource()))
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableSet());
-        return new UserPrivileges(response.getUsername(), hasAccess, groups);
+        return new UserPrivileges(response.getUsername(), hasAccess, roles);
     }
 
     private boolean checkAccess(Set<ResourcePrivileges> userPrivileges, String action, String resource) {
@@ -122,9 +122,9 @@ public class UserPrivilegeResolver {
         final RoleDescriptor.ApplicationResourcePrivileges.Builder builder = RoleDescriptor.ApplicationResourcePrivileges.builder();
         builder.application(service.getApplicationName());
         builder.resources(service.getResource());
-        Set<String> actions = new HashSet<>(1 + service.getGroupActions().size());
+        Set<String> actions = new HashSet<>(1 + service.getRoleActions().size());
         actions.add(service.getLoginAction());
-        actions.addAll(service.getGroupActions().values());
+        actions.addAll(service.getRoleActions().values());
         builder.privileges(actions);
         return builder.build();
     }

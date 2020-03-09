@@ -54,7 +54,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("kibana_user", kibanaAdminUser("kibana_user",
-                    MetadataUtils.getDeprecatedReservedMetadata("Use kibana_admin instead.")))
+                    MetadataUtils.getDeprecatedReservedMetadata("Use [kibana_admin] instead.")))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
                         new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] {

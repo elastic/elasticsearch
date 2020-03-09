@@ -65,3 +65,10 @@ for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
 do this. The behavior is now the same for both field types like documented in
 <<range-query-date-math-rounding>>.
 
+[float]
+==== `thread_pool.listener.size` and `thread_pool.listener.queue_size` have been deprecated
+
+The listener thread pool is no longer used internally by Elasticsearch.
+Therefore, these settings have been deprecated. You can safely remove these
+settings from the configuration of your nodes.
+

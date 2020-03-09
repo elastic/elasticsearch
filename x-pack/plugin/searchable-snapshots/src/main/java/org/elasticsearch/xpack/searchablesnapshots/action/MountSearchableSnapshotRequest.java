@@ -95,7 +95,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.mountedIndexName = in.readString();
         this.repositoryName = in.readString();
         this.snapshotName = in.readString();
-        this.snapshotIndexName = in.readOptionalString();
+        this.snapshotIndexName = in.readString();
         this.indexSettings = readSettingsFromStream(in);
         this.ignoredIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
@@ -107,7 +107,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         out.writeString(mountedIndexName);
         out.writeString(repositoryName);
         out.writeString(snapshotName);
-        out.writeOptionalString(snapshotIndexName);
+        out.writeString(snapshotIndexName);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoredIndexSettings);
         out.writeBoolean(waitForCompletion);

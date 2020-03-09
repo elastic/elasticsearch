@@ -123,6 +123,8 @@ integTest.runner {
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',
     'ml/delete_model_snapshot/Test delete with in-use model',
+    'ml/fetch_inference/Test fetch regression',
+    'ml/fetch_inference/Test fetch classification',
     'ml/filter_crud/Test create filter api with mismatching body ID',
     'ml/filter_crud/Test create filter given invalid filter_id',
     'ml/filter_crud/Test get filter API with bad ID',

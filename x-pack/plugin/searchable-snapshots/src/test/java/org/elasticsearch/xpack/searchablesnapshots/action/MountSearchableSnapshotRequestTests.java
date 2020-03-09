@@ -7,37 +7,14 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 public class MountSearchableSnapshotRequestTests extends AbstractWireSerializingTestCase<MountSearchableSnapshotRequest> {
-    public void testParse() throws Exception {
-        final MountSearchableSnapshotRequest original = randomState(createTestInstance());
-        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-
-        final MountSearchableSnapshotRequest processed = MountSearchableSnapshotRequest.PARSER.apply(parser,
-            new MountSearchableSnapshotRequest.RequestParams(
-                original.repositoryName(),
-                original.snapshotName(),
-                original.waitForCompletion()))
-            .masterNodeTimeout(original.masterNodeTimeout());
-
-        assertEquals(original, processed);
-    }
 
     private MountSearchableSnapshotRequest randomState(MountSearchableSnapshotRequest instance) {
         return new MountSearchableSnapshotRequest(

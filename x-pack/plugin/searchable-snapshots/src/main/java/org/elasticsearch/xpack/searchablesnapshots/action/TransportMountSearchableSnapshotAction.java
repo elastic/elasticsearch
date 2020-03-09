@@ -104,7 +104,7 @@ public class TransportMountSearchableSnapshotAction
         repository.getRepositoryData(repositoryDataListener);
         repositoryDataListener.whenComplete(repoData -> {
             final Map<String, IndexId> indexIds = repoData.getIndices();
-            if (indexIds.containsKey(indexName) == false && indexIds.get(indexName) != null) {
+            if (indexIds.containsKey(indexName) == false) {
                 throw new IndexNotFoundException("index [" + indexName + "] not found in repository [" + repoName + "]");
             }
             final IndexId indexId = indexIds.get(indexName);

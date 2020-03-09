@@ -15,8 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,7 +27,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> implements ToXContentObject {
+public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> {
 
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RequestParams> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot", true,
@@ -168,27 +166,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(INDEX_FIELD.getPreferredName(), snapshotIndexName);
-        builder.field(RENAMED_INDEX_FIELD.getPreferredName(), mountedIndexName);
-        if (indexSettings.isEmpty() == false) {
-            builder.startObject(INDEX_SETTINGS_FIELD.getPreferredName());
-            indexSettings.toXContent(builder, params);
-            builder.endObject();
-        }
-        if (ignoredIndexSettings.length > 0) {
-            builder.startArray(IGNORE_INDEX_SETTINGS_FIELD.getPreferredName());
-            for (String ignoreIndexSetting : ignoredIndexSettings) {
-                builder.value(ignoreIndexSetting);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
     public String getDescription() {
         return "mount snapshot [" + repositoryName + ":" + snapshotName + ":" + snapshotIndexName + "] as [" + mountedIndexName + "]";
     }
@@ -218,6 +195,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return getDescription();
     }
 }

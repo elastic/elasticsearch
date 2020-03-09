@@ -18,15 +18,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -271,8 +273,20 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                                         String snapshotIndexName, String mountIndexName, Settings indexSettings) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/" + snapshot + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-        request.setJsonEntity(Strings.toString(new MountSearchableSnapshotRequest(mountIndexName, repository, snapshot,
-            snapshotIndexName, indexSettings, Strings.EMPTY_ARRAY, waitForCompletion)));
+
+        final XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .field("index", snapshotIndexName);
+        if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
+            builder.field("renamed_index", mountIndexName);
+        }
+        if (indexSettings.isEmpty() == false) {
+            builder.startObject("index_settings");
+            indexSettings.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+        }
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
 
         final Response response = client().performRequest(request);
         assertThat("Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,

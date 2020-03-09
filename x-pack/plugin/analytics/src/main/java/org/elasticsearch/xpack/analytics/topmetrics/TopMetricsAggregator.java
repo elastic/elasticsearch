@@ -140,6 +140,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         Releasables.close(sort, metrics);
     }
 
+    /**
+     * Information about each metric that this {@link Aggregator} uses to
+     * load and format metric values.
+     */
     static class MetricSource {
         private final String name;
         private final DocValueFormat format;
@@ -269,6 +273,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
     }
 
+    /**
+     * Loads metrics for floating point numbers.
+     */
     static class DoubleMetricValues extends CollectingMetricValues {
         private DoubleArray values;
 
@@ -286,7 +293,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         public MetricValue metricValue(long index) {
             double value = values.get(index);
             if (Double.isNaN(value)) {
-                // The value was missing for that doc.
+                // Use NaN as a sentinel for "missing"
                 return null;
             }
             return new MetricValue(source.format, SortValue.from(value));
@@ -307,6 +314,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
                 if (index >= values.size()) {
                     values = bigArrays.grow(values, index + 1);
                 }
+                // Use NaN as a sentinel for "missing"
                 double metricValue = metricValues.advanceExact(doc) ? metricValues.doubleValue() : Double.NaN;
                 values.set(index, metricValue);
             };
@@ -317,13 +325,24 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             values.close();
         }
     }
+
+    /**
+     * Loads metrics for whole numbers.
+     */
     static class LongMetricValues extends CollectingMetricValues {
-        private final EmptyHelper empty;
+        /**
+         * Tracks "missing" values in a {@link BitArray}. Unlike
+         * {@link DoubleMetricValues}, we there isn't a sentinel value
+         * that we can steel from the longs to represent missing that
+         * won't lead to more trouble than it is worth. So we track
+         * "missing" values explicitly.
+         */
+        private final MissingHelper empty;
         private LongArray values;
 
         LongMetricValues(int size, BigArrays bigArrays, MetricSource source) {
             super(bigArrays, source);
-            empty = new EmptyHelper(bigArrays);
+            empty = new MissingHelper(bigArrays);
             values = bigArrays.newLongArray(size, false);
         }
 
@@ -373,6 +392,11 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             Releasables.close(values, empty);
         }
     }
+
+    /**
+     * {@linkplain MetricValues} implementation for unmapped fields
+     * that always returns {@code null} or {@code NaN}.
+     */
     static class AlwaysNullMetricValues extends MetricValues {
         AlwaysNullMetricValues(MetricSource source) {
             super(source);
@@ -410,11 +434,11 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
      * very low CPU overhead and no memory overhead when there *aren't* empty
      * values.
      */
-    private static class EmptyHelper implements Releasable {
+    private static class MissingHelper implements Releasable {
         private final BigArrays bigArrays;
         private BitArray tracker;
 
-        EmptyHelper(BigArrays bigArrays) {
+        MissingHelper(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
         }
 

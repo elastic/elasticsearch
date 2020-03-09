@@ -43,7 +43,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        return aggregation.rewriteBuckets(aggregations -> {
+        return aggregation.copyWithRewritenBuckets(aggregations -> {
             List<InternalAggregation> aggs = aggregations.copyResults();
             aggs.add(doReduce(aggregations, reduceContext));
             return new InternalAggregations(aggs);

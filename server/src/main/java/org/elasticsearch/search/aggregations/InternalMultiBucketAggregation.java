@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
             B extends InternalMultiBucketAggregation.InternalBucket>
@@ -155,11 +156,11 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     @Override
-    public InternalAggregation rewriteBuckets(BucketRewriter rewriter) {
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
         boolean modified = false;
         List<B> newBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
-            InternalAggregations rewritten = rewriter.rewrite((InternalAggregations) bucket.getAggregations());
+            InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
             if (rewritten == null) {
                 newBuckets.add(bucket);
                 continue;

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.decision;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -82,4 +83,8 @@ public class AutoscalingDecision implements ToXContent, Writeable {
         return Objects.hash(name, type, reason);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

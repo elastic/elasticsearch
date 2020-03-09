@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDecider;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.List;
@@ -141,7 +142,8 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         return List.of(
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
-            new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new)
+            new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new),
+            new NamedWriteableRegistry.Entry(ReactiveStorageDecider.class, ReactiveStorageDecider.NAME, ReactiveStorageDecider::new)
         );
     }
 
@@ -153,6 +155,11 @@ public class Autoscaling extends Plugin implements ActionPlugin {
                 AutoscalingDecider.class,
                 new ParseField(AlwaysAutoscalingDecider.NAME),
                 AlwaysAutoscalingDecider::parse
+            ),
+            new NamedXContentRegistry.Entry(
+                ReactiveStorageDecider.class,
+                new ParseField(ReactiveStorageDecider.NAME),
+                ReactiveStorageDecider::parse
             )
         );
     }

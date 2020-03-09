@@ -24,8 +24,9 @@ public interface AutoscalingDecider extends ToXContentObject, NamedWriteable {
     /**
      * Whether or not to scale based on the current state.
      *
+     * @param context provides access to information about current state
      * @return the autoscaling decision
      */
-    AutoscalingDecision scale();
+    AutoscalingDecision scale(AutoscalingDeciderContext context);
 
 }

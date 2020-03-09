@@ -37,16 +37,32 @@ public final class BitArray implements Releasable {
         this.bits = bigArrays.newLongArray(initialSize, true);
     }
 
+    /**
+     * Set the {@code index}th bit.
+     */
     public void set(int index) {
         fill(index, true);
     }
 
+    /**
+     * Clear the {@code index}th bit.
+     */
     public void clear(int index) {
         fill(index, false);
     }
 
+    /**
+     * Is the {@code index}th bit set?
+     */
     public boolean get(int index) {
         int wordNum = index >> 6;
+        if (wordNum >= bits.size()) {
+            /*
+             * If the word is bigger than the array then it could *never* have
+             * been set.
+             */
+            return false;
+        }
         long bitmask = 1L << index;
         return (bits.get(wordNum) & bitmask) != 0;
     }

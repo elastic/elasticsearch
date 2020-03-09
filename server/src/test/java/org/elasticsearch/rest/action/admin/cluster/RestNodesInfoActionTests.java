@@ -118,7 +118,6 @@ public class RestNodesInfoActionTests extends ESTestCase {
     }
 
     private void assertMetrics(List<String> metrics, NodesInfoRequest nodesInfoRequest) {
-        // if the metrics list contains
         assertThat(new HashSet<>(metrics), equalTo(nodesInfoRequest.requestedMetrics()));
     }
 

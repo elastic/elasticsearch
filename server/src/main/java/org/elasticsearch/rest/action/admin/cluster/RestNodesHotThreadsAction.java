@@ -50,18 +50,24 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Override
     public List<DeprecatedRoute> deprecatedRoutes() {
+        final String DEPRECATED_PATH_CLUSTER_NODES_HOT_THREADS = "/_cluster/nodes/hot_threads";
+        final String DEPRECATED_PATH_CLUSTER_NODES_NODEID_HOT_THREADS = "/_cluster/nodes/{nodeId}/hot_threads";
+        final String DEPRECATED_PATH_CLUSTER_NODES_HOTTHREADS = "/_cluster/nodes/hotthreads";
+        final String DEPRECATED_PATH_CLUSTER_NODES_NODEID_HOTTHREADS = "/_cluster/nodes/{nodeId}/hotthreads";
+        final String DEPRECATED_PATH_NODES_HOTTHREADS = "/_nodes/hotthreads";
+        final String DEPRECATED_PATH_NODES_NODEID_HOTTHREADS = "/_nodes/{nodeId}/hotthreads";
         return List.of(
-            new DeprecatedRoute(GET, "/_cluster/nodes/hot_threads",
+            new DeprecatedRoute(GET, DEPRECATED_PATH_CLUSTER_NODES_HOT_THREADS,
                     DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS),
-            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hot_threads",
+            new DeprecatedRoute(GET, DEPRECATED_PATH_CLUSTER_NODES_NODEID_HOT_THREADS,
                     DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS),
-            new DeprecatedRoute(GET, "/_cluster/nodes/hotthreads",
+            new DeprecatedRoute(GET, DEPRECATED_PATH_CLUSTER_NODES_HOTTHREADS,
                     DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS),
-            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hotthreads",
+            new DeprecatedRoute(GET, DEPRECATED_PATH_CLUSTER_NODES_NODEID_HOTTHREADS,
                     DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS),
-            new DeprecatedRoute(GET, "/_nodes/hotthreads",
+            new DeprecatedRoute(GET, DEPRECATED_PATH_NODES_HOTTHREADS,
                     DEPRECATED_MESSAGE_NODES_HOTTHREADS),
-            new DeprecatedRoute(GET, "/_nodes/{nodeId}/hotthreads",
+            new DeprecatedRoute(GET, DEPRECATED_PATH_NODES_NODEID_HOTTHREADS,
                     DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS));
     }
 

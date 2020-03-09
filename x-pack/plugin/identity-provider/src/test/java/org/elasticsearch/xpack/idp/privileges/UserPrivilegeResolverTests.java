@@ -60,10 +60,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(false));
-        assertThat(privileges.groups, emptyIterable());
+        assertThat(privileges.roles, emptyIterable());
     }
 
-    public void testResolveSsoWithNoGroupsDefined() throws Exception {
+    public void testResolveSsoWithNoRolesDefined() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
         final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
@@ -77,10 +77,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(true));
-        assertThat(privileges.groups, emptyIterable());
+        assertThat(privileges.roles, emptyIterable());
     }
 
-    public void testResolveSsoWithNoGroupAccess() throws Exception {
+    public void testResolveSsoWithNoRoleAccess() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
         final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
@@ -97,10 +97,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(true));
-        assertThat(privileges.groups, emptyIterable());
+        assertThat(privileges.roles, emptyIterable());
     }
 
-    public void testResolveSsoWithSingleGroup() throws Exception {
+    public void testResolveSsoWithSingleRole() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
         final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
@@ -117,10 +117,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(true));
-        assertThat(privileges.groups, containsInAnyOrder("viewer"));
+        assertThat(privileges.roles, containsInAnyOrder("viewer"));
     }
 
-    public void testResolveSsoWithMultipleGroup() throws Exception {
+    public void testResolveSsoWithMultipleRoles() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
         final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
@@ -146,10 +146,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(true));
-        assertThat(privileges.groups, containsInAnyOrder("operator", "monitor"));
+        assertThat(privileges.roles, containsInAnyOrder("operator", "monitor"));
     }
 
-    public void testResolveWithNoSsoPrivilegeReturnsEmptyGroupAccess() throws Exception {
+    public void testResolveWithNoSsoPrivilegeReturnsEmptyRoleAccess() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
         final String resource = "cluster:" + MessageDigests.toHexString(randomByteArrayOfLength(16));
@@ -166,11 +166,11 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(false));
-        assertThat(privileges.groups, emptyIterable());
+        assertThat(privileges.roles, emptyIterable());
     }
 
-    private ServiceProviderPrivileges service(String appName, String resource, String loginAction, Map<String, String> groups) {
-        return new ServiceProviderPrivileges(appName, resource, loginAction, groups);
+    private ServiceProviderPrivileges service(String appName, String resource, String loginAction, Map<String, String> roles) {
+        return new ServiceProviderPrivileges(appName, resource, loginAction, roles);
     }
 
     private HasPrivilegesResponse setupHasPrivileges(String username, String appName,

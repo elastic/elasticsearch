@@ -54,10 +54,10 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final URL acs = new URL(entityId + "saml/acs");
 
         final String principalAttribute = randomAlphaOfLengthBetween(6, 36);
-        final String groupsAttribute = randomAlphaOfLengthBetween(6, 36);
+        final String rolesAttribute = randomAlphaOfLengthBetween(6, 36);
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
         final String spLoginAction = "action:" + randomAlphaOfLengthBetween(6, 12);
-        final Map<String, String> groupPrivileges = Map.of(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
+        final Map<String, String> rolePrivileges = Map.of(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
 
         final DocumentVersion docVersion = new DocumentVersion(
             randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
@@ -67,9 +67,9 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         document.setAcs(acs.toString());
         document.privileges.setResource(resource);
         document.privileges.setLoginAction(spLoginAction);
-        document.privileges.setGroupActions(groupPrivileges);
+        document.privileges.setRoleActions(rolePrivileges);
         document.attributeNames.setPrincipal(principalAttribute);
-        document.attributeNames.setGroups(groupsAttribute);
+        document.attributeNames.setRoles(rolesAttribute);
 
         mockDocument(entityId, docVersion, document);
 
@@ -86,13 +86,13 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getAttributeNames().principal, equalTo(principalAttribute));
         assertThat(serviceProvider.getAttributeNames().name, nullValue());
         assertThat(serviceProvider.getAttributeNames().email, nullValue());
-        assertThat(serviceProvider.getAttributeNames().groups, equalTo(groupsAttribute));
+        assertThat(serviceProvider.getAttributeNames().roles, equalTo(rolesAttribute));
 
         assertThat(serviceProvider.getPrivileges(), notNullValue());
         assertThat(serviceProvider.getPrivileges().getApplicationName(), equalTo(defaults.applicationName));
         assertThat(serviceProvider.getPrivileges().getResource(), equalTo(resource));
         assertThat(serviceProvider.getPrivileges().getLoginAction(), equalTo(spLoginAction));
-        assertThat(serviceProvider.getPrivileges().getGroupActions(), equalTo(groupPrivileges));
+        assertThat(serviceProvider.getPrivileges().getRoleActions(), equalTo(rolePrivileges));
     }
 
     public void testResolveReturnsCachedObject() throws Exception {
@@ -135,7 +135,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider2.getAttributeNames().principal, equalTo(document2.attributeNames.principal));
         assertThat(serviceProvider2.getAttributeNames().name, equalTo(document2.attributeNames.name));
         assertThat(serviceProvider2.getAttributeNames().email, equalTo(document2.attributeNames.email));
-        assertThat(serviceProvider2.getAttributeNames().groups, equalTo(document2.attributeNames.groups));
+        assertThat(serviceProvider2.getAttributeNames().roles, equalTo(document2.attributeNames.roles));
         assertThat(serviceProvider2.getPrivileges().getResource(), equalTo(document2.privileges.resource));
     }
 

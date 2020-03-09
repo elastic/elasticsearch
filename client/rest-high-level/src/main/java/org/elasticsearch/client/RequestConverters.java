@@ -913,6 +913,10 @@ final class RequestConverters {
         }
 
         Params withSlices(int slices) {
+            if (slices == 0) {
+                // translate to "auto" value in rest request so the receiving end doesn't throw error
+                return putParam("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            }
             return putParam("slices", String.valueOf(slices));
         }
 

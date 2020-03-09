@@ -188,6 +188,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
     }
 
     private void searchStats(String configId, ActionListener<Stats> listener) {
+        logger.debug("[{}] Gathering stats for stopped task", configId);
+
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder();
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();

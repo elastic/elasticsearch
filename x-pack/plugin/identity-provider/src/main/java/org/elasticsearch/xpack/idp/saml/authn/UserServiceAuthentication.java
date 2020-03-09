@@ -17,30 +17,30 @@ import java.util.Set;
  */
 public class UserServiceAuthentication {
     private final String principal;
-    private final Set<String> groups;
+    private final Set<String> roles;
     private final SamlServiceProvider serviceProvider;
     private final Set<AuthenticationMethod> authenticationMethods;
     private final Set<NetworkControl> networkControls;
 
-    public UserServiceAuthentication(String principal, Set<String> groups, SamlServiceProvider serviceProvider,
+    public UserServiceAuthentication(String principal, Set<String> roles, SamlServiceProvider serviceProvider,
                                      Set<AuthenticationMethod> authenticationMethods, Set<NetworkControl> networkControls) {
         this.principal = principal;
-        this.groups = groups;
+        this.roles = roles;
         this.serviceProvider = serviceProvider;
         this.authenticationMethods = authenticationMethods;
         this.networkControls = networkControls;
     }
 
-    public UserServiceAuthentication(String principal, Set<String> groups, SamlServiceProvider serviceProvider) {
-        this(principal, groups, serviceProvider, Set.of(AuthenticationMethod.PASSWORD), Set.of(NetworkControl.TLS));
+    public UserServiceAuthentication(String principal, Set<String> roles, SamlServiceProvider serviceProvider) {
+        this(principal, roles, serviceProvider, Set.of(AuthenticationMethod.PASSWORD), Set.of(NetworkControl.TLS));
     }
 
     public String getPrincipal() {
         return principal;
     }
 
-    public Set<String> getGroups() {
-        return groups;
+    public Set<String> getRoles() {
+        return roles;
     }
 
     public SamlServiceProvider getServiceProvider() {

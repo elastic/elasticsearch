@@ -109,16 +109,16 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.privileges.setApplication(randomAlphaOfLengthBetween(6, 24));
         doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
         doc1.privileges.setLoginAction(randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
-        final Map<String, String> groupActions = new HashMap<>();
+        final Map<String, String> roleActions = new HashMap<>();
         for (int i = randomIntBetween(1, 6); i > 0; i--) {
-            groupActions.put(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
+            roleActions.put(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
         }
-        doc1.privileges.setGroupActions(groupActions);
+        doc1.privileges.setRoleActions(roleActions);
 
         doc1.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setEmail("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setName("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
-        doc1.attributeNames.setGroups("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.attributeNames.setRoles("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         return doc1;
     }
 

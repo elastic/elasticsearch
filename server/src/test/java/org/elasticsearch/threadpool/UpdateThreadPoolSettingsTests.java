@@ -119,7 +119,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             terminateThreadPoolIfNeeded(threadPool);
         }
 
-        if ("listener".equals(threadPoolName)) {
+        if (Names.LISTENER.equals(threadPoolName)) {
             assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
         }
     }
@@ -178,7 +178,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             terminateThreadPoolIfNeeded(threadPool);
         }
 
-        if ("listener".equals(threadPoolName)) {
+        if (Names.LISTENER.equals(threadPoolName)) {
             assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
         }
     }

@@ -19,82 +19,89 @@
 
 package org.elasticsearch.logstash;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.logstash.action.DeletePipelineAction;
+import org.elasticsearch.logstash.action.GetPipelineAction;
+import org.elasticsearch.logstash.action.PutPipelineAction;
+import org.elasticsearch.logstash.action.TransportDeletePipelineAction;
+import org.elasticsearch.logstash.action.TransportGetPipelineAction;
+import org.elasticsearch.logstash.action.TransportPutPipelineAction;
+import org.elasticsearch.logstash.rest.RestDeletePipelineAction;
+import org.elasticsearch.logstash.rest.RestGetPipelineAction;
+import org.elasticsearch.logstash.rest.RestPutPipelineAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.document.RestDeleteAction;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
-import org.elasticsearch.rest.action.search.RestClearScrollAction;
-import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.function.UnaryOperator;
 
 public class LogstashPlugin extends Plugin implements SystemIndexPlugin, ActionPlugin {
 
+    @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singleton(new SystemIndexDescriptor(".logstash*", "Logstash system indices for storing pipelines"));
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.unmodifiableList(Arrays.asList(
-            new LogstashWrappedRestHandler(new RestGetAction()),
-            new LogstashWrappedRestHandler(new RestMultiGetAction(settings)),
-            new LogstashWrappedRestHandler(new RestIndexAction()),
-            new LogstashWrappedRestHandler(new RestDeleteAction()),
-            new LogstashWrappedRestHandler(new RestSearchAction()),
-            new LogstashWrappedRestHandler(new RestSearchScrollAction()),
-            new LogstashWrappedRestHandler(new RestClearScrollAction())
-        ));
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionHandler<>(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
+            new ActionHandler<>(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
+            new ActionHandler<>(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
+        );
     }
 
-    static class LogstashWrappedRestHandler extends BaseRestHandler.Wrapper {
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new RestPutPipelineAction(), new RestGetPipelineAction(), new RestDeletePipelineAction());
+    }
 
-        private final List<String> allowedIndexPatterns = Collections.singletonList(".logstash");
-
-        LogstashWrappedRestHandler(BaseRestHandler delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public String getName() {
-            return "logstash_" + super.getName();
-        }
-
-        @Override
-        public List<Route> routes() {
-            return super.routes().stream().map(route -> new Route(route.getMethod(), "/_logstash" + route.getPath()))
-                .collect(Collectors.toUnmodifiableList());
-        }
-
-        @Override
-        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            client.threadPool().getThreadContext().allowSystemIndexAccess(allowedIndexPatterns);
-            return super.prepareRequest(request, client);
-        }
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return map -> {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    LogstashPlugin.class.getResourceAsStream("/pipelines.json")
+                )
+            ) {
+                IndexTemplateMetaData metaData = IndexTemplateMetaData.Builder.fromXContent(parser, ".logstash-pipeline");
+                map.put(".logstash-pipeline", metaData);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return map;
+        };
     }
 }

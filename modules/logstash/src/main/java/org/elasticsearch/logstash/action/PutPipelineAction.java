@@ -17,25 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.logstash;
+package org.elasticsearch.logstash.action;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.ActionType;
 
-import java.util.stream.Collectors;
+public class PutPipelineAction extends ActionType<PutPipelineResponse> {
 
-import static org.hamcrest.Matchers.contains;
+    public static final String NAME = "cluster:admin/logstash/pipeline/put";
+    public static final PutPipelineAction INSTANCE = new PutPipelineAction();
 
-public class LogstashPluginTests extends ESTestCase {
-
-    public void testSystemIndices() {
-        assertThat(
-            new LogstashPlugin().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toUnmodifiableList()),
-            contains(".logstash*")
-        );
+    private PutPipelineAction() {
+        super(NAME, PutPipelineResponse::new);
     }
 }

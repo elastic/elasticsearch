@@ -17,25 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.logstash;
+package org.elasticsearch.logstash.action;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.util.stream.Collectors;
+import java.io.IOException;
 
-import static org.hamcrest.Matchers.contains;
+public class DeletePipelineResponse extends ActionResponse {
 
-public class LogstashPluginTests extends ESTestCase {
+    private final boolean deleted;
 
-    public void testSystemIndices() {
-        assertThat(
-            new LogstashPlugin().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toUnmodifiableList()),
-            contains(".logstash*")
-        );
+    public DeletePipelineResponse(boolean deleted) {
+        this.deleted = deleted;
+    }
+
+    public DeletePipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        this.deleted = in.readBoolean();
+    }
+
+    public boolean isDeleted() {
+        return deleted;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(deleted);
     }
 }

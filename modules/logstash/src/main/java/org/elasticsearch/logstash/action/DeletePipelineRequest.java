@@ -17,25 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.logstash;
+package org.elasticsearch.logstash.action;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-import java.util.stream.Collectors;
+import java.io.IOException;
 
-import static org.hamcrest.Matchers.contains;
+public class DeletePipelineRequest extends ActionRequest {
 
-public class LogstashPluginTests extends ESTestCase {
+    private final String id;
 
-    public void testSystemIndices() {
-        assertThat(
-            new LogstashPlugin().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toUnmodifiableList()),
-            contains(".logstash*")
-        );
+    public DeletePipelineRequest(String id) {
+        this.id = id;
+    }
+
+    public DeletePipelineRequest(StreamInput in) throws IOException {
+        super(in);
+        this.id = in.readString();
+    }
+
+    public String id() {
+        return id;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 }

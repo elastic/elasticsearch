@@ -17,25 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.logstash;
+package org.elasticsearch.logstash.action;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.ActionType;
 
-import java.util.stream.Collectors;
+public class DeletePipelineAction extends ActionType<DeletePipelineResponse> {
 
-import static org.hamcrest.Matchers.contains;
+    public static final String NAME = "cluster:admin/logstash/pipeline/delete";
+    public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
 
-public class LogstashPluginTests extends ESTestCase {
-
-    public void testSystemIndices() {
-        assertThat(
-            new LogstashPlugin().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toUnmodifiableList()),
-            contains(".logstash*")
-        );
+    private DeletePipelineAction() {
+        super(NAME, DeletePipelineResponse::new);
     }
 }

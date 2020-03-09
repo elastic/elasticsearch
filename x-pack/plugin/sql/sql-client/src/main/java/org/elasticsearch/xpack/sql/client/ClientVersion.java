@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -16,45 +18,25 @@ import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
-public class Version {
+/**
+ * Clients-specific version utility class.
+ * <p>
+ *     The class provides the SQL clients the version identifying the release they're are part of. The version is read from the
+ *     encompassing JAR file (Elasticsearch-specific attribute in the manifest).
+ *     The class is also a provider for the implemented JDBC standard.
+ * </p>
+ */
+public class ClientVersion {
 
-    public static final Version CURRENT;
-    public final String version;
-    public final String hash;
-    public final byte major;
-    public final byte minor;
-    public final byte revision;
-
-    private Version(String version, String hash, byte... parts) {
-        this.version = version;
-        this.hash = hash;
-        this.major = parts[0];
-        this.minor = parts[1];
-        this.revision = parts[2];
-    }
-
-    public static Version fromString(String version) {
-        return new Version(version, "Unknown", from(version));
-    }
-
-    static byte[] from(String ver) {
-        String[] parts = ver.split("[.-]");
-        // Allow for optional snapshot and qualifier
-        if (parts.length < 3 || parts.length > 5) {
-            throw new IllegalArgumentException("Invalid version " + ver);
-        }
-        else {
-            return new byte[] { Byte.parseByte(parts[0]), Byte.parseByte(parts[1]), Byte.parseByte(parts[2]) };
-        }
-    }
+    public static final SqlVersion CURRENT;
 
     static {
         // check classpath
-        String target = Version.class.getName().replace(".", "/").concat(".class");
+        String target = ClientVersion.class.getName().replace(".", "/").concat(".class");
         Enumeration<URL> res;
 
         try {
-            res = Version.class.getClassLoader().getResources(target);
+            res = ClientVersion.class.getClassLoader().getResources(target);
         } catch (IOException ex) {
             throw new IllegalArgumentException("Cannot detect Elasticsearch JDBC jar; it typically indicates a deployment issue...");
         }
@@ -85,41 +67,35 @@ public class Version {
         }
 
         // This is similar to how Elasticsearch's Build class digs up its build information.
-        // Since version info is not critical, the parsing is lenient
-        URL url = Version.class.getProtectionDomain().getCodeSource().getLocation();
+        URL url = SqlVersion.class.getProtectionDomain().getCodeSource().getLocation();
         CURRENT = extractVersion(url);
     }
 
-    static Version extractVersion(URL url) {
+    static SqlVersion extractVersion(URL url) {
         String urlStr = url.toString();
-        byte maj = 0, min = 0, rev = 0;
-        String ver = "Unknown";
-        String hash = ver;
-        
         if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {
             try {
                 URLConnection conn = url.openConnection();
                 conn.setUseCaches(false);
-                
+
                 try (JarInputStream jar = new JarInputStream(conn.getInputStream())) {
                     Manifest manifest = jar.getManifest();
-                    hash = manifest.getMainAttributes().getValue("Change");
-                    ver = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-                    byte[] vers = from(ver);
-                    maj = vers[0];
-                    min = vers[1];
-                    rev = vers[2];
+                    String version = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                    return SqlVersion.fromString(version);
                 }
             } catch (Exception ex) {
                 throw new IllegalArgumentException("Detected Elasticsearch JDBC jar but cannot retrieve its version", ex);
             }
         }
-        return new Version(ver, hash, maj, min, rev);
+        return new SqlVersion(0, 0, 0);
     }
 
-    @Override
-    public String toString() {
-        return "v" + version + " [" + hash + "]";
+    // This function helps ensure that a client won't attempt to communicate to a server with less features than its own. Since this check
+    // is part of the client's start-up check that might not involve an actual SQL API request, the client has to do a bare version check
+    // as well.
+    public static boolean isServerCompatible(SqlVersion server) {
+        // Starting with this version, the compatibility logic moved from the client to the server.
+        return SqlVersion.hasVersionCompatibility(server);
     }
 
     public static int jdbcMajorVersion() {

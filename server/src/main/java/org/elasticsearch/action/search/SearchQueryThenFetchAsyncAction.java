@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -39,14 +40,16 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
     private final SearchProgressListener progressListener;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-            final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
-            final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
-            final SearchPhaseController searchPhaseController, final Executor executor,
-            final SearchRequest request, final ActionListener<SearchResponse> listener,
-            final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
-            long clusterStateVersion, SearchTask task, SearchResponse.Clusters clusters) {
+                                    final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+                                    final Map<String, AliasFilter> aliasFilter,
+                                    final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
+                                    final SearchPhaseController searchPhaseController, final Executor executor,
+                                    final SearchRequest request, final ActionListener<SearchResponse> listener,
+                                    final GroupShardsIterator<SearchShardIterator> shardsIts,
+                                    final TransportSearchAction.SearchTimeProvider timeProvider,
+                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
-                executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
+                executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
         this.searchPhaseController = searchPhaseController;
@@ -70,6 +73,6 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, context);
+        return new FetchSearchPhase(results, searchPhaseController, context, clusterState());
     }
 }

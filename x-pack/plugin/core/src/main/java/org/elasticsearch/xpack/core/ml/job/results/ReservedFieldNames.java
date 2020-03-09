@@ -322,6 +322,7 @@ public final class ReservedFieldNames {
             BoostedTreeParams.LAMBDA.getPreferredName(),
             BoostedTreeParams.GAMMA.getPreferredName(),
             BoostedTreeParams.ETA.getPreferredName(),
+            "maximum_number_trees",
             BoostedTreeParams.MAX_TREES.getPreferredName(),
             BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
             BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),

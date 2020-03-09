@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.InOrder;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -107,12 +110,15 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
     public void testRunJob_TaskIsStopping() {
         when(task.isStopping()).thenReturn(true);
+        when(task.getParams()).thenReturn(
+            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, Collections.emptyList(), false));
 
         processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory);
         assertThat(processManager.getProcessContextCount(), equalTo(0));
 
         InOrder inOrder = inOrder(task);
         inOrder.verify(task).isStopping();
+        inOrder.verify(task).getParams();
         inOrder.verify(task).markAsCompleted();
         verifyNoMoreInteractions(task);
     }

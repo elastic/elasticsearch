@@ -39,11 +39,15 @@ import java.util.Optional;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
+/**
+ * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings.
+ *
+ * This action doesn't technically need to run on the master node, but it needs to get metadata from the repository and we only expect the
+ * repository to be accessible from data and master-eligible nodes so we can't run it everywhere.  Given that we already have a way to run
+ * actions on the master and that we have to do the restore via the master, it's simplest to use {@link TransportMasterNodeAction}.
+ */
 public class TransportMountSearchableSnapshotAction
     extends TransportMasterNodeAction<MountSearchableSnapshotRequest, RestoreSnapshotResponse> {
-    // This action doesn't technically need to run on the master node, but it needs to get metadata from the repository and we only expect
-    // the repository to be accessible from data and master-eligible nodes so we can't run it everywhere. Given that we already have a way
-    // to run actions on the master and that we have to do the restore via the master, it's simplest to use TransportMasterNodeAction.
 
     private final Client client;
     private final RepositoriesService repositoriesService;

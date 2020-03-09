@@ -52,8 +52,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
 
-    private static final ParseField MUSTNOT = new ParseField("mustNot");    // TODO deprecate?
-    private static final ParseField MUST_NOT = new ParseField("must_not");
+    private static final ParseField MUST_NOT = new ParseField("must_not")
+        .withDeprecation("mustNot");
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField SHOULD = new ParseField("should");
     private static final ParseField MUST = new ParseField("must");
@@ -279,8 +279,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             SHOULD);
         PARSER.declareObjectArray((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p),
             MUST_NOT);
-        PARSER.declareObjectArray((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p),
-            MUSTNOT);   // TODO should we deprecate this version?
         PARSER.declareObjectArray((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p),
             FILTER);
         PARSER.declareBoolean(BoolQueryBuilder::adjustPureNegative, ADJUST_PURE_NEGATIVE);

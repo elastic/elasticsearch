@@ -78,7 +78,7 @@ final class DfsQueryPhase extends SearchPhase {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
-                    dfsResult.getRequestId(), dfs);
+                    dfsResult.getContextId(), dfs);
             final int shardIndex = dfsResult.getShardIndex();
             searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
                 new SearchActionListener<QuerySearchResult>(searchShardTarget, shardIndex) {
@@ -96,14 +96,15 @@ final class DfsQueryPhase extends SearchPhase {
                     public void onFailure(Exception exception) {
                         try {
                             context.getLogger().debug(() -> new ParameterizedMessage("[{}] Failed to execute query phase",
-                                querySearchRequest.id()), exception);
+                                querySearchRequest.contextId()), exception);
                             progressListener.notifyQueryFailure(shardIndex, exception);
                             counter.onFailure(shardIndex, searchShardTarget, exception);
                         } finally {
                             // the query might not have been executed at all (for example because thread pool rejected
                             // execution) and the search context that was created in dfs phase might not be released.
                             // release it again to be in the safe side
-                            context.sendReleaseSearchContext(querySearchRequest.id(), connection, searchShardTarget.getOriginalIndices());
+                            context.sendReleaseSearchContext(
+                                querySearchRequest.contextId(), connection, searchShardTarget.getOriginalIndices());
                         }
                     }
                 });

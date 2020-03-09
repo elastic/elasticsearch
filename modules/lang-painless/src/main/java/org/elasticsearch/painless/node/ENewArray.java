@@ -46,8 +46,11 @@ public final class ENewArray extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        if (input.read == false) {
              throw createError(new IllegalArgumentException("A newly created array must be read from."));
         }
 
@@ -60,13 +63,16 @@ public final class ENewArray extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = initialize ? clazz.getComponentType() : int.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
+            Input expressionInput = new Input();
+            expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
 
-        actual = clazz;
+        output.actual = clazz;
+
+        return output;
     }
 
     @Override
@@ -78,7 +84,7 @@ public final class ENewArray extends AExpression {
         }
 
         newArrayNode.setLocation(location);
-        newArrayNode.setExpressionType(actual);
+        newArrayNode.setExpressionType(output.actual);
         newArrayNode.setInitialize(initialize);
 
         return newArrayNode;

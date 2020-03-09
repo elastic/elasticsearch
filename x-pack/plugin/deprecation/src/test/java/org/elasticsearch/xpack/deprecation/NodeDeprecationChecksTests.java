@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.*;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 

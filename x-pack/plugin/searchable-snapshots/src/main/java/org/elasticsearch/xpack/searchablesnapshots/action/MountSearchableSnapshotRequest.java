@@ -190,7 +190,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     @Override
     public String getDescription() {
-        return "mount snapshot [" + repositoryName + ":" + snapshotName + ":" + snapshotIndexName + "->" + mountedIndexName + "]";
+        return "mount snapshot [" + repositoryName + ":" + snapshotName + ":" + snapshotIndexName + "] as [" + mountedIndexName + "]";
     }
 
     @Override

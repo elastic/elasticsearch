@@ -54,7 +54,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
-public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
+public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
+// public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
     protected static String indexedShapeId;
     protected static String indexedShapePath;
@@ -62,9 +63,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     protected static String indexedShapeRouting;
     protected static ShapeBuilder<?, ?, ?> indexedShapeToReturn;
 
-    protected String fieldName() {
-        return GEO_SHAPE_FIELD_NAME;
-    }
+    protected abstract String fieldName();
 
     @Override
     protected Settings createTestIndexSettings() {

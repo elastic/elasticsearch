@@ -37,6 +37,7 @@ import static org.mockito.Mockito.when;
 public class SamlServiceProviderResolverTests extends ESTestCase {
 
     private SamlServiceProviderIndex index;
+    private SamlIdentityProvider.ServiceProviderDefaults serviceProviderDefaults;
     private SamlIdentityProvider identityProvider;
     private SamlServiceProviderResolver resolver;
 
@@ -44,12 +45,11 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     public void setupMocks() {
         index = mock(SamlServiceProviderIndex.class);
         identityProvider = mock(SamlIdentityProvider.class);
-        resolver = new SamlServiceProviderResolver(Settings.EMPTY, index, identityProvider);
+        serviceProviderDefaults = configureIdentityProviderDefaults();
+        resolver = new SamlServiceProviderResolver(Settings.EMPTY, index, serviceProviderDefaults);
     }
 
     public void testResolveWithoutCache() throws Exception {
-
-        final SamlIdentityProvider.ServiceProviderDefaults defaults = configureIdentityProviderDefaults();
 
         final String entityId = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/";
         final URL acs = new URL(entityId + "saml/acs");
@@ -77,8 +77,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final SamlServiceProvider serviceProvider = resolveServiceProvider(entityId);
         assertThat(serviceProvider.getEntityId(), equalTo(entityId));
         assertThat(serviceProvider.getAssertionConsumerService(), equalTo(acs));
-        assertThat(serviceProvider.getAllowedNameIdFormats(), contains(defaults.nameIdFormat));
-        assertThat(serviceProvider.getAuthnExpiry(), equalTo(defaults.authenticationExpiry));
+        assertThat(serviceProvider.getAllowedNameIdFormats(), contains(serviceProviderDefaults.nameIdFormat));
+        assertThat(serviceProvider.getAuthnExpiry(), equalTo(serviceProviderDefaults.authenticationExpiry));
         assertThat(serviceProvider.getSpSigningCredentials(), emptyIterable());
         assertThat(serviceProvider.shouldSignAuthnRequests(), equalTo(false));
         assertThat(serviceProvider.shouldSignLogoutRequests(), equalTo(false));
@@ -90,7 +90,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getAttributeNames().roles, equalTo(rolesAttribute));
 
         assertThat(serviceProvider.getPrivileges(), notNullValue());
-        assertThat(serviceProvider.getPrivileges().getApplicationName(), equalTo(defaults.applicationName));
+        assertThat(serviceProvider.getPrivileges().getApplicationName(), equalTo(serviceProviderDefaults.applicationName));
         assertThat(serviceProvider.getPrivileges().getResource(), equalTo(resource));
         assertThat(serviceProvider.getPrivileges().getLoginAction(), equalTo(spLoginAction));
         assertThat(serviceProvider.getPrivileges().getRoleActions(), equalTo(rolePrivileges));
@@ -102,7 +102,6 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         document2.entityId = document1.entityId;
 
         final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), 1, 1);
-        configureIdentityProviderDefaults();
 
         mockDocument(document1.entityId, docVersion, document1);
         final SamlServiceProvider serviceProvider1 = resolveServiceProvider(document1.entityId);
@@ -120,7 +119,6 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
 
         final DocumentVersion docVersion1 = new DocumentVersion(randomAlphaOfLength(12), 1, 1);
         final DocumentVersion docVersion2 = new DocumentVersion(randomAlphaOfLength(12), randomIntBetween(2, 10), randomIntBetween(1, 10));
-        configureIdentityProviderDefaults();
 
         mockDocument(document1.entityId, docVersion1, document1);
         final SamlServiceProvider serviceProvider1a = resolveServiceProvider(document1.entityId);

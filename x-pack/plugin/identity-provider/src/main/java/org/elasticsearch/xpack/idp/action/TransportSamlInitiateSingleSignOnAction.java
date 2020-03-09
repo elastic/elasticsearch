@@ -49,7 +49,7 @@ public class TransportSamlInitiateSingleSignOnAction
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
+        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), false, ActionListener.wrap(
             sp -> {
                 try {
                     if (null == sp) {

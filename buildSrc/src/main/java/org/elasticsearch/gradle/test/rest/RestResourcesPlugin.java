@@ -86,21 +86,27 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
+        //tests
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
             .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.coreConfig = project.getConfigurations().create("restTest");
                 if (BuildParams.isInternal()) {
+                    //core
                     Dependency restTestdependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
                     project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
-
+                    //x-pack
                     task.xpackConfig = project.getConfigurations().create("restXpackTest");
                     Dependency restXPackTestdependency = project.getDependencies()
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXPackTestdependency);
                     task.dependsOn(task.xpackConfig);
+                    //watcher
+                    Dependency restWatcherTests = project.getDependencies()
+                        .project(Map.of("path", ":x-pack:plugin:watcher:qa:rest", "configuration", "restTests"));
+                    project.getDependencies().add(task.xpackConfig.getName(), restWatcherTests);
                 } else {
                     Dependency dependency = project.getDependencies()
                         .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());
@@ -109,6 +115,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(task.coreConfig);
             });
 
+        //api
         Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
             .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
                 task.includeCore.set(extension.restApi.getIncludeCore());

@@ -120,7 +120,7 @@ public class ParsedTopMetrics extends ParsedAggregation {
         static {
             PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
                     SORT_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
-            PARSER.declareObject(constructorArg(), (p, c) -> p.map(HashMap::new, XContentParser::objectText), METRICS_FIELD);
+            PARSER.declareObject(constructorArg(), (p, c) -> p.map(), METRICS_FIELD);
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

@@ -268,7 +268,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         created = in.readInstant();
         lastModified = in.readInstant();
         nameIdFormats = in.readSet(StreamInput::readString);
-        authenticationExpiryMillis = in.readBoolean() ? in.readVLong() : null;
+        authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.application = in.readOptionalString();
         privileges.resource = in.readString();
@@ -295,12 +295,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeInstant(created);
         out.writeInstant(lastModified);
         out.writeCollection(nameIdFormats, StreamOutput::writeString);
-        if (authenticationExpiryMillis == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVLong(authenticationExpiryMillis);
-        }
+        out.writeOptionalVLong(authenticationExpiryMillis);
 
         out.writeOptionalString(privileges.application);
         out.writeString(privileges.resource);

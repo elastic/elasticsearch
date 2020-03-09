@@ -113,7 +113,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
         // disable tracking total hits if we already reached the required estimation.
         if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
-                && bottomSortCollector.getTotalHits() >= trackTotalHitsUpTo) {
+                && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
             request.source(request.source().shallowCopy().trackTotalHits(false));
         }
 

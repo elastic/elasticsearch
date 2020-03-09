@@ -15,6 +15,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -214,6 +216,17 @@ public class SamlServiceProviderIndex implements Closeable {
         return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
+    public void deleteDocument(DocumentVersion version, ActionListener<DeleteResponse> listener) {
+        final DeleteRequest request = new DeleteRequest(aliasExists ? ALIAS_NAME : INDEX_NAME)
+            .id(version.id)
+            .setIfSeqNo(version.seqNo)
+            .setIfPrimaryTerm(version.primaryTerm);
+        client.delete(request, ActionListener.wrap(response -> {
+            logger.debug("Deleteed service provider document [{}] ({})", version.id, response.getResult());
+            listener.onResponse(response);
+        }, listener::onFailure));
+    }
+
     public void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
                               ActionListener<DocWriteResponse> listener) {
         final ValidationException exception = document.validate();
@@ -251,11 +264,16 @@ public class SamlServiceProviderIndex implements Closeable {
         }
     }
 
-    public void readDocument(String documentId, ActionListener<SamlServiceProviderDocument> listener) {
+    public void readDocument(String documentId, ActionListener<DocumentSupplier> listener) {
         final GetRequest request = new GetRequest(ALIAS_NAME, documentId);
         client.get(request, ActionListener.wrap(response -> {
-            final SamlServiceProviderDocument document = toDocument(documentId, response.getSourceAsBytesRef());
-            listener.onResponse(document);
+            if (response.isExists()) {
+                listener.onResponse(
+                    new DocumentSupplier(new DocumentVersion(response), () -> toDocument(documentId, response.getSourceAsBytesRef()))
+                );
+            } else {
+                listener.onResponse(null);
+            }
         }, listener::onFailure));
     }
 

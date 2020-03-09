@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;

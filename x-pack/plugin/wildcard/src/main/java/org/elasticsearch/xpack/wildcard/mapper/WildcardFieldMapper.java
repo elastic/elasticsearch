@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -571,10 +572,10 @@ public class WildcardFieldMapper extends FieldMapper {
         
         CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
         if (dvField == null) {
-            dvField = new CustomBinaryDocValuesField(fieldType().name(), value.getBytes());
+            dvField = new CustomBinaryDocValuesField(fieldType().name(), new BytesRef(value).bytes);
             parseDoc.addWithKey(fieldType().name(), dvField);
         } else {
-            dvField.add(value.getBytes());
+            dvField.add(new BytesRef(value).bytes);
         }        
     }
 

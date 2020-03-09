@@ -51,10 +51,6 @@ public class ExtendedStatsAggregationBuilder
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new ExtendedStatsAggregationBuilder(aggregationName), null);
-    }
-
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         ExtendedStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }

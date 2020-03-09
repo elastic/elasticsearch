@@ -356,7 +356,7 @@ public class SearchModule {
             .addResultReader(InternalStats::new)
             .setAggregatorRegistrar(StatsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
-            ExtendedStatsAggregationBuilder::parse)
+            ExtendedStatsAggregationBuilder.PARSER)
                 .addResultReader(InternalExtendedStats::new)
                 .setAggregatorRegistrar(ExtendedStatsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,

@@ -94,7 +94,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_7_0)) {
             readSettingsFromStream(in); // formerly the unused settings field
         }
         indexSettings = readSettingsFromStream(in);
@@ -114,7 +114,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_7_7_0)) {
             writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
         }
         writeSettingsToStream(indexSettings, out);

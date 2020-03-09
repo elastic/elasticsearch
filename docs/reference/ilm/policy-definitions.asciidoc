@@ -113,7 +113,7 @@ policy definition.
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
 * Delete
-  - <<ilm-delete-action,Wait For Snapshot>>
+  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete-action,Delete>>
 
 [[ilm-allocate-action]]

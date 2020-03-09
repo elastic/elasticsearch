@@ -88,7 +88,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
 
-    private static final String TESTS_PATH = "/rest-api-spec/test";
+    static final String TESTS_PATH = "/rest-api-spec/test";
     private static final String SPEC_PATH = "/rest-api-spec/api";
 
     /**

@@ -45,14 +45,14 @@ public class ScriptCache {
 
     private final Object lock = new Object();
 
-    private Tuple<Integer, TimeValue> rate;
+    Tuple<Integer, TimeValue> rate;
     private long lastInlineCompileTime;
     private double scriptsPerTimeWindow;
     private double compilesAllowedPerNano;
 
     // Cache settings
-    private int cacheSize;
-    private TimeValue cacheExpire;
+    int cacheSize;
+    TimeValue cacheExpire;
 
     public ScriptCache(
             int cacheMaxSize,

@@ -530,11 +530,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * If the context specific {size, expiration} are set then they are used.  Otherwise, if the general {size, expiration} are
      * set to the non-default, then we fall back to those.  Finally, if neither are set we use the context default.
      *
-     * If the general compilation rate is set to the special value {@code ScriptService.USE_CONTEXT_RATE_KEY}, {@code "use-context},
+     * If the general compilation rate is set to the special value {@code ScriptService.USE_CONTEXT_RATE_KEY}, {@code "use-context"},
      * then context caches are used.  If the general compilation rate is set to a valid value, eg 50/1m, then the general
      * cache is used.
      */
-    private static class CacheUpdater {
+    static class CacheUpdater {
         private final Object lock = new Object();
         private static final Tuple<Integer, TimeValue> ZERO = new Tuple<>(0, TimeValue.ZERO);
 
@@ -609,22 +609,22 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         void setScriptCacheSize(String context, Integer newSize) {
             synchronized (lock) {
                 contextSettings.get(context).size = newSize;
-                logger.warn("Set context's [" + context + "] cache size to [" + newSize + "]");
+                logger.debug("Set context's [" + context + "] cache size to [" + newSize + "]");
 
                 boolean isDefault = newSize.equals(sizeDefault);
                 if (isDefault) {
                     contextSizeSet.remove(context);
-                    logger.warn("context's [" + context + "] cache size is UNSET");
+                    logger.debug("context's [" + context + "] cache size is UNSET");
                 } else {
                     contextSizeSet.add(context);
-                    logger.warn("context's [" + context + "] cache size is SET");
+                    logger.debug("context's [" + context + "] cache size is SET");
                 }
                 if (isContextCacheEnabled()) {
                     if (isDefault && generalSizeSet) {
                         newSize = generalSettings.size;
                     }
                     cacheRef.get().contextCache.get(context).setScriptCacheSize(newSize);
-                    logger.warn("Set context's [" + context + "] live cache size to [" + newSize + "]");
+                    logger.debug("Set context's [" + context + "] live cache size to [" + newSize + "]");
                 }
             }
         }
@@ -632,12 +632,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         void setScriptCacheExpire(String context, TimeValue newExpire) {
             synchronized (lock) {
                 contextSettings.get(context).expire = newExpire;
-                logger.warn("Set context's [" + context + "] cache expiration to [" + newExpire + "]");
+                logger.debug("Set context's [" + context + "] cache expiration to [" + newExpire + "]");
 
                 boolean isDefault = newExpire.equals(expireDefault);
                 if (isDefault) {
                     contextExpireSet.remove(context);
-                    logger.warn("context's [" + context + "] cache expiration is UNSET");
+                    logger.debug("context's [" + context + "] cache expiration is UNSET");
                 } else {
                     contextExpireSet.add(context);
                     logger.warn("context's [" + context + "] cache expiration is SET");
@@ -645,12 +645,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
                 if (isContextCacheEnabled()) {
                     if (isDefault && generalExpireSet) {
-                        logger.warn("Overriding context's [" + context + "] default cache expiration [" + newExpire +
+                        logger.debug("Overriding context's [" + context + "] default cache expiration [" + newExpire +
                             "] with general expiration [" + generalSettings.expire + "]");
                         newExpire = generalSettings.expire;
                     }
                     cacheRef.get().contextCache.get(context).setScriptCacheExpire(newExpire);
-                    logger.warn("Set context's [" + context + "] live cache expiration to [" + newExpire + "]");
+                    logger.debug("Set context's [" + context + "] live cache expiration to [" + newExpire + "]");
                 }
             }
         }
@@ -658,10 +658,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         void setMaxCompilationRate(String context, Tuple<Integer, TimeValue> newRate) {
             synchronized (lock) {
                 contextSettings.get(context).compileRate = newRate;
-                logger.warn("Set context's [" + context + "] max compilation rate to [" + newRate + "]");
+                logger.debug("Set context's [" + context + "] max compilation rate to [" + newRate + "]");
                 if (isContextCacheEnabled()) {
                     cacheRef.get().contextCache.get(context).setMaxCompilationRate(newRate);
-                    logger.warn("Set context's [" + context + "] live max compilation rate to [" + newRate + "]");
+                    logger.debug("Set context's [" + context + "] live max compilation rate to [" + newRate + "]");
                 }
             }
         }
@@ -672,16 +672,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 generalSettings.compileRate = newRate;
                 if (isContextCacheEnabled()) {
                     if (contextCacheWasEnabled == false) {
-                        logger.warn("Switched to context cache due to general compilation rate [" + newRate + "]");
+                        logger.debug("Switched to context cache due to general compilation rate [" + newRate + "]");
                         buildContextCache();
                     }
                 } else if (contextCacheWasEnabled) {
-                    logger.warn("Switched to general cache due to general compilation rate [" + newRate +
+                    logger.debug("Switched to general cache due to general compilation rate [" + newRate +
                         "] and context cache was enabled");
                     buildGeneralCache();
                 } else {
                     cacheRef.get().general.setMaxCompilationRate(newRate);
-                    logger.warn("set general max compilation rate to [" + newRate + "]");
+                    logger.debug("set general max compilation rate to [" + newRate + "]");
                 }
             }
         }
@@ -697,19 +697,19 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     contextExpireSet
                 )
             );
-            logger.warn("Using context cache");
+            logger.debug("Using context cache");
         }
 
         void buildGeneralCache() {
             cacheRef.set(new ScriptService.Cache(generalSettings, contextSettings.keySet()));
-            logger.warn("Using general cache");
+            logger.debug("Using general cache");
         }
     }
 
     /**
      * CacheSettings holds the settings values for a ContextCache.
      */
-    private static class CacheSettings {
+    static class CacheSettings {
         Integer size;
         TimeValue expire;
         Tuple<Integer, TimeValue> compileRate;
@@ -724,8 +724,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     /**
      * Container for the script cache.  {@code contextCache} contains the script cache for all configured contexts.
      */
-    private static class Cache {
-        private final ScriptCache general;
+    static class Cache {
+        final ScriptCache general;
         final Map<String, ScriptCache> contextCache;
 
         Cache(CacheSettings generalSettings, Set<String> contexts) {

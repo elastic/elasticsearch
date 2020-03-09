@@ -1,0 +1,80 @@
+[role="xpack"]
+[testenv="basic"]
+[[transform-painless-examples]]
+=== Painless snippet examples for {transforms}
+++++
+<titleabbrev>Painless examples for {transforms}</titleabbrev>
+++++
+
+These examples demonstrate how to use Painless in {transforms}. You can learn 
+more about Painless scripting language in the <<painless-guide>>. The example 
+snippets below help you being able to infer how to use Painless for your use 
+case.
+
+* <<painless-top-hits>>
+* <<painless-time-features>>
+* <<painless-group-by>>
+
+
+[discrete]
+[[painless-top-hits]]
+==== Getting top hits by using scripted metric
+
+This example shows how to achieve the function of a 
+<<search-aggregations-metrics-top-hits-aggregation>> by using scripted metric 
+aggregation which provides a metric output.
+
+[source,js]
+--------------------------------------------------
+"latest_doc": { 
+  "scripted_metric": {
+    "init_script": "state.timestamp_latest = 0L; state.last_doc = ''", <1>
+    "map_script": "def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); if (current_date > state.timestamp_latest) {state.timestamp_latest = current_date;state.last_doc = new HashMap(params['_source']);}", <2>
+    "combine_script": "return state", <3>
+    "reduce_script": "def last_doc = '';def timestamp_latest = 0L; for (s in states) {if (s.timestamp_latest > (timestamp_latest)) {timestamp_latest = s.timestamp_latest; last_doc = s.last_doc;}} return last_doc" <4>
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> Creates a long type `timestamp_latest` and a string type `last_doc` in the 
+`state` object.
+<2> Defines `current_date`based on the timestamp of the document, then compares 
+`current_date` with `state.timestamp_latest`. Based on the comparison, returns 
+`state.last_doc` from the shard.
+<3> The `combine_script` returns `state` from each shard.
+<4> The `reduce_script` iterates through the value of `s.timestamp_latest` 
+returned by each shard and returns the document with the latest timestamp 
+(`last_doc`). In the response, the top hit (in other words, the `latest_doc`) is 
+nested below the `latest_doc` field.
+
+Check the
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html#_scope_of_scripts[scope of scripts]
+for detailed explanation on the respective scripts.
+
+
+You can retrieve the last value in a similar way: 
+
+[source,js]
+--------------------------------------------------
+"latest_value": {
+  "scripted_metric": {
+    "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
+    "map_script": "def current_date = doc['date'].getValue().toInstant().toEpochMilli(); if (current_date > state.timestamp_latest) {state.timestamp_latest = current_date;state.last_value = params['_source']['value'];}",
+    "combine_script": "return state",
+    "reduce_script": "def last_value = '';def timestamp_latest = 0L; for (s in states) {if (s.timestamp_latest > (timestamp_latest)) {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}} return last_value"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+[discrete]
+[[painless-time-features]]
+==== Getting time features as scripted fields
+
+
+[discrete]
+[[painless-group-by]]
+==== Using Painless in `group_by`
+

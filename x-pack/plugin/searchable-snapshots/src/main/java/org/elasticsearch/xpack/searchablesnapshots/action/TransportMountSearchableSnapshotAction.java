@@ -40,7 +40,8 @@ import java.util.Optional;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
- * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings.
+ * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings
+ * using {@link TransportMountSearchableSnapshotAction#buildIndexSettings(String, SnapshotId, IndexId)}.
  *
  * This action doesn't technically need to run on the master node, but it needs to get metadata from the repository and we only expect the
  * repository to be accessible from data and master-eligible nodes so we can't run it everywhere.  Given that we already have a way to run
@@ -83,7 +84,7 @@ public class TransportMountSearchableSnapshotAction
     /**
      * Return the index settings required to make a snapshot searchable
      */
-    private static Settings getIndexSettings(String repoName, SnapshotId snapshotId, IndexId indexId) {
+    private static Settings buildIndexSettings(String repoName, SnapshotId snapshotId, IndexId indexId) {
         return Settings.builder()
             .put(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.getKey(), repoName)
             .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
@@ -130,7 +131,7 @@ public class TransportMountSearchableSnapshotAction
                 .renameReplacement(request.mountedIndexName())
                 // Pass through index settings, adding the index-level settings required to use searchable snapshots
                 .indexSettings(Settings.builder().put(request.indexSettings())
-                    .put(getIndexSettings(request.repositoryName(), snapshotId, indexId))
+                    .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
                     .build())
                 // Pass through ignored index settings
                 .ignoreIndexSettings(request.ignoreIndexSettings())

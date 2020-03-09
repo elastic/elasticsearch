@@ -31,7 +31,8 @@ public class NodeDeprecationChecks {
         final String value = removedSetting.get(settings).toString();
         final String message =
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
-        final String details = String.format("the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
+        final String details =
+            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 

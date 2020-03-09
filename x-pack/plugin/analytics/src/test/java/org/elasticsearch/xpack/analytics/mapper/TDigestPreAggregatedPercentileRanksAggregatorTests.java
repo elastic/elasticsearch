@@ -24,7 +24,9 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationB
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -32,6 +34,11 @@ import java.util.Iterator;
 
 
 public class TDigestPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
+
+    @BeforeClass
+    public static void registerBuilder() {
+        AnalyticsPercentilesAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
+    }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
         TDigest histogram = new TDigestState(100.0); //default

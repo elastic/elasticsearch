@@ -15,9 +15,11 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
@@ -38,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
@@ -101,6 +104,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
+    }
+
+    @Override
+    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+        return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
+            AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
     }
 
     /**

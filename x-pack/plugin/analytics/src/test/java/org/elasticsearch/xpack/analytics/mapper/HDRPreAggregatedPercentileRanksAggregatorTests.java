@@ -23,12 +23,19 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Iterator;
 
 public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
+
+    @BeforeClass
+    public static void registerBuilder() {
+        AnalyticsPercentilesAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
+    }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
         DoubleHistogram histogram = new DoubleHistogram(3);//default
@@ -62,7 +69,7 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);

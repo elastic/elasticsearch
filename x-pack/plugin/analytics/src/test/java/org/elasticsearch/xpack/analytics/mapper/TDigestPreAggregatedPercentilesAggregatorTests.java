@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,7 +38,12 @@ import static java.util.Collections.singleton;
 
 public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 
-   private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
+    @BeforeClass
+    public static void registerBuilder() {
+        AnalyticsPercentilesAggregatorFactory.registerPercentilesAggregator(valuesSourceRegistry);
+    }
+
+    private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
        TDigest histogram = new TDigestState(100.0); //default
        for (double value : values) {
            histogram.add(value);
@@ -51,7 +58,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
            streamOutput.writeDouble(centroid.mean());
        }
        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
-   }
+    }
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {

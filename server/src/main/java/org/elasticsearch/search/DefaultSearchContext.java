@@ -62,6 +62,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -82,7 +83,7 @@ import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
 
-    private final long id;
+    private final SearchContextId id;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -152,7 +153,7 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
 
-    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
+    DefaultSearchContext(SearchContextId id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
                          FetchPhase fetchPhase) throws IOException {
@@ -295,7 +296,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long id() {
+    public SearchContextId id() {
         return this.id;
     }
 

@@ -6,22 +6,13 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
-import java.util.List;
 import java.util.Locale;
-import java.util.function.BiFunction;
 
 public class NodeDeprecationChecks {
-
-    public static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS;
-
-    static {
-        NODE_SETTINGS_CHECKS = List.of();
-    }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
         if (removedSetting.exists(settings) == false) {

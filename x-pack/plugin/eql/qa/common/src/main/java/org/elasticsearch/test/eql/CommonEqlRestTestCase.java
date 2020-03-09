@@ -46,8 +46,8 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
         searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"\"}", 400, "query is null or empty"));
         searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}",
             400, "timestamp field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"event_type_field\": \"\"}",
-            400, "event type field is null or empty"));
+        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}",
+            400, "event category field is null or empty"));
         searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"implicit_join_key_field\": \"\"}",
             400, "implicit join key field is null or empty"));
         searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"size\": 0}",

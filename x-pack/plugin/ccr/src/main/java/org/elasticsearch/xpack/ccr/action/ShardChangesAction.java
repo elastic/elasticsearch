@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -48,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -388,18 +390,28 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                         seqNoStats.getGlobalCheckpoint(),
                         request.getFromSeqNo());
                 indexShard.addGlobalCheckpointListener(
-                        request.getFromSeqNo(),
-                        (g, e) -> {
+                    request.getFromSeqNo(),
+                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+
+                        @Override
+                        public Executor executor() {
+                            return threadPool.executor(ThreadPool.Names.LISTENER);
+                        }
+
+                        @Override
+                        public void accept(final long g, final Exception e) {
                             if (g != UNASSIGNED_SEQ_NO) {
                                 assert request.getFromSeqNo() <= g
-                                        : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
+                                    : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
                                 globalCheckpointAdvanced(shardId, g, request, listener);
                             } else {
                                 assert e != null;
                                 globalCheckpointAdvancementFailure(shardId, e, request, listener, indexShard);
                             }
-                        },
-                        request.getPollTimeout());
+                        }
+
+                    },
+                    request.getPollTimeout());
             } else {
                 super.asyncShardOperation(request, shardId, listener);
             }

@@ -40,6 +40,12 @@ dependencies {
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 dependencyLicenses {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'

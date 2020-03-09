@@ -10,6 +10,7 @@ dependencies {
 
 restResources {
   restApi {
+    includeCore '_common', 'cluster', 'indices', 'index'
     includeXpack 'ilm', 'slm'
   }
 }

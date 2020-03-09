@@ -62,7 +62,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToFailedStep(currentState, request.indices());
+                    return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());
                 }
 
                 @Override

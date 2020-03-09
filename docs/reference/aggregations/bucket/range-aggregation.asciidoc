@@ -6,7 +6,7 @@ Note that this aggregation includes the `from` value and excludes the `to` value
 
 Example:
 
-[source,console]
+[source,console,id=range-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -63,7 +63,7 @@ Response:
 
 Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
 
-[source,console]
+[source,console,id=range-aggregation-keyed-example]
 --------------------------------------------------
 GET /_search
 {
@@ -116,7 +116,7 @@ Response:
 
 It is also possible to customize the key for each range:
 
-[source,console]
+[source,console,id=range-aggregation-custom-keys-example]
 --------------------------------------------------
 GET /_search
 {
@@ -174,7 +174,7 @@ will be executed during aggregation execution.
 
 The following example shows how to use an `inline` script with the `painless` script language and no script parameters:
 
-[source,console]
+[source,console,id=range-aggregation-script-example]
 --------------------------------------------------
 GET /_search
 {
@@ -198,7 +198,7 @@ GET /_search
 
 It is also possible to use stored scripts. Here is a simple stored script:
 
-[source,console]
+[source,console,id=range-aggregation-stored-script-example]
 --------------------------------------------------
 POST /_scripts/convert_currency
 {
@@ -271,7 +271,7 @@ GET /_search
 
 Lets say the product prices are in USD but we would like to get the price ranges in EURO. We can use value script to convert the prices prior the aggregation (assuming conversion rate of 0.8)
 
-[source,console]
+[source,console,id=range-aggregation-value-script-example]
 --------------------------------------------------
 GET /sales/_search
 {
@@ -301,7 +301,7 @@ GET /sales/_search
 
 The following example, not only "bucket" the documents to the different buckets but also computes statistics over the prices in each price range
 
-[source,console]
+[source,console,id=range-aggregation-sub-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -382,7 +382,7 @@ Response:
 
 If a sub aggregation is also based on the same value source as the range aggregation (like the `stats` aggregation in the example above) it is possible to leave out the value source definition for it. The following will return the same response as above:
 
-[source,console]
+[source,console,id=range-aggregation-sub-aggregation-empty-example]
 --------------------------------------------------
 GET /_search
 {

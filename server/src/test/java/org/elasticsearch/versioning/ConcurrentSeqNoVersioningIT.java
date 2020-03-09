@@ -147,7 +147,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         logger.info("--> Indexing initial doc for {} keys", numberOfKeys);
         List<Partition> partitions =
             IntStream.range(0, numberOfKeys)
-                .mapToObj(i -> client().prepareIndex("test", "type", "ID:" + i).setSource("value", -1).get())
+                .mapToObj(i -> client().prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
                 .map(response ->
                     new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo())))
                 .collect(Collectors.toList());

@@ -62,7 +62,7 @@ public class MetaDataDeleteIndexServiceTests extends ESTestCase {
         SnapshotsInProgress snaps = new SnapshotsInProgress(new SnapshotsInProgress.Entry(snapshot, true, false,
                 SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
                 System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(),
-                SnapshotInfoTests.randomUserMetadata()));
+                SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random())));
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
                 .build();

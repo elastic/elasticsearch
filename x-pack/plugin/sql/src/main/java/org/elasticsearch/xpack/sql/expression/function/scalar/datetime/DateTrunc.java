@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -136,7 +137,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return DataTypes.DATETIME;
     }
 
     @Override
@@ -160,8 +161,8 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId) {
-        return new DateTruncPipe(source(), this, left, right, zoneId);
+    protected Pipe createPipe(Pipe truncateTo, Pipe timestamp, ZoneId zoneId) {
+        return new DateTruncPipe(source(), this, truncateTo, timestamp, zoneId);
     }
 
     @Override

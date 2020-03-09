@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,6 +45,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -80,7 +81,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
         private Boolean coerce;
-        private Locale locale = IsoLocale.ROOT;
+        private Locale locale = Locale.ROOT;
         private String pattern;
 
         public Builder(String name, RangeType type) {
@@ -91,14 +92,6 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldType fieldType() {
             return (RangeFieldType)fieldType;
-        }
-
-        @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues == true) {
-                throw new IllegalArgumentException("field [" + name + "] does not currently support " + TypeParsers.DOC_VALUES);
-            }
-            return super.docValues(docValues);
         }
 
         public Builder coerce(boolean coerce) {
@@ -241,6 +234,11 @@ public class RangeFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().setRangeType(rangeType);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.RANGE;
         }
 
         @Override
@@ -424,7 +422,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
         if (fieldType().rangeType == RangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != IsoLocale.ROOT))) {
+                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {

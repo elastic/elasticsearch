@@ -54,6 +54,7 @@ import java.util.HashSet;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for the DiskThresholdDecider
@@ -315,22 +316,22 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
 
-        assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(test_2, allocation, 0));
-        assertEquals(100L, DiskThresholdDecider.getExpectedShardSize(test_1, allocation, 0));
-        assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, allocation, 0));
+        assertEquals(1000L, getExpectedShardSize(test_2, 0L, allocation));
+        assertEquals(100L, getExpectedShardSize(test_1, 0L, allocation));
+        assertEquals(10L, getExpectedShardSize(test_0, 0L, allocation));
 
         RoutingNode node = new RoutingNode("node1", new DiscoveryNode("node1", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.getTargetRelocatingShard(), test_2);
-        assertEquals(100L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, false, "/dev/null"));
-        assertEquals(90L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/null"));
-        assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/some/other/dev"));
-        assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/some/other/dev"));
+        assertEquals(100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
+        assertEquals(90L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
+        assertEquals(0L, sizeOfRelocatingShards(allocation, node, true, "/dev/some/other/dev"));
+        assertEquals(0L, sizeOfRelocatingShards(allocation, node, true, "/dev/some/other/dev"));
 
         ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), false, PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
-        assertEquals(0L, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
+        assertEquals(0L, getExpectedShardSize(test_3, 0L, allocation));
 
 
         ShardRouting other_0 = ShardRouting.newUnassigned(new ShardId("other", "5678", 0), randomBoolean(),
@@ -342,12 +343,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         node = new RoutingNode("node1", new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT), test_0, test_1.getTargetRelocatingShard(), test_2, other_0.getTargetRelocatingShard());
         if (other_0.primary()) {
-            assertEquals(10100L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, false, "/dev/null"));
-            assertEquals(10090L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/null"));
+            assertEquals(10100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
+            assertEquals(10090L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
         } else {
-            assertEquals(100L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, false, "/dev/null"));
-            assertEquals(90L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/null"));
+            assertEquals(100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
+            assertEquals(90L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
         }
+    }
+
+    public long sizeOfRelocatingShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {
+        return DiskThresholdDecider.sizeOfRelocatingShards(node, subtractShardsMovingAway, dataPath,
+            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
     }
 
     public void testSizeShrinkIndex() {
@@ -404,22 +410,22 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), true,
             LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
-        assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
-        assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_2, allocation, 0));
-        assertEquals(100L, DiskThresholdDecider.getExpectedShardSize(test_1, allocation, 0));
-        assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, allocation, 0));
+        assertEquals(500L, getExpectedShardSize(test_3, 0L, allocation));
+        assertEquals(500L, getExpectedShardSize(test_2, 0L, allocation));
+        assertEquals(100L, getExpectedShardSize(test_1, 0L, allocation));
+        assertEquals(10L, getExpectedShardSize(test_0, 0L, allocation));
 
         ShardRouting target = ShardRouting.newUnassigned(new ShardId(new Index("target", "5678"), 0),
             true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        assertEquals(1110L, DiskThresholdDecider.getExpectedShardSize(target, allocation, 0));
+        assertEquals(1110L, getExpectedShardSize(target, 0L, allocation));
 
         ShardRouting target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 0),
             true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        assertEquals(110L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
+        assertEquals(110L, getExpectedShardSize(target2, 0L, allocation));
 
         target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 1),
             true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
+        assertEquals(1000L, getExpectedShardSize(target2, 0L, allocation));
 
         // check that the DiskThresholdDecider still works even if the source index has been deleted
         ClusterState clusterStateWithMissingSourceIndex = ClusterState.builder(clusterState)
@@ -430,7 +436,42 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         allocationService.reroute(clusterState, "foo");
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null,
             clusterStateWithMissingSourceIndex.getRoutingNodes(), clusterStateWithMissingSourceIndex, info, 0);
-        assertEquals(42L, DiskThresholdDecider.getExpectedShardSize(target, allocationWithMissingSourceIndex, 42L));
-        assertEquals(42L, DiskThresholdDecider.getExpectedShardSize(target2, allocationWithMissingSourceIndex, 42L));
+        assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
+        assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
+    }
+
+    private static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
+        return DiskThresholdDecider.getExpectedShardSize(shardRouting, defaultSize,
+            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+    }
+
+    public void testDiskUsageWithRelocations() {
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0).getFreeBytes(),
+            equalTo(1000L));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 9).getFreeBytes(),
+            equalTo(991L));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), -9).getFreeBytes(),
+            equalTo(1009L));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0)
+            .getFreeDiskAsPercentage(), equalTo(100.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 0)
+            .getFreeDiskAsPercentage(), equalTo(50.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 100)
+            .getFreeDiskAsPercentage(), equalTo(40.0));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0)
+            .getUsedDiskAsPercentage(), equalTo(0.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 0)
+            .getUsedDiskAsPercentage(), equalTo(50.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 100)
+            .getUsedDiskAsPercentage(), equalTo(60.0));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), 0).getFreeBytes(), equalTo(Long.MAX_VALUE));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), 10).getFreeBytes(), equalTo(Long.MAX_VALUE - 10));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), -10).getFreeBytes(), equalTo(Long.MAX_VALUE));
     }
 }

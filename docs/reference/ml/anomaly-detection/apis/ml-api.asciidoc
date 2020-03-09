@@ -3,9 +3,7 @@
 [[ml-apis]]
 == {ml-cap} {anomaly-detect} APIs
 
-You can use the following APIs to perform {ml} {anomaly-detect} activities. See
-<<ml-api-definitions, Definitions>> for the resource definitions used by the
-machine learning APIs and in advanced job configuration options in Kibana.
+You can use the following APIs to perform {ml} {anomaly-detect} activities.
 
 See also <<ml-df-analytics-apis>>. 
 

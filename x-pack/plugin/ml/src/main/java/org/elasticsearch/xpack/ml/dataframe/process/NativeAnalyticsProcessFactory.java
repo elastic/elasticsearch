@@ -7,22 +7,24 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,15 +41,24 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
-    private final Client client;
     private final Environment env;
     private final NativeController nativeController;
+    private final NamedXContentRegistry namedXContentRegistry;
+    private final ResultsPersisterService resultsPersisterService;
+    private final DataFrameAnalyticsAuditor auditor;
     private volatile Duration processConnectTimeout;
 
-    public NativeAnalyticsProcessFactory(Environment env, Client client, NativeController nativeController, ClusterService clusterService) {
+    public NativeAnalyticsProcessFactory(Environment env,
+                                         NativeController nativeController,
+                                         ClusterService clusterService,
+                                         NamedXContentRegistry namedXContentRegistry,
+                                         ResultsPersisterService resultsPersisterService,
+                                         DataFrameAnalyticsAuditor auditor) {
         this.env = Objects.requireNonNull(env);
-        this.client = Objects.requireNonNull(client);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
+        this.auditor = auditor;
+        this.resultsPersisterService = resultsPersisterService;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -71,9 +82,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
-        NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
-                processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete, onProcessCrash, analyticsProcessConfig);
+        NativeAnalyticsProcess analyticsProcess =
+            new NativeAnalyticsProcess(
+                jobId, nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
+                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete,
+                onProcessCrash, processConnectTimeout, analyticsProcessConfig, namedXContentRegistry);
 
         try {
             startProcess(config, executorService, processPipes, analyticsProcess);
@@ -91,7 +104,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService, ProcessPipes processPipes,
                                                 NativeAnalyticsProcess process) {
         if (config.getAnalysis().persistsState()) {
-            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(client, config.getId());
+            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
             process.start(executorService, stateProcessor, processPipes.getPersistStream().get());
         } else {
             process.start(executorService);

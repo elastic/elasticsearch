@@ -40,6 +40,59 @@ teardown:
   - match: { _source.date_source_field: "12/06/2010" }
   - match: { _source.date_target_field: "2010-06-12T00:00:00.000+02:00" }
 
+
+---
+"Test date processor timezone calculations":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "field" : "date_source_field",
+                  "target_field" : "date_target_field",
+                  "formats" : ["ISO8601"],
+                  "timezone" : "+01:00"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+
+  - do:
+      index:
+        index: test2
+        id: 1
+        pipeline: "my_pipeline_2"
+        body: {date_source_field: "2010-06-01T00:00:00.000"}
+
+  - do:
+      get:
+        index: test2
+        id: 1
+  - match: { _source.date_source_field: "2010-06-01T00:00:00.000" }
+  # date field without a timezone gets timezone from a pipeline
+  - match: { _source.date_target_field: "2010-06-01T00:00:00.000+01:00" }
+
+  - do:
+      index:
+        index: test2
+        id: 2
+        pipeline: "my_pipeline_2"
+        body: {date_source_field: "2010-06-01T00:00:00.000Z"}
+
+  - do:
+      get:
+        index: test2
+        id: 2
+  - match: { _source.date_source_field: "2010-06-01T00:00:00.000Z" }
+   # date field with a timezone has its time recalculated to a target timezone from a pipeline
+  - match: { _source.date_target_field: "2010-06-01T01:00:00.000+01:00" }
+
 ---
 "Test date processor with no timezone configured":
 

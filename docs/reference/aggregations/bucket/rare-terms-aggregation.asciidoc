@@ -85,7 +85,7 @@ better approximation, but higher memory usage. Cannot be smaller than `0.00001` 
 
 Example:
 
-[source,console]
+[source,console,id=rare-terms-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -123,7 +123,7 @@ Response:
 In this example, the only bucket that we see is the "swing" bucket, because it is the only term that appears in
 one document.  If we increase the `max_doc_count` to `2`, we'll see some more buckets:
 
-[source,console]
+[source,console,id=rare-terms-aggregation-max-doc-count-example]
 --------------------------------------------------
 GET /_search
 {
@@ -273,7 +273,7 @@ It is possible to filter the values for which buckets will be created. This can 
 
 ===== Filtering Values with regular expressions
 
-[source,console]
+[source,console,id=rare-terms-aggregation-regex-example]
 --------------------------------------------------
 GET /_search
 {
@@ -301,7 +301,7 @@ The syntax is the same as <<regexp-syntax,regexp queries>>.
 For matching based on exact values the `include` and `exclude` parameters can simply take an array of
 strings that represent the terms as they are found in the index:
 
-[source,console]
+[source,console,id=rare-terms-aggregation-exact-value-example]
 --------------------------------------------------
 GET /_search
 {
@@ -324,7 +324,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,console]
+[source,console,id=rare-terms-aggregation-missing-example]
 --------------------------------------------------
 GET /_search
 {

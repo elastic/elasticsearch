@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 public class Precision extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("precision");
@@ -35,7 +37,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
     }
 
     public Precision(List<Double> at) {
-        super(at.stream().mapToDouble(Double::doubleValue).toArray());
+        super(at);
     }
 
     public Precision(StreamInput in) throws IOException {
@@ -44,7 +46,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override
@@ -66,22 +68,23 @@ public class Precision extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    protected List<AggregationBuilder> aggsAt(String labelField, List<ClassInfo> classInfos, double threshold) {
+    protected List<AggregationBuilder> aggsAt(String actualField, String predictedProbabilityField) {
         List<AggregationBuilder> aggs = new ArrayList<>();
-        for (ClassInfo classInfo : classInfos) {
-            aggs.add(buildAgg(classInfo, threshold, Condition.TP));
-            aggs.add(buildAgg(classInfo, threshold, Condition.FP));
+        for (int i = 0; i < thresholds.length; i++) {
+            double threshold = thresholds[i];
+            aggs.add(buildAgg(actualField, predictedProbabilityField, threshold, Condition.TP));
+            aggs.add(buildAgg(actualField, predictedProbabilityField, threshold, Condition.FP));
         }
         return aggs;
     }
 
     @Override
-    public EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs) {
+    public EvaluationMetricResult evaluate(Aggregations aggs) {
         double[] precisions = new double[thresholds.length];
-        for (int i = 0; i < precisions.length; i++) {
+        for (int i = 0; i < thresholds.length; i++) {
             double threshold = thresholds[i];
-            Filter tpAgg = aggs.get(aggName(classInfo, threshold, Condition.TP));
-            Filter fpAgg = aggs.get(aggName(classInfo, threshold, Condition.FP));
+            Filter tpAgg = aggs.get(aggName(threshold, Condition.TP));
+            Filter fpAgg = aggs.get(aggName(threshold, Condition.FP));
             long tp = tpAgg.getDocCount();
             long fp = fpAgg.getDocCount();
             precisions[i] = tp + fp == 0 ? 0.0 : (double) tp / (tp + fp);

@@ -40,6 +40,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=query]
   instead of one random shard per index. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
@@ -53,7 +55,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
   (Optional, boolean) If `true`, the response returns detailed information if an 
-  error has occured. Defautls to `false`.
+  error has occurred. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

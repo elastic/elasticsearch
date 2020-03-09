@@ -50,6 +50,20 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateEquals(gotMillis, "297276785531", "297276785531");
     }
 
+    public void testWeekDates() {
+        DateFormatter formatter = DateFormatter.forPattern("YYYY-ww");
+        assertDateMathEquals(formatter.toDateMathParser(), "2016-01", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("YYYY");
+        assertDateMathEquals(formatter.toDateMathParser(), "2016", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("YYYY-ww");
+        assertDateMathEquals(formatter.toDateMathParser(), "2015-01", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("YYYY");
+        assertDateMathEquals(formatter.toDateMathParser(), "2015", "2014-12-29T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
     public void testBasicDates() {
         assertDateMathEquals("2014-05-30", "2014-05-30T00:00:00.000");
         assertDateMathEquals("2014-05-30T20", "2014-05-30T20:00:00.000");

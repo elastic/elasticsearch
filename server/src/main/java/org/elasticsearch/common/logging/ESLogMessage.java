@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.common.logging;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;
 import org.apache.logging.log4j.util.StringBuilders;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -37,8 +35,6 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
-    private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
-
     private final String messagePattern;
     private final List<Object> arguments = new ArrayList<>();
 
@@ -105,10 +101,5 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return "[" + stream
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
-    }
-
-    public static String escapeJson(String text) {
-        byte[] sourceEscaped = JSON_STRING_ENCODER.quoteAsUTF8(text);
-        return new String(sourceEscaped, Charset.defaultCharset());
     }
 }

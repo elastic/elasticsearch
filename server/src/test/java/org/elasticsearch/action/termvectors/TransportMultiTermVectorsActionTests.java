@@ -101,7 +101,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                        .putMapping("_doc",
+                        .putMapping(
                             XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startObject("_doc")
@@ -115,7 +115,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                        .putMapping("_doc",
+                        .putMapping(
                             XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startObject("_doc")

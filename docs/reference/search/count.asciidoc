@@ -16,7 +16,7 @@ the <<search-search,search api>> works.
 [[search-count-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_count`
+`GET /<index>/_count`
 
 
 [[search-count-api-desc]]
@@ -44,6 +44,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
 

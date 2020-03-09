@@ -5,7 +5,8 @@ setup:
         index: bwc_ml_outlier_detection_job_source
         body: >
           {
-            "numeric_field_1": 42.0
+            "numeric_field_1": 42.0,
+            "user": "Kimchy"
           }
 
   - do:
@@ -14,7 +15,8 @@ setup:
         body: >
           {
             "numeric_field_1": 1.0,
-            "foo": 10.0
+            "foo": 10.0,
+            "user": "Kimchy"
           }
 
   - do:
@@ -31,7 +33,7 @@ setup:
           {
             "source": {
               "index": "bwc_ml_outlier_detection_job_source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
             },
             "dest": {
               "index": "old_cluster_outlier_detection_job_results"
@@ -50,7 +52,7 @@ setup:
           {
             "source": {
               "index": "bwc_ml_regression_job_source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
             },
             "dest": {
               "index": "old_cluster_regression_job_results"

@@ -76,7 +76,8 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             null,
             0,
             filesToDelete,
-            onProcessCrash);
+            onProcessCrash,
+            processConnectTimeout);
 
         try {
             process.start(executorService);

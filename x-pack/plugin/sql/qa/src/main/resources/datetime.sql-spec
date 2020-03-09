@@ -118,10 +118,6 @@ SELECT QUARTER(hire_date) quarter, COUNT(*) hires FROM test_emp GROUP BY QUARTER
 dayOfWeekGroupBy
 SELECT DAY_OF_WEEK(birth_date) day, COUNT(*) c FROM test_emp WHERE DAY_OF_WEEK(birth_date) < 6 GROUP BY day ORDER BY DAY_OF_WEEK(birth_date);
 
-// current
-currentTimestampYear
-SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
-
 orderByCurrentTimestamp
 SELECT first_name FROM test_emp ORDER BY NOW(), first_name NULLS LAST LIMIT 5;
 
@@ -129,14 +125,48 @@ groupByCurrentTimestamp
 SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
 
 //
-// H2 uses the local timezone instead of the specified one
+// ORDER BY
 //
-currentTimestampMonth-Ignore
+orderByYear
+SELECT YEAR(birth_date) as year, emp_no FROM test_emp ORDER BY year NULLS FIRST, emp_no ASC;
+
+// ES will consider a TIME in UTC, if no other indication is given and H2 doesn't consider the timezone for times, so no TZSync'ing needed.
+hourFromStringTime
+SELECT HOUR(CAST('18:09:03' AS TIME)) AS result;
+
+//
+// For these -TZSync tests, H2's test-random timezone and ES'es need to be in sync
+//
+
+minuteFromStringDateTime-TZSync
+SELECT MINUTE(CAST('2018-09-03T18:09:03Z' AS TIMESTAMP)) AS result;
+
+// H2 doesn't consider timezones with times
+minuteFromStringTime-TZSync-Ignore
+SELECT MINUTE(CAST('18:09:03' AS TIME)) AS result;
+
+// current
+currentTimestampYear-TZSync
+SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
+
+currentTimestampMonth-TZSync
 SELECT MONTH(CURRENT_TIMESTAMP()) AS result;
 
-currentTimestampHour-Ignore
+currentTimestampDay-TZSync
+SELECT DAY(CURRENT_TIMESTAMP()) AS result;
+
+currentTimestampHour-TZSync
 SELECT HOUR(CURRENT_TIMESTAMP()) AS result;
 
-currentTimestampMinute-Ignore
-SELECT MINUTE(CURRENT_TIMESTAMP()) AS result;
+currentDateYear-TZSync
+SELECT YEAR(CURRENT_DATE()) AS result;
 
+currentDateMonth-TZSync
+SELECT MONTH(CURRENT_DATE()) AS result;
+
+currentDateDay-TZSync
+SELECT DAY(CURRENT_DATE()) AS result;
+
+// H2 can return the correct current timestamp, but wrong time with certain timezones (i.e. +08:00).
+currentTimeHour-TZSync-Ignore
+SELECT HOUR(CURRENT_TIME()) AS result;

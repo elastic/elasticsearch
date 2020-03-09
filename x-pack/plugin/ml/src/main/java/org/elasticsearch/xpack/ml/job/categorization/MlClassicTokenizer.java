@@ -105,7 +105,7 @@ public class MlClassicTokenizer extends Tokenizer {
     public final void end() throws IOException {
         super.end();
         // Set final offset
-        int finalOffset = Math.max(0, nextOffset + (int) input.skip(Integer.MAX_VALUE) - 1);
+        int finalOffset = nextOffset + (int) input.skip(Integer.MAX_VALUE);
         offsetAtt.setOffset(finalOffset, finalOffset);
         // Adjust any skipped tokens
         posIncrAtt.setPositionIncrement(posIncrAtt.getPositionIncrement() + skippedPositions);

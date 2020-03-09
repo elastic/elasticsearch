@@ -51,7 +51,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         for (int i = 0; i < numBuckets; ++i) {
             BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(term, subsetDfs[i], subsetSize, 
-                    supersetDfs[i], supersetSize, aggs, format);
+                    supersetDfs[i], supersetSize, aggs, format, 0);
             bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);
         }
@@ -103,7 +103,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
                 buckets = new ArrayList<>(buckets);
                 buckets.add(new SignificantStringTerms.Bucket(new BytesRef(randomAlphaOfLengthBetween(1, 10)),
                         randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                        InternalAggregations.EMPTY, format));
+                        InternalAggregations.EMPTY, format, 0));
                 break;
             case 8:
                 if (metaData == null) {

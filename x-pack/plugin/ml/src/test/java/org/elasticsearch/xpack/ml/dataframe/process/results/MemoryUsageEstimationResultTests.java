@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -43,9 +44,17 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
         assertThat(result.getExpectedMemoryWithDisk(), nullValue());
     }
 
+    public void testConstructor_SmallValues() {
+        MemoryUsageEstimationResult result =
+            new MemoryUsageEstimationResult(new ByteSizeValue(120, ByteSizeUnit.KB), new ByteSizeValue(30, ByteSizeUnit.KB));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(120, ByteSizeUnit.KB)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(30, ByteSizeUnit.KB)));
+    }
+
     public void testConstructor() {
-        MemoryUsageEstimationResult result = new MemoryUsageEstimationResult(new ByteSizeValue(2048), new ByteSizeValue(1024));
-        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(2048)));
-        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(1024)));
+        MemoryUsageEstimationResult result =
+            new MemoryUsageEstimationResult(new ByteSizeValue(20, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(20, ByteSizeUnit.MB)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(10, ByteSizeUnit.MB)));
     }
 }

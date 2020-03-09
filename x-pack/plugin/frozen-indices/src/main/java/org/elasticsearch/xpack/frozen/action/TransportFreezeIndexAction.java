@@ -12,7 +12,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -54,20 +53,17 @@ public final class TransportFreezeIndexAction extends
 
     private final DestructiveOperations destructiveOperations;
     private final MetaDataIndexStateService indexStateService;
-    private final TransportCloseIndexAction transportCloseIndexAction;
 
     @Inject
     public TransportFreezeIndexAction(MetaDataIndexStateService indexStateService, TransportService transportService,
                                       ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                      DestructiveOperations destructiveOperations,
-                                      TransportCloseIndexAction transportCloseIndexAction) {
+                                      DestructiveOperations destructiveOperations) {
         super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
             indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
-        this.transportCloseIndexAction = transportCloseIndexAction;
     }
     @Override
     protected String executor() {

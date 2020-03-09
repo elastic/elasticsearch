@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -81,13 +83,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, Set<String>> indexRoutings;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
+    private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     private final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -381,6 +384,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
+            onShardGroupFailure(shardIndex, e);
             onPhaseDone();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -389,7 +393,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
                 shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
-            if (!lastShard) {
+            if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
                 // no more shards active, add a failure
@@ -400,9 +404,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
+                onShardGroupFailure(shardIndex, e);
             }
         }
     }
+
+    /**
+     * Executed once for every {@link ShardId} that failed on all available shard routing.
+     *
+     * @param shardIndex the shard target that failed
+     * @param exc the final failure reason
+     */
+    protected void onShardGroupFailure(int shardIndex, Exception exc) {}
 
     /**
      * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given
@@ -456,6 +469,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         successfulOps.incrementAndGet();
         results.consumeResult(result);
+        hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
@@ -591,8 +605,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         String indexName = shardIt.shardId().getIndex().getName();
         final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
             .toArray(new String[0]);
-        return new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
+        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
             filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings);
+        // if we already received a search result we can inform the shard that it
+        // can return a null response if the request rewrites to match none rather
+        // than creating an empty response in the search thread pool.
+        // Note that, we have to disable this shortcut for scroll queries.
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && request.scroll() == null);
+        return shardRequest;
     }
 
     /**

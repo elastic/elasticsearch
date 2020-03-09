@@ -66,12 +66,15 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/xpack/ccr/*", ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Set<String> CREATE_SNAPSHOT_PATTERN = Set.of(CreateSnapshotAction.NAME, SnapshotsStatusAction.NAME + "*",
         GetSnapshotsAction.NAME, SnapshotsStatusAction.NAME, GetRepositoriesAction.NAME);
+    private static final Set<String> MONITOR_SNAPSHOT_PATTERN = Set.of(SnapshotsStatusAction.NAME + "*", GetSnapshotsAction.NAME,
+            SnapshotsStatusAction.NAME, GetRepositoriesAction.NAME);
     private static final Set<String> READ_CCR_PATTERN = Set.of(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Set<String> MANAGE_ILM_PATTERN = Set.of("cluster:admin/ilm/*");
     private static final Set<String> READ_ILM_PATTERN = Set.of(GetLifecycleAction.NAME, GetStatusAction.NAME);
     private static final Set<String> MANAGE_SLM_PATTERN =
         Set.of("cluster:admin/slm/*", StartILMAction.NAME, StopILMAction.NAME, GetStatusAction.NAME);
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
+    private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
     public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
@@ -105,9 +108,14 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
         "/ingest/pipeline/*"));
+    public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
+        "manage_autoscaling",
+        Set.of("cluster:admin/autoscaling/*")
+    );
     public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
     public static final NamedClusterPrivilege CREATE_SNAPSHOT = new ActionClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_SNAPSHOT = new ActionClusterPrivilege("monitor_snapshot", MONITOR_SNAPSHOT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ILM = new ActionClusterPrivilege("manage_ilm", MANAGE_ILM_PATTERN);
     public static final NamedClusterPrivilege READ_ILM = new ActionClusterPrivilege("read_ilm", READ_ILM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
@@ -116,6 +124,7 @@ public class ClusterPrivilegeResolver {
             Set.of(DelegatePkiAuthenticationAction.NAME, InvalidateTokenAction.NAME));
 
     public static final NamedClusterPrivilege MANAGE_OWN_API_KEY = ManageOwnApiKeyClusterPrivilege.INSTANCE;
+    public static final NamedClusterPrivilege MANAGE_ENRICH = new ActionClusterPrivilege("manage_enrich", MANAGE_ENRICH_AUTOMATON);
 
     private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
         NONE,
@@ -141,15 +150,18 @@ public class ClusterPrivilegeResolver {
         MANAGE_API_KEY,
         MANAGE_PIPELINE,
         MANAGE_ROLLUP,
+        MANAGE_AUTOSCALING,
         MANAGE_CCR,
         READ_CCR,
         CREATE_SNAPSHOT,
+        MONITOR_SNAPSHOT,
         MANAGE_ILM,
         READ_ILM,
         MANAGE_SLM,
         READ_SLM,
         DELEGATE_PKI,
-        MANAGE_OWN_API_KEY).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
+        MANAGE_OWN_API_KEY,
+        MANAGE_ENRICH).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

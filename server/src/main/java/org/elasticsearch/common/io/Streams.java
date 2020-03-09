@@ -19,12 +19,14 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -220,6 +222,21 @@ public abstract class Streams {
     }
 
     /**
+     * Wraps an {@link InputStream} such that it's {@code close} method becomes a noop
+     *
+     * @param stream {@code InputStream} to wrap
+     * @return wrapped {@code InputStream}
+     */
+    public static InputStream noCloseStream(InputStream stream) {
+        return new FilterInputStream(stream) {
+            @Override
+            public void close() {
+                // noop
+            }
+        };
+    }
+
+    /**
      * Wraps the given {@link BytesStream} in a {@link StreamOutput} that simply flushes when
      * close is called.
      */
@@ -279,6 +296,16 @@ public abstract class Streams {
         @Override
         public BytesReference bytes() {
             return delegate.bytes();
+        }
+
+        @Override
+        public Version getVersion() {
+            return delegate.getVersion();
+        }
+
+        @Override
+        public void setVersion(Version version) {
+            delegate.setVersion(version);
         }
     }
 }

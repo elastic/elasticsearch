@@ -17,6 +17,7 @@
  * under the License.
  */
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
+
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
@@ -31,7 +32,11 @@ testClusters.integTest {
 
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.3'
-  compile 'org.ow2.asm:asm-debug-all:5.1'
+  compile 'org.ow2.asm:asm-util:7.2'
+  compile 'org.ow2.asm:asm-tree:7.2'
+  compile 'org.ow2.asm:asm-commons:7.2'
+  compile 'org.ow2.asm:asm-analysis:7.2'
+  compile 'org.ow2.asm:asm:7.2'
   compile project('spi')
 }
 
@@ -75,12 +80,12 @@ dependencies {
 
 testClusters {
   generateContextCluster {
-     testDistribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
   }
 }
 
 task generateContextDoc(type: DefaultTestClustersTask) {
-  useCluster  testClusters.generateContextCluster
+  useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
       main = 'org.elasticsearch.painless.ContextDocGenerator'
@@ -123,9 +128,9 @@ task regenLexer(type: JavaExec) {
   systemProperty 'user.country', 'US'
   systemProperty 'user.variant', ''
   args '-Werror',
-       '-package', 'org.elasticsearch.painless.antlr',
-       '-o', outputPath,
-       "${file(grammarPath)}/PainlessLexer.g4"
+    '-package', 'org.elasticsearch.painless.antlr',
+    '-o', outputPath,
+    "${file(grammarPath)}/PainlessLexer.g4"
 }
 
 task regenParser(type: JavaExec) {
@@ -137,12 +142,12 @@ task regenParser(type: JavaExec) {
   systemProperty 'user.country', 'US'
   systemProperty 'user.variant', ''
   args '-Werror',
-       '-package', 'org.elasticsearch.painless.antlr',
-       '-no-listener',
-       '-visitor',
-       // '-Xlog',
-       '-o', outputPath,
-       "${file(grammarPath)}/PainlessParser.g4"
+    '-package', 'org.elasticsearch.painless.antlr',
+    '-no-listener',
+    '-visitor',
+    // '-Xlog',
+    '-o', outputPath,
+    "${file(grammarPath)}/PainlessParser.g4"
 }
 
 task regen {
@@ -153,20 +158,20 @@ task regen {
     ant.move(file: "${outputPath}/PainlessParser.tokens", toDir: grammarPath)
     // make the generated classes package private
     ant.replaceregexp(match: 'public ((interface|class) \\QPainless\\E\\w+)',
-                      replace: '\\1',
-                      encoding: 'UTF-8') {
+      replace: '\\1',
+      encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'Painless*.java')
     }
     // make the lexer abstract
     ant.replaceregexp(match: '(class \\QPainless\\ELexer)',
-                      replace: 'abstract \\1',
-                      encoding: 'UTF-8') {
+      replace: 'abstract \\1',
+      encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'PainlessLexer.java')
     }
     // nuke timestamps/filenames in generated files
     ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-                      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-                      encoding: 'UTF-8') {
+      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+      encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'Painless*.java')
     }
     // remove tabs in antlr generated files

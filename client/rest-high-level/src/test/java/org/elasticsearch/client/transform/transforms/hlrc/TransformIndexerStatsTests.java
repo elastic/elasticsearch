@@ -19,48 +19,22 @@
 
 package org.elasticsearch.client.transform.transforms.hlrc;
 
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class TransformIndexerStatsTests extends AbstractHlrcXContentTestCase<
-        TransformIndexerStats,
-        org.elasticsearch.client.transform.transforms.TransformIndexerStats> {
+import static org.elasticsearch.client.transform.transforms.hlrc.TransformStatsTests.assertTransformIndexerStats;
 
-    public static TransformIndexerStats fromHlrc(
-            org.elasticsearch.client.transform.transforms.TransformIndexerStats instance) {
-        return new TransformIndexerStats(
-            instance.getNumPages(),
-            instance.getNumDocuments(),
-            instance.getOutputDocuments(),
-            instance.getNumInvocations(),
-            instance.getIndexTime(),
-            instance.getSearchTime(),
-            instance.getIndexTotal(),
-            instance.getSearchTotal(),
-            instance.getIndexFailures(),
-            instance.getSearchFailures(),
-            instance.getExpAvgCheckpointDurationMs(),
-            instance.getExpAvgDocumentsIndexed(),
-            instance.getExpAvgDocumentsProcessed());
-    }
+public class TransformIndexerStatsTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats,
+        TransformIndexerStats> {
 
     @Override
-    public org.elasticsearch.client.transform.transforms.TransformIndexerStats doHlrcParseInstance(XContentParser parser)
-            throws IOException {
-        return org.elasticsearch.client.transform.transforms.TransformIndexerStats.fromXContent(parser);
-    }
-
-    @Override
-    public TransformIndexerStats convertHlrcToInternal(
-            org.elasticsearch.client.transform.transforms.TransformIndexerStats instance) {
-        return fromHlrc(instance);
-    }
-
-    public static TransformIndexerStats randomStats() {
-        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
+    protected org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats createServerTestInstance(XContentType xContentType) {
+        return new org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
@@ -70,18 +44,13 @@ public class TransformIndexerStatsTests extends AbstractHlrcXContentTestCase<
     }
 
     @Override
-    protected TransformIndexerStats createTestInstance() {
-        return randomStats();
-    }
-
-    @Override
-    protected TransformIndexerStats doParseInstance(XContentParser parser) throws IOException {
+    protected TransformIndexerStats doParseToClientInstance(XContentParser parser) throws IOException {
         return TransformIndexerStats.fromXContent(parser);
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats serverTestInstance,
+                                   TransformIndexerStats clientInstance) {
+        assertTransformIndexerStats(serverTestInstance, clientInstance);
     }
-
 }

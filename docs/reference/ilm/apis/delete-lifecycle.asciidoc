@@ -6,33 +6,40 @@
 <titleabbrev>Delete policy</titleabbrev>
 ++++
 
-Deletes a lifecycle policy.
+Deletes an index lifecycle policy.
 
-==== Request
+[[ilm-delete-lifecycle-request]]
+==== {api-request-title}
 
 `DELETE _ilm/policy/<policy_id>`
 
-==== Description
+[[ilm-delete-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[ilm-delete-lifecycle-desc]]
+==== {api-description-title}
 
 Deletes the specified lifecycle policy definition. You cannot delete policies
 that are currently in use. If the policy is being used to manage any indices,
 the request fails and returns an error.
 
-==== Path Parameters
+[[ilm-delete-lifecycle-path-params]]
+==== {api-path-parms-title}
 
-`policy` (required)::
-  (string) Identifier for the policy.
+`<policy_id>`::
+  (Required, string) Identifier for the policy.
 
-==== Request Parameters
+[[ilm-delete-lifecycle-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
-
-You must have the `manage_ilm` cluster privilege to use this API.
-For more information, see <<security-privileges>>.
-
-==== Examples
+[[ilm-delete-lifecycle-example]]
+==== {api-examples-title}
 
 The following example deletes `my_policy`:
 

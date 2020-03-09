@@ -45,7 +45,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Information about snapshotted file
      */
     public static class FileInfo {
-        private static final String UNKNOWN_CHECKSUM = "_na_";
 
         private final String name;
         private final ByteSizeValue partSize;
@@ -225,14 +224,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             return metadata.isSame(fileInfo.metadata);
         }
 
-        /**
-         * Checks if the checksum for the file is unknown. This only is possible on an empty shard's
-         * segments_N file which was created in older Lucene versions.
-         */
-        public boolean hasUnknownChecksum() {
-            return metadata.checksum().equals(UNKNOWN_CHECKSUM);
-        }
-
         static final String NAME = "name";
         static final String PHYSICAL_NAME = "physical_name";
         static final String LENGTH = "length";
@@ -252,9 +243,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             builder.field(NAME, file.name);
             builder.field(PHYSICAL_NAME, file.metadata.name());
             builder.field(LENGTH, file.metadata.length());
-            if (file.metadata.checksum().equals(UNKNOWN_CHECKSUM) == false) {
-                builder.field(CHECKSUM, file.metadata.checksum());
-            }
+            builder.field(CHECKSUM, file.metadata.checksum());
             if (file.partSize != null) {
                 builder.field(PART_SIZE, file.partSize.getBytes());
             }
@@ -346,6 +335,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
     }
 
+    /**
+     * Snapshot name
+     */
     private final String snapshot;
 
     private final long indexVersion;
@@ -363,7 +355,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
      *
-     * @param snapshot              snapshot id
+     * @param snapshot              snapshot name
      * @param indexVersion          index version
      * @param indexFiles            list of files in the shard
      * @param startTime             snapshot start time
@@ -388,9 +380,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Returns snapshot id
+     * Returns snapshot name
      *
-     * @return snapshot id
+     * @return snapshot name
      */
     public String snapshot() {
         return snapshot;

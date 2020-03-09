@@ -20,7 +20,9 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
@@ -60,7 +62,10 @@ import java.util.Set;
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
  * clients against against an elasticsearch cluster.
+ *
+ * The suite timeout is extended to account for projects with a large number of tests.
  */
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**

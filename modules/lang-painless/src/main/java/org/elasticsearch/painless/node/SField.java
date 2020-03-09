@@ -19,74 +19,48 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
-
-import java.util.Set;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.FieldNode;
 
 /**
  * Represents a member field for its parent class (internal only).
  */
 public class SField extends ANode {
 
-    private final int access;
+    private final int modifiers;
     private final String name;
     private final Class<?> type;
-    private final Object instance;
 
     /**
      * Standard constructor.
      * @param location original location in the source
-     * @param access asm constants for field modifiers
+     * @param modifiers java modifiers for the field
      * @param name name of the field
      * @param type type of the field
-     * @param instance initial value for the field
      */
-    public SField(Location location, int access, String name, Class<?> type, Object instance) {
+    public SField(Location location, int modifiers, String name, Class<?> type) {
         super(location);
 
-        this.access = access;
+        this.modifiers = modifiers;
         this.name = name;
         this.type = type;
-        this.instance = instance;
     }
 
     public String getName() {
         return name;
     }
 
-    public Object getInstance() {
-        return instance;
-    }
-
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
+    FieldNode write(ClassNode classNode) {
+        FieldNode fieldNode = new FieldNode();
 
-    @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
+        fieldNode.setLocation(location);
+        fieldNode.setModifiers(modifiers);
+        fieldNode.setName(name);
+        fieldNode.setFieldType(type);
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new UnsupportedOperationException("unexpected node"));
-    }
-
-    void write(ClassWriter classWriter) {
-        classWriter.getClassVisitor().visitField(access, name, Type.getType(type).getDescriptor(), null, null).visitEnd();
+        return fieldNode;
     }
 
     @Override

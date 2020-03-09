@@ -138,4 +138,30 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
+    
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }   
+    
+    public void testRewriteIndexQueryNotMatchNone() throws IOException {
+        String fullIndexName = getIndex().getName();
+        String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName +"*");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
 }

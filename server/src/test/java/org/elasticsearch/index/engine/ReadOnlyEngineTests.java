@@ -79,7 +79,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
+                        engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
                     }
                     if (rarely()) {
                         engine.flush();
@@ -114,36 +114,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
         } finally {
             IOUtils.close(readOnlyEngine);
-        }
-    }
-
-    public void testFlushes() throws IOException {
-        IOUtils.close(engine, store);
-        Engine readOnlyEngine = null;
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 1000);
-            try (InternalEngine engine = createEngine(config)) {
-                for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
-                    if (rarely()) {
-                        engine.flush();
-                    }
-                    engine.syncTranslog(); // advance persisted local checkpoint
-                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-                }
-                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-                engine.syncTranslog();
-                engine.flushAndClose();
-                readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
-                Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), true);
-                assertEquals(flush, readOnlyEngine.flush(randomBoolean(), true));
-            } finally {
-                IOUtils.close(readOnlyEngine);
-            }
         }
     }
 
@@ -191,7 +161,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 expectThrows(expectedException, () -> readOnlyEngine.index(null));
                 expectThrows(expectedException, () -> readOnlyEngine.delete(null));
                 expectThrows(expectedException, () -> readOnlyEngine.noOp(null));
-                expectThrows(UnsupportedOperationException.class, () ->  readOnlyEngine.syncFlush(null, null));
             }
         }
     }

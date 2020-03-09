@@ -10,6 +10,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -29,19 +30,16 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -53,20 +51,20 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     private static final String DATA_INDEX = "delete-expired-data-test-data";
 
     @Before
-    public void setUpData() throws IOException {
+    public void setUpData()  {
         client().admin().indices().prepareCreate(DATA_INDEX)
-                .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis")
+                .setMapping("time", "type=date,format=epoch_millis")
                 .get();
 
-        // We are going to create data for last 2 days
-        long nowMillis = System.currentTimeMillis();
+        // We are going to create 3 days of data ending 1 hr ago
+        long latestBucketTime = System.currentTimeMillis() - TimeValue.timeValueHours(1).millis();
         int totalBuckets = 3 * 24;
         int normalRate = 10;
         int anomalousRate = 100;
         int anomalousBucket = 30;
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int bucket = 0; bucket < totalBuckets; bucket++) {
-            long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
+            long timestamp = latestBucketTime - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
                 IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
@@ -87,7 +85,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void testDeleteExpiredDataGivenNothingToDelete() throws Exception {
+    public void testDeleteExpiredData_GivenNothingToDelete() throws Exception {
         // Tests that nothing goes wrong when there's nothing to delete
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
@@ -121,7 +119,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
             String datafeedId = job.getId() + "-feed";
             DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
-            datafeedConfig.setIndices(Arrays.asList(DATA_INDEX));
+            datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
             DatafeedConfig datafeed = datafeedConfig.build();
             registerDatafeed(datafeed);
             putDatafeed(datafeed);
@@ -164,7 +162,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Refresh to ensure the snapshot timestamp updates are visible
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
 
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
         // FIXME it would be better to wait for something concrete instead of wait for time to elapse
@@ -186,7 +184,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountBeforeDelete =
-            client().prepareSearch(AuditorField.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
+            client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
         assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
 
@@ -201,10 +199,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(indexUnusedStateDocsResponse.get().status(), equalTo(RestStatus.OK));
 
         // Now call the action under test
-        client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
-
-        // We need to refresh to ensure the deletion is visible
-        client().admin().indices().prepareRefresh("*").get();
+        assertThat(deleteExpiredData().isDeleted(), is(true));
 
         // no-retention job should have kept all data
         assertThat(getBuckets("no-retention").size(), is(greaterThanOrEqualTo(70)));
@@ -212,7 +207,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("no-retention").size(), equalTo(2));
 
         List<Bucket> buckets = getBuckets("results-retention");
-        assertThat(buckets.size(), is(lessThanOrEqualTo(24)));
+        assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
         assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
         assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
         assertThat(getRecords("results-retention").size(), equalTo(0));
@@ -227,7 +222,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("snapshots-retention-with-retain").size(), equalTo(2));
 
         buckets = getBuckets("results-and-snapshots-retention");
-        assertThat(buckets.size(), is(lessThanOrEqualTo(24)));
+        assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
         assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
         assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
         assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
@@ -237,7 +232,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountAfterDelete =
-            client().prepareSearch(AuditorField.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
+            client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
         assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
 
@@ -280,7 +275,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     private static Job.Builder newJobBuilder(String id) {
         Detector.Builder detector = new Detector.Builder();
         detector.setFunction("count");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -298,6 +293,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             client().execute(UpdateModelSnapshotAction.INSTANCE, request).get();
         }
         // We need to refresh to ensure the updates are visible
-        client().admin().indices().prepareRefresh("*").get();
+        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
     }
 }

@@ -14,18 +14,30 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
-public class TransportDeleteTransformActionDeprecated extends TransportDeleteTransformAction{
+public class TransportDeleteTransformActionDeprecated extends TransportDeleteTransformAction {
 
     @Inject
-    public TransportDeleteTransformActionDeprecated(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
-                                                    ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                    TransformConfigManager transformsConfigManager, TransformAuditor auditor,
-                                                    Client client) {
-        super(DeleteTransformActionDeprecated.NAME, transportService, actionFilters, threadPool, clusterService,
-                indexNameExpressionResolver, transformsConfigManager, auditor, client);
+    public TransportDeleteTransformActionDeprecated(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
+        Client client
+    ) {
+        super(
+            DeleteTransformActionDeprecated.NAME,
+            transportService,
+            actionFilters,
+            threadPool,
+            clusterService,
+            indexNameExpressionResolver,
+            transformServices,
+            client
+        );
     }
 }

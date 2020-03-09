@@ -118,18 +118,6 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    @Override
-    public void onShardInactive(IndexShard indexShard) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.onShardInactive(indexShard);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke on shard inactive callback",
-                    indexShard.shardId().getId()), e);
-                throw e;
-            }
-        }
-    }
 
     @Override
     public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState,

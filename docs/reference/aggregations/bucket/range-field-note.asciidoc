@@ -45,7 +45,7 @@ PUT range_index/_doc/1?refresh
 The range is wider than the interval in the following aggregation, and thus the
 document will land in multiple buckets.
 
-[source, console]
+[source, console,id=range-field-aggregation-example]
 --------------------------------------------------
 POST /range_index/_search?size=0
 {
@@ -101,7 +101,7 @@ field being aggregated. In this case, a document could match the query but
 still have one or both of the endpoints of the range outside the query.
 Consider the following aggregation on the above document:
 
-[source, console]
+[source, console,id=range-field-aggregation-query-bounds-example]
 --------------------------------------------------
 POST /range_index/_search?size=0
 {

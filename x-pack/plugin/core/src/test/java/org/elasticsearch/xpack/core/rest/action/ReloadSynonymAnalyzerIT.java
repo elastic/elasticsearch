@@ -78,9 +78,9 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 .put("analysis.filter.my_synonym_filter.type", "synonym")
                 .put("analysis.filter.my_synonym_filter.updateable", "true")
                 .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer"));
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer"));
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "foo").get();
+        client().prepareIndex("test").setId("1").setSource("field", "foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());
 
         SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();

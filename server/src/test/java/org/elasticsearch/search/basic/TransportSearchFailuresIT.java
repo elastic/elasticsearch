@@ -52,7 +52,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1).addMapping("type", "foo", "type=geo_point"));
+        assertAcked(prepareCreate("test", 1).setMapping("foo", "type=geo_point"));
 
         NumShards test = getNumShards("test");
 

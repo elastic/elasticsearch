@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class PainlessConstructor {
@@ -31,12 +32,15 @@ public class PainlessConstructor {
     public final List<Class<?>> typeParameters;
     public final MethodHandle methodHandle;
     public final MethodType methodType;
+    public final Map<Class<?>, Object> annotations;
 
-    PainlessConstructor(Constructor<?> javaConstructor, List<Class<?>> typeParameters, MethodHandle methodHandle, MethodType methodType) {
+    PainlessConstructor(Constructor<?> javaConstructor, List<Class<?>> typeParameters, MethodHandle methodHandle, MethodType methodType,
+            Map<Class<?>, Object> annotations) {
         this.javaConstructor = javaConstructor;
         this.typeParameters = typeParameters;
         this.methodHandle = methodHandle;
         this.methodType = methodType;
+        this.annotations = annotations;
     }
 
     @Override
@@ -53,11 +57,12 @@ public class PainlessConstructor {
 
         return Objects.equals(javaConstructor, that.javaConstructor) &&
                 Objects.equals(typeParameters, that.typeParameters) &&
-                Objects.equals(methodType, that.methodType);
+                Objects.equals(methodType, that.methodType) &&
+                Objects.equals(annotations, that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(javaConstructor, typeParameters, methodType);
+        return Objects.hash(javaConstructor, typeParameters, methodType, annotations);
     }
 }

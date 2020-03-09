@@ -78,18 +78,20 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
     private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
     public TransportRollupSearchAction(TransportService transportService,
                                  ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
-                                 ScriptService scriptService, ClusterService clusterService) {
+                                 ScriptService scriptService, ClusterService clusterService, IndexNameExpressionResolver resolver) {
         super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.resolver = resolver;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, true, SearchRequest::new,
                 new TransportRollupSearchAction.TransportHandler());
@@ -97,7 +99,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
         RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
 

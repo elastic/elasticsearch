@@ -56,8 +56,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      */
     private int maxSourceCharsToLog;
 
-    private SlowLogLevel level;
-
     private final Logger indexLogger;
 
     private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -94,7 +92,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index." + indexSettings.getUUID());
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -123,7 +121,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        this.level = level;
         Loggers.setLevel(this.indexLogger, level.name());
     }
 
@@ -182,7 +179,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("message", index);
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-            map.put("doc_type", doc.type());
             map.put("id", doc.id());
             map.put("routing", doc.routing());
 
@@ -214,7 +210,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             sb.append(index).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
             sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("type[").append(doc.type()).append("], ");
             sb.append("id[").append(doc.id()).append("], ");
             if (doc.routing() == null) {
                 sb.append("routing[]");
@@ -266,7 +261,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        return level;
+        return SlowLogLevel.parse(indexLogger.getLevel().name());
     }
 
 }

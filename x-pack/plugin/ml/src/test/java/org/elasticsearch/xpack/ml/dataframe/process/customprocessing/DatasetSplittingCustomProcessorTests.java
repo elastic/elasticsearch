@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
     private List<String> fields;
     private int dependentVariableIndex;
     private String dependentVariable;
+    private long randomizeSeed;
 
     @Before
     public void setUpTests() {
@@ -34,10 +36,11 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
         }
         dependentVariableIndex = randomIntBetween(0, fieldCount - 1);
         dependentVariable = fields.get(dependentVariableIndex);
+        randomizeSeed = randomLong();
     }
 
     public void testProcess_GivenRowsWithoutDependentVariableValue() {
-        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 50.0);
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 50.0, randomizeSeed);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -55,7 +58,7 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
     }
 
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 100.0);
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 100.0, randomizeSeed);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -75,7 +78,7 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
         double trainingPercent = randomDoubleBetween(1.0, 100.0, true);
         double trainingFraction = trainingPercent / 100;
-        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, trainingPercent);
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, trainingPercent, randomizeSeed);
 
         int runCount = 20;
         int rowsCount = 1000;
@@ -96,7 +99,7 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
                         assertThat(processedRow[fieldIndex], equalTo(row[fieldIndex]));
                     }
                 }
-                if (processedRow[dependentVariableIndex].length() > 0) {
+                if (DataFrameDataExtractor.NULL_VALUE.equals(processedRow[dependentVariableIndex]) == false) {
                     assertThat(processedRow[dependentVariableIndex], equalTo(row[dependentVariableIndex]));
                     trainingRows++;
                 }
@@ -121,7 +124,7 @@ public class DatasetSplittingCustomProcessorTests extends ESTestCase {
     }
 
     public void testProcess_ShouldHaveAtLeastOneTrainingRow() {
-        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 1.0);
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 1.0, randomizeSeed);
 
         // We have some non-training rows and then a training row to check
         // we maintain the first training row and not just the first row

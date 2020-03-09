@@ -15,6 +15,7 @@ following types are supported:
 <<danish-analyzer,`danish`>>,
 <<dutch-analyzer,`dutch`>>,
 <<english-analyzer,`english`>>,
+<<estonian-analyzer,`estonian`>>,
 <<finnish-analyzer,`finnish`>>,
 <<french-analyzer,`french`>>,
 <<galician-analyzer,`galician`>>,
@@ -387,7 +388,7 @@ PUT /catalan_example
         },
         "catalan_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["exemple"] <2>
+          "keywords":   ["example"] <2>
         },
         "catalan_stemmer": {
           "type":       "stemmer",
@@ -674,6 +675,54 @@ PUT /english_example
 <2> This filter should be removed unless there are words which should
     be excluded from stemming.
 
+[[estonian-analyzer]]
+===== `estonian` analyzer
+
+The `estonian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,console]
+----------------------------------------------------
+PUT /estonian_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "estonian_stop": {
+          "type":       "stop",
+          "stopwords":  "_estonian_" <1>
+        },
+        "estonian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   ["näide"] <2>
+        },
+        "estonian_stemmer": {
+          "type":       "stemmer",
+          "language":   "estonian"
+        }
+      },
+      "analyzer": {
+        "rebuilt_estonian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "estonian_stop",
+            "estonian_keywords",
+            "estonian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// TEST[s/"estonian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: estonian_example, first: estonian, second: rebuilt_estonian}\nendyaml\n/]
+
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> This filter should be removed unless there are words which should
+    be excluded from stemming.
+
 [[finnish-analyzer]]
 ===== `finnish` analyzer
 
@@ -749,7 +798,7 @@ PUT /french_example
         },
         "french_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["Exemple"] <2>
+          "keywords":   ["Example"] <2>
         },
         "french_stemmer": {
           "type":       "stemmer",

@@ -28,7 +28,6 @@ import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -37,16 +36,18 @@ import org.elasticsearch.env.Environment;
 /**
  * A subcommand for the keystore cli which adds a string setting.
  */
-class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
+class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
     private final OptionSpec<Void> stdinOption;
-    private final OptionSpec<Void> forceOption;
     private final OptionSpec<String> arguments;
 
     AddStringKeyStoreCommand() {
-        super("Add a string setting to the keystore");
+        super("Add a string setting to the keystore", false);
         this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting value from stdin");
-        this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"), "Overwrite existing setting without prompting");
+        this.forceOption = parser.acceptsAll(
+            Arrays.asList("f", "force"),
+            "Overwrite existing setting without prompting, creating keystore if necessary"
+        );
         this.arguments = parser.nonOptions("setting name");
     }
 
@@ -56,26 +57,13 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            if (options.has(forceOption) == false &&
-                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
-                terminal.println("Exiting without creating keystore.");
-                return;
-            }
-            keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), new char[0] /* always use empty passphrase for auto created keystore */);
-            terminal.println("Created elasticsearch keystore in " + env.configFile());
-        } else {
-            keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
-        }
-
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String setting = arguments.value(options);
         if (setting == null) {
             throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
         }
-        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+        final KeyStoreWrapper keyStore = getKeyStore();
+        if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
             if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
                 return;
@@ -84,8 +72,10 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
         final char[] value;
         if (options.has(stdinOption)) {
-            try (BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-                 CharArrayWriter writer = new CharArrayWriter()) {
+            try (
+                BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+                CharArrayWriter writer = new CharArrayWriter()
+            ) {
                 int charInt;
                 while ((charInt = stdinReader.read()) != -1) {
                     if ((char) charInt == '\r' || (char) charInt == '\n') {
@@ -100,10 +90,11 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         }
 
         try {
-            keystore.setString(setting, value);
-        } catch (final IllegalArgumentException e) {
+            keyStore.setString(setting, value);
+        } catch (IllegalArgumentException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
-        keystore.save(env.configFile(), new char[0]);
+        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
+
     }
 }

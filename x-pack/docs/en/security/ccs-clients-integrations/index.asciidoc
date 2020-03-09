@@ -1,17 +1,17 @@
 [role="xpack"]
 [[ccs-clients-integrations]]
-== Cross cluster search, clients, and integrations
+== {ccs-cap}, clients, and integrations
 
-When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search]
+When using <<modules-cross-cluster-search,{ccs}>>
 you need to take extra steps to secure communications with the connected
 clusters.
 
-* <<cross-cluster-configuring, Cross Cluster Search and Security>>
+* <<cross-cluster-configuring>>
 
 You will need to update the configuration for several clients to work with a
 secured cluster:
 
-* <<http-clients, HTTP Clients>>
+* <<http-clients>>
 
 
 The {es} {security-features} enable you to secure your {es} cluster. But
@@ -26,7 +26,7 @@ be secured as well, or at least communicate with the cluster in a secured way:
 * {kibana-ref}/using-kibana-with-security.html[{kib}]
 * {logstash-ref}/ls-security.html[Logstash]
 * {metricbeat-ref}/securing-beats.html[Metricbeat]
-* <<secure-monitoring, Monitoring>>
+* <<secure-monitoring>>
 * {packetbeat-ref}/securing-beats.html[Packetbeat]
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
@@ -36,7 +36,5 @@ include::cross-cluster.asciidoc[]
 include::http.asciidoc[]
 
 include::hadoop.asciidoc[]
-
-include::beats.asciidoc[]
 
 include::monitoring.asciidoc[]

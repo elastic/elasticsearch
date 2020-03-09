@@ -84,7 +84,8 @@ public class BulkProcessor implements Closeable {
 
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
-        private final Scheduler scheduler;
+        private final Scheduler flushScheduler;
+        private final Scheduler retryScheduler;
         private final Runnable onClose;
         private int concurrentRequests = 1;
         private int bulkActions = 1000;
@@ -96,10 +97,11 @@ public class BulkProcessor implements Closeable {
         private String globalPipeline;
 
         private Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener,
-                        Scheduler scheduler, Runnable onClose) {
+                        Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose) {
             this.consumer = consumer;
             this.listener = listener;
-            this.scheduler = scheduler;
+            this.flushScheduler = flushScheduler;
+            this.retryScheduler = retryScheduler;
             this.onClose = onClose;
         }
 
@@ -178,7 +180,7 @@ public class BulkProcessor implements Closeable {
          */
         public BulkProcessor build() {
             return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions,
-                bulkSize, flushInterval, scheduler, onClose, createBulkRequestWithGlobalDefaults());
+                bulkSize, flushInterval, flushScheduler, retryScheduler, onClose, createBulkRequestWithGlobalDefaults());
         }
 
         private Supplier<BulkRequest> createBulkRequestWithGlobalDefaults() {
@@ -188,19 +190,55 @@ public class BulkProcessor implements Closeable {
         }
     }
 
+    /**
+     * @param client The client that executes the bulk operations
+     * @param listener The BulkProcessor listener that gets called on bulk events
+     * @param flushScheduler The scheduler that is used to flush
+     * @param retryScheduler The scheduler that is used for retries
+     * @param onClose The runnable instance that is executed on close. Consumers are required to clean up the schedulers.
+     * @return the builder for BulkProcessor
+     */
+    public static Builder builder(Client client, Listener listener, Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose) {
+        Objects.requireNonNull(client, "client");
+        Objects.requireNonNull(listener, "listener");
+        return new Builder(client::bulk, listener, flushScheduler, retryScheduler, onClose);
+    }
+
+
+    /**
+     * @param client The client that executes the bulk operations
+     * @param listener The BulkProcessor listener that gets called on bulk events
+     * @return the builder for BulkProcessor
+     * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.elasticsearch.action.bulk.BulkProcessor.Listener)}
+     * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.Client,
+     * org.elasticsearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
+     * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
+     */
+    @Deprecated
     public static Builder builder(Client client, Listener listener) {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(listener, "listener");
-        return new Builder(client::bulk, listener, client.threadPool(), () -> {});
+        return new Builder(client::bulk, listener, client.threadPool(), client.threadPool(), () -> {});
     }
 
+    /**
+     * @param consumer The consumer that is called to fulfil bulk operations
+     * @param listener The BulkProcessor listener that gets called on bulk events
+     * @return the builder for BulkProcessor
+     */
     public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
         Objects.requireNonNull(consumer, "consumer");
         Objects.requireNonNull(listener, "listener");
-        final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
+        final ScheduledThreadPoolExecutor flushScheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
+        final ScheduledThreadPoolExecutor retryScheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
         return new Builder(consumer, listener,
-            buildScheduler(scheduledThreadPoolExecutor),
-                () -> Scheduler.terminate(scheduledThreadPoolExecutor, 10, TimeUnit.SECONDS));
+            buildScheduler(flushScheduledThreadPoolExecutor),
+            buildScheduler(retryScheduledThreadPoolExecutor),
+            () ->
+            {
+                Scheduler.terminate(flushScheduledThreadPoolExecutor, 10, TimeUnit.SECONDS);
+                Scheduler.terminate(retryScheduledThreadPoolExecutor, 10, TimeUnit.SECONDS);
+            });
     }
 
     private static Scheduler buildScheduler(ScheduledThreadPoolExecutor scheduledThreadPoolExecutor) {
@@ -225,15 +263,26 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
                   int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
-                  Scheduler scheduler, Runnable onClose, Supplier<BulkRequest> bulkRequestSupplier) {
+                  Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose, Supplier<BulkRequest> bulkRequestSupplier) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = bulkRequestSupplier.get();
         this.bulkRequestSupplier = bulkRequestSupplier;
-        this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, scheduler, concurrentRequests);
+        this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, retryScheduler, concurrentRequests);
         // Start period flushing task after everything is setup
-        this.cancellableFlushTask = startFlushTask(flushInterval, scheduler);
+        this.cancellableFlushTask = startFlushTask(flushInterval, flushScheduler);
         this.onClose = onClose;
+    }
+
+    /**
+     * @deprecated use the {@link BulkProcessor} constructor which uses separate schedulers for flush and retry
+     */
+    @Deprecated
+    BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
+                  int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
+                  Scheduler scheduler, Runnable onClose, Supplier<BulkRequest> bulkRequestSupplier) {
+        this(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval,
+            scheduler, scheduler, onClose, bulkRequestSupplier );
     }
 
     /**

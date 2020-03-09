@@ -315,6 +315,14 @@ public abstract class StreamInput extends InputStream {
         return i;
     }
 
+    @Nullable
+    public Long readOptionalVLong() throws IOException {
+        if (readBoolean()) {
+            return readVLong();
+        }
+        return null;
+    }
+
     public long readZLong() throws IOException {
         long accumulator = 0L;
         int i = 0;
@@ -748,13 +756,12 @@ public abstract class StreamInput extends InputStream {
         return present ? readInstant() : null;
     }
 
-    @SuppressWarnings("unchecked")
-    private List readArrayList() throws IOException {
+    private List<Object> readArrayList() throws IOException {
         int size = readArraySize();
         if (size == 0) {
             return Collections.emptyList();
         }
-        List list = new ArrayList(size);
+        List<Object> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             list.add(readGenericValue());
         }
@@ -790,7 +797,7 @@ public abstract class StreamInput extends InputStream {
         if (size9 == 0) {
             return Collections.emptyMap();
         }
-        Map map9 = new LinkedHashMap(size9);
+        Map<String, Object> map9 = new LinkedHashMap<>(size9);
         for (int i = 0; i < size9; i++) {
             map9.put(readString(), readGenericValue());
         }
@@ -802,7 +809,7 @@ public abstract class StreamInput extends InputStream {
         if (size10 == 0) {
             return Collections.emptyMap();
         }
-        Map map10 = new HashMap(size10);
+        Map<String, Object> map10 = new HashMap<>(size10);
         for (int i = 0; i < size10; i++) {
             map10.put(readString(), readGenericValue());
         }
@@ -985,6 +992,7 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
             int key = readVInt();
@@ -1143,6 +1151,23 @@ public abstract class StreamInput extends InputStream {
      */
     public List<String> readStringList() throws IOException {
         return readList(StreamInput::readString);
+    }
+
+    /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readOptionalStringList() throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(StreamInput::readString);
+        } else {
+            return null;
+        }
     }
 
     /**

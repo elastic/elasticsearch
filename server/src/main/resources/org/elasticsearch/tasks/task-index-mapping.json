@@ -1,7 +1,7 @@
 {
-  "task" : {
+  "_doc" : {
     "_meta": {
-      "version": 2
+      "version": 3
     },
     "dynamic" : "strict",
     "properties" : {
@@ -19,7 +19,7 @@
           "id": {
             "type": "long"
           },
-          "parent_id": {
+          "parent_task_id": {
             "type": "keyword"
           },
           "node": {

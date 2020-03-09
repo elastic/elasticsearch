@@ -63,18 +63,54 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
 
+    private final boolean isNull;
+
     public QuerySearchResult() {
+        this(false);
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        long id = in.readLong();
-        readFromWithId(id, in);
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            isNull = in.readBoolean();
+        } else {
+            isNull = false;
+        }
+        if (isNull == false) {
+            long id = in.readLong();
+            readFromWithId(id, in);
+        }
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
         this.requestId = id;
         setSearchShardTarget(shardTarget);
+        isNull = false;
+    }
+
+    private QuerySearchResult(boolean isNull) {
+        this.isNull = isNull;
+    }
+
+    /**
+     * Returns an instance that contains no response.
+     */
+    public static QuerySearchResult nullInstance() {
+        return new QuerySearchResult(true);
+    }
+
+    /**
+     * Returns true if the result doesn't contain any useful information.
+     * It is used by the search action to avoid creating an empty response on
+     * shard request that rewrites to match_no_docs.
+     *
+     * TODO: Currently we need the concrete aggregators to build empty responses. This means that we cannot
+     *       build an empty response in the coordinating node so we rely on this hack to ensure that at least one shard
+     *       returns a valid empty response. We should move the ability to create empty responses to aggregation builders
+     *       in order to allow building empty responses directly from the coordinating node.
+     */
+    public boolean isNull() {
+        return isNull;
     }
 
     @Override
@@ -171,6 +207,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public void aggregations(InternalAggregations aggregations) {
         this.aggregations = aggregations;
         hasAggs = aggregations != null;
+    }
+
+    public InternalAggregations aggregations() {
+        return aggregations;
     }
 
     /**
@@ -300,8 +340,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(requestId);
-        writeToNoId(out);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeBoolean(isNull);
+        }
+        if (isNull == false) {
+            out.writeLong(requestId);
+            writeToNoId(out);
+        }
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {

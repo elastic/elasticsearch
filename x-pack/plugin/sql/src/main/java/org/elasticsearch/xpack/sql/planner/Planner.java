@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
-import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.List;
 import java.util.Map;
@@ -49,7 +49,7 @@ public class Planner {
 
     public Map<Node<?>, String> verifyMappingPlanFailures(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyMappingPlan(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     public PhysicalPlan verifyExecutingPlan(PhysicalPlan plan) {
@@ -62,6 +62,6 @@ public class Planner {
 
     public Map<Node<?>, String> verifyExecutingPlanFailures(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyExecutingPlan(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 }

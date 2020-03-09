@@ -20,9 +20,9 @@
 package org.elasticsearch.indices.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -38,7 +38,7 @@ public final class MapperRegistry {
 
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
-    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
+    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
     private final Function<String, Predicate<String>> fieldFilter;
 
 
@@ -46,11 +46,9 @@ public final class MapperRegistry {
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers, Function<String, Predicate<String>> fieldFilter) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
-        // add the _all field mapper for indices created in 6x
-        Map<String, MetadataFieldMapper.TypeParser> metadata6x = new LinkedHashMap<>();
-        metadata6x.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
-        metadata6x.putAll(metadataMapperParsers);
-        this.metadataMapperParsers6x = Collections.unmodifiableMap(metadata6x);
+        Map<String, MetadataFieldMapper.TypeParser> metadata7x = new LinkedHashMap<>(metadataMapperParsers);
+        metadata7x.remove(NestedPathFieldMapper.NAME);
+        this.metadataMapperParsers7x = metadata7x;
         this.fieldFilter = fieldFilter;
     }
 
@@ -67,7 +65,10 @@ public final class MapperRegistry {
      * returned map uses the name of the field as a key.
      */
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(Version.V_7_0_0) ? metadataMapperParsers : metadataMapperParsers6x;
+        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+            return metadataMapperParsers;
+        }
+        return metadataMapperParsers7x;
     }
 
     /**

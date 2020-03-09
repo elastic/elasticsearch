@@ -37,10 +37,10 @@ PUT /example
     }
 }
 
-POST /example/_doc?refresh
+PUT /example/_doc/1?refresh=wait_for
 {
     "name": "Lucky Landing",
-    "location": {
+    "geometry": {
         "type": "point",
         "coordinates": [1355.400544, 5255.530286]
     }
@@ -68,6 +68,47 @@ GET /example/_search
     }
 }
 --------------------------------------------------
+
+////
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 0.0,
+    "hits": [
+      {
+        "_index": "example",
+        "_id": "1",
+        "_score": 0.0,
+        "_source": {
+          "name": "Lucky Landing",
+          "geometry": {
+            "type": "point",
+            "coordinates": [
+              1355.400544,
+              5255.530286
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+////
 
 ==== Pre-Indexed Shape
 
@@ -129,12 +170,14 @@ GET /example/_search
 
 The following is a complete list of spatial relation operators available:
 
-* `INTERSECTS` - (default) Return all documents whose `geo_shape` field
+* `INTERSECTS` - (default) Return all documents whose `shape` field
 intersects the query geometry.
-* `DISJOINT` - Return all documents whose `geo_shape` field
+* `DISJOINT` - Return all documents whose `shape` field
 has nothing in common with the query geometry.
-* `WITHIN` - Return all documents whose `geo_shape` field
+* `WITHIN` - Return all documents whose `shape` field
 is within the query geometry.
+* `CONTAINS` - Return all documents whose `shape` field
+contains the query geometry.
 
 [float]
 ==== Ignore Unmapped

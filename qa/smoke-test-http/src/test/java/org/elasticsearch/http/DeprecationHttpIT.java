@@ -99,7 +99,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
             int randomDocCount = randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; ++j) {
-                index(indices[i], "type", Integer.toString(j), "{\"field\":" + j + "}");
+                index(indices[i], Integer.toString(j), "{\"field\":" + j + "}");
             }
         }
 

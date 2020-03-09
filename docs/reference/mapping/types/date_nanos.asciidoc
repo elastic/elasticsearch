@@ -30,14 +30,12 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "date": {
-          "type": "date_nanos" <1>
-        }
+    "properties": {
+      "date": {
+        "type": "date_nanos" <1>
       }
     }
   }
@@ -63,7 +61,7 @@ GET my_index/_search
     "my_field" : {
       "script" : {
         "lang" : "painless",
-        "source" : "doc['date'].date.nanos" <6>
+        "source" : "doc['date'].value.nano" <6>
       }
     }
   }

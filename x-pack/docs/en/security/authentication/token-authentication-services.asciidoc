@@ -13,7 +13,7 @@ The {security-features} provide the following built-in token-based authenticatio
 services, which are listed in the order they are consulted:
 
 _token-service_::
-The token service uses the {ref}/security-api-get-token.html[get token API] to
+The token service uses the <<security-api-get-token,get token API>> to
 generate access tokens and refresh tokens based on the OAuth2 specification.
 The access token is a short-lived token. By default, it expires after 20 minutes
 but it can be configured to last a maximum of 1 hour. It can be refreshed by
@@ -32,7 +32,7 @@ curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvb
 
 _api-key-service_::
 The API key service uses the
-{ref}/security-api-create-api-key.html[create API key API] to generate API keys.
+<<security-api-create-api-key,create API key API>> to generate API keys.
 By default, the API keys do not expire. When you make a request to create API
 keys, you can specify an expiration and permissions for the API key. The
 permissions are limited by the authenticated user's permissions. You can use the
@@ -54,5 +54,5 @@ service to use to generate and manage the tokens. Non-expiring API keys may seem
 like the easy option but you must consider the security implications that come
 with non-expiring keys. Both the _token-service_ and _api-key-service_ permit
 you to invalidate the tokens. See
-{ref}/security-api-invalidate-token.html[invalidate token API] and
-{ref}/security-api-invalidate-api-key.html[invalidate API key API].
+<<security-api-invalidate-token,invalidate token API>> and
+<<security-api-invalidate-api-key,invalidate API key API>>.

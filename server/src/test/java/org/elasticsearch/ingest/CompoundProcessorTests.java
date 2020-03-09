@@ -26,14 +26,17 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -277,6 +280,83 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(secondProcessor.getInvokedCounter(), equalTo(0));
         assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
         assertStats(pipeline, 1, 1, 0);
+    }
+
+    public void testFailureProcessorIsInvokedOnFailure() {
+        TestProcessor onFailureProcessor = new TestProcessor(null, "on_failure", ingestDocument -> {
+            Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
+            assertThat(ingestMetadata.entrySet(), hasSize(5));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("failure!"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("test-processor"));
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD), nullValue());
+            assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PIPELINE_FIELD), equalTo("2"));
+            assertThat(ingestMetadata.get("pipeline"), equalTo("1"));
+        });
+
+        Pipeline pipeline2 = new Pipeline("2", null, null, new CompoundProcessor(new TestProcessor(new RuntimeException("failure!"))));
+        Pipeline pipeline1 = new Pipeline("1", null, null, new CompoundProcessor(false, List.of(new AbstractProcessor(null) {
+            @Override
+            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                ingestDocument.executePipeline(pipeline2, handler);
+            }
+
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                throw new AssertionError();
+            }
+
+            @Override
+            public String getType() {
+                return "pipeline";
+            }
+        }), List.of(onFailureProcessor)));
+
+        ingestDocument.executePipeline(pipeline1, (document, e) -> {
+            assertThat(document, notNullValue());
+            assertThat(e, nullValue());
+        });
+        assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
+    }
+
+    public void testNewCompoundProcessorException() {
+        TestProcessor processor = new TestProcessor("my_tag", "my_type", new RuntimeException());
+        IngestProcessorException ingestProcessorException1 =
+            CompoundProcessor.newCompoundProcessorException(new RuntimeException(), processor, ingestDocument);
+        assertThat(ingestProcessorException1.getHeader("processor_tag"), equalTo(List.of("my_tag")));
+        assertThat(ingestProcessorException1.getHeader("processor_type"), equalTo(List.of("my_type")));
+        assertThat(ingestProcessorException1.getHeader("pipeline_origin"), nullValue());
+
+        IngestProcessorException ingestProcessorException2 =
+            CompoundProcessor.newCompoundProcessorException(ingestProcessorException1, processor, ingestDocument);
+        assertThat(ingestProcessorException2, sameInstance(ingestProcessorException1));
+    }
+
+    public void testNewCompoundProcessorExceptionPipelineOrigin() {
+        Pipeline pipeline2 = new Pipeline("2", null, null,
+            new CompoundProcessor(new TestProcessor("my_tag", "my_type", new RuntimeException())));
+        Pipeline pipeline1 = new Pipeline("1", null, null, new CompoundProcessor(new AbstractProcessor(null) {
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                ingestDocument.executePipeline(pipeline2, handler);
+            }
+
+            @Override
+            public String getType() {
+                return "my_type2";
+            }
+        }));
+
+        Exception[] holder = new Exception[1];
+        ingestDocument.executePipeline(pipeline1, (document, e) -> holder[0] = e);
+        IngestProcessorException ingestProcessorException = (IngestProcessorException) holder[0];
+        assertThat(ingestProcessorException.getHeader("processor_tag"), equalTo(List.of("my_tag")));
+        assertThat(ingestProcessorException.getHeader("processor_type"), equalTo(List.of("my_type")));
+        assertThat(ingestProcessorException.getHeader("pipeline_origin"), equalTo(List.of("2", "1")));
     }
 
     private void assertStats(CompoundProcessor compoundProcessor, long count,  long failed, long time) {

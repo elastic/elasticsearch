@@ -35,3 +35,20 @@ The `nested_filter` and `nested_path` options, deprecated in 6.x, have been remo
 {es} will no longer prefer using shards in the same location (with the same awareness attribute values) to process
 `_search` and `_get` requests. Adaptive replica selection (activated by default in this version) will route requests
 more efficiently using the service time of prior inter-node communications.
+
+[float]
+==== Removal of sparse vector fields
+The `sparse_vector` field type was deprecated in 7.6 and is now removed in
+8.0. We have not seen much interest in this experimental field type, and don't
+see a clear use case as it's currently designed. If you have feedback or
+suggestions around sparse vector functionality, please let us know through
+GitHub or the 'discuss' forums.
+
+[float]
+==== Update to vector function signatures
+The vector functions of the form `function(query, doc['field'])` were
+deprecated in 7.6, and are now removed in 8.x. The form
+`function(query, 'field')` should be used instead. For example,
+`cosineSimilarity(query, doc['field'])` is replaced by
+`cosineSimilarity(query, 'field')`.
+

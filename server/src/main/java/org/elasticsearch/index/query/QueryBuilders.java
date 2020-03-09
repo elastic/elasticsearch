@@ -63,10 +63,10 @@ public final class QueryBuilders {
     }
 
     /**
-     * Creates a match query with type "BOOLEAN" for the provided field name and text.
+     * Creates a match query with type "BOOLEAN" for the provided field names and text.
      *
-     * @param fieldNames The field names.
      * @param text       The query text (to be analyzed).
+     * @param fieldNames The field names.
      */
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
@@ -485,7 +485,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -495,7 +495,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -505,7 +505,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -515,7 +515,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -525,7 +525,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -535,7 +535,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -545,7 +545,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms

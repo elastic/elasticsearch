@@ -1,7 +1,7 @@
 {
   "ccr.forget_follower":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-forget-follower.html"
     },
     "stability":"stable",
     "url":{

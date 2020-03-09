@@ -95,8 +95,6 @@ Reason for any snapshot failures.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
 `ignore_unavailable`::
 (Optional, boolean) If `true`, the response does not include information from
 unavailable snapshots. Defaults to `false`.

@@ -20,8 +20,7 @@ file or updated dynamically on a live cluster with the
     85% disk used. It can also be set to an absolute byte value (like `500mb`)
     to prevent Elasticsearch from allocating shards if less than the specified
     amount of space is available. This setting has no effect on the primary
-    shards of newly-created indices or, specifically, any shards that have
-    never previously been allocated.
+    shards of newly-created indices but will prevent their replicas from being allocated.
 
 `cluster.routing.allocation.disk.watermark.high`::
 

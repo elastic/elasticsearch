@@ -98,6 +98,16 @@ The following parameters are supported:
 `input`::
     The input to store, this can be an array of strings or just
     a string. This field is mandatory.
++
+[NOTE]
+====
+This value cannot contain the following UTF-16 control characters:
+
+* `\u0000` (null)
+* `\u001f` (information separator one)
+* `\u001e` (information separator two)
+====
+
 
 `weight`::
     A positive integer or a string containing a positive integer,

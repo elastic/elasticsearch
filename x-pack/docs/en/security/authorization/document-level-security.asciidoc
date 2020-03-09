@@ -32,7 +32,7 @@ NOTE: Omitting the `query` entry entirely disables document level security for
       the respective indices permission entry.
 
 The specified `query` expects the same format as if it was defined in the
-search request and supports the full {es} {ref}/query-dsl.html[Query DSL].
+search request and supports the full {es} <<query-dsl,query DSL>>.
 
 For example, the following role grants read access only to the documents whose
 `department_id` equals `12`:

@@ -137,13 +137,6 @@ final class TranslogHeader {
             final BytesRef uuid = new BytesRef(uuidLen);
             uuid.length = uuidLen;
             in.read(uuid.bytes, uuid.offset, uuid.length);
-            final BytesRef expectedUUID = new BytesRef(translogUUID);
-            if (uuid.bytesEquals(expectedUUID) == false) {
-                throw new TranslogCorruptedException(
-                    path.toString(),
-                    "expected shard UUID " + expectedUUID + " but got: " + uuid +
-                        " this translog file belongs to a different translog");
-            }
             // Read the primary term
             assert version == VERSION_PRIMARY_TERM;
             final long primaryTerm = in.readLong();
@@ -154,6 +147,16 @@ final class TranslogHeader {
             final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);
             assert channel.position() == headerSizeInBytes :
                 "Header is not fully read; header size [" + headerSizeInBytes + "], position [" + channel.position() + "]";
+
+            // verify UUID only after checksum, to ensure that UUID is not corrupted
+            final BytesRef expectedUUID = new BytesRef(translogUUID);
+            if (uuid.bytesEquals(expectedUUID) == false) {
+                throw new TranslogCorruptedException(
+                    path.toString(),
+                    "expected shard UUID " + expectedUUID + " but got: " + uuid +
+                        " this translog file belongs to a different translog");
+            }
+
             return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);
         } catch (EOFException e) {
             throw new TranslogCorruptedException(path.toString(), "translog header truncated", e);

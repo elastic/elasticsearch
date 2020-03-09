@@ -18,7 +18,7 @@ Or post in the https://discuss.elastic.co/[Elastic forum].
 If you encounter problems with your {transforms}, you can gather more
 information from the following files and APIs:
 
-* Lightweight audit messages are stored in `.data-frame-notifications-*`. Search
+* Lightweight audit messages are stored in `.transform-notifications-read`. Search
 by your `transform_id`.
 * The
 {ref}/get-transform-stats.html[get {transform} statistics API] 

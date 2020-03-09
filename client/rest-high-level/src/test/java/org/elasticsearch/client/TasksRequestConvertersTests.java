@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -36,12 +35,16 @@ import static org.hamcrest.Matchers.nullValue;
 public class TasksRequestConvertersTests extends ESTestCase {
 
     public void testCancelTasks() {
-        CancelTasksRequest request = new CancelTasksRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        request.setTaskId(taskId);
-        request.setParentTaskId(parentTaskId);
+        org.elasticsearch.client.tasks.TaskId taskId =
+            new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        org.elasticsearch.client.tasks.TaskId parentTaskId =
+            new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        org.elasticsearch.client.tasks.CancelTasksRequest request =
+            new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
+                .withTaskId(taskId)
+                .withParentTaskId(parentTaskId)
+                .build();
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
         Request httpRequest = TasksRequestConverters.cancelTasks(request);

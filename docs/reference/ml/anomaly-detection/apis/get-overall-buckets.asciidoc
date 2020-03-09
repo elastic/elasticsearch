@@ -36,7 +36,7 @@ by specifying `*` as the `<job_id>`.
 By default, an overall bucket has a span equal to the largest bucket span of the
 specified {anomaly-jobs}. To override that behavior, use the optional
 `bucket_span` parameter. To learn more about the concept of buckets, see
-{stack-ov}/ml-buckets.html[Buckets].
+{ml-docs}/ml-buckets.html[Buckets].
 
 The `overall_score` is calculated by combining the scores of all the buckets
 within the overall bucket span. First, the maximum `anomaly_score` per
@@ -55,56 +55,70 @@ a span equal to the jobs' largest bucket span.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}. It can be a job
-  identifier, a group name, a comma-separated list of jobs or groups, or a
-  wildcard expression.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) If `false` and the `job_id` does not match any
-  {anomaly-jobs}, an error occurs. The default value is `true`.
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `bucket_span`::
-  (Optional, string) The span of the overall buckets. Must be greater or equal
-  to the largest bucket span of the specified {anomaly-jobs}, which is the
-  default value.
+(Optional, string) The span of the overall buckets. Must be greater or equal to
+the largest bucket span of the specified {anomaly-jobs}, which is the default
+value.
 
 `end`::
-  (Optional, string) Returns overall buckets with timestamps earlier than this
-  time.
+(Optional, string) Returns overall buckets with timestamps earlier than this
+time.
 
 `exclude_interim`::
-  (Optional, boolean) If `true`, the output excludes interim overall buckets.
-  Overall buckets are interim if any of the job buckets within the overall
-  bucket interval are interim. By default, interim results are included.
+(Optional, boolean) If `true`, the output excludes interim overall buckets.
+Overall buckets are interim if any of the job buckets within the overall bucket
+interval are interim. By default, interim results are included.
 
 `overall_score`::
-  (Optional, double) Returns overall buckets with overall scores greater or
-  equal than this value.
+(Optional, double) Returns overall buckets with overall scores greater or equal
+than this value.
 
 `start`::
-  (Optional, string) Returns overall buckets with timestamps after this time.
+(Optional, string) Returns overall buckets with timestamps after this time.
 
 `top_n`::
-  (Optional, integer) The number of top {anomaly-job} bucket scores to be used
-  in the `overall_score` calculation. The default value is `1`.
+(Optional, integer) The number of top {anomaly-job} bucket scores to be used in
+the `overall_score` calculation. The default value is `1`.
 
 [[ml-get-overall-buckets-results]]
 ==== {api-response-body-title}
 
-The API returns the following information:
+The API returns an array of overall bucket objects, which have the following
+properties:
 
-`overall_buckets`::
-  (array) An array of overall bucket objects. For more information, see
-  <<ml-results-overall-buckets,Overall Buckets>>.
+`bucket_span`::
+(number) The length of the bucket in seconds. Matches the `bucket_span`
+of the job with the longest one.
+
+`is_interim`::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
+
+`jobs`::
+(array) An array of objects that contain the `max_anomaly_score` per `job_id`.
+
+`overall_score`::
+(number) The `top_n` average of the max bucket `anomaly_score` per job.
+
+`result_type`::
+(string) Internal. This is always set to `overall_bucket`.
+
+`timestamp`::
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=timestamp-results]
 
 [[ml-get-overall-buckets-example]]
 ==== {api-examples-title}
-
-The following example gets overall buckets for {anomaly-jobs} with IDs matching
-`job-*`:
 
 [source,console]
 --------------------------------------------------

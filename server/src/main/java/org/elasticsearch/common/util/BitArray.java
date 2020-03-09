@@ -57,7 +57,7 @@ public final class BitArray implements Releasable {
         int wordNum = wordNum(index);
         if (wordNum >= bits.size()) {
             /*
-             * No need resize the array to just to clear bit because we'll
+             * No need to resize the array just to clear the bit because we'll
              * initialize them to false when we grow the array anyway.
              */
             return;

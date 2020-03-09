@@ -35,16 +35,12 @@ public class CliSessionTests extends ESTestCase {
         verifyNoMoreInteractions(httpClient);
     }
 
-    public static <T extends Throwable> void expectThrows(Class<T> expectedType, ThrowingRunnable runnable, String exceptionMessage) {
-        T throwable = expectThrows(expectedType, runnable);
-        assertEquals(exceptionMessage, throwable.getMessage());
-    }
-
     public void testConnection() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         when(httpClient.serverInfo()).thenThrow(new SQLException("Cannot connect"));
         CliSession cliSession = new CliSession(httpClient);
-        expectThrows(ClientException.class, cliSession::checkConnection, "java.sql.SQLException: Cannot connect");
+        Throwable throwable = expectThrows(ClientException.class, cliSession::checkConnection);
+        assertEquals("java.sql.SQLException: Cannot connect", throwable.getMessage());
         verify(httpClient, times(1)).serverInfo();
         verifyNoMoreInteractions(httpClient);
     }
@@ -55,9 +51,10 @@ public class CliSessionTests extends ESTestCase {
         when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), version.toString(),
                 ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);
-        expectThrows(ClientException.class, cliSession::checkConnection, "This version of the CLI is only compatible "
-            + "with Elasticsearch version " + ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server "
-            + "version " + version.toString());
+        Throwable throwable = expectThrows(ClientException.class, cliSession::checkConnection);
+        assertEquals("This version of the CLI is only compatible with Elasticsearch version " +
+            ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " + version.toString(),
+            throwable.getMessage());
         verify(httpClient, times(1)).serverInfo();
         verifyNoMoreInteractions(httpClient);
     }

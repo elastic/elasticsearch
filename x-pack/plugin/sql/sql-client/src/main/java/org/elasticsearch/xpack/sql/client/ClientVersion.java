@@ -21,8 +21,8 @@ import java.util.jar.Manifest;
 /**
  * Clients-specific version utility class.
  * <p>
- *     The class provides the SQL clients the version identifying the release their are part of. The version is read from the encompassing
- *     JAR file (Elasticsearch-specific attribute in the manifest).
+ *     The class provides the SQL clients the version identifying the release they're are part of. The version is read from the
+ *     encompassing JAR file (Elasticsearch-specific attribute in the manifest).
  *     The class is also a provider for the implemented JDBC standard.
  * </p>
  */

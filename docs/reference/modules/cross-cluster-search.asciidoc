@@ -257,7 +257,7 @@ include matching documents from that cluster in the final results.
 [[ccs-gateway-seed-nodes]]
 == Selecting gateway and seed nodes in sniff mode
 
-For remote clusters using the <<sniff-mode,sniff connection> mode, gateway and
+For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
 seed nodes need to be accessible from the local cluster via your network.
 
 By default, any non-<<master-node,master-eligible>> node can act as a
@@ -273,8 +273,8 @@ wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
 == {ccs} in proxy mode
 
 <<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
-connections will connect to the configured `proxy_address`. Any desired
-connection routing to gateway or <<coordinating-node,coordinating nodes>> must
+connections connect to the configured `proxy_address`. Any desired connection
+routing to gateway or <<coordinating-node,coordinating nodes>> must
 be implemented by the intermediate proxy at this configured address.
 
 [discrete]

@@ -31,9 +31,9 @@ In sniff mode, a cluster is created using a name and a list of seed nodes. When
 a remote cluster is registered, its cluster state is retrieved from one of the
 seed nodes and up to three _gateway nodes_ are selected as part of remote
 cluster requests. This mode requires that the gateway node's publish addresses
-are exposed to the local cluster.
+are accessible by the local cluster.
 
-The sniff mode is the default connection mode.
+Sniff mode is the default connection mode.
 
 [float]
 [[gateway-nodes-selection]]
@@ -122,7 +122,7 @@ distinguish between local and remote indices.
 <2> The hostname and <<modules-transport,transport>> port (default: 9300) of a
 seed node in the remote cluster.
 <3> A keep-alive ping is configured for `cluster_one`.
-<4> The configured connection mode. By default it is <<sniff-mode,sniff>>, so
+<4> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so
 the mode is implicit for `cluster_one`. However, it can be explicitly configured
 as demonstrated by `cluster_two` and must be explicitly configured for
 <<proxy-mode,proxy mode>> as demonstrated by `cluster_three`.
@@ -171,7 +171,7 @@ PUT _cluster/settings
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
 You can dynamically update the compression and ping schedule settings. However,
-you must re-include seeds or proxy_address in the settings update request.
+you must re-include seeds or `proxy_address` in the settings update request.
 For example:
 
 [source,console]
@@ -245,7 +245,7 @@ These settings apply to both <<sniff-mode,sniff mode>> and
 <<proxy-mode,proxy mode>>. <<remote-cluster-sniff-settings,Sniff mode settings>>
 and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
 
-`cluster.remote.${cluster_alias}.mode`::
+`cluster.remote.<cluster_alias>.mode`::
   The mode used for a remote cluster connection. The only supported modes are
   `sniff` and `proxy`.
 
@@ -262,7 +262,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   remote clusters. Remote cluster requests must be sent to a node that is
   allowed to act as a cross-cluster client.
 
-`cluster.remote.${cluster_alias}.skip_unavailable`::
+`cluster.remote.<cluster_alias>.skip_unavailable`::
 
   Per cluster boolean setting that allows to skip specific clusters when no
   nodes belonging to them are available and they are the targetof a remote
@@ -270,7 +270,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   by default, but they can selectively be made optional by setting this setting
   to `true`.
 
-`cluster.remote.${cluster_alias}.transport.ping_schedule`::
+`cluster.remote.<cluster_alias>.transport.ping_schedule`::
 
   Sets the time interval between regular application-level ping messages that
   are sent to ensure that transport connections to nodes belonging to remote
@@ -279,7 +279,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   are sent according to the global `transport.ping_schedule` setting, which
   defaults to `-1` meaning that pings are not sent.
 
-`cluster.remote.${cluster_alias}.transport.compress`::
+`cluster.remote.<cluster_alias>.transport.compress`::
 
   Per cluster boolean setting that enables you to configure compression for
   requests to a specific remote cluster. This setting impacts only requests
@@ -291,11 +291,11 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
 [[remote-cluster-sniff-settings]]
 === Remote cluster settings for sniff mode
 
-`cluster.remote.${cluster_alias}.seeds`::
+`cluster.remote.<cluster_alias>.seeds`::
 
   The list of seed nodes used to sniff the remote cluster state.
 
-`cluster.remote.${cluster_alias}.node_connections`::
+`cluster.remote.<cluster_alias>.node_connections`::
 
   The number of gateway nodes to connect to for this remote cluster. The default
   is `3`.
@@ -311,24 +311,23 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
 [[remote-cluster-proxy-settings]]
 === Remote cluster settings for proxy mode
 
-`cluster.remote.${cluster_alias}.proxy_address`::
+`cluster.remote.<cluster_alias>.proxy_address`::
 
   The address used for all remote connections.
 
-`cluster.remote.${cluster_alias}.proxy_socket_connections`::
+`cluster.remote.<cluster_alias>.proxy_socket_connections`::
 
   The number of socket connections to open per remote cluster. The default is
   `18`.
-ifndef::include-xpack[]
 
-`cluster.remote.${cluster_alias}.server_name`::
+[role="xpack"]
+`cluster.remote.<cluster_alias>.server_name`::
 
-  An optional hostname string which will be sent in the server_name field of
+  An optional hostname string which is sent in the `server_name` field of
   the TLS Server Name Indication extension if
-  <<configuring-tls,{TLS is enabled}>>. The TLS transport will fail to open
+  <<configuring-tls,TLS is enabled>>. The TLS transport will fail to open
   remote connections if this field is not a valid hostname as defined by the
   TLS SNI specification.
-endif::[]
 
 [float]
 [[retrieve-remote-clusters-info]]

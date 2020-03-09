@@ -17,6 +17,11 @@ import java.util.Set;
  * SAML 2.0 configuration information about a specific service provider
  */
 public interface SamlServiceProvider {
+
+    String getName();
+
+    boolean isEnabled();
+
     String getEntityId();
 
     Set<String> getAllowedNameIdFormats();

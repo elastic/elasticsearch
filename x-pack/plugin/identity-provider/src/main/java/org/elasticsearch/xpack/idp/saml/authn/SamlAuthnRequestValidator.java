@@ -230,7 +230,7 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("SAML authentication request has no issuer");
         }
         final String issuerString = issuer.getValue();
-        idp.getRegisteredServiceProvider(issuerString, ActionListener.wrap(
+        idp.getRegisteredServiceProvider(issuerString, false, ActionListener.wrap(
             serviceProvider -> {
                 if (null == serviceProvider) {
                     throw new ElasticsearchSecurityException(

@@ -7,64 +7,59 @@
 package org.elasticsearch.xpack.idp.saml.idp;
 
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
-import org.joda.time.Duration;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.joda.time.ReadableDuration;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 
-import java.io.UncheckedIOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-
-import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 /**
  * SAML 2.0 configuration information about this IdP
  */
 public class SamlIdentityProvider {
 
+    private final Logger logger = LogManager.getLogger();
+
     private final String entityId;
     private final Map<String, URL> ssoEndpoints;
     private final Map<String, URL> sloEndpoints;
     private final ServiceProviderDefaults serviceProviderDefaults;
     private final X509Credential signingCredential;
+    private final SamlServiceProviderResolver serviceProviderResolver;
     private final X509Credential metadataSigningCredential;
     private ContactInfo technicalContact;
     private OrganizationInfo organization;
 
-    private Map<String, SamlServiceProvider> registeredServiceProviders;
-
     // Package access - use Builder instead
     SamlIdentityProvider(String entityId, Map<String, URL> ssoEndpoints, Map<String, URL> sloEndpoints,
-                                X509Credential signingCredential, X509Credential metadataSigningCredential,
-                                ContactInfo technicalContact, OrganizationInfo organization) {
+                         X509Credential signingCredential, X509Credential metadataSigningCredential,
+                         ContactInfo technicalContact, OrganizationInfo organization,
+                         ServiceProviderDefaults serviceProviderDefaults, SamlServiceProviderResolver serviceProviderResolver) {
         this.entityId = entityId;
         this.ssoEndpoints = ssoEndpoints;
         this.sloEndpoints = sloEndpoints;
         this.signingCredential = signingCredential;
-        // TODO
-        this.serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5));
+        this.serviceProviderDefaults = serviceProviderDefaults;
         this.metadataSigningCredential = metadataSigningCredential;
         this.technicalContact = technicalContact;
         this.organization = organization;
-        // TODO - this should use the index
-        this.registeredServiceProviders = gatherRegisteredServiceProviders();
+        this.serviceProviderResolver = serviceProviderResolver;
     }
 
-    public static SamlIdentityProviderBuilder builder() {
-        return new SamlIdentityProviderBuilder();
+    public static SamlIdentityProviderBuilder builder(SamlServiceProviderResolver resolver) {
+        return new SamlIdentityProviderBuilder(resolver);
     }
 
     public String getEntityId() {
@@ -101,33 +96,28 @@ public class SamlIdentityProvider {
 
     /**
      * Asynchronously lookup the specified {@link SamlServiceProvider} by entity-id.
+     * @param allowDisabled whether to return service providers that are not {@link SamlServiceProvider#isEnabled() enabled}.
+     *                      For security reasons, callers should typically avoid working with disabled service providers.
      * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
      *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
      *                 the backing store (elasticsearch index) that hold the SP data).
      */
-    public void getRegisteredServiceProvider(String spEntityId, ActionListener<SamlServiceProvider> listener) {
-        // TODO use resolver
-        listener.onResponse(registeredServiceProviders.get(spEntityId));
-    }
-
-    private Map<String, SamlServiceProvider> gatherRegisteredServiceProviders() {
-        // TODO Fetch all the registered service providers from the index (?) they are persisted.
-        // For now hardcode something to use.
-        Map<String, SamlServiceProvider> registeredSps = new HashMap<>();
-        try {
-            registeredSps.put("https://sp.some.org",
-                new CloudServiceProvider("https://sp.some.org", new URL("https://sp.some.org/api/security/v1/saml"), Set.of(TRANSIENT),
-                    Duration.standardMinutes(5), null,
-                    new SamlServiceProvider.AttributeNames(
-                        "https://saml.elasticsearch.org/attributes/principal",
-                        "https://saml.elasticsearch.org/attributes/name",
-                        "https://saml.elasticsearch.org/attributes/email",
-                        "https://saml.elasticsearch.org/attributes/roles"),
-                    null, false, false));
-        } catch (MalformedURLException e) {
-            throw new UncheckedIOException(e);
-        }
-        return registeredSps;
+    public void getRegisteredServiceProvider(String spEntityId, boolean allowDisabled, ActionListener<SamlServiceProvider> listener) {
+        serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(
+            sp -> {
+                if (sp == null) {
+                    logger.info("No service provider exists for entityId [{}]", spEntityId);
+                    listener.onResponse(null);
+                } else if (allowDisabled == false && sp.isEnabled() == false) {
+                    logger.info("Service provider [{}][{}] is not enabled", sp.getEntityId(), sp.getName());
+                    listener.onResponse(null);
+                } else {
+                    logger.debug("Service provider for [{}] is [{}]", sp.getEntityId(), sp);
+                    listener.onResponse(sp);
+                }
+            },
+            listener::onFailure
+        ));
     }
 
     @Override

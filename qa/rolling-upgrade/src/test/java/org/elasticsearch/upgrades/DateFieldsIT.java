@@ -231,13 +231,15 @@ public class DateFieldsIT extends AbstractRollingTestCase {
 
     private void postNewDoc(String endpoint, int minute) throws IOException {
         Request putDoc = new Request("POST", endpoint+"/_doc");
+        putDoc.addParameter("refresh", "true");
+        putDoc.addParameter("wait_for_active_shards", "all");
         putDoc.setJsonEntity("{\n" +
             "  \"datetime\": \"2020-01-01T00:00:0" + minute + "+01:00\"\n" +
             "}"
         );
         Response resp = client().performRequest(putDoc);
         assertEquals(HttpStatus.SC_CREATED, resp.getStatusLine().getStatusCode());
-        flush(endpoint,true);
+//        flush(endpoint,true);
 
     }
 

@@ -479,7 +479,7 @@ public class WildcardFieldMapper extends FieldMapper {
      
     static class  WildcardBytesBinaryDVIndexFieldData extends BytesBinaryDVIndexFieldData{
 
-        public WildcardBytesBinaryDVIndexFieldData(Index index, String fieldName) {
+        WildcardBytesBinaryDVIndexFieldData(Index index, String fieldName) {
             super(index, fieldName);
         }
 

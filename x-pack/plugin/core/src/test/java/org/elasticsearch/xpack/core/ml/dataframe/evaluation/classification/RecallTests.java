@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -60,7 +61,7 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
         Recall recall = new Recall();
         recall.process(aggs);
 
-        assertThat(recall.aggs("act", "pred"), isTuple(empty(), empty()));
+        assertThat(recall.aggs(Settings.EMPTY, "act", "pred"), isTuple(empty(), empty()));
         assertThat(recall.getResult().get(), equalTo(new Recall.Result(List.of(), 0.8123)));
     }
 
@@ -111,7 +112,7 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
             mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1),
             mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)));
         Recall recall = new Recall();
-        recall.aggs("foo", "bar");
+        recall.aggs(Settings.EMPTY, "foo", "bar");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> recall.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

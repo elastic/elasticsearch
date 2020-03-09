@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -100,7 +101,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
         Classification evaluation = new Classification("act", "pred", Arrays.asList(new MulticlassConfusionMatrix()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(Settings.EMPTY, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
@@ -196,7 +197,9 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(Settings settings,
+                                                                                      String actualField,
+                                                                                      String predictedField) {
             return Tuple.tuple(List.of(), List.of());
         }
 

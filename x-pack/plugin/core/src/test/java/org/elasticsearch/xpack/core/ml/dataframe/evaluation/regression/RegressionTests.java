@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -85,7 +86,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
         Regression evaluation = new Regression("act", "pred", Arrays.asList(new MeanSquaredError()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(Settings.EMPTY, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }

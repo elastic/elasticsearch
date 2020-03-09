@@ -11,7 +11,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,23 +23,39 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 public class TransportEvaluateDataFrameAction extends HandledTransportAction<EvaluateDataFrameAction.Request,
     EvaluateDataFrameAction.Response> {
 
     private final ThreadPool threadPool;
     private final Client client;
+    private final ClusterService clusterService;
+    private final AtomicReference<Integer> maxBuckets = new AtomicReference<>();
 
     @Inject
-    public TransportEvaluateDataFrameAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
-                                            Client client) {
+    public TransportEvaluateDataFrameAction(TransportService transportService,
+                                            ActionFilters actionFilters,
+                                            ThreadPool threadPool,
+                                            Client client,
+                                            ClusterService clusterService) {
         super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
+        this.clusterService = clusterService;
+        this.maxBuckets.set(MAX_BUCKET_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBuckets);
+    }
+
+    private void setMaxBuckets(int maxBuckets) {
+        this.maxBuckets.set(maxBuckets);
     }
 
     @Override
-    protected void doExecute(Task task, EvaluateDataFrameAction.Request request,
+    protected void doExecute(Task task,
+                             EvaluateDataFrameAction.Request request,
                              ActionListener<EvaluateDataFrameAction.Response> listener) {
         ActionListener<List<Void>> resultsListener = ActionListener.wrap(
             unused -> {
@@ -48,7 +66,9 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
             listener::onFailure
         );
 
-        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(threadPool, client, request);
+        // Create a collection of settings to be used by evaluation metrics. Once passed to {@link EvaluationExecutor}, it is immutable.
+        Settings settings = Settings.builder().put(MAX_BUCKET_SETTING.getKey(), maxBuckets.get()).build();
+        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(threadPool, client, settings, request);
         evaluationExecutor.execute(resultsListener);
     }
 
@@ -68,12 +88,14 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
     private static final class EvaluationExecutor extends TypedChainTaskExecutor<Void> {
 
         private final Client client;
+        private final Settings settings;
         private final EvaluateDataFrameAction.Request request;
         private final Evaluation evaluation;
 
-        EvaluationExecutor(ThreadPool threadPool, Client client, EvaluateDataFrameAction.Request request) {
+        EvaluationExecutor(ThreadPool threadPool, Client client, Settings settings, EvaluateDataFrameAction.Request request) {
             super(threadPool.generic(), unused -> true, unused -> true);
             this.client = client;
+            this.settings = settings;
             this.request = request;
             this.evaluation = request.getEvaluation();
             // Add one task only. Other tasks will be added as needed by the nextTask method itself.
@@ -82,7 +104,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
 
         private TypedChainTaskExecutor.ChainTask<Void> nextTask() {
             return listener -> {
-                SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(request.getParsedQuery());
+                SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(settings, request.getParsedQuery());
                 SearchRequest searchRequest = new SearchRequest(request.getIndices()).source(searchSourceBuilder);
                 client.execute(
                     SearchAction.INSTANCE,

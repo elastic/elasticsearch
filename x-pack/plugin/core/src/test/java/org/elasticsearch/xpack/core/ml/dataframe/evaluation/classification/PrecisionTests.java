@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -62,7 +63,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
         Precision precision = new Precision();
         precision.process(aggs);
 
-        assertThat(precision.aggs("act", "pred"), isTuple(empty(), empty()));
+        assertThat(precision.aggs(Settings.EMPTY, "act", "pred"), isTuple(empty(), empty()));
         assertThat(precision.getResult().get(), equalTo(new Precision.Result(List.of(), 0.8123)));
     }
 
@@ -112,7 +113,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
         Aggregations aggs =
             new Aggregations(Collections.singletonList(mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1)));
         Precision precision = new Precision();
-        precision.aggs("foo", "bar");
+        precision.aggs(Settings.EMPTY, "foo", "bar");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> precision.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

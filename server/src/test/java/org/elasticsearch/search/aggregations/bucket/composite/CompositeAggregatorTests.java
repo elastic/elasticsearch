@@ -2089,6 +2089,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             if (sortField instanceof SortedNumericSortField && ((SortedNumericSortField) sortField).getType() == SortField.Type.LONG) {
                 break;
             }
+            if (randomBoolean()) {
+                break;
+            }
         }
         while (remainingFieldTypes.size() > 0 && randomBoolean()) {
             // Add extra unused sorts

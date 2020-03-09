@@ -1,0 +1,95 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.admin.indices.template.get;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+public class TransportGetComponentTemplateAction extends
+    TransportMasterNodeReadAction<GetComponentTemplateRequest, GetComponentTemplateResponse> {
+
+    @Inject
+    public TransportGetComponentTemplateAction(TransportService transportService, ClusterService clusterService,
+                                               ThreadPool threadPool, ActionFilters actionFilters,
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(GetComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            GetComponentTemplateRequest::new, indexNameExpressionResolver);
+    }
+
+    @Override
+    protected String executor() {
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected GetComponentTemplateResponse read(StreamInput in) throws IOException {
+        return new GetComponentTemplateResponse(in);
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetComponentTemplateRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    @Override
+    protected void masterOperation(Task task, GetComponentTemplateRequest request, ClusterState state,
+                                   ActionListener<GetComponentTemplateResponse> listener) {
+        final Map<String, ComponentTemplate> results;
+
+        // If we did not ask for a specific name, then we return all templates
+        if (request.names().length == 0) {
+            results = new HashMap<>(state.metaData().componentTemplates());
+        } else {
+            results = new HashMap<>();
+        }
+
+        Map<String, ComponentTemplate> allTemplates = state.metaData().componentTemplates();
+        for (String name : request.names()) {
+            if (Regex.isSimpleMatchPattern(name)) {
+                for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
+                    if (Regex.simpleMatch(name, entry.getKey())) {
+                        results.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            } else if (allTemplates.containsKey(name)) {
+                results.put(name, allTemplates.get(name));
+            }
+        }
+
+        listener.onResponse(new GetComponentTemplateResponse(results));
+    }
+}

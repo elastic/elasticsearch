@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,24 +17,18 @@ import org.elasticsearch.gradle.info.BuildParams
  * under the License.
  */
 
-integTest.runner {
-  /*
-   * There are two unique things going on here:
-   * 1. These tests can be run against an external cluster with
-   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
-   * 2. *One* of these tests is incompatible with that and should be skipped
-   *    when running against an external cluster.
-   */
-  if (System.getProperty("tests.rest.cluster") == null) {
-    nonInputProperties.systemProperty 'tests.logfile',
-      "${-> testClusters.integTest.singleNode().getServerLog()}"
-  } else {
-    systemProperty 'tests.logfile', '--external--'
-  }
-}
+package org.elasticsearch.action.admin.indices.template.put;
 
-testClusters.integTest {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.itv2_feature_flag_registered', 'true'
-  }
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+
+public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse> {
+
+    public static final PutComponentTemplateAction INSTANCE = new PutComponentTemplateAction();
+    public static final String NAME = "cluster:admin/component_template/put";
+
+    private PutComponentTemplateAction() {
+        super(NAME, AcknowledgedResponse::new);
+    }
+
 }

@@ -1,0 +1,40 @@
+---
+"Basic CRUD"
+  - do:
+      cluster.put_component_template:
+        name: test
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+            aliases:
+              aliasname: {}
+          version: 2
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      cluster.get_component_template:
+        name: test
+
+  - match: {test.version: 2}
+  - match: {test._meta: {foo: bar, baz: {eggplant: true}}}
+  - match: {test.template.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.template.mappings: {properties: {field: {type: keyword}}}}
+  - match: {test.template.aliases: {}}
+
+  - do:
+      cluster.delete_component_template:
+        name: test
+
+  - do:
+      catch: /missing/
+      cluster.get_component_template:
+        name: test

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -66,6 +66,8 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -126,6 +128,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.ExtensionPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -465,6 +468,27 @@ public class Node implements Closeable {
                     xContentRegistry,
                     systemIndexDescriptors,
                     forbidPrivateIndexSettings);
+
+            pluginsService.filterPlugins(ExtensionPlugin.class).forEach(
+                p -> p.extend(new ExtensionPlugin.Extender() {
+                    @Override
+                    public <P> ExtensionPlugin.Extension<P> extend(Class<P> pluginType) {
+                        return new ExtensionPlugin.Extension<P>() {
+                            @Override
+                            public <T> void addLazySet(TypeLiteral<T> type,
+                                                       Function<P, Collection<Class<? extends T>>> pluginToConcreteTypes) {
+
+                                modules.add(b -> {
+                                    Multibinder<T> multibinder = Multibinder.newSetBinder(b, type);
+                                    pluginsService.filterPlugins(pluginType).stream()
+                                        .flatMap(plugin -> pluginToConcreteTypes.apply(plugin).stream())
+                                        .forEach(t -> multibinder.addBinding().to(t));
+                                });
+                            }
+                        };
+                    }
+                })
+            );
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()

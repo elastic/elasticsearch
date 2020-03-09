@@ -4,30 +4,32 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
 
 import java.io.IOException;
 
-public class AlwaysAutoscalingDecider implements AutoscalingDecider {
+public class MlAutoscalingDecider implements AutoscalingDecider {
 
-    public static final String NAME = "always";
+    public static final String NAME = "ml";
 
-    private static final ObjectParser<AlwaysAutoscalingDecider, Void> PARSER = new ObjectParser<>(NAME, AlwaysAutoscalingDecider::new);
+    private static final ObjectParser<MlAutoscalingDecider, Void> PARSER = new ObjectParser<>(NAME, MlAutoscalingDecider::new);
 
-    public static AlwaysAutoscalingDecider parse(final XContentParser parser) {
+    public static MlAutoscalingDecider parse(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public AlwaysAutoscalingDecider() {}
+    public MlAutoscalingDecider() {}
 
     @SuppressWarnings("unused")
-    public AlwaysAutoscalingDecider(final StreamInput in) {
+    public MlAutoscalingDecider(final StreamInput in) {
 
     }
 
@@ -47,7 +49,7 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     }
 
     @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+    public XContentBuilder toXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject();
         {}
         builder.endObject();
@@ -65,5 +67,6 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     public int hashCode() {
         return 0;
     }
+
 
 }

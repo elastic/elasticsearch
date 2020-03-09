@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -14,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -23,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -35,21 +39,24 @@ import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingDecisio
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
+import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
 /**
  * Container class for autoscaling functionality.
  */
-public class Autoscaling extends Plugin implements ActionPlugin {
-
+public class Autoscaling extends Plugin implements ActionPlugin, ExtensionPlugin, AutoscalingPlugin {
+    private static final Logger logger = LogManager.getLogger(AutoscalingPlugin.class);
     private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
     static {
@@ -161,4 +168,14 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         return XPackPlugin.getSharedLicenseState();
     }
 
+    @Override
+    public <O> void extend(Extender extender) {
+        extender.extend(AutoscalingPlugin.class).addLazySet(new TypeLiteral<>() {
+        }, AutoscalingPlugin::deciders);
+    }
+
+    @Override
+    public Collection<Class<? extends AutoscalingDeciderService<? extends AutoscalingDecider>>> deciders() {
+        return List.of(AlwaysAutoscalingDeciderService.class);
+    }
 }

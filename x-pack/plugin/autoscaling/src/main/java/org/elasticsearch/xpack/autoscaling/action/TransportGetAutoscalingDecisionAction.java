@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.AutoscalingDeciderServices;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,13 +28,16 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
     GetAutoscalingDecisionAction.Request,
     GetAutoscalingDecisionAction.Response> {
 
+    private final AutoscalingDeciderServices deciders;
+
     @Inject
     public TransportGetAutoscalingDecisionAction(
         final TransportService transportService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final AutoscalingDeciderServices deciders
     ) {
         super(
             GetAutoscalingDecisionAction.NAME,
@@ -44,6 +48,8 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
             GetAutoscalingDecisionAction.Request::new,
             indexNameExpressionResolver
         );
+        this.deciders = deciders;
+        assert this.deciders != null;
     }
 
     @Override

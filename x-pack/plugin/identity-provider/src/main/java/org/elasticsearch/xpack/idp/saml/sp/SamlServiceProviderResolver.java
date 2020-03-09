@@ -96,7 +96,7 @@ public class SamlServiceProviderResolver {
     private SamlServiceProvider buildServiceProvider(SamlServiceProviderDocument document) {
         final ServiceProviderPrivileges privileges = buildPrivileges(document.privileges);
         final SamlServiceProvider.AttributeNames attributes = new SamlServiceProvider.AttributeNames(
-            document.attributeNames.principal, document.attributeNames.name, document.attributeNames.email, document.attributeNames.groups
+            document.attributeNames.principal, document.attributeNames.name, document.attributeNames.email, document.attributeNames.roles
         );
         final Set<X509Credential> credentials = document.certificates.getServiceProviderX509SigningCertificates()
             .stream()
@@ -123,10 +123,9 @@ public class SamlServiceProviderResolver {
         final String applicationName = Optional.ofNullable(configuredPrivileges.application)
             .orElse(defaults.applicationName);
         final String resource = configuredPrivileges.resource;
-        final String loginAction = Optional.ofNullable(configuredPrivileges.loginAction)
-            .orElse(defaults.loginAction);
-        final Map<String, String> groups = Optional.ofNullable(configuredPrivileges.groupActions).orElse(Map.of());
-        return new ServiceProviderPrivileges(applicationName, resource, loginAction, groups);
+        final String loginAction = Optional.ofNullable(configuredPrivileges.loginAction).orElse(defaults.loginAction);
+        final Map<String, String> roles = Optional.ofNullable(configuredPrivileges.roleActions).orElse(Map.of());
+        return new ServiceProviderPrivileges(applicationName, resource, loginAction, roles);
     }
 
     private URL parseUrl(SamlServiceProviderDocument document) {

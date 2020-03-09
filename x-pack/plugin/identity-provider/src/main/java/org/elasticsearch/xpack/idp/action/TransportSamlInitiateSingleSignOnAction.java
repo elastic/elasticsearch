@@ -26,8 +26,6 @@ import org.opensaml.saml.saml2.core.Response;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 public class TransportSamlInitiateSingleSignOnAction
@@ -84,7 +82,8 @@ public class TransportSamlInitiateSingleSignOnAction
 
     private UserServiceAuthentication buildUserFromAuthentication(Authentication authentication, SamlServiceProvider sp) {
         final User authenticatedUser = authentication.getUser();
-        final Set<String> groups = new HashSet<>(Arrays.asList(authenticatedUser.roles()));
-        return new UserServiceAuthentication(authenticatedUser.principal(), groups, sp);
+        // TODO : This needs to use UserPrivilegeResolver
+        final Set<String> roles = Set.of(authenticatedUser.roles());
+        return new UserServiceAuthentication(authenticatedUser.principal(), roles, sp);
     }
 }

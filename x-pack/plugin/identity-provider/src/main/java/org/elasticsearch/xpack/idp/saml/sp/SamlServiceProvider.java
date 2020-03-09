@@ -34,13 +34,13 @@ public interface SamlServiceProvider {
         public final String principal;
         public final String name;
         public final String email;
-        public final String groups;
+        public final String roles;
 
-        public AttributeNames(String principal, String name, String email, String groups) {
+        public AttributeNames(String principal, String name, String email, String roles) {
             this.principal = principal;
             this.name = name;
             this.email = email;
-            this.groups = groups;
+            this.roles = roles;
         }
     }
 

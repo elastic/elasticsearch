@@ -94,12 +94,12 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
             "principal", "urn:oid:0.1." + randomLongBetween(1, 1000),
             "email", "urn:oid:0.2." + randomLongBetween(1001, 2000),
             "name", "urn:oid:0.3." + randomLongBetween(2001, 3000),
-            "groups", "urn:oid:0.4." + randomLongBetween(3001, 4000)
+            "roles", "urn:oid:0.4." + randomLongBetween(3001, 4000)
         ));
         fields.put("privileges", Map.of(
             "resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999),
             "login", "action:" + randomAlphaOfLengthBetween(3, 12),
-            "groups", Map.of("group_name", "role:" + randomAlphaOfLengthBetween(4, 8))
+            "roles", Map.of("role_name", "role:" + randomAlphaOfLengthBetween(4, 8))
         ));
         fields.put("certificates", Map.of());
         final String entityId = "https://www." + randomAlphaOfLengthBetween(5, 12) + ".app/";
@@ -111,12 +111,12 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         assertThat(request.getDocument().privileges.application, nullValue());
         assertThat(request.getDocument().privileges.resource, notNullValue());
         assertThat(request.getDocument().privileges.loginAction, notNullValue());
-        assertThat(request.getDocument().privileges.groupActions, aMapWithSize(1));
-        assertThat(request.getDocument().privileges.groupActions.keySet(), contains("group_name"));
+        assertThat(request.getDocument().privileges.roleActions, aMapWithSize(1));
+        assertThat(request.getDocument().privileges.roleActions.keySet(), contains("role_name"));
         assertThat(request.getDocument().attributeNames.principal, startsWith("urn:oid:0.1"));
         assertThat(request.getDocument().attributeNames.email, startsWith("urn:oid:0.2"));
         assertThat(request.getDocument().attributeNames.name, startsWith("urn:oid:0.3"));
-        assertThat(request.getDocument().attributeNames.groups, startsWith("urn:oid:0.4"));
+        assertThat(request.getDocument().attributeNames.roles, startsWith("urn:oid:0.4"));
         assertThat(request.getDocument().certificates.serviceProviderSigning, emptyIterable());
         assertThat(request.getDocument().certificates.identityProviderSigning, emptyIterable());
         assertThat(request.getDocument().certificates.identityProviderMetadataSigning, emptyIterable());

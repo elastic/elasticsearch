@@ -99,8 +99,8 @@ public class SamlIdentityProvider {
      * @param allowDisabled whether to return service providers that are not {@link SamlServiceProvider#isEnabled() enabled}.
      *                      For security reasons, callers should typically avoid working with disabled service providers.
      * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
- *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
- *                 the backing store (elasticsearch index) that hold the SP data).
+     *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
+     *                 the backing store (elasticsearch index) that hold the SP data).
      */
     public void getRegisteredServiceProvider(String spEntityId, boolean allowDisabled, ActionListener<SamlServiceProvider> listener) {
         serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(

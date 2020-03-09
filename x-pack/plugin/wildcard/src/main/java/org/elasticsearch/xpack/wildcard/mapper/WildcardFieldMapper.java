@@ -58,6 +58,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -572,10 +573,10 @@ public class WildcardFieldMapper extends FieldMapper {
         
         CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
         if (dvField == null) {
-            dvField = new CustomBinaryDocValuesField(fieldType().name(), new BytesRef(value).bytes);
+            dvField = new CustomBinaryDocValuesField(fieldType().name(), value.getBytes(StandardCharsets.UTF_8));
             parseDoc.addWithKey(fieldType().name(), dvField);
         } else {
-            dvField.add(new BytesRef(value).bytes);
+            dvField.add(value.getBytes(StandardCharsets.UTF_8));
         }        
     }
 

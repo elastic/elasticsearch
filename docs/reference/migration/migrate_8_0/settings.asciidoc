@@ -37,3 +37,10 @@ processors. As this leads to more context switches and more threads but without
 an increase in the number of physical CPUs on which to schedule these additional
 threads, the `node.processors` setting is now bounded by the number of available
 processors.
+
+[float]
+==== `thread_pool.listener.size` and `thread_pool.listener.queue_size` have been deprecated
+
+The listener thread pool is no longer used internally by Elasticsearch.
+Therefore, these settings have been deprecated. You can safely remove these
+settings from the configuration of your nodes.

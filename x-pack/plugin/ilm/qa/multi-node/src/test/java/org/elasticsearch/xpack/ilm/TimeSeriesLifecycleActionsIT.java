@@ -1405,7 +1405,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
         client().performRequest(refreshIndex);
 
-        // Check that we've had error and auto retry
+        // Check that we've had error and auto retried
         assertBusy(() -> assertThat((Integer) explainIndex(index + "-1").get("failed_step_retry_count"), greaterThanOrEqualTo(1)));
 
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", false, "ERROR"), 30, TimeUnit.SECONDS);

@@ -21,7 +21,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;

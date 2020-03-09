@@ -118,6 +118,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
+
+        if (Names.LISTENER.equals(threadPoolName)) {
+            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+        }
     }
 
     public void testScalingExecutorType() throws InterruptedException {
@@ -172,6 +176,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             assertThat(oldExecutor.isTerminating() || oldExecutor.isTerminated(), equalTo(true));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
+        }
+
+        if (Names.LISTENER.equals(threadPoolName)) {
+            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
         }
     }
 

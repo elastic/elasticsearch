@@ -575,6 +575,14 @@ Name of the {es} plugin.
 (string)
 {es} version for which the plugin was built.
 
+`nodes.plugins.elasticsearch_version`:::
+(string)
+{es} version for which the plugin was built.
+
+`node.plugins.java_version`:::
+(string)
+Java version for which the plugin was built.
+
 `nodes.plugins.description`:::
 (string)
 Short description of the plugin.

@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -77,13 +78,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
             isNull = false;
         }
         if (isNull == false) {
-            long id = in.readLong();
+            SearchContextId id = new SearchContextId(in);
             readFromWithId(id, in);
         }
     }
 
-    public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.requestId = id;
+    public QuerySearchResult(SearchContextId id, SearchShardTarget shardTarget) {
+        this.contextId = id;
         setSearchShardTarget(shardTarget);
         isNull = false;
     }
@@ -298,8 +299,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasScoreDocs || hasSuggestHits();
     }
 
-    public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.requestId = id;
+    public void readFromWithId(SearchContextId id, StreamInput in) throws IOException {
+        this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -344,7 +345,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(isNull);
         }
         if (isNull == false) {
-            out.writeLong(requestId);
+            contextId.writeTo(out);
             writeToNoId(out);
         }
     }

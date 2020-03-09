@@ -39,7 +39,7 @@ public final class DataTypes {
     // date
     public static final DataType DATETIME     = new DataType("DATETIME", "date",  Long.BYTES,        false, false, true);
     // ip
-    public static final DataType IP           = new DataType("ip",                39,                false, false, true);
+    public static final DataType IP           = new DataType("ip",                45,                false, false, true);
     // binary
     public static final DataType BINARY       = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types

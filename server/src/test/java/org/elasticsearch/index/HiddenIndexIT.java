@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,7 +39,10 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HiddenIndexIT extends ESIntegTestCase {
 
@@ -134,5 +140,64 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("my_hidden_pattern1").get());
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("my_hidden_pattern1").get();
         assertThat(getSettingsResponse.getSetting("my_hidden_pattern1", "index.hidden"), is("true"));
+    }
+
+    public void testAliasesForHiddenIndices() {
+        final String hiddenIndex = "hidden-index";
+        final String visibleAlias = "alias-visible";
+        final String hiddenAlias = "alias-hidden";
+        final String dotHiddenAlias = ".alias-hidden";
+
+        assertAcked(client().admin().indices().prepareCreate(hiddenIndex)
+            .setSettings(Settings.builder().put("index.hidden", true).build())
+            .get());
+
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias)));
+
+        // The index should be returned here when queried by name or by wildcard because the alias is visible
+        final GetAliasesRequestBuilder req = client().admin().indices().prepareGetAliases(visibleAlias);
+        GetAliasesResponse response = req.get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(visibleAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
+
+        response = client().admin().indices().prepareGetAliases("alias*").get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(visibleAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
+
+        // Now try with a hidden alias
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(visibleAlias))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(hiddenAlias).isHidden(true)));
+
+        // Querying by name directly should get the right result
+        response = client().admin().indices().prepareGetAliases(hiddenAlias).get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(hiddenAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
+
+        // querying by wildcard should get the right result because the indices options include hidden by default
+        response = client().admin().indices().prepareGetAliases("alias*").get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(hiddenAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
+
+        // But we should get no results if we specify indices options that don't include hidden
+        response = client().admin().indices().prepareGetAliases("alias*")
+            .setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
+        assertThat(response.getAliases().get(hiddenIndex), nullValue());
+
+        // Now try with a hidden alias that starts with a dot
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(hiddenAlias))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(dotHiddenAlias).isHidden(true)));
+
+        // Check that querying by dot-prefixed pattern returns the alias
+        response = client().admin().indices().prepareGetAliases(".alias*").get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(dotHiddenAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
     }
 }

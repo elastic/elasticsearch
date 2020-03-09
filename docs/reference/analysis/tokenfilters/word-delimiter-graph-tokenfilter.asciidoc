@@ -478,8 +478,10 @@ image::images/analysis/token-graph-basic.svg[align="center"]
 *`word_delimiter_graph` graph with a multi-position token*
 
 The `word_delimiter_graph` filter produces the following token graph for
-`PowerShot2000` when `catenate_words` is `true`.This graph correctly indicates
-the catenated `PowerShot` token spans two positions.
+`PowerShot2000` when `catenate_words` is `true`.
+
+This graph correctly indicates the catenated `PowerShot` token spans two
+positions.
 
 image::images/analysis/token-graph-wdg.svg[align="center"]
 

@@ -193,7 +193,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.field("start_time_in_millis", startTimeMillis);
         builder.field("expiration_time_in_millis", expirationTimeMillis);
 
-        builder.field("response", searchResponse);
+        if (searchResponse != null) {
+            builder.field("response");
+            searchResponse.toXContent(builder, params);
+        }
         if (error != null) {
             builder.startObject("error");
             error.toXContent(builder, params);

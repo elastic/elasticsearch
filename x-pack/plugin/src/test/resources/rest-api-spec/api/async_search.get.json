@@ -32,6 +32,10 @@
       "keep_alive": {
         "type": "time",
         "description": "Specify the time that the request should remain reachable in the cluster."
+      },
+      "typed_keys":{
+        "type":"boolean",
+        "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       }
     }
   }

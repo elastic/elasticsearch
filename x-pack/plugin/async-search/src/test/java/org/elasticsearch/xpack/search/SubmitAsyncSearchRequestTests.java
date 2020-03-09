@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -12,8 +13,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransformTestCase<SubmitAsyncSearchRequest> {
     @Override
@@ -65,5 +70,43 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             source.aggregation(AggregationBuilders.max("max").field("field"));
         }
         return source;
+    }
+
+    public void testValidateCssMinimizeRoundtrips() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.getSearchRequest().setCcsMinimizeRoundtrips(true);
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(1));
+        assertThat(exc.validationErrors().get(0), containsString("[ccs_minimize_roundtrips]"));
+    }
+
+    public void testValidateScroll() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.getSearchRequest().scroll(TimeValue.timeValueMinutes(5));
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(2));
+        // request_cache is activated by default
+        assertThat(exc.validationErrors().get(0), containsString("[request_cache]"));
+        assertThat(exc.validationErrors().get(1), containsString("[scroll]"));
+    }
+
+    public void testValidateKeepAlive() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.setKeepAlive(TimeValue.timeValueSeconds(randomIntBetween(1, 59)));
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(1));
+        assertThat(exc.validationErrors().get(0), containsString("[keep_alive]"));
+    }
+
+    public void testValidateSuggestOnly() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.getSearchRequest().source(new SearchSourceBuilder().suggest(new SuggestBuilder()));
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(1));
+        assertThat(exc.validationErrors().get(0), containsString("suggest"));
     }
 }

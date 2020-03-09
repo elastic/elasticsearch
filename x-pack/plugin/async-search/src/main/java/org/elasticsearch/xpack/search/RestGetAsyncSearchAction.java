@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.search.RestSubmitAsyncSearchAction.RESPONSE_PARAMS;
 
 public class RestGetAsyncSearchAction extends BaseRestHandler  {
     @Override
@@ -43,10 +43,11 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
         if (request.hasParam("last_version")) {
             get.setLastVersion(request.paramAsInt("last_version", get.getLastVersion()));
         }
-        ActionRequestValidationException validationException = get.validate();
-        if (validationException != null) {
-            throw validationException;
-        }
         return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestStatusToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

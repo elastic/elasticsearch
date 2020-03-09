@@ -57,7 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;

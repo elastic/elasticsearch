@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.search.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.search.SearchRequest.FORMAT_PARAMS;
 
 /**
  * A request to track asynchronously the progress of a search against one or more indices.
@@ -28,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AsyncSearchResponse
  */
 public class SubmitAsyncSearchRequest extends ActionRequest {
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueHours(1).millis();
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
     private TimeValue waitForCompletion = TimeValue.timeValueSeconds(1);
     private boolean cleanOnCompletion = true;
@@ -128,14 +130,18 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = request.validate();
         if (request.scroll() != null) {
-            addValidationError("scroll queries are not supported", validationException);
+            addValidationError("[scroll] queries are not supported", validationException);
         }
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException =
-                addValidationError("keep_alive must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+        }
+        if (request.isCcsMinimizeRoundtrips()) {
+            validationException =
+                addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries", validationException);
         }
 
         return validationException;
@@ -143,7 +149,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+        return new CancellableTask(id, type, action, toString(), parentTaskId, headers) {
             @Override
             public boolean shouldCancelChildrenOnCancellation() {
                 return true;
@@ -165,5 +171,15 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     @Override
     public int hashCode() {
         return Objects.hash(waitForCompletion, cleanOnCompletion, keepAlive, request);
+    }
+
+    @Override
+    public String toString() {
+        return "SubmitAsyncSearchRequest{" +
+            "waitForCompletion=" + waitForCompletion +
+            ", cleanOnCompletion=" + cleanOnCompletion +
+            ", keepAlive=" + keepAlive +
+            ", request=" + request +
+            '}';
     }
 }

@@ -44,9 +44,9 @@ public class ExtendedStatsAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
 
-    private static final ObjectParser<ExtendedStatsAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<ExtendedStatsAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, ExtendedStatsAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(ExtendedStatsAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }

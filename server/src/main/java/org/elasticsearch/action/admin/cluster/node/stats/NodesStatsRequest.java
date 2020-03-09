@@ -49,18 +49,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         if (in.getVersion().before(Version.V_7_7_0)) {
-            addOrRemoveMetric(in.readBoolean(), Metrics.OS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.PROCESS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.JVM.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.FS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.HTTP.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.BREAKER.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.SCRIPT.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.DISCOVERY.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.INGEST.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metrics.ADAPTIVE_SELECTION.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.OS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.PROCESS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.JVM.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.FS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.HTTP.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.BREAKER.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.SCRIPT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.INGEST.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
         } else {
             requestedMetrics.addAll(in.readStringList());
         }
@@ -79,7 +79,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest all() {
         this.indices.all();
-        this.requestedMetrics.addAll(Metrics.allMetrics());
+        this.requestedMetrics.addAll(Metric.allMetrics());
         return this;
     }
 
@@ -117,14 +117,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node OS be returned.
      */
     public boolean os() {
-        return Metrics.OS.containedIn(requestedMetrics);
+        return Metric.OS.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node OS be returned.
      */
     public NodesStatsRequest os(boolean os) {
-        addOrRemoveMetric(os, Metrics.OS.metricName());
+        addOrRemoveMetric(os, Metric.OS.metricName());
         return this;
     }
 
@@ -132,14 +132,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node Process be returned.
      */
     public boolean process() {
-        return Metrics.PROCESS.containedIn(requestedMetrics);
+        return Metric.PROCESS.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node Process be returned.
      */
     public NodesStatsRequest process(boolean process) {
-        addOrRemoveMetric(process, Metrics.PROCESS.metricName());
+        addOrRemoveMetric(process, Metric.PROCESS.metricName());
         return this;
     }
 
@@ -147,14 +147,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node JVM be returned.
      */
     public boolean jvm() {
-        return Metrics.JVM.containedIn(requestedMetrics);
+        return Metric.JVM.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node JVM be returned.
      */
     public NodesStatsRequest jvm(boolean jvm) {
-        addOrRemoveMetric(jvm, Metrics.JVM.metricName());
+        addOrRemoveMetric(jvm, Metric.JVM.metricName());
         return this;
     }
 
@@ -162,14 +162,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node Thread Pool be returned.
      */
     public boolean threadPool() {
-        return Metrics.THREAD_POOL.containedIn(requestedMetrics);
+        return Metric.THREAD_POOL.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node Thread Pool be returned.
      */
     public NodesStatsRequest threadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, Metrics.THREAD_POOL.metricName());
+        addOrRemoveMetric(threadPool, Metric.THREAD_POOL.metricName());
         return this;
     }
 
@@ -177,14 +177,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node file system stats be returned.
      */
     public boolean fs() {
-        return Metrics.FS.containedIn(requestedMetrics);
+        return Metric.FS.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node file system stats be returned.
      */
     public NodesStatsRequest fs(boolean fs) {
-        addOrRemoveMetric(fs, Metrics.FS.metricName());
+        addOrRemoveMetric(fs, Metric.FS.metricName());
         return this;
     }
 
@@ -192,14 +192,14 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node Transport be returned.
      */
     public boolean transport() {
-        return Metrics.TRANSPORT.containedIn(requestedMetrics);
+        return Metric.TRANSPORT.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node Transport be returned.
      */
     public NodesStatsRequest transport(boolean transport) {
-        addOrRemoveMetric(transport, Metrics.TRANSPORT.metricName());
+        addOrRemoveMetric(transport, Metric.TRANSPORT.metricName());
         return this;
     }
 
@@ -207,72 +207,72 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Should the node HTTP be returned.
      */
     public boolean http() {
-        return Metrics.HTTP.containedIn(requestedMetrics);
+        return Metric.HTTP.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node HTTP be returned.
      */
     public NodesStatsRequest http(boolean http) {
-        addOrRemoveMetric(http, Metrics.HTTP.metricName());
+        addOrRemoveMetric(http, Metric.HTTP.metricName());
         return this;
     }
 
     public boolean breaker() {
-        return Metrics.BREAKER.containedIn(requestedMetrics);
+        return Metric.BREAKER.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node's circuit breaker stats be returned.
      */
     public NodesStatsRequest breaker(boolean breaker) {
-        addOrRemoveMetric(breaker, Metrics.BREAKER.metricName());
+        addOrRemoveMetric(breaker, Metric.BREAKER.metricName());
         return this;
     }
 
     public boolean script() {
-        return Metrics.SCRIPT.containedIn(requestedMetrics);
+        return Metric.SCRIPT.containedIn(requestedMetrics);
     }
 
     public NodesStatsRequest script(boolean script) {
-        addOrRemoveMetric(script, Metrics.SCRIPT.metricName());
+        addOrRemoveMetric(script, Metric.SCRIPT.metricName());
         return this;
     }
 
 
     public boolean discovery() {
-        return Metrics.DISCOVERY.containedIn(requestedMetrics);
+        return Metric.DISCOVERY.containedIn(requestedMetrics);
     }
 
     /**
      * Should the node's discovery stats be returned.
      */
     public NodesStatsRequest discovery(boolean discovery) {
-        addOrRemoveMetric(discovery, Metrics.DISCOVERY.metricName());
+        addOrRemoveMetric(discovery, Metric.DISCOVERY.metricName());
         return this;
     }
 
     public boolean ingest() {
-        return Metrics.INGEST.containedIn(requestedMetrics);
+        return Metric.INGEST.containedIn(requestedMetrics);
     }
 
     /**
      * Should ingest statistics be returned.
      */
     public NodesStatsRequest ingest(boolean ingest) {
-        addOrRemoveMetric(ingest, Metrics.INGEST.metricName());
+        addOrRemoveMetric(ingest, Metric.INGEST.metricName());
         return this;
     }
 
     public boolean adaptiveSelection() {
-        return Metrics.ADAPTIVE_SELECTION.containedIn(requestedMetrics);
+        return Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics);
     }
 
     /**
      * Should adaptiveSelection statistics be returned.
      */
     public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
-        addOrRemoveMetric(adaptiveSelection, Metrics.ADAPTIVE_SELECTION.metricName());
+        addOrRemoveMetric(adaptiveSelection, Metric.ADAPTIVE_SELECTION.metricName());
         return this;
     }
 
@@ -294,18 +294,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         super.writeTo(out);
         indices.writeTo(out);
         if (out.getVersion().before(Version.V_7_7_0)) {
-            out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.THREAD_POOL.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.FS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.TRANSPORT.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.HTTP.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.BREAKER.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.SCRIPT.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.DISCOVERY.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.OS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.PROCESS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.JVM.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.THREAD_POOL.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.FS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.TRANSPORT.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.HTTP.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.BREAKER.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.SCRIPT.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.DISCOVERY.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.INGEST.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
         } else {
             out.writeStringArray(requestedMetrics.toArray(String[]::new));
         }
@@ -315,7 +315,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes stats endpoint. Eventually this list will be pluggable.
      */
-    private enum Metrics {
+    private enum Metric {
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),
@@ -331,7 +331,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         private String metricName;
 
-        Metrics(String name) {
+        Metric(String name) {
             this.metricName = name;
         }
 
@@ -344,7 +344,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         }
 
         static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metrics::metricName).collect(Collectors.toSet());
+            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
     }
 }

@@ -960,7 +960,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: "delete_foo_regression_state#1"
         body: >
           {
@@ -970,7 +970,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: "data_frame_analytics-delete_foo-progress"
         body: >
           {
@@ -980,11 +980,11 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-state
+        index: .ml-state*
 
   - do:
       search:
-        index: .ml-state
+        index: .ml-state*
         body:
           size: 0
           query:

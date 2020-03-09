@@ -43,7 +43,10 @@ import static org.elasticsearch.packaging.util.FileUtils.getPosixFileAttributes;
  */
 public class FileMatcher extends TypeSafeMatcher<Path> {
 
-    public enum Fileness { File, Directory }
+    public enum Fileness {
+        File,
+        Directory
+    }
 
     public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
     public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
@@ -126,10 +129,14 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     @Override
     public void describeTo(Description description) {
-        description.appendValue("file/directory: ").appendValue(fileness)
-            .appendText(" with owner ").appendValue(owner)
-            .appendText(" with group ").appendValue(group)
-            .appendText(" with posix permissions ").appendValueList("[", ",", "]", posixPermissions);
+        description.appendValue("file/directory: ")
+            .appendValue(fileness)
+            .appendText(" with owner ")
+            .appendValue(owner)
+            .appendText(" with group ")
+            .appendValue(group)
+            .appendText(" with posix permissions ")
+            .appendValueList("[", ",", "]", posixPermissions);
     }
 
     public static FileMatcher file(Fileness fileness, String owner) {

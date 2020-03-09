@@ -146,6 +146,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     .settings(Settings.builder().put(settings).put("index.hidden", true).build()))
                 .put(indexBuilder("hidden-closed").state(State.CLOSE)
                     .settings(Settings.builder().put(settings).put("index.hidden", true).build()))
+                .put(indexBuilder("hidden-w-aliases").settings(Settings.builder().put(settings).put("index.hidden", true).build())
+                    .putAlias(AliasMetaData.builder("alias-hidden").isHidden(true).build())
+                    .putAlias(AliasMetaData.builder(".alias-hidden").isHidden(true).build())
+                    .putAlias(AliasMetaData.builder("alias-visible-mixed").isHidden(false).build()))
+                .put(indexBuilder("hidden-w-visible-alias").settings(Settings.builder().put(settings).put("index.hidden", true).build())
+                    .putAlias(AliasMetaData.builder("alias-visible").build()))
+                .put(indexBuilder("visible-w-aliases").settings(Settings.builder().put(settings).build())
+                    .putAlias(AliasMetaData.builder("alias-visible").build())
+                    .putAlias(AliasMetaData.builder("alias-visible-mixed").isHidden(false).build()))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
 
         if (withAlias) {
@@ -169,6 +178,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         roleMap.put("alias_read_write", new RoleDescriptor("alias_read_write", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("barbaz", "foofoobar").privileges("read", "write").build() },
             null));
+        roleMap.put("hidden_alias_test", new RoleDescriptor("hidden_alias_test", null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                    .indices("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open")
+                    .privileges("all")
+                    .build()
+            }, null));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
@@ -197,7 +213,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
+        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver());
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {
@@ -967,11 +983,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("alias1");
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "alias1"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
+        //the union of all resolved indices and aliases gets returned, including hidden indices as Get Aliases includes hidden by default
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "alias1",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"};
+        assertSameValues(indices, expectedIndices);
+        String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "hidden-open",
+            "hidden-closed", ".hidden-open", ".hidden-closed"};
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
@@ -1047,8 +1064,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
+        //the union of all resolved indices and aliases gets returned, including hidden indices as Get Aliases includes hidden by default
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "hidden-open",
+            "hidden-closed", ".hidden-open", ".hidden-closed"};
         assertSameValues(indices, expectedIndices);
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -1062,11 +1080,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "explicit"};
+        //the union of all resolved indices and aliases gets returned, including hidden indices as Get Aliases includes hidden by default
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "explicit",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"};
+        logger.info("indices: {}", indices);
         assertSameValues(indices, expectedIndices);
         //_all gets replaced with all indices that user is authorized for
-        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "explicit"));
     }
 
@@ -1077,8 +1098,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
+        //the union of all resolved indices and aliases gets returned, including hidden indices as Get Aliases includes hidden by default
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed", "hidden-open",
+            "hidden-closed", ".hidden-open", ".hidden-closed"};
         assertSameValues(indices, expectedIndices);
         //_all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -1118,10 +1140,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //union of all resolved indices and aliases gets returned, based on what user is authorized for
         //note that the index side will end up containing matching aliases too, which is fine, as es core would do
         //the same and resolve those aliases to their corresponding concrete indices (which we let core do)
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foobarfoo", "foofoo", "foofoo-closed", "foofoobar"};
+        //also includes hidden indices as Get Aliases includes hidden by default
+        String[] expectedIndices = new String[]{"bar", "bar-closed", "foobarfoo", "foofoo", "foofoo-closed", "foofoobar", "hidden-open",
+            "hidden-closed", ".hidden-open", ".hidden-closed"};
         assertSameValues(indices, expectedIndices);
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
-        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foobarfoo", "foofoo", "foofoo-closed", "foofoobar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar-closed", "foobarfoo", "foofoo", "foofoo-closed", "foofoobar",
+            "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
@@ -1388,7 +1413,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // open + hidden
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
-        authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
         assertThat(resolvedIndices.getLocal(),
             containsInAnyOrder("bar", "foofoobar", "foobarfoo", "foofoo", "hidden-open", ".hidden-open"));
@@ -1424,6 +1448,54 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+    }
+
+    public void testHiddenAliasesResolution() {
+        final User user = new User("hidden-alias-tester", "hidden_alias_test");
+        final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+
+        // Visible only
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-visible", "alias-visible-mixed"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // Include hidden explicitly
+        searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(),
+            containsInAnyOrder("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // Include hidden with a wildcard
+        searchRequest = new SearchRequest("alias-h*");
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // Dot prefix, implicitly including hidden
+        searchRequest = new SearchRequest(".a*");
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // Make sure ignoring aliases works (visible only)
+        searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, false, true, false));
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), contains("-*"));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // Make sure ignoring aliases works (including hidden)
+        searchRequest = new SearchRequest();
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, false, true, false));
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metaData, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
     }
 

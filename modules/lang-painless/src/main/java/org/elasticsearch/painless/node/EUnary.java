@@ -70,11 +70,7 @@ public final class EUnary extends AExpression {
     void analyzeNot(ScriptRoot scriptRoot, Scope variables) {
         child.expected = boolean.class;
         child.analyze(scriptRoot, variables);
-        child = child.cast(scriptRoot, variables);
-
-        if (child.constant != null) {
-            constant = !(boolean)child.constant;
-        }
+        child.cast();
 
         actual = boolean.class;
     }
@@ -90,17 +86,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(scriptRoot, variables);
-
-        if (child.constant != null) {
-            if (promote == int.class) {
-                constant = ~(int)child.constant;
-            } else if (promote == long.class) {
-                constant = ~(long)child.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        child.cast();
 
         if (promote == def.class && expected != null) {
             actual = expected;
@@ -120,21 +106,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(scriptRoot, variables);
-
-        if (child.constant != null) {
-            if (promote == int.class) {
-                constant = +(int)child.constant;
-            } else if (promote == long.class) {
-                constant = +(long)child.constant;
-            } else if (promote == float.class) {
-                constant = +(float)child.constant;
-            } else if (promote == double.class) {
-                constant = +(double)child.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        child.cast();
 
         if (promote == def.class && expected != null) {
             actual = expected;
@@ -154,21 +126,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(scriptRoot, variables);
-
-        if (child.constant != null) {
-            if (promote == int.class) {
-                constant = -(int)child.constant;
-            } else if (promote == long.class) {
-                constant = -(long)child.constant;
-            } else if (promote == float.class) {
-                constant = -(float)child.constant;
-            } else if (promote == double.class) {
-                constant = -(double)child.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        child.cast();
 
         if (promote == def.class && expected != null) {
             actual = expected;
@@ -181,7 +139,7 @@ public final class EUnary extends AExpression {
     UnaryNode write(ClassNode classNode) {
         UnaryMathNode unaryMathNode = new UnaryMathNode();
 
-        unaryMathNode.setChildNode(child.write(classNode));
+        unaryMathNode.setChildNode(child.cast(child.write(classNode)));
 
         unaryMathNode.setLocation(location);
         unaryMathNode.setExpressionType(actual);

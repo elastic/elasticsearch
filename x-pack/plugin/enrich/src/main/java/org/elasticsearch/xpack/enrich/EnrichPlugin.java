@@ -194,7 +194,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver
     ) {
         if (enabled == false) {
             return List.of();
@@ -245,7 +246,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );

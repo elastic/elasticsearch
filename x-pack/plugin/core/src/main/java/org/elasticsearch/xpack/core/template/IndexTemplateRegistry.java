@@ -118,6 +118,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
+        // This registry requires to run on a master node.
+        // If not a master node, exit.
+        if (requiresMasterNode() && state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the template, which might be newer than the
         // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
@@ -127,6 +133,15 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             addTemplatesIfMissing(state);
             addIndexLifecyclePoliciesIfMissing(state);
         }
+    }
+
+    /**
+     * Whether the registry should only apply changes when running on the master node.
+     * This is useful for plugins where certain actions are performed on master nodes
+     * and the templates should match the respective version.
+     */
+    protected boolean requiresMasterNode() {
+        return false;
     }
 
     private void addTemplatesIfMissing(ClusterState state) {

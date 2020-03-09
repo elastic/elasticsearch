@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -235,21 +236,22 @@ class S3Repository extends BlobStoreRepository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 MetaData clusterMetaData, Map<String, Object> userMetadata, boolean writeShardGens,
+                                 MetaData clusterMetaData, Map<String, Object> userMetadata, Version repositoryMetaVersion,
                                  ActionListener<SnapshotInfo> listener) {
-        if (writeShardGens == false) {
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
+            includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
-        if (writeShardGens == false) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
+                               ActionListener<Void> listener) {
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
+        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     /**

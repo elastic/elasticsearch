@@ -28,4 +28,9 @@ public class FreezeStep extends AsyncRetryDuringSnapshotActionStep {
             new FreezeRequest(indexMetaData.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
 }

@@ -277,7 +277,7 @@ public class GatewayMetaState implements Closeable {
                 nodeName + "/" + THREAD_NAME,
                 1, 1,
                 daemonThreadFactory(nodeName, THREAD_NAME),
-                threadPool.getThreadContext());
+                threadPool.getThreadContext(), false);
             this.persistedState = persistedState;
         }
 

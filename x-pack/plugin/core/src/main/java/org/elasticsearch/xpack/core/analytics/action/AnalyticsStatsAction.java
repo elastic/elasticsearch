@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.analytics.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -109,34 +110,80 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     }
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentObject {
-        static ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
-        private long cumulativeCardinalityUsage;
+        static final ParseField BOXPLOT_USAGE = new ParseField("boxplot_usage");
+        static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
+        static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
+        static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
+
+        private final long boxplotUsage;
+        private final long cumulativeCardinalityUsage;
+        private final long stringStatsUsage;
+        private final long topMetricsUsage;
+
+        public NodeResponse(DiscoveryNode node, long boxplotUsage, long cumulativeCardinalityUsage, long stringStatsUsage,
+                long topMetricsUsage) {
+            super(node);
+            this.boxplotUsage = boxplotUsage;
+            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
+            this.stringStatsUsage = stringStatsUsage;
+            this.topMetricsUsage = topMetricsUsage;
+        }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                boxplotUsage = in.readVLong();
+            } else {
+                boxplotUsage = 0;
+            }
             cumulativeCardinalityUsage = in.readZLong();
-        }
-
-        public NodeResponse(DiscoveryNode node) {
-            super(node);
-        }
-
-        public void setCumulativeCardinalityUsage(long cumulativeCardinalityUsage) {
-            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                stringStatsUsage = in.readVLong();
+                topMetricsUsage = in.readVLong();
+            } else {
+                stringStatsUsage = 0;
+                topMetricsUsage = 0;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeZLong(cumulativeCardinalityUsage);
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeVLong(boxplotUsage);
+            }
+            out.writeVLong(cumulativeCardinalityUsage);
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeVLong(stringStatsUsage);
+                out.writeVLong(topMetricsUsage);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(BOXPLOT_USAGE.getPreferredName(), boxplotUsage);
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
+            builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
+            builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
             builder.endObject();
             return builder;
+        }
+
+        public long getBoxplotUsage() {
+            return boxplotUsage;
+        }
+
+        public long getCumulativeCardinalityUsage() {
+            return cumulativeCardinalityUsage;
+        }
+
+        public long getStringStatsUsage() {
+            return stringStatsUsage;
+        }
+
+        public long getTopMetricsUsage() {
+            return topMetricsUsage;
         }
     }
 }

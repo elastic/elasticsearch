@@ -43,7 +43,7 @@ public final class FileStructureUtils {
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 
-    private static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
+    private static final String BEAT_TIMEZONE_FIELD = "event.timezone";
 
     private FileStructureUtils() {
     }

@@ -178,14 +178,14 @@ public class EqlParser {
                 case "arrayCount":
                 case "arraySearch":
                     throw new ParsingException(
-                        "unsupported function " + functionName,
+                        "Unsupported function [" + functionName + "]",
                         null,
                         token.getLine(),
                         token.getCharPositionInLine());
 
                 default:
                     throw new ParsingException(
-                        "unknown function " + functionName,
+                        "Unknown function [" + functionName + "]",
                         null,
                         token.getLine(),
                         token.getCharPositionInLine());
@@ -196,7 +196,7 @@ public class EqlParser {
         public void exitJoin(EqlBaseParser.JoinContext context) {
             Token token = context.JOIN().getSymbol();
             throw new ParsingException(
-                "join is not supported",
+                "Join is not supported",
                 null,
                 token.getLine(),
                 token.getCharPositionInLine());
@@ -206,7 +206,7 @@ public class EqlParser {
         public void exitPipe(EqlBaseParser.PipeContext context) {
             Token token = context.PIPE().getSymbol();
             throw new ParsingException(
-                "pipes are not supported",
+                "Pipes are not supported",
                 null,
                 token.getLine(),
                 token.getCharPositionInLine());
@@ -216,7 +216,7 @@ public class EqlParser {
         public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
             Token token = context.relationship;
             throw new ParsingException(
-                "process relationships are not supported",
+                "Process relationships are not supported",
                 null,
                 token.getLine(),
                 token.getCharPositionInLine());
@@ -226,7 +226,7 @@ public class EqlParser {
         public void exitSequence(EqlBaseParser.SequenceContext context) {
             Token token = context.SEQUENCE().getSymbol();
             throw new ParsingException(
-                "sequence is not supported",
+                "Sequence is not supported",
                 null,
                 token.getLine(),
                 token.getCharPositionInLine());
@@ -237,7 +237,7 @@ public class EqlParser {
             if (context.INTEGER_VALUE().size() > 0) {
                 Token firstIndex = context.INTEGER_VALUE(0).getSymbol();
                 throw new ParsingException(
-                    "array indexes are not supported",
+                    "Array indexes are not supported",
                     null,
                     firstIndex.getLine(),
                     firstIndex.getCharPositionInLine());

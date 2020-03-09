@@ -512,8 +512,8 @@ setup:
 ---
 "Composite aggregation with unmapped field":
   - skip:
-      version: " - 7.99.99"
-      reason:  starting in 8.0 the composite aggregation handles unmapped fields as keywords
+      version: " - 7.1.99"
+      reason:  starting in 7.2.0 the composite aggregation handles unmapped fields as keywords
 
   - do:
       search:

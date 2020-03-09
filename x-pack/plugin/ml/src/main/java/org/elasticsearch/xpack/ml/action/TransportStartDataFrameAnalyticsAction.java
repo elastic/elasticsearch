@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -504,11 +505,16 @@ public class TransportStartDataFrameAnalyticsAction
         );
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, String... indexNames) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
+                                                            IndexNameExpressionResolver resolver,
+                                                            String... indexNames) {
         String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
+            // This is OK as indices are created on demand
+            if (clusterState.metaData().hasIndex(index) == false) {
+                continue;
+            }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
                 unavailableIndices.add(index);
@@ -524,6 +530,7 @@ public class TransportStartDataFrameAnalyticsAction
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
         private final MlMemoryTracker memoryTracker;
+        private final IndexNameExpressionResolver resolver;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -531,13 +538,14 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.client = Objects.requireNonNull(client);
             this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
+            this.resolver = Objects.requireNonNull(resolver);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -568,7 +576,12 @@ public class TransportStartDataFrameAnalyticsAction
 
             String id = params.getId();
 
-            List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, AnomalyDetectorsIndex.configIndexName());
+            List<String> unavailableIndices =
+                verifyIndicesPrimaryShardsAreActive(clusterState,
+                    resolver,
+                    AnomalyDetectorsIndex.configIndexName(),
+                    MlStatsIndex.indexPattern(),
+                    AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
                 String reason = "Not opening data frame analytics job [" + id +
                     "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";

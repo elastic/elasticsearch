@@ -12,6 +12,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -43,11 +45,28 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String sourceIndex;
     private String destIndex;
 
+    @Before
+    public void enableLogging() {
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.action", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG"))
+            .get();
+    }
+
     @After
     public void cleanup() {
         cleanUp();
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.action")
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe"))
+            .get();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -103,7 +122,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -142,7 +165,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -196,7 +223,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 

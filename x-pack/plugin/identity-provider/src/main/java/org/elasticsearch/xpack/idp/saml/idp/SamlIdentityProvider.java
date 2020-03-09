@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
-import org.joda.time.ReadableDuration;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 
@@ -198,20 +198,4 @@ public class SamlIdentityProvider {
         }
     }
 
-    public static final class ServiceProviderDefaults {
-        public final String applicationName;
-        public final String loginAction;
-        public final String nameIdFormat;
-        public final ReadableDuration authenticationExpiry;
-
-        public ServiceProviderDefaults(String applicationName,
-                                       String loginAction,
-                                       String nameIdFormat,
-                                       ReadableDuration authenticationExpiry) {
-            this.applicationName = applicationName;
-            this.loginAction = loginAction;
-            this.nameIdFormat = nameIdFormat;
-            this.authenticationExpiry = authenticationExpiry;
-        }
-    }
 }

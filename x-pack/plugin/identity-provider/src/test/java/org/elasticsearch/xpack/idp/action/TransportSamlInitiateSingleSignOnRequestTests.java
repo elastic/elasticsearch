@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
@@ -125,7 +126,7 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             null, false, false);
         mockRegisteredServiceProvider(resolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
-        final SamlIdentityProvider.ServiceProviderDefaults defaults = new SamlIdentityProvider.ServiceProviderDefaults(
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
             "elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(15));
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build();
         final SamlFactory factory = new SamlFactory();

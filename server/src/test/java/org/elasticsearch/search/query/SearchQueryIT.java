@@ -22,6 +22,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -1763,10 +1764,11 @@ public class SearchQueryIT extends ESIntegTestCase {
    }
 
     /**
-     * Test fix for NPE from {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}.
-     * See https://github.com/elastic/elasticsearch/issues/52894 for details
+     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
+     * {@link AttributeSource}.
      */
-    public void testIssue52894() {
+    public void testIssueFuzzyInsideSpanMulti() {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field", "foobarbaz").get();
         ensureGreen();

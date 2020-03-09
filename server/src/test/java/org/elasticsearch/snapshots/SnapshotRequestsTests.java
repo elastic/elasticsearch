@@ -91,12 +91,13 @@ public class SnapshotRequestsTests extends ESTestCase {
         assertEquals("rename-from", request.renamePattern());
         assertEquals("rename-to", request.renameReplacement());
         assertEquals(partial, request.partial());
-        assertEquals("val1", request.settings().get("set1"));
         assertArrayEquals(request.ignoreIndexSettings(), new String[]{"set2", "set3"});
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
             ? indicesOptions.ignoreUnavailable()
             : IndicesOptions.strictExpandOpen().ignoreUnavailable();
         assertEquals(expectedIgnoreAvailable, request.indicesOptions().ignoreUnavailable());
+
+        assertWarnings("specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
     }
 
     public void testCreateSnapshotRequestParsing() throws IOException {

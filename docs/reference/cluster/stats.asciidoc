@@ -591,6 +591,13 @@ Short description of the plugin.
 (string)
 Class name used as the plugin's entry point.
 
+`nodes.plugins.extended_plugins`:::
+(array of strings)
+An array of other plugins extended by this plugin through the Java Service
+Provider Interface (SPI).
++
+If this plugin extends no other plugins, this array is empty.
+
 `nodes.plugins.has_native_controller`:::
 (boolean)
 If `true`, the plugin has a native controller process.

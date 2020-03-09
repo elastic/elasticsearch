@@ -451,7 +451,8 @@ public class SearchModule {
                 GeoBoundsAggregationBuilder::parse).addResultReader(InternalGeoBounds::new)
                 .setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder.NAME, GeoCentroidAggregationBuilder::new,
-                GeoCentroidAggregationBuilder::parse).addResultReader(InternalGeoCentroid::new));
+                GeoCentroidAggregationBuilder::parse).addResultReader(InternalGeoCentroid::new)
+                    .setAggregatorRegistrar(GeoCentroidAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
                 ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new));
         registerAggregation((new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new,

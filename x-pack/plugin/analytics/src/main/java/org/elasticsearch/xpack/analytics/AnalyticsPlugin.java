@@ -34,6 +34,9 @@ import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.pca.InternalPCAStats;
+import org.elasticsearch.xpack.analytics.pca.PCAAggregationBuilder;
+import org.elasticsearch.xpack.analytics.pca.PCAAggregationParser;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -89,7 +92,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
-                .addResultReader(InternalTopMetrics::new)
+                .addResultReader(InternalTopMetrics::new),
+            new AggregationSpec(
+                PCAAggregationBuilder.NAME,
+                PCAAggregationBuilder::new,
+                new PCAAggregationParser())
+                .addResultReader(InternalPCAStats::new)
         );
     }
 

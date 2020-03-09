@@ -22,8 +22,6 @@ repositories {
       artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
     }
   }
-
-  mavenCentral()
 }
 
 configurations {
@@ -57,22 +55,12 @@ dependencies {
 
   // ml deps
   compile project(':libs:elasticsearch-grok')
-  compile project(path: ':modules:aggs-matrix-stats', configuration: 'runtime')
-  compile "org.elasticsearch.plugin:aggs-matrix-stats:${version}"
   compile "com.ibm.icu:icu4j:${versions.icu4j}"
   compile "net.sf.supercsv:super-csv:${versions.supercsv}"
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
     changing = true
   }
   testCompile 'org.ini4j:ini4j:0.5.2'
-
-  // linear algebra deps
-  compile 'org.ejml:ejml-core:0.38'
-  compile 'org.ejml:ejml-ddense:0.38'
-  testCompile 'org.ejml:ejml-core:0.38'
-  testCompile 'org.ejml:ejml-ddense:0.38'
-
-  testCompile project(path: ':modules:aggs-matrix-stats', configuration: 'testArtifacts')
 }
 
 configurations {

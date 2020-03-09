@@ -12,12 +12,25 @@ archivesBaseName = 'x-pack-analytics'
 compileJava.options.compilerArgs << "-Xlint:-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 
+repositories {
+  mavenCentral()
+}
 
 dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compile project(path: ':modules:aggs-matrix-stats', configuration: 'runtime')
+  compile "org.elasticsearch.plugin:aggs-matrix-stats:${version}"
+
+  // linear algebra deps
+  compile 'org.ejml:ejml-core:0.38'
+  compile 'org.ejml:ejml-ddense:0.38'
+  testCompile 'org.ejml:ejml-core:0.38'
+  testCompile 'org.ejml:ejml-ddense:0.38'
+
+  testCompile project(path: ':modules:aggs-matrix-stats', configuration: 'testArtifacts')
 }
 
 integTest.enabled = false

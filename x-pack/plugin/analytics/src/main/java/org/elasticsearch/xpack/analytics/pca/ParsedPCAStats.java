@@ -3,9 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.aggregations.pca;
+package org.elasticsearch.xpack.analytics.pca;
 
-import org.ejml.data.Complex_F64;
 import org.ejml.data.DMatrixRMaj;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -27,7 +26,7 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
 
     private List<ParsedPCAStatsResults> eigenResults;
     /** eigen values from PCA */
-    protected final Map<String, Complex_F64> eigenVals = new HashMap<>();
+    protected final Map<String, Double> eigenVals = new HashMap<>();
     /** eigen vectors from PCA */
     protected final Map<String, DMatrixRMaj> eigenVectors = new HashMap<>();
 
@@ -39,12 +38,12 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
     protected void setFieldNames(List<String> fieldNames) {
         this.fieldNames = fieldNames;
         for (String field : fieldNames) {
-            eigenVals.put(field, new Complex_F64());
+            eigenVals.put(field, Double.NaN);
             eigenVectors.put(field, new DMatrixRMaj());
         }
     }
 
-    public Complex_F64 getEigenValue(String field) {
+    public double getEigenValue(String field) {
         return checkedGet(eigenVals, field);
     }
 
@@ -70,7 +69,7 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
         builder.startArray(Fields.PRINCIPAL_COMPONENT);
         for (String fieldName : fields) {
             builder.startObject();
-            builder.field(Fields.EIGENVALUE, getEigenValue(fieldName).toString());
+            builder.field(Fields.EIGENVALUE, getEigenValue(fieldName));
             builder.field(Fields.EIGENVECTOR, getEigenVector(fieldName).data);
             builder.endObject();
         }
@@ -88,7 +87,7 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
         declareAggregationFields(PARSER);
         PARSER.declareLong(ParsedPCAStats::setDocCount, CommonFields.DOC_COUNT);
         PARSER.declareStringArray(ParsedPCAStats::setFieldNames, new ParseField(Fields.FIELDS));
-        PCA_PARSER.declareString(ParsedPCAStatsResults::setEigenValue, new ParseField(Fields.EIGENVALUE));
+        PCA_PARSER.declareDouble(ParsedPCAStatsResults::setEigenValue, new ParseField(Fields.EIGENVALUE));
         PCA_PARSER.declareDoubleArray(ParsedPCAStatsResults::setEigenVector, new ParseField(Fields.EIGENVECTOR));
         PARSER.declareObjectArray((pcaStats, results) -> {
             pcaStats.eigenResults = results;
@@ -108,17 +107,13 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
 
 
     static class ParsedPCAStatsResults {
-        Complex_F64 eigenValue;
+        double eigenValue;
         DMatrixRMaj eigenVector;
 
-        public void setEigenValue(String value) {
-            String[] split = value.split("\\s+");
-            double r = Double.parseDouble(split[0]);
-            double i = 0;
-            if (split.length > 1) {
-                i = Double.parseDouble(split[1].split("i")[0]);
-            }
-            eigenValue = new Complex_F64(r, i);
+        public void setEigenValue(double value) {
+//            String[] split = value.split("\\s+");
+//            double r = Double.parseDouble(split[0]);
+            eigenValue = value;
         }
 
         public void setEigenVector(List<Double> vector) {

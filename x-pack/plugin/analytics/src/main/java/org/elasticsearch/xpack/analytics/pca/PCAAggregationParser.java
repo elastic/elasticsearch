@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.aggregations.pca;
+package org.elasticsearch.xpack.analytics.pca;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
-import static org.elasticsearch.xpack.ml.aggregations.pca.PCAAggregationBuilder.USE_COVARIANCE_FIELD;
+import static org.elasticsearch.xpack.analytics.pca.PCAAggregationBuilder.USE_COVARIANCE_FIELD;
 
 public class PCAAggregationParser extends ArrayValuesSourceParser.NumericValuesSourceParser {
     public PCAAggregationParser() {

@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="basic"]
 [[pca-aggregation]]
 === Principal Component Analysis Aggregation
 

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.aggregations.pca;
+package org.elasticsearch.xpack.analytics.pca;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public class PCAAggregationBuilder
-        extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, PCAAggregationBuilder> {
+    extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, PCAAggregationBuilder> {
     public static final String NAME = "pca";
 
     public static final ParseField USE_COVARIANCE_FIELD = new ParseField("use_covariance");

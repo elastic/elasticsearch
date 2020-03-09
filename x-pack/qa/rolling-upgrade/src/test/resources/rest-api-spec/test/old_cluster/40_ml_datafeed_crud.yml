@@ -1,7 +1,3 @@
-setup:
-  - skip:
-      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/52793"
-      version: all
 ---
 "Put job and datafeed without aggs in old cluster":
 

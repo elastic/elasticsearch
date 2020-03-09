@@ -298,7 +298,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                                          ActionListener<SearchService.CanMatchResponse> listener) {
                     Long min = rarely() ? null : randomLong();
                     Long max = min == null ? null  : randomLongBetween(min, Long.MAX_VALUE);
-                    MinAndMax<?> minMax = min == null ? null : MinAndMax.newMinMax(min, max);
+                    MinAndMax<?> minMax = min == null ? null : new MinAndMax<>(min, max);
                     boolean canMatch = frequently();
                     synchronized (shardIds) {
                         shardIds.add(request.shardId());

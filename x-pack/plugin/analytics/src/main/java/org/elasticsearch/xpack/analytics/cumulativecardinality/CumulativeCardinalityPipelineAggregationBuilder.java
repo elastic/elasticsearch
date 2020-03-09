@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -17,8 +16,6 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,14 +32,6 @@ public class CumulativeCardinalityPipelineAggregationBuilder
 
     public static final ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, String> PARSER =
             new ConstructingObjectParser<>(NAME, false, (args, name) -> {
-                if (AnalyticsPlugin.getLicenseState().isDataScienceAllowed() == false) {
-                    throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
-                }
-
-                // Increment usage here since it is a good boundary between internal and external, and should correlate 1:1 with
-                // usage and not internal instantiations
-                AnalyticsPlugin.cumulativeCardUsage.incrementAndGet();
-
                 return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]);
             });
     static {

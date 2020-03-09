@@ -44,6 +44,9 @@
         "name_id_format": {
           "type": "keyword"
         },
+        "sign_messages": {
+          "type": "keyword"
+        },
         "authn_expiry_ms": {
           "type": "long"
         },
@@ -59,7 +62,7 @@
             "login": {
               "type": "keyword"
             },
-            "groups": {
+            "roles": {
               "type": "object",
               "dynamic": false
             }
@@ -77,7 +80,7 @@
             "name": {
               "type": "keyword"
             },
-            "groups": {
+            "roles": {
               "type": "keyword"
             }
           }

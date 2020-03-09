@@ -272,6 +272,15 @@ public abstract class StreamOutput extends OutputStream {
         writeVLongNoCheck(i);
     }
 
+    public void writeOptionalVLong(@Nullable  Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeVLong(l);
+        }
+    }
+
     /**
      * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
      * {@link #writeVLong(long)} instead.
@@ -1136,6 +1145,22 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeStringCollection(final Collection<String> collection) throws IOException {
         writeCollection(collection, StreamOutput::writeString);
+    }
+
+    /**
+     * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
+        if (collection != null) {
+            writeBoolean(true);
+            writeCollection(collection, StreamOutput::writeString);
+        } else {
+            writeBoolean(false);
+        }
     }
 
     /**

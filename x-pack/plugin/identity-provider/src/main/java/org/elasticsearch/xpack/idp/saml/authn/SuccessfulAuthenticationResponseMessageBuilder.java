@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -172,9 +173,10 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     private AttributeStatement buildAttributes(UserServiceAuthentication user) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
-        final Attribute groups = buildAttribute(serviceProvider.getAttributeNames().groups, "groups", user.getGroups());
-        if (groups != null) {
-            statement.getAttributes().add(groups);
+        // TODO Add principal, email, name
+        final Attribute roles = buildAttribute(serviceProvider.getAttributeNames().roles, "roles", user.getRoles());
+        if (roles != null) {
+            statement.getAttributes().add(roles);
         }
         if (statement.getAttributes().isEmpty()) {
             return null;
@@ -183,7 +185,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     }
 
     private Attribute buildAttribute(String formalName, String friendlyName, Collection<String> values) {
-        if (values.isEmpty()) {
+        if (values.isEmpty() || Strings.isNullOrEmpty(formalName)) {
             return null;
         }
         final Attribute attribute = samlFactory.object(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);

@@ -302,8 +302,8 @@ Metadata about the number of returned documents.
 Returned parameters include:
 +
 * `value`: Total number of returned documents.
-* `relation`: Indicates whether the number of documents returned.
-Returned values are:
+* `relation`: Indicates whether the number of returned documents in the `value`
+parameter is accurate or a lower bound. Returned values are:
 ** `eq`: Accurate
 ** `gte`: Lower bound, including returned documents
 

@@ -71,11 +71,11 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         when(sp.getEntityId()).thenReturn(baseServiceUrl);
         when(sp.getAssertionConsumerService()).thenReturn(new URL(acs));
         when(sp.getAuthnExpiry()).thenReturn(Duration.standardMinutes(10));
-        when(sp.getAttributeNames()).thenReturn(new SamlServiceProvider.AttributeNames());
+        when(sp.getAttributeNames()).thenReturn(new SamlServiceProvider.AttributeNames("principal", null, null, null));
 
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);
         when(user.getPrincipal()).thenReturn(randomAlphaOfLengthBetween(4, 12));
-        when(user.getGroups()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
+        when(user.getRoles()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
         when(user.getServiceProvider()).thenReturn(sp);
 
         final SuccessfulAuthenticationResponseMessageBuilder builder =

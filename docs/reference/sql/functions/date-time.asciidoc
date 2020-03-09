@@ -526,7 +526,7 @@ DATE_TRUNC(
 
 Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
 one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
-If first argument is `week` and second argument is an interval, an error is thrown since week unit for intervals is not supported because months usually have fractional weeks.
+If the first argument is `week` and the second argument is of `interval` type, an error is thrown since the `interval` data type doesn't support a `week` time unit.
 
 [cols="^,^"]
 |===

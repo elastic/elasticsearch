@@ -58,7 +58,7 @@ public class EElvis extends AExpression {
         lhs.analyze(scriptRoot, scope);
         rhs.analyze(scriptRoot, scope);
 
-        if (lhs.isNull) {
+        if (lhs instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
         if (lhs instanceof EBoolean
@@ -71,7 +71,7 @@ public class EElvis extends AExpression {
         if (lhs.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (rhs.isNull) {
+        if (rhs instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
@@ -83,16 +83,16 @@ public class EElvis extends AExpression {
             actual = promote;
         }
 
-        lhs = lhs.cast(scriptRoot, scope);
-        rhs = rhs.cast(scriptRoot, scope);
+        lhs.cast();
+        rhs.cast();
     }
 
     @Override
     ElvisNode write(ClassNode classNode) {
         ElvisNode elvisNode = new ElvisNode();
 
-        elvisNode.setLeftNode(lhs.write(classNode));
-        elvisNode.setRightNode(rhs.write(classNode));
+        elvisNode.setLeftNode(lhs.cast(lhs.write(classNode)));
+        elvisNode.setRightNode(rhs.cast(rhs.write(classNode)));
 
         elvisNode.setLocation(location);
         elvisNode.setExpressionType(actual);

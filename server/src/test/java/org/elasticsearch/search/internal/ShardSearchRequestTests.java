@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;
 
@@ -95,9 +96,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings);
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
-            req.setRawBottomSortValues(
-                randomArray(randomIntBetween(1, 3), Object[]::new,
-                    () -> randomBoolean() ? randomUnicodeOfLength(10) : randomLong()));
+            req.setBottomSortValues(SearchSortValuesAndFormatsTests.randomInstance());
         }
         return req;
     }

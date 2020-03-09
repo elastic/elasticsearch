@@ -79,8 +79,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
                     canReturnNullResponse.set(true);
                 }
-                if (request.getRawBottomSortValues() != null) {
-                    assertNotEquals(shardId, (int) request.getRawBottomSortValues()[0]);
+                if (request.getBottomSortValues() != null) {
+                    assertNotEquals(shardId, (int) request.getBottomSortValues().getFormattedSortValues()[0]);
                     numWithTopDocs.incrementAndGet();
                 }
                 QuerySearchResult queryResult = new QuerySearchResult(123,

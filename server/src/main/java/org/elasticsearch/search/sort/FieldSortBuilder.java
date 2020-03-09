@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -60,7 +62,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
 import static org.elasticsearch.index.search.NestedHelper.parentObject;
@@ -358,10 +359,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     /**
      * Returns whether some values of the given {@link QueryShardContext#getIndexReader()} are within the
-     * primary sort value provided in the <code>rawBottomSortValues</code>.
+     * primary sort value provided in the <code>bottomSortValues</code>.
      */
-    public boolean isBottomSortShardDisjoint(QueryShardContext context, Object[] rawBottomSortValues) {
-        if (rawBottomSortValues == null || rawBottomSortValues.length == 0) {
+    public boolean isBottomSortShardDisjoint(QueryShardContext context, SearchSortValuesAndFormats bottomSortValues) throws IOException {
+        if (bottomSortValues == null || bottomSortValues.getRawSortValues().length == 0) {
             return false;
         }
 
@@ -376,15 +377,23 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (fieldType.indexOptions() == IndexOptions.NONE) {
             return false;
         }
-        Object minValue = order() == SortOrder.DESC ? rawBottomSortValues[0] : null;
-        Object maxValue = order() == SortOrder.DESC ? null : rawBottomSortValues[0];
-        try {
-            MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.getIndexReader(), minValue, maxValue,
-                true, true, null, DEFAULT_DATE_TIME_FORMATTER.toDateMathParser(), context);
-            return relation == MappedFieldType.Relation.DISJOINT;
-        } catch (Exception exc) {
-            return false;
+        DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
+        final DateMathParser dateMathParser;
+        if (docValueFormat instanceof DocValueFormat.DateTime) {
+            if (fieldType instanceof DateFieldType && ((DateFieldType) fieldType).resolution() == NANOSECONDS) {
+                // no matter what
+                docValueFormat = DocValueFormat.withNanosecondResolution(docValueFormat);
+            }
+            dateMathParser = ((DocValueFormat.DateTime) docValueFormat).getDateMathParser();
+        } else {
+            dateMathParser = null;
         }
+        Object bottomSortValue =  bottomSortValues.getFormattedSortValues()[0];
+        Object minValue = order() == SortOrder.DESC ? bottomSortValue : null;
+        Object maxValue = order() == SortOrder.DESC ? null : bottomSortValue;
+        MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.getIndexReader(), minValue, maxValue,
+            true, true, null, dateMathParser, context);
+        return relation == MappedFieldType.Relation.DISJOINT;
     }
 
     @Override

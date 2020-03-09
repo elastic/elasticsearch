@@ -154,7 +154,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             final TotalHits totalHitCount = hitCountSupplier.get();
             final TopDocs topDocs;
             if (sort != null) {
-                topDocs = new TopFieldDocs(totalHitCount, Lucene.EMPTY_FIELD_DOCS, sort.getSort());
+                topDocs = new TopFieldDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, sort.getSort());
             } else {
                 topDocs = new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS);
             }

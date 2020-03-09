@@ -19,7 +19,7 @@ setup:
             mappings:
               properties:
                 created_at:
-                   type: date
+                   type: date_nanos
                    format: "yyyy-MM-dd"
   - do:
       indices.create:
@@ -190,7 +190,7 @@ setup:
         body:
           "size": 1
           "track_total_hits": 1
-          "sort": [{ "created_at": "desc"}]
+          "sort": [{ "created_at": { "order": "desc", "numeric_type": "date" } }]
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
@@ -210,7 +210,7 @@ setup:
         body:
           "size": 1
           "track_total_hits": 1
-          "sort": [{ "created_at": "desc"}]
+          "sort": [{ "created_at": { "order": "desc", "numeric_type": "date" } }]
           "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } }
 
   - match: { _shards.total: 3 }

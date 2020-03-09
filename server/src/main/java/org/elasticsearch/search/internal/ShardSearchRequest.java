@@ -37,7 +37,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -83,7 +83,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final OriginalIndices originalIndices;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
-    private Object[] rawBottomSortValues;
+    private SearchSortValuesAndFormats bottomSortValues;
 
     //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
@@ -183,9 +183,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             canReturnNullResponseIfMatchNoDocs = false;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            rawBottomSortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         } else {
-            rawBottomSortValues = null;
+            bottomSortValues = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -225,7 +225,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalArray(Lucene::writeSortValue, rawBottomSortValues);
+            out.writeOptionalWriteable(bottomSortValues);
         }
     }
 
@@ -307,12 +307,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * query phase. After a partial merge of successful shards the sort values of the
      * bottom top document are passed as an hint on subsequent shard requests.
      */
-    public void setRawBottomSortValues(Object[] values) {
-        this.rawBottomSortValues = values;
+    public void setBottomSortValues(SearchSortValuesAndFormats values) {
+        this.bottomSortValues = values;
     }
 
-    public Object[] getRawBottomSortValues() {
-        return  rawBottomSortValues;
+    public SearchSortValuesAndFormats getBottomSortValues() {
+        return bottomSortValues;
     }
 
     /**
@@ -378,7 +378,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
             if (shardContext != null
                     && primarySort != null
-                    && primarySort.isBottomSortShardDisjoint(shardContext, request.getRawBottomSortValues())) {
+                    && primarySort.isBottomSortShardDisjoint(shardContext, request.getBottomSortValues())) {
                 assert newSource != null : "source should contain a primary sort field";
                 newSource = newSource.shallowCopy();
                 int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
@@ -390,7 +390,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     newSource.size(0);
                 }
                 request.source(newSource);
-                request.setRawBottomSortValues(null);
+                request.setBottomSortValues(null);
             }
 
             if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {

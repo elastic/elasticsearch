@@ -215,6 +215,10 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeVInt(resolution.ordinal());
         }
 
+        public DateMathParser getDateMathParser() {
+            return parser;
+        }
+
         @Override
         public String format(long value) {
             return formatter.format(resolution.toInstant(value).atZone(timeZone));

@@ -361,27 +361,13 @@ Total number of nodes selected by the request's <<cluster-nodes,node filters>>.
 
 `nodes.count.coordinating_only`::
 (integer)
-Number of selected <<coordinating-only-node,coordinating only>> nodes.
+Number of selected nodes without a <<modules-node,role>>. These nodes are
+considered <<coordinating-only-node,coordinating only>> nodes.
 
-`nodes.count.data`::
+`nodes.count.<role>`::
 (integer)
-Number of selected nodes with the <<data-node,data>> role.
-
-`nodes.count.ingest`::
-(integer)
-Number of selected nodes with the <<node-ingest-node,ingest>> role.
-
-`nodes.count.master`::
-(integer)
-Number of selected nodes with the <<master-node,master-eligible>> role.
-
-`nodes.count.ml`::
-(integer)
-Number of selected nodes with the <<ml-node,machine learning>> role.
-
-`nodes.count.voting_only`::
-(integer)
-Number of selected nodes with the <<voting-only-node,voting-only>> role.
+Number of selected nodes with the role. For a list of roles, see
+<<modules-node>>.
 
 `nodes.versions`::
 (array of strings)

@@ -311,7 +311,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
                 out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
             }
         } else {
-            out.writeStringArray(requestedMetrics.toArray(String[]::new));
+            out.writeStringArray(requestedMetrics.toArray(new String[0]));
         }
     }
 

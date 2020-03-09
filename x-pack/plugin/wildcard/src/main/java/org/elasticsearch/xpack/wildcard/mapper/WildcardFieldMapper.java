@@ -11,7 +11,6 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -26,9 +25,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -37,14 +36,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -173,10 +182,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     }
     
-     public static final char TOKEN_START_OR_END_CHAR = 0;
-    // A visible character to aid debug
-//     public static final char TOKEN_START_OR_END_CHAR = '$';
-    
+     public static final char TOKEN_START_OR_END_CHAR = 0;    
     
      public static final class WildcardFieldType extends MappedFieldType {
         private int numChars;
@@ -461,9 +467,29 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.BinaryBuilder();
+            return new IndexFieldData.Builder() {
+
+                @Override
+                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+                        CircuitBreakerService breakerService, MapperService mapperService) {
+                    return new WildcardBytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+                }};
+        }        
+    }
+     
+    static class  WildcardBytesBinaryDVIndexFieldData extends BytesBinaryDVIndexFieldData{
+
+        public WildcardBytesBinaryDVIndexFieldData(Index index, String fieldName) {
+            super(index, fieldName);
         }
-        
+
+        @Override
+        public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
+                    sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
+        }
+    
     }
 
     private int ignoreAbove;
@@ -517,13 +543,15 @@ public class WildcardFieldMapper extends FieldMapper {
                 value =  parser.textOrNull();
             }
         }
-        createFields(value, fields);        
+        ParseContext.Document parseDoc = context.doc();
+        
+        createFields(value, parseDoc, fields);        
     }   
     
     // For internal use by Lucene only - used to define ngram index
     FieldType ngramFieldType = null;
     
-    void createFields(String value, List<IndexableField>fields) {
+    void createFields(String value, Document parseDoc, List<IndexableField>fields) {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
@@ -538,11 +566,16 @@ public class WildcardFieldMapper extends FieldMapper {
             ngramFieldType.freeze();
         }
         
-        Field field = new Field(fieldType().name(), tokenizer, ngramFieldType);
-        fields.add(field);
+        Field ngramField = new Field(fieldType().name(), tokenizer, ngramFieldType);
+        fields.add(ngramField);
         
-        Field dvField = new BinaryDocValuesField(fieldType().name(), new BytesRef(value));        
-        fields.add(dvField);            
+        CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
+        if (dvField == null) {
+            dvField = new CustomBinaryDocValuesField(fieldType().name(), value.getBytes());
+            parseDoc.addWithKey(fieldType().name(), dvField);
+        } else {
+            dvField.add(value.getBytes());
+        }        
     }
 
     @Override

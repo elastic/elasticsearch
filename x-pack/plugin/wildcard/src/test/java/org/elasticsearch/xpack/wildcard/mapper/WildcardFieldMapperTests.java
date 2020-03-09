@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -94,16 +95,18 @@ public class WildcardFieldMapperTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-
         
         // Create a string that is too large and will not be indexed
         String docContent = randomABString(MAX_FIELD_LENGTH + 1);
-        createDocs(docContent, iw);
+        Document doc = new Document();
+        ParseContext.Document parseDoc = new ParseContext.Document();                        
+        addFields(parseDoc, doc, docContent);
+        indexDoc(parseDoc, doc, iw);        
+
         iw.forceMerge(1);
         DirectoryReader reader = iw.getReader();
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
-
 
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
@@ -123,11 +126,23 @@ public class WildcardFieldMapperTests extends ESTestCase {
         int numDocs = 100;
         HashSet<String> values = new HashSet<>();
         for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            ParseContext.Document parseDoc = new ParseContext.Document();                        
             String docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
-            if (values.contains(docContent) == false) {
-                createDocs(docContent, iw);
+            if (values.contains(docContent) == false) {                
+                addFields(parseDoc, doc, docContent);
                 values.add(docContent);
             }
+            // Occasionally add a multi-value field
+            if (randomBoolean()) {
+                docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
+                if (values.contains(docContent) == false) {                
+                    addFields(parseDoc, doc, docContent);
+                    values.add(docContent);
+                }                
+            }
+            indexDoc(parseDoc, doc, iw);
+            
         }
 
         iw.forceMerge(1);
@@ -145,7 +160,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             Query keywordFieldQuery = new WildcardQuery(new Term(KEYWORD_FIELD_NAME, randomWildcardPattern));
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.INDEXORDER);
 
-            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+            assertThat(kwTopDocs.totalHits.value, equalTo(wildcardFieldTopDocs.totalHits.value));
 
             HashSet<Integer> expectedDocs = new HashSet<>();
             for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {
@@ -208,16 +223,23 @@ public class WildcardFieldMapperTests extends ESTestCase {
         };
     }       
     
-    private void createDocs(String docContent, RandomIndexWriter iw) throws IOException {
+    private void addFields(ParseContext.Document parseDoc, Document doc, String docContent) throws IOException {
         ArrayList<IndexableField> fields = new ArrayList<>();
-        wildcardFieldType.createFields(docContent, fields);
-        Document doc = new Document();
+        wildcardFieldType.createFields(docContent, parseDoc, fields);
+
         for (IndexableField indexableField : fields) {
             doc.add(indexableField);
         }
         // Add keyword fields too
         doc.add(new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(docContent)));        
         doc.add(new StringField(KEYWORD_FIELD_NAME, docContent, Field.Store.YES));
+    }
+
+    private void indexDoc(ParseContext.Document parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
+        IndexableField field = parseDoc.getByKey(wildcardFieldType.name());
+        if (field != null) {
+            doc.add(field);
+        }
         iw.addDocument(doc);
     }
 

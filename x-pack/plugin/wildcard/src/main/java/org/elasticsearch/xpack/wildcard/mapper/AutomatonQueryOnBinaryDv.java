@@ -17,9 +17,11 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,6 +46,8 @@ public class AutomatonQueryOnBinaryDv extends Query {
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                 
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
+        ByteArrayDataInput badi = new ByteArrayDataInput();
+        
         
         return new ConstantScoreWeight(this, boost) {
 
@@ -53,8 +57,19 @@ public class AutomatonQueryOnBinaryDv extends Query {
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override
                     public boolean matches() throws IOException {
-                        BytesRef value = values.binaryValue();
-                        return bytesMatcher.run(value.bytes, value.offset, value.length);
+                        BytesRef arrayOfValues = values.binaryValue();
+                        badi.reset(arrayOfValues.bytes);
+                        badi.setPosition(arrayOfValues.offset);
+                        
+                        int size = badi.readVInt();
+                        for (int i=0; i< size; i++) {
+                            int valLength = badi.readVInt();
+                            if (bytesMatcher.run(arrayOfValues.bytes, badi.getPosition(), valLength)) {
+                                return true;
+                            }
+                            badi.skipBytes(valLength);
+                        }
+                        return false;
                     }
 
                     @Override

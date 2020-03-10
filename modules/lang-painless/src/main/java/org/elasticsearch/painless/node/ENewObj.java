@@ -51,18 +51,21 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-        if (actual == null) {
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+
+        if (output.actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, arguments.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
+                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/" + arguments.size() + "] not found"));
         }
 
         scriptRoot.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
@@ -72,20 +75,23 @@ public final class ENewObj extends AExpression {
 
         if (constructor.typeParameters.size() != arguments.size()) {
             throw createError(new IllegalArgumentException(
-                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
+                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "] " +
                     "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
         }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = types[argument];
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
+            Input expressionInput = new Input();
+            expressionInput.expected = types[argument];
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
 
-        statement = true;
+        output.statement = true;
+
+        return output;
     }
 
     @Override
@@ -97,8 +103,8 @@ public final class ENewObj extends AExpression {
         }
 
         newObjectNode.setLocation(location);
-        newObjectNode.setExpressionType(actual);
-        newObjectNode.setRead(read);
+        newObjectNode.setExpressionType(output.actual);
+        newObjectNode.setRead(input.read);
         newObjectNode.setConstructor(constructor);
 
         return newObjectNode;

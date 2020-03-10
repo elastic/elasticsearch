@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -57,12 +58,13 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     private static final Version FORCE_MERGE_UUID_VERSION = Version.V_8_0_0;
 
-    public static final String FORCE_MERGE_UUID_NA_VALUE = "_na_";
+    private static final String FORCE_MERGE_UUID_NA_VALUE = "_na_";
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
      * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
      */
+    @Nullable
     private final String forceMergeUUID;
 
     /**
@@ -81,9 +83,14 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            forceMergeUUID = in.readString();
+            final String readUUID = in.readString();
+            if (FORCE_MERGE_UUID_NA_VALUE.equals(readUUID)) {
+                forceMergeUUID = null;
+            } else {
+                forceMergeUUID = readUUID;
+            }
         } else {
-            forceMergeUUID = FORCE_MERGE_UUID_NA_VALUE;
+            forceMergeUUID = null;
         }
     }
 
@@ -122,8 +129,10 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
-     * Force merge UUID to use when force merging.
+     * Force merge UUID to use when force merging or {@code null} if not using one in a mixed version cluster containing nodes older than
+     * {@link #FORCE_MERGE_UUID_VERSION}.
      */
+    @Nullable
     public String forceMergeUUID() {
         return forceMergeUUID;
     }
@@ -158,7 +167,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            out.writeString(forceMergeUUID);
+            out.writeString(forceMergeUUID == null ? FORCE_MERGE_UUID_NA_VALUE : forceMergeUUID);
         }
     }
 

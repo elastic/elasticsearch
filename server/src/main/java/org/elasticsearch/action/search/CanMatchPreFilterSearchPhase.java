@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
@@ -61,17 +62,17 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
 
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
-                                        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                        Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                                        Map<String, Set<String>> indexRoutings,
-                                        Executor executor, SearchRequest request,
-                                        ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
-                                        TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-                                        SearchResponse.Clusters clusters) {
+                                 BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+                                 Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                                 Map<String, Set<String>> indexRoutings,
+                                 Executor executor, SearchRequest request,
+                                 ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
+                                 TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
+                                 SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
+                                 SearchResponse.Clusters clusters) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
-                executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
+                executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;

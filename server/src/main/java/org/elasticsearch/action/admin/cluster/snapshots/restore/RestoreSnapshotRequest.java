@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,17 +41,15 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(RestoreSnapshotRequest.class));
 
     private String snapshot;
     private String repository;
@@ -459,12 +455,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 }
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
-            } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("malformed settings section");
-                }
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("RestoreSnapshotRequest#settings",
-                    "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {

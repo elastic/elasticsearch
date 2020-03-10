@@ -364,7 +364,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         protected boolean doEquals(BlockQueryBuilder other) {
-            return true;
+            return false;
         }
 
         @Override

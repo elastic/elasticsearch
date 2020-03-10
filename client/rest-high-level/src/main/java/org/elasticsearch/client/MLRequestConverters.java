@@ -755,6 +755,9 @@ final class MLRequestConverters {
             params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
                 Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
         }
+        if (getTrainedModelsRequest.getTags() != null) {
+            params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());
         return request;

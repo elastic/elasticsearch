@@ -116,8 +116,7 @@ public class Regression implements DataFrameAnalysis {
         return trainingPercent;
     }
 
-    @Nullable
-    public Long getRandomizeSeed() {
+    public long getRandomizeSeed() {
         return randomizeSeed;
     }
 
@@ -182,13 +181,15 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
-        return Collections.emptyMap();
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
+        return Collections.emptyList();
     }
 
     @Override
-    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
-        return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, dependentVariable);
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        // Prediction field should be always mapped as "double" rather than "float" in order to increase precision in case of
+        // high (over 10M) values of dependent variable.
+        return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, Collections.singletonMap("type", "double"));
     }
 
     @Override
@@ -220,7 +221,7 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(boostedTreeParams, that.boostedTreeParams)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && trainingPercent == that.trainingPercent
-            && randomizeSeed == randomizeSeed;
+            && randomizeSeed == that.randomizeSeed;
     }
 
     @Override

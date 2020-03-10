@@ -1,12 +1,22 @@
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.tool.Boilerplate;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.internal.resources.ResourceLock;
+import org.gradle.internal.resources.SharedResource;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_SERVICE_NAME;
 
 /**
  * Customized version of Gradle {@link Test} task which tracks a collection of {@link ElasticsearchCluster} as a task input. We must do this
@@ -47,4 +57,19 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
         return clusters;
     }
 
+    @Override
+    @Internal
+    public List<ResourceLock> getSharedResources() {
+        List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
+        BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
+        Provider<TestClustersThrottle> throttleProvider = Boilerplate.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
+        SharedResource resource = serviceRegistry.forService(throttleProvider);
+
+        int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
+        if (nodeCount > 0) {
+            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
+        }
+
+        return Collections.unmodifiableList(locks);
+    }
 }

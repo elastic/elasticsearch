@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -42,7 +43,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         String indexName = indexMetaData.getIndex().getName();

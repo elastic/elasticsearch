@@ -44,6 +44,7 @@ public class DataFrameAnalyticsStats {
     static final ParseField STATE = new ParseField("state");
     static final ParseField FAILURE_REASON = new ParseField("failure_reason");
     static final ParseField PROGRESS = new ParseField("progress");
+    static final ParseField MEMORY_USAGE = new ParseField("memory_usage");
     static final ParseField NODE = new ParseField("node");
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
@@ -55,8 +56,9 @@ public class DataFrameAnalyticsStats {
                 (DataFrameAnalyticsState) args[1],
                 (String) args[2],
                 (List<PhaseProgress>) args[3],
-                (NodeAttributes) args[4],
-                (String) args[5]));
+                (MemoryUsage) args[4],
+                (NodeAttributes) args[5],
+                (String) args[6]));
 
     static {
         PARSER.declareString(constructorArg(), ID);
@@ -68,6 +70,7 @@ public class DataFrameAnalyticsStats {
         }, STATE, ObjectParser.ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), FAILURE_REASON);
         PARSER.declareObjectArray(optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS);
+        PARSER.declareObject(optionalConstructorArg(), MemoryUsage.PARSER, MEMORY_USAGE);
         PARSER.declareObject(optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
     }
@@ -76,16 +79,18 @@ public class DataFrameAnalyticsStats {
     private final DataFrameAnalyticsState state;
     private final String failureReason;
     private final List<PhaseProgress> progress;
+    private final MemoryUsage memoryUsage;
     private final NodeAttributes node;
     private final String assignmentExplanation;
 
     public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable String failureReason,
-                                   @Nullable List<PhaseProgress> progress, @Nullable NodeAttributes node,
-                                   @Nullable String assignmentExplanation) {
+                                   @Nullable List<PhaseProgress> progress, @Nullable MemoryUsage memoryUsage,
+                                   @Nullable NodeAttributes node, @Nullable String assignmentExplanation) {
         this.id = id;
         this.state = state;
         this.failureReason = failureReason;
         this.progress = progress;
+        this.memoryUsage = memoryUsage;
         this.node = node;
         this.assignmentExplanation = assignmentExplanation;
     }
@@ -106,6 +111,11 @@ public class DataFrameAnalyticsStats {
         return progress;
     }
 
+    @Nullable
+    public MemoryUsage getMemoryUsage() {
+        return memoryUsage;
+    }
+
     public NodeAttributes getNode() {
         return node;
     }
@@ -124,13 +134,14 @@ public class DataFrameAnalyticsStats {
             && Objects.equals(state, other.state)
             && Objects.equals(failureReason, other.failureReason)
             && Objects.equals(progress, other.progress)
+            && Objects.equals(memoryUsage, other.memoryUsage)
             && Objects.equals(node, other.node)
             && Objects.equals(assignmentExplanation, other.assignmentExplanation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
+        return Objects.hash(id, state, failureReason, progress, memoryUsage, node, assignmentExplanation);
     }
 
     @Override
@@ -140,6 +151,7 @@ public class DataFrameAnalyticsStats {
             .add("state", state)
             .add("failureReason", failureReason)
             .add("progress", progress)
+            .add("memoryUsage", memoryUsage)
             .add("node", node)
             .add("assignmentExplanation", assignmentExplanation)
             .toString();

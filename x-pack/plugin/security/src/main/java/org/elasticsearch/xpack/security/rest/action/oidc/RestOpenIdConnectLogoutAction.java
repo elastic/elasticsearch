@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequ
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -40,9 +40,13 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
         PARSER.declareString(OpenIdConnectLogoutRequest::setRefreshToken, new ParseField("refresh_token"));
     }
 
-    public RestOpenIdConnectLogoutAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestOpenIdConnectLogoutAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_security/oidc/logout", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_security/oidc/logout"));
     }
 
     @Override

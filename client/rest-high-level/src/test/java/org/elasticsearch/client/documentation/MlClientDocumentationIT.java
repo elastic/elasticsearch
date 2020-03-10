@@ -3587,8 +3587,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setPageParams(new PageParams(0, 1)) // <2>
                 .setIncludeDefinition(false) // <3>
                 .setDecompressDefinition(false) // <4>
-                .setAllowNoMatch(true); // <5>
+                .setAllowNoMatch(true) // <5>
+                .setTags("regression"); // <6>
             // end::get-trained-models-request
+            request.setTags((List<String>)null);
 
             // tag::get-trained-models-execute
             GetTrainedModelsResponse response = client.machineLearning().getTrainedModels(request, RequestOptions.DEFAULT);

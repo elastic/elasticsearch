@@ -9,6 +9,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -53,7 +54,7 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute nestedPar = null;
         if (parent != null) {
             nestedPar = parent.nestedParent;
-            if (parent.dataType() == DataType.NESTED) {
+            if (parent.dataType() == DataTypes.NESTED) {
                 nestedPar = parent;
             }
         }
@@ -103,7 +104,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability, NameId id, 
+    protected Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability, NameId id,
             boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
         return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);

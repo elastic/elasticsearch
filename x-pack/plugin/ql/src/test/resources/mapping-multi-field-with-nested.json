@@ -7,6 +7,26 @@
         "unsupported" : { "type" : "ip_range" },
         "date" : { "type" : "date"},
         "shape": { "type" : "geo_shape" },
+        "x" : {
+            "type" : "text",
+            "fields" : {
+                "y" : {
+                    "type" : "foobar",
+                    "fields" : {
+                        "z" : {
+                            "properties" : {
+                                "v" : {
+                                    "type" : "keyword"
+                                },
+                                "w" : {
+                                    "type" : "foo"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "some" : {
             "properties" : {
                 "dotted" : {

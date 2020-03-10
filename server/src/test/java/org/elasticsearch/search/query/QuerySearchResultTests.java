@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -54,7 +55,8 @@ public class QuerySearchResultTests extends ESTestCase {
 
     private static QuerySearchResult createTestInstance() throws Exception {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
-        QuerySearchResult result = new QuerySearchResult(randomLong(), new SearchShardTarget("node", shardId, null, OriginalIndices.NONE));
+        QuerySearchResult result = new QuerySearchResult(new SearchContextId("", randomLong()),
+            new SearchShardTarget("node", shardId, null, OriginalIndices.NONE));
         if (randomBoolean()) {
             result.terminatedEarly(randomBoolean());
         }
@@ -75,7 +77,7 @@ public class QuerySearchResultTests extends ESTestCase {
         QuerySearchResult querySearchResult = createTestInstance();
         Version version = VersionUtils.randomVersion(random());
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
-        assertEquals(querySearchResult.getRequestId(), deserialized.getRequestId());
+        assertEquals(querySearchResult.getContextId(), deserialized.getContextId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
         assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
@@ -98,5 +100,12 @@ public class QuerySearchResultTests extends ESTestCase {
             }
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+    }
+
+    public void testNullResponse() throws Exception {
+        QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
+        QuerySearchResult deserialized =
+            copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 }

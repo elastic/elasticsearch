@@ -30,9 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -50,19 +49,16 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class ForEachProcessor extends AbstractProcessor implements WrappingProcessor {
 
     public static final String TYPE = "foreach";
-    static final int MAX_RECURSE_PER_THREAD = 10;
 
     private final String field;
     private final Processor processor;
     private final boolean ignoreMissing;
-    private final Consumer<Runnable> genericExecutor;
 
-    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing, Consumer<Runnable> genericExecutor) {
+    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.processor = processor;
         this.ignoreMissing = ignoreMissing;
-        this.genericExecutor = genericExecutor;
     }
 
     boolean isIgnoreMissing() {
@@ -79,41 +75,35 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
         } else {
-            List<Object> newValues = new CopyOnWriteArrayList<>();
-            innerExecute(0, values, newValues, ingestDocument, handler);
+            innerExecute(0, values, new ArrayList<>(values.size()), ingestDocument, handler);
         }
     }
 
     void innerExecute(int index, List<?> values, List<Object> newValues, IngestDocument document,
                       BiConsumer<IngestDocument, Exception> handler) {
+        for (; index < values.size(); index++) {
+            AtomicBoolean shouldContinueHere = new AtomicBoolean();
+            Object value = values.get(index);
+            Object previousValue = document.getIngestMetadata().put("_value", value);
+            int nextIndex = index + 1;
+            processor.execute(document, (result, e) -> {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                if (e != null || result == null) {
+                    handler.accept(result, e);
+                } else if (shouldContinueHere.getAndSet(true)) {
+                    innerExecute(nextIndex, values, newValues, document, handler);
+                }
+            });
+
+            if (shouldContinueHere.getAndSet(true) == false) {
+                return;
+            }
+        }
+
         if (index == values.size()) {
             document.setFieldValue(field, new ArrayList<>(newValues));
             handler.accept(document, null);
-            return;
         }
-
-        Object value = values.get(index);
-        Object previousValue = document.getIngestMetadata().put("_value", value);
-        final Thread thread = Thread.currentThread();
-        processor.execute(document, (result, e) -> {
-            if (e != null)  {
-                newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                handler.accept(null, e);
-            } else if (result == null) {
-                handler.accept(null, null);
-            } else {
-                newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                if (thread == Thread.currentThread() && (index + 1) % MAX_RECURSE_PER_THREAD == 0) {
-                    // we are on the same thread and we need to fork to another thread to avoid recursive stack overflow on a single thread
-                    // only fork after 10 recursive calls, then fork every 10 to keep the number of threads down
-                    genericExecutor.accept(() -> innerExecute(index + 1, values, newValues, document, handler));
-                } else {
-                    // we are on a different thread (we went asynchronous), it's safe to recurse
-                    // or we have recursed less then 10 times with the same thread, it's safe to recurse
-                    innerExecute(index + 1, values, newValues, document, handler);
-                }
-            }
-        });
     }
 
     @Override
@@ -137,11 +127,9 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
-        private final Consumer<Runnable> genericExecutor;
 
-        Factory(ScriptService scriptService, Consumer<Runnable> genericExecutor) {
+        Factory(ScriptService scriptService) {
             this.scriptService = scriptService;
-            this.genericExecutor = genericExecutor;
         }
 
         @Override
@@ -157,7 +145,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor =
                 ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
-            return new ForEachProcessor(tag, field, processor, ignoreMissing, genericExecutor);
+            return new ForEachProcessor(tag, field, processor, ignoreMissing);
         }
     }
 }

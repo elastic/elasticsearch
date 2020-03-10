@@ -62,11 +62,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -91,11 +91,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNotIndexed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").field("index", false).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -113,11 +113,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNoDocValues() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").field("doc_values", false).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -135,11 +135,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testStore() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").field("store", true).endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -169,11 +169,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void testIgnoreMalfomedForValue(String value, String expectedException) throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -206,12 +206,12 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testChangeFormat() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
                 .field("format", "epoch_second").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -230,13 +230,13 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testChangeLocale() throws IOException {
         assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
                     .field("format", "E, d MMM yyyy HH:mm:ss Z")
                     .field("locale", "de")
             .endObject().endObject().endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -250,7 +250,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testNullValue() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "date")
@@ -258,7 +258,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
@@ -270,7 +270,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "date")
@@ -279,7 +279,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
 
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         doc = mapper.parse(new SourceToParse("test", "1", BytesReference
@@ -332,7 +332,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         final String timeZonePattern = "yyyy-MM-dd" + randomFrom("XXX", "[XXX]", "'['XXX']'");
 
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "date")
@@ -341,7 +341,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
         DateFormatter formatter = DateFormatter.forPattern(timeZonePattern);
@@ -370,8 +370,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertThat(indexService.mapperService().fullName("release_date"), notNullValue());
-        assertFalse(indexService.mapperService().fullName("release_date").stored());
+        assertThat(indexService.mapperService().fieldType("release_date"), notNullValue());
+        assertFalse(indexService.mapperService().fieldType("release_date").stored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")

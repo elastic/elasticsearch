@@ -18,26 +18,17 @@ public class ConstantProcessor implements Processor {
 
     private final Object constant;
     private final boolean namedWriteable;
-    private final Class<?> clazz;
 
     public ConstantProcessor(Object value) {
         this.constant = value;
         this.namedWriteable = value instanceof NamedWriteable;
-        this.clazz = namedWriteable ? value.getClass() : null;
     }
 
-    @SuppressWarnings("unchecked")
     public ConstantProcessor(StreamInput in) throws IOException {
         namedWriteable = in.readBoolean();
         if (namedWriteable) {
-            try {
-                clazz = ConstantProcessor.class.getClassLoader().loadClass(in.readString());
-            } catch (ClassNotFoundException e) {
-                throw new IOException(e);
-            }
-            constant = in.readNamedWriteable((Class<NamedWriteable>) clazz);
+            constant = in.readNamedWriteable(ConstantNamedWriteable.class);
         } else {
-            clazz = null;
             constant = in.readGenericValue();
         }
     }
@@ -46,7 +37,6 @@ public class ConstantProcessor implements Processor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(namedWriteable);
         if (namedWriteable) {
-            out.writeString(constant.getClass().getName());
             out.writeNamedWriteable((NamedWriteable) constant);
         } else {
             out.writeGenericValue(constant);

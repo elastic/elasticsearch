@@ -7,15 +7,19 @@ up and running. These users have a fixed set of privileges and cannot be
 authenticated until their passwords have been set. The `elastic` user can be
 used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 
-`elastic`:: A built-in _superuser_. See <<built-in-roles>>.
-`kibana`:: The user Kibana uses to connect and communicate with Elasticsearch.
-`logstash_system`:: The user Logstash uses when storing monitoring information in Elasticsearch.
-`beats_system`:: The user the Beats use when storing monitoring information in Elasticsearch.
+`elastic`:: A built-in <<built-in-roles,superuser>>.
+`kibana`:: The user Kibana uses to connect and communicate with {es}.
+`logstash_system`:: The user Logstash uses when storing monitoring information in {es}.
+`beats_system`:: The user the Beats use when storing monitoring information in {es}.
 `apm_system`:: The user the APM server uses when storing monitoring information in {es}.
 `remote_monitoring_user`:: The user {metricbeat} uses when collecting and 
 storing monitoring information in {es}. It has the `remote_monitoring_agent` and 
 `remote_monitoring_collector` built-in roles. 
 
+TIP: The built-in users serve specific purposes and are not intended for general
+use. In particular, do not use the `elastic` superuser unless full access to
+the cluster is required. Instead, create users that have the minimum necessary
+roles or privileges for their activities.
 
 [float]
 [[built-in-user-explanation]]
@@ -130,9 +134,9 @@ the `logstash.yml` configuration file:
 xpack.monitoring.elasticsearch.password: logstashpassword
 ----------------------------------------------------------
 
-If you have upgraded from an older version of Elasticsearch,
-the `logstash_system` user may have defaulted to _disabled_ for security reasons.
-Once the password has been changed, you can enable the user via the following API call:
+If you have upgraded from an older version of {es}, the `logstash_system` user
+may have defaulted to _disabled_ for security reasons. Once the password has
+been changed, you can enable the user via the following API call:
 
 [source,console]
 ---------------------------------------------------------------------

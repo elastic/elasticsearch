@@ -797,8 +797,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
-            CompiledAutomaton ca = new CompiledAutomaton(fq.toAutomaton());
-            source = XIntervals.multiterm(ca, term);
+            CompiledAutomaton[] automata = fq.getAutomata();
+            source = XIntervals.multiterm(automata[automata.length - 1], term);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }

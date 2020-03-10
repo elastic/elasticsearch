@@ -220,20 +220,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitConditional(PainlessParser.ConditionalContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitAssignment(PainlessParser.AssignmentContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitBinary(PainlessParser.BinaryContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -249,6 +235,27 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitInstanceof(PainlessParser.InstanceofContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitNonconditional(PainlessParser.NonconditionalContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitConditional(PainlessParser.ConditionalContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitAssignment(PainlessParser.AssignmentContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

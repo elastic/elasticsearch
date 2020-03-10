@@ -42,12 +42,6 @@ test {
   systemProperty 'tests.security.manager', 'false'
 }
 
-thirdPartyAudit.onlyIf {
-  // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  BuildParams.inFipsJvm == false
-}
-
 /*
  * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
  * functionality

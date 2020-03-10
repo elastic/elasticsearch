@@ -5,22 +5,37 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-public class RawInferenceResultsTests extends AbstractWireSerializingTestCase<RawInferenceResults> {
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+
+public class RawInferenceResultsTests extends ESTestCase {
 
     public static RawInferenceResults createRandomResults() {
-        return new RawInferenceResults(randomDouble());
+        int n = randomIntBetween(1, 10);
+        double[] results = new double[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = randomDouble();
+        }
+        return new RawInferenceResults(results, randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", 1.08));
     }
 
-    @Override
-    protected RawInferenceResults createTestInstance() {
-        return createRandomResults();
+    public void testEqualityAndHashcode() {
+        int n = randomIntBetween(1, 10);
+        double[] results = new double[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = randomDouble();
+        }
+        Map<String, Double> importance = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", 1.08);
+        RawInferenceResults lft = new RawInferenceResults(results, new HashMap<>(importance));
+        RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n), new HashMap<>(importance));
+        assertThat(lft, equalTo(rgt));
+        assertThat(lft.hashCode(), equalTo(rgt.hashCode()));
     }
 
-    @Override
-    protected Writeable.Reader<RawInferenceResults> instanceReader() {
-        return RawInferenceResults::new;
-    }
 }

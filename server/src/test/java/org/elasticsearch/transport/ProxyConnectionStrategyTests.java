@@ -90,7 +90,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
@@ -119,7 +119,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
@@ -169,7 +169,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
@@ -199,7 +199,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
@@ -251,7 +251,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
@@ -276,7 +276,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
@@ -291,7 +291,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE
                         .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> addressesSetting = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES
+                    Setting<?> addressesSetting = ProxyConnectionStrategy.PROXY_ADDRESS
                         .getConcreteSettingForNamespace("cluster-alias");
                     Setting<?> socketConnections = ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
                         .getConcreteSettingForNamespace("cluster-alias");
@@ -320,7 +320,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
-            new Tuple<>(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES, "192.168.0.1:8080"),
+            new Tuple<>(ProxyConnectionStrategy.PROXY_ADDRESS, "192.168.0.1:8080"),
             new Tuple<>(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
 
         RemoteConnectionStrategy.ConnectionStrategy sniff = RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
@@ -359,7 +359,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 String address = "localhost:" + address1.getPort();
 
-                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,

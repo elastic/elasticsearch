@@ -19,18 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BooleanNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a boolean expression.
@@ -50,69 +46,37 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        Input leftInput = new Input();
+        leftInput.expected = boolean.class;
+        left.analyze(scriptRoot, scope, leftInput);
+        left.cast();
+
+        Input rightInput = new Input();
+        rightInput.expected = boolean.class;
+        right.analyze(scriptRoot, scope, rightInput);
+        right.cast();
+
+        output.actual = boolean.class;
+
+        return output;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        left.expected = boolean.class;
-        left.analyze(scriptRoot, locals);
-        left = left.cast(scriptRoot, locals);
+    BooleanNode write(ClassNode classNode) {
+        BooleanNode booleanNode = new BooleanNode();
 
-        right.expected = boolean.class;
-        right.analyze(scriptRoot, locals);
-        right = right.cast(scriptRoot, locals);
+        booleanNode.setLeftNode(left.cast(left.write(classNode)));
+        booleanNode.setRightNode(right.cast(right.write(classNode)));
 
-        if (left.constant != null && right.constant != null) {
-            if (operation == Operation.AND) {
-                constant = (boolean)left.constant && (boolean)right.constant;
-            } else if (operation == Operation.OR) {
-                constant = (boolean)left.constant || (boolean)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        booleanNode.setLocation(location);
+        booleanNode.setExpressionType(output.actual);
+        booleanNode.setOperation(operation);
 
-        actual = boolean.class;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (operation == Operation.AND) {
-            Label fals = new Label();
-            Label end = new Label();
-
-            left.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else if (operation == Operation.OR) {
-            Label tru = new Label();
-            Label fals = new Label();
-            Label end = new Label();
-
-            left.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            right.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.mark(tru);
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        return booleanNode;
     }
 
     @Override

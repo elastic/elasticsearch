@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -22,7 +22,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 
 import java.util.List;
 
@@ -45,9 +44,6 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
-            indexMetaData.putAlias(new AliasMetaData.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
-        }
         metaData.put(indexMetaData);
         Index index = new Index(indexName, "_uuid");
         ShardId shardId = new ShardId(index, 0);
@@ -63,7 +59,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertThat(TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs, indexName), empty());
+        assertThat(
+            TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver(), indexName),
+            empty());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -81,7 +79,8 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result = TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(csBuilder.build(), indexName);
+        List<String> result = TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(csBuilder.build(),
+            new IndexNameExpressionResolver(), indexName);
         assertThat(result, contains(indexName));
     }
 }

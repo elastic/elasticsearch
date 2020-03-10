@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -140,6 +141,24 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(e, hasToString(containsString("[" + prefix + ".host] is set but type is [local]")));
     }
 
+    public void testSecurePasswordIsRejectedIfTypeIsNotHttp() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
+
+        final String settingName = ".auth.secure_password";
+        final String settingValue = "securePassword";
+        MockSecureSettings mockSecureSettings  = new MockSecureSettings();
+        mockSecureSettings.setString(prefix + settingName, settingValue);
+
+        builder.setSecureSettings(mockSecureSettings);
+
+        final Settings settings = builder.build();
+        final ClusterSettings clusterSettings =
+            new ClusterSettings(settings, Set.of(HttpExporter.AUTH_SECURE_PASSWORD_SETTING, Exporter.TYPE_SETTING));
+        final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
+        assertThat(e, hasToString(containsString("[" + prefix + settingName + "] is set but type is [local]")));
+    }
+
     public void testInvalidHost() {
         final String prefix = "xpack.monitoring.exporters.example";
         final String host = "https://example.com:443/";
@@ -233,28 +252,8 @@ public class HttpExporterTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
         assertThat(e, hasToString(containsString(expected)));
-    }
-
-    public void testExporterWithUsernameButNoPassword() {
-        final String expected =
-            "[xpack.monitoring.exporters._http.auth.username] is set but [xpack.monitoring.exporters._http.auth.password] is missing";
-        final String prefix = "xpack.monitoring.exporters._http";
-        final Settings settings = Settings.builder()
-            .put(prefix + ".type", HttpExporter.TYPE)
-            .put(prefix + ".host", "localhost:9200")
-            .put(prefix + ".auth.username", "_user")
-            .build();
-
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(prefix + ".auth.username").get(settings));
-        assertThat(
-            e,
-            hasToString(
-                containsString("Failed to parse value for setting [xpack.monitoring.exporters._http.auth.username]")));
-
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString(expected)));
+        assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
@@ -331,7 +330,8 @@ public class HttpExporterTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
 
         // use basic auth
-        if (randomBoolean()) {
+        final boolean useBasicAuth = randomBoolean();
+        if (useBasicAuth) {
             builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
                    .put("xpack.monitoring.exporters._http.auth.password", "_pass");
         }
@@ -346,6 +346,10 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
+        if (useBasicAuth) {
+            assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testCreateSnifferDisabledByDefault() {

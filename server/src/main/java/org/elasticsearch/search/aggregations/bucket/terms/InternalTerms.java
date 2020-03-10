@@ -256,7 +256,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
+        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = reduceBucket(sameTermBuckets, reduceContext);
             if (sumDocCountError == -1) {

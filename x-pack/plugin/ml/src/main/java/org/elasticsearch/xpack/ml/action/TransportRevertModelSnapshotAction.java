@@ -118,7 +118,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         );
 
         // 1. Verify/Create the state index and its alias exists
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, createStateIndexListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, createStateIndexListener);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

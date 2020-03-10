@@ -8,15 +8,19 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestCcrStatsAction extends BaseRestHandler {
 
-    public RestCcrStatsAction(final RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_ccr/stats"));
     }
 
     @Override

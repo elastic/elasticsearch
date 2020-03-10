@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -240,6 +241,22 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Get value to use when sorting by this aggregation.
+     */
+    public double sortValue(String key) {
+        // subclasses will override this with a real implementation if they can be sorted
+        throw new IllegalArgumentException("Can't sort a [" + getType() + "] aggregation [" + getName() + "]");
+    }
+
+    /**
+     * Get value to use when sorting by a descendant of this aggregation.
+     */
+    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        // subclasses will override this with a real implementation if you can sort on a descendant
+        throw new IllegalArgumentException("Can't sort by a descendant of a [" + getType() + "] aggregation [" + head + "]");
     }
 
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -46,9 +45,9 @@ import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -118,33 +117,37 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
         int numRequests = randomIntBetween(20, 50);
-        CountDownLatch latch = new CountDownLatch(numRequests);
         int numRefreshes = 0;
         for (int i = 0; i < numRequests; i++) {
             numRefreshes++;
-            switch (randomIntBetween(0, 3)) {
+            // make sure that we don't share the frozen reader in concurrent requests since we acquire the
+            // searcher and rewrite the request outside of the search-throttle thread pool
+            switch (randomFrom(Arrays.asList(0, 1, 2))) {
                 case 0:
-                    client().prepareGet("index", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
+                    client().prepareGet("index", "" + randomIntBetween(0, 9))
+                        .get();
                     break;
                 case 1:
                     client().prepareSearch("index").setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
                         .setSearchType(SearchType.QUERY_THEN_FETCH)
-                        .execute(ActionListener.wrap(latch::countDown));
+                        .get();
                     // in total 4 refreshes 1x query & 1x fetch per shard (we have 2)
                     numRefreshes += 3;
                     break;
                 case 2:
-                   client().prepareTermVectors("index", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
+                    client().prepareTermVectors("index", "" + randomIntBetween(0, 9))
+                        .get();
                     break;
                 case 3:
-                    client().prepareExplain("index", "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder())
-                        .execute(ActionListener.wrap(latch::countDown));
+                    client().prepareExplain("index", "" + randomIntBetween(0, 9))
+                        .setQuery(new MatchAllQueryBuilder())
+                        .get();
                     break;
-                    default:
-                        assert false;
+
+                default:
+                    assert false;
             }
         }
-        latch.await();
         IndicesStatsResponse index = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
         assertEquals(numRefreshes, index.getTotal().refresh.getTotal());
     }

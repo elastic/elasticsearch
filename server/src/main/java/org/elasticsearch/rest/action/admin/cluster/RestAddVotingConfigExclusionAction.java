@@ -23,36 +23,33 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
     private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     private static final String DEPRECATION_MESSAGE = "Using [node_name] for adding voting config exclustion will be removed " +
         "in a future version. Please use [node_ids] or [node_names] instead";
-
-    public RestAddVotingConfigExclusionAction(RestController controller) {
-        controller.registerAsDeprecatedHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this,
-                                                DEPRECATION_MESSAGE, DEPRECATION_LOGGER);
-
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions", this);
-
-    }
-
     @Override
     public String getName() {
         return "add_voting_config_exclusions_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new DeprecatedRoute(POST, "/_cluster/voting_config_exclusions/{node_name}", DEPRECATION_MESSAGE),
+                        new Route(POST, "/_cluster/voting_config_exclusions"));
     }
 
     @Override

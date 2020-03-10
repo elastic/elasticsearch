@@ -37,6 +37,7 @@ following aggregations and queries:
 
 * <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
+* <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]

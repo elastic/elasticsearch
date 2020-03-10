@@ -32,6 +32,34 @@ SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
 --------------------------------------------------
 
 [float]
+=== Scalar functions on nested fields are not allowed in `WHERE` and `ORDER BY` clauses
+{es-sql} doesn't support the usage of scalar functions on top of nested fields in `WHERE`
+and `ORDER BY` clauses with the exception of comparison and logical operators.
+
+For example:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE LENGTH(dep.dep_name.keyword) > 5;
+--------------------------------------------------
+
+and
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp ORDER BY YEAR(dep.start_date);
+--------------------------------------------------
+
+are not supported but:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE dep.start_date >= CAST('2020-01-01' AS DATE) OR dep.dep_end_date IS NULL;
+--------------------------------------------------
+
+is supported.
+
+[float]
 === Multi-nested fields
 
 {es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
@@ -89,6 +117,17 @@ SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 
 It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
 an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
+
+Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
+functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
+functions can be used for ordering. Here are some examples of queries that are *not allowed*:
+
+[source, sql]
+--------------------------------------------------
+SELECT age, ROUND(AVG(salary)) AS avg FROM test GROUP BY age ORDER BY avg;
+
+SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY diff;
+--------------------------------------------------
 
 [float]
 === Using aggregation functions on top of scalar functions

@@ -215,7 +215,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                     assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
                     lastPosition += chunk.content.length();
                     if (chunk.lastChunk) {
-                        assert pendingChunks.isEmpty() == true : "still have pending chunks [" + pendingChunks + "]";
+                        assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
                         fileChunkWriters.remove(chunk.md.name());
                         assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
                     }

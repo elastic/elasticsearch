@@ -27,6 +27,8 @@ public final class XPackField {
     public static final String UPGRADE = "upgrade";
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     public static final String SETTINGS_NAME = "xpack";
+    /** Name constant for the eql feature. */
+    public static final String EQL = "eql";
     /** Name constant for the sql feature. */
     public static final String SQL = "sql";
     /** Name constant for the rollup feature. */
@@ -40,7 +42,6 @@ public final class XPackField {
     /** Name constant for the transform feature. */
     public static final String TRANSFORM = "transform";
     /** Name constant for flattened fields. */
-    public static final String FLATTENED = "flattened";
     /** Name constant for the vectors feature. */
     public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */
@@ -53,8 +54,6 @@ public final class XPackField {
     public static final String ANALYTICS = "analytics";
     /** Name constant for the enrich plugin. */
     public static final String ENRICH = "enrich";
-    /** Name constant for indices. */
-    public static final String INDEX = "index";
 
     private XPackField() {}
 

@@ -190,6 +190,15 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
 
         private Builder() {}
 
+        Builder(BoostedTreeParams params) {
+            this.lambda = params.lambda;
+            this.gamma = params.gamma;
+            this.eta = params.eta;
+            this.maximumNumberTrees = params.maximumNumberTrees;
+            this.featureBagFraction = params.featureBagFraction;
+            this.numTopFeatureImportanceValues = params.numTopFeatureImportanceValues;
+        }
+
         public Builder setLambda(Double lambda) {
             this.lambda = lambda;
             return this;

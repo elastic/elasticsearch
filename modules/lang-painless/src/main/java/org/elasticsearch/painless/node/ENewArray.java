@@ -19,16 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NewArrayNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array instantiation.
@@ -48,15 +46,11 @@ public final class ENewArray extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (!read) {
+        if (input.read == false) {
              throw createError(new IllegalArgumentException("A newly created array must be read from."));
         }
 
@@ -69,42 +63,31 @@ public final class ENewArray extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = initialize ? clazz.getComponentType() : int.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            Input expressionInput = new Input();
+            expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.cast();
         }
 
-        actual = clazz;
+        output.actual = clazz;
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    NewArrayNode write(ClassNode classNode) {
+        NewArrayNode newArrayNode = new NewArrayNode();
 
-        if (initialize) {
-            methodWriter.push(arguments.size());
-            methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
-
-            for (int index = 0; index < arguments.size(); ++index) {
-                AExpression argument = arguments.get(index);
-
-                methodWriter.dup();
-                methodWriter.push(index);
-                argument.write(classWriter, methodWriter, globals);
-                methodWriter.arrayStore(MethodWriter.getType(actual.getComponentType()));
-            }
-        } else {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            if (arguments.size() > 1) {
-                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
-            } else {
-                methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
-            }
+        for (AExpression argument : arguments) {
+            newArrayNode.addArgumentNode(argument.cast(argument.write(classNode)));
         }
+
+        newArrayNode.setLocation(location);
+        newArrayNode.setExpressionType(output.actual);
+        newArrayNode.setInitialize(initialize);
+
+        return newArrayNode;
     }
 
     @Override

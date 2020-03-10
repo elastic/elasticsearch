@@ -40,6 +40,14 @@ include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
+ifdef::permanently-unreleased-branch[]
+
+include::autoscaling/index.asciidoc[]
+
+include::eql/index.asciidoc[]
+
+endif::[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]

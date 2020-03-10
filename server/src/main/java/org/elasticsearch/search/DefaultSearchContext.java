@@ -21,8 +21,10 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -30,8 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -55,13 +55,14 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -82,7 +83,7 @@ import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
 
-    private final long id;
+    private final SearchContextId id;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -108,7 +109,7 @@ final class DefaultSearchContext extends SearchContext {
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
-    private DocValueFieldsContext docValueFieldsContext;
+    private FetchDocValuesContext docValuesContext;
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -152,10 +153,10 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
 
-    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
+    DefaultSearchContext(SearchContextId id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
-                         FetchPhase fetchPhase) {
+                         FetchPhase fetchPhase) throws IOException {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -247,7 +248,7 @@ final class DefaultSearchContext extends SearchContext {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
+            parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
         }
         this.query = buildFilteredQuery(query);
         if (rewrite) {
@@ -274,7 +275,12 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext));
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            if (slicedQuery instanceof MatchNoDocsQuery) {
+                return slicedQuery;
+            } else {
+                filters.add(slicedQuery);
+            }
         }
 
         if (filters.isEmpty()) {
@@ -290,7 +296,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long id() {
+    public SearchContextId id() {
         return this.id;
     }
 
@@ -437,13 +443,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public DocValueFieldsContext docValueFieldsContext() {
-        return docValueFieldsContext;
+    public FetchDocValuesContext docValuesContext() {
+        return docValuesContext;
     }
 
     @Override
-    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
-        this.docValueFieldsContext = docValueFieldsContext;
+    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
+        this.docValuesContext = docValuesContext;
         return this;
     }
 
@@ -772,7 +778,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().fullName(name);
+        return mapperService().fieldType(name);
     }
 
     @Override

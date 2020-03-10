@@ -158,7 +158,7 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
         }
-        
+
         if (expressions.isEmpty()) {
             if (!options.allowNoIndices()) {
                 IndexNotFoundException infe;
@@ -187,7 +187,7 @@ public class IndexNameExpressionResolver {
                     if (expression.equals(MetaData.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
                     } else {
-                        infe = new IndexNotFoundException(expression);  
+                        infe = new IndexNotFoundException(expression);
                     }
                     infe.setResources("index_expression", expression);
                     throw infe;
@@ -670,6 +670,8 @@ public class IndexNameExpressionResolver {
         public List<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
             MetaData metaData = context.getState().metaData();
+            // only check open/closed since if we do not expand to open or closed it doesn't make sense to
+            // expand to hidden
             if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
                 return expressions;
             }
@@ -678,8 +680,6 @@ public class IndexNameExpressionResolver {
                 return resolveEmptyOrTrivialWildcard(options, metaData);
             }
 
-            // TODO: Fix API to work with sets rather than lists since we need to convert to sets
-            // internally anyway.
             Set<String> result = innerResolve(context, expressions, options, metaData);
 
             if (result == null) {
@@ -719,7 +719,7 @@ public class IndexNameExpressionResolver {
                     // add all the previous ones...
                     result = new HashSet<>(expressions.subList(0, i));
                 }
-                if (!Regex.isSimpleMatchPattern(expression)) {
+                if (Regex.isSimpleMatchPattern(expression) == false) {
                     //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                     if (options.ignoreUnavailable() == false) {
                         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
@@ -739,7 +739,7 @@ public class IndexNameExpressionResolver {
 
                 final IndexMetaData.State excludeState = excludeState(options);
                 final Map<String, AliasOrIndex> matches = matches(context, metaData, expression);
-                Set<String> expand = expand(context, excludeState, matches);
+                Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
                 if (add) {
                     result.addAll(expand);
                 } else {
@@ -834,21 +834,31 @@ public class IndexNameExpressionResolver {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches) {
+        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, AliasOrIndex> matches,
+                                          String expression, boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
+                String aliasOrIndexName = entry.getKey();
                 AliasOrIndex aliasOrIndex = entry.getValue();
-                if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
-                    expand.add(entry.getKey());
-                } else {
-                    for (IndexMetaData meta : aliasOrIndex.getIndices()) {
-                        if (excludeState == null || meta.getState() != excludeState) {
-                            expand.add(meta.getIndex().getName());
+
+                if (aliasOrIndex.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
+                    if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
+                        expand.add(aliasOrIndexName);
+                    } else {
+                        for (IndexMetaData meta : aliasOrIndex.getIndices()) {
+                            if (excludeState == null || meta.getState() != excludeState) {
+                                expand.add(meta.getIndex().getName());
+                            }
                         }
+
                     }
                 }
             }
             return expand;
+        }
+
+        private static boolean implicitHiddenMatch(String itemName, String expression) {
+            return itemName.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
         }
 
         private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
@@ -857,12 +867,18 @@ public class IndexNameExpressionResolver {
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
-            if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+            if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
                 return Arrays.asList(metaData.getConcreteAllIndices());
-            } else if (options.expandWildcardsOpen()) {
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
+                return Arrays.asList(metaData.getConcreteVisibleIndices());
+            } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
                 return Arrays.asList(metaData.getConcreteAllOpenIndices());
-            } else if (options.expandWildcardsClosed()) {
+            } else if (options.expandWildcardsOpen()) {
+                return Arrays.asList(metaData.getConcreteVisibleOpenIndices());
+            } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
                 return Arrays.asList(metaData.getConcreteAllClosedIndices());
+            } else if (options.expandWildcardsClosed()) {
+                return Arrays.asList(metaData.getConcreteVisibleClosedIndices());
             } else {
                 return Collections.emptyList();
             }

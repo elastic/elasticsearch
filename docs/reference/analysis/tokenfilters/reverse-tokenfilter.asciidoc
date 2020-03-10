@@ -12,7 +12,7 @@ such as finding words that end in `-ion` or searching file names by their
 extension.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/reverse/ReverseStringFilter.html[ReverseStringFilter].
+{lucene-analysis-docs}/reverse/ReverseStringFilter.html[ReverseStringFilter].
 
 [[analysis-reverse-tokenfilter-analyze-ex]]
 ==== Example

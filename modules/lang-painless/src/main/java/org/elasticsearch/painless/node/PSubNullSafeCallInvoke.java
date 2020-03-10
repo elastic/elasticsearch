@@ -19,15 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-
-import java.util.Set;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import static java.util.Objects.requireNonNull;
 
@@ -46,28 +42,29 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        guarded.analyze(scriptRoot, locals);
-        actual = guarded.actual;
-        if (actual.isPrimitive()) {
+        Output guardedOutput = guarded.analyze(scriptRoot, scope, new Input());
+        output.actual = guardedOutput.actual;
+        if (output.actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    NullSafeSubNode write(ClassNode classNode) {
+        NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
 
-        Label end = new Label();
-        methodWriter.dup();
-        methodWriter.ifNull(end);
-        guarded.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
+        nullSafeSubNode.setChildNode(guarded.write(classNode));
+
+        nullSafeSubNode.setLocation(location);
+        nullSafeSubNode.setExpressionType(output.actual);
+
+        return nullSafeSubNode;
     }
 
     @Override

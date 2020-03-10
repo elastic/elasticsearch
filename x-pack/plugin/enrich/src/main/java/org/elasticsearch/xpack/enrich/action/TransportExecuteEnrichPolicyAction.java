@@ -61,7 +61,7 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
             client,
             transportService.getTaskManager(),
             threadPool,
-            new IndexNameExpressionResolver(),
+            indexNameExpressionResolver,
             enrichPolicyLocks,
             System::currentTimeMillis
         );

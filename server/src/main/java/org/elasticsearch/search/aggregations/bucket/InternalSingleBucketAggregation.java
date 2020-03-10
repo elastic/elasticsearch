@@ -25,9 +25,11 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -150,6 +152,21 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         return builder;
+    }
+
+    @Override
+    public final double sortValue(String key) {
+        if (key != null && false == key.equals("doc_count")) {
+            throw new IllegalArgumentException(
+                    "Unknown value key [" + key + "] for single-bucket aggregation [" + getName() +
+                    "]. Either use [doc_count] as key or drop the key all together.");
+        }
+        return docCount;
+    }
+
+    @Override
+    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        return aggregations.sortValue(head, tail);
     }
 
     @Override

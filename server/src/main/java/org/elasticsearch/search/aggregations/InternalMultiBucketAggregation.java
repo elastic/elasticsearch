@@ -192,5 +192,6 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }
+
     }
 }

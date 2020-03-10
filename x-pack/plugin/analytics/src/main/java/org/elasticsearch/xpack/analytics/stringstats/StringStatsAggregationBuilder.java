@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -27,23 +26,17 @@ import java.util.Map;
 import java.util.Objects;
 
 public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, StringStatsAggregationBuilder> {
-
     public static final String NAME = "string_stats";
-    private boolean showDistribution = false;
 
-    private static final ObjectParser<StringStatsAggregationBuilder, Void> PARSER;
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
-
+    public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, StringStatsAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(StringStatsAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareBytesFields(PARSER, true, true);
-
         PARSER.declareBoolean(StringStatsAggregationBuilder::showDistribution, StringStatsAggregationBuilder.SHOW_DISTRIBUTION_FIELD);
     }
 
-    public static StringStatsAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new StringStatsAggregationBuilder(aggregationName), null);
-    }
+    private boolean showDistribution = false;
 
     public StringStatsAggregationBuilder(String name) {
         super(name, CoreValuesSourceType.BYTES, ValueType.STRING);

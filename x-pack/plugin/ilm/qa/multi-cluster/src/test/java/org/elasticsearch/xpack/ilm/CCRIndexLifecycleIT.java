@@ -55,7 +55,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
@@ -114,7 +113,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -148,7 +146,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     .build());
 
                 // start snapshot
-                request = new Request("PUT", "/_snapshot/repo/snapshot");
+                String snapName = "snapshot-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                request = new Request("PUT", "/_snapshot/repo/" + snapName);
                 request.addParameter("wait_for_completion", "false");
                 request.setJsonEntity("{\"indices\": \"" + indexName + "\"}");
                 assertOK(client().performRequest(request));
@@ -167,12 +166,12 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // Following index should have the document
                     assertDocumentExists(client(), indexName, "1");
                     // ILM should have completed the unfollow
-                    assertILMPolicy(client(), indexName, "unfollow-only", "completed");
+                    assertILMPolicy(client(), indexName, "unfollow-only", "hot", "complete", "complete");
                 }, 2, TimeUnit.MINUTES);
 
                 // assert that snapshot succeeded
-                assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
-                assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+                assertThat(getSnapshotState(snapName), equalTo("SUCCESS"));
+                assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -190,7 +189,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "_template/my_template");
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
@@ -290,7 +288,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
                     .put("index.number_of_shards", 3)
                     .put("index.number_of_replicas", 0)
                     .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -345,7 +342,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + shrunkenIndexName + "/_alias/" + indexName))));
 
             // Wait for the index to complete its policy
-            assertBusy(() -> assertILMPolicy(client(), shrunkenIndexName, policyName, "completed", "completed", "completed"));
+            assertBusy(() -> assertILMPolicy(client(), shrunkenIndexName, policyName, null, "complete", "complete"));
         }
     }
 
@@ -356,7 +353,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -393,7 +389,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
 
             // Wait for the index to complete its policy
-            assertBusy(() -> assertILMPolicy(client(), shrunkenIndexName, policyName, "completed", "completed", "completed"));
+            assertBusy(() -> assertILMPolicy(client(), shrunkenIndexName, policyName, null, "complete", "complete"));
         }
     }
 
@@ -408,7 +404,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // follower
             putShrinkOnlyPolicy(client(), policyName);
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -464,8 +459,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     assertEquals(RestStatus.OK.getStatus(), shrunkenIndexExistsResponse.getStatusLine().getStatusCode());
 
                     // And both of these should now finish their policies
-                    assertILMPolicy(leaderClient, shrunkenIndexName, policyName, "completed");
-                    assertILMPolicy(client(), indexName, policyName, "completed");
+                    assertILMPolicy(leaderClient, shrunkenIndexName, policyName, null, "complete", "complete");
+                    assertILMPolicy(client(), indexName, policyName, "hot", "complete", "complete");
                 });
             }
         } else {
@@ -481,7 +476,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
@@ -546,7 +540,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 client().performRequest(new Request("POST", "/_ilm/start"));
                 // Wait for the policy to be complete
                 assertBusy(() -> {
-                    assertILMPolicy(client(), followerIndex, policyName, "completed", "completed", "completed");
+                    assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete");
                 });
 
                 // Ensure the "follower" index has successfully unfollowed

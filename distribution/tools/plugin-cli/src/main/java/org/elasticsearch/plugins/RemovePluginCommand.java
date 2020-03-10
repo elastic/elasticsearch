@@ -95,8 +95,10 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             }
         }
         if (usedBy.isEmpty() == false) {
-            throw new UserException(PLUGIN_STILL_USED, "plugin [" + pluginName + "] cannot be removed" +
-                " because it is extended by other plugins: " + usedBy);
+            throw new UserException(
+                PLUGIN_STILL_USED,
+                "plugin [" + pluginName + "] cannot be removed" + " because it is extended by other plugins: " + usedBy
+            );
         }
 
         final Path pluginDir = env.pluginsFile().resolve(pluginName);
@@ -110,9 +112,12 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          * not exist, the plugin config does, and we are not purging, again fail to the user that the plugin is not found.
          */
         if ((!Files.exists(pluginDir) && !Files.exists(pluginConfigDir) && !Files.exists(removing))
-                || (!Files.exists(pluginDir) && Files.exists(pluginConfigDir) && !purge)) {
+            || (!Files.exists(pluginDir) && Files.exists(pluginConfigDir) && !purge)) {
             final String message = String.format(
-                    Locale.ROOT, "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins", pluginName);
+                Locale.ROOT,
+                "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
+                pluginName
+            );
             throw new UserException(ExitCodes.CONFIG, message);
         }
 
@@ -154,9 +159,10 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
                  * knows in case they want to remove manually.
                  */
                 final String message = String.format(
-                        Locale.ROOT,
-                        "-> preserving plugin config files [%s] in case of upgrade; use --purge if not needed",
-                        pluginConfigDir);
+                    Locale.ROOT,
+                    "-> preserving plugin config files [%s] in case of upgrade; use --purge if not needed",
+                    pluginConfigDir
+                );
                 terminal.println(message);
             }
         }

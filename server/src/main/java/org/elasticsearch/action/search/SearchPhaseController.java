@@ -39,6 +39,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
 
@@ -427,6 +429,15 @@ public final class SearchPhaseController {
             return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
                 false, null, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
         }
+        int total = queryResults.size();
+        queryResults = queryResults.stream()
+            .filter(res -> res.queryResult().isNull() == false)
+            .collect(Collectors.toList());
+        String errorMsg = "must have at least one non-empty search result, got 0 out of " + total;
+        assert queryResults.isEmpty() == false : errorMsg;
+        if (queryResults.isEmpty()) {
+            throw new IllegalStateException(errorMsg);
+        }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
@@ -495,6 +506,18 @@ public final class SearchPhaseController {
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
+    }
+
+    /*
+     * Returns the size of the requested top documents (from + size)
+     */
+    static int getTopDocsSize(SearchRequest request) {
+        if (request.source() == null) {
+            return SearchService.DEFAULT_SIZE;
+        }
+        SearchSourceBuilder source = request.source();
+        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) +
+            (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 
     public static final class ReducedQueryPhase {
@@ -576,6 +599,7 @@ public final class SearchPhaseController {
         private final SearchProgressListener progressListener;
         private int numReducePhases = 0;
         private final TopDocsStats topDocsStats;
+        private final int topNSize;
         private final boolean performFinalReduce;
 
         /**
@@ -589,7 +613,7 @@ public final class SearchPhaseController {
          */
         private QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
                                          int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
-                                         int trackTotalHitsUpTo, boolean performFinalReduce) {
+                                         int trackTotalHitsUpTo, int topNSize, boolean performFinalReduce) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -610,6 +634,7 @@ public final class SearchPhaseController {
             this.hasAggs = hasAggs;
             this.bufferSize = bufferSize;
             this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
+            this.topNSize = topNSize;
             this.performFinalReduce = performFinalReduce;
         }
 
@@ -622,36 +647,38 @@ public final class SearchPhaseController {
         }
 
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
-            if (index == bufferSize) {
+            if (querySearchResult.isNull() == false) {
+                if (index == bufferSize) {
+                    if (hasAggs) {
+                        ReduceContext reduceContext = controller.reduceContextFunction.apply(false);
+                        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Arrays.asList(aggsBuffer), reduceContext);
+                        Arrays.fill(aggsBuffer, null);
+                        aggsBuffer[0] = reducedAggs;
+                    }
+                    if (hasTopDocs) {
+                        TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
+                            // we have to merge here in the same way we collect on a shard
+                            topNSize, 0);
+                        Arrays.fill(topDocsBuffer, null);
+                        topDocsBuffer[0] = reducedTopDocs;
+                    }
+                    numReducePhases++;
+                    index = 1;
+                    if (hasAggs) {
+                        progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
+                            topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
+                    }
+                }
+                final int i = index++;
                 if (hasAggs) {
-                    ReduceContext reduceContext = controller.reduceContextFunction.apply(false);
-                    InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Arrays.asList(aggsBuffer), reduceContext);
-                    Arrays.fill(aggsBuffer, null);
-                    aggsBuffer[0] = reducedAggs;
+                    aggsBuffer[i] = (InternalAggregations) querySearchResult.consumeAggs();
                 }
                 if (hasTopDocs) {
-                    TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
-                        // we have to merge here in the same way we collect on a shard
-                        querySearchResult.from() + querySearchResult.size(), 0);
-                    Arrays.fill(topDocsBuffer, null);
-                    topDocsBuffer[0] = reducedTopDocs;
+                    final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
+                    topDocsStats.add(topDocs, querySearchResult.searchTimedOut(), querySearchResult.terminatedEarly());
+                    setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
+                    topDocsBuffer[i] = topDocs.topDocs;
                 }
-                numReducePhases++;
-                index = 1;
-                if (hasAggs) {
-                    progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
-                        topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
-                }
-            }
-            final int i = index++;
-            if (hasAggs) {
-                aggsBuffer[i] = (InternalAggregations) querySearchResult.consumeAggs();
-            }
-            if (hasTopDocs) {
-                final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
-                topDocsStats.add(topDocs, querySearchResult.searchTimedOut(), querySearchResult.terminatedEarly());
-                setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
-                topDocsBuffer[i] = topDocs.topDocs;
             }
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
         }
@@ -706,9 +733,10 @@ public final class SearchPhaseController {
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
+                int topNSize = getTopDocsSize(request);
                 // only use this if there are aggs and if there are more shards than we should reduce at once
                 return new QueryPhaseResultConsumer(listener, this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
-                    trackTotalHitsUpTo, request.isFinalReduce());
+                    trackTotalHitsUpTo, topNSize, request.isFinalReduce());
             }
         }
         return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
@@ -731,7 +759,7 @@ public final class SearchPhaseController {
 
     static final class TopDocsStats {
         final int trackTotalHitsUpTo;
-        private long totalHits;
+        long totalHits;
         private TotalHits.Relation totalHitsRelation;
         long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;

@@ -31,19 +31,20 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     GetRollupIndexCapsAction.Response> {
 
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
 
     @Inject
     public TransportGetRollupIndexCapsAction(TransportService transportService, ClusterService clusterService,
-                                             ActionFilters actionFilters) {
+                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetRollupIndexCapsAction.NAME, transportService, actionFilters, GetRollupIndexCapsAction.Request::new);
         this.clusterService = clusterService;
+        this.resolver = indexNameExpressionResolver;
     }
 
     @Override
     protected void doExecute(Task task, GetRollupIndexCapsAction.Request request,
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
             request.indicesOptions(), request.indices());
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),

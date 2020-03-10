@@ -10,8 +10,6 @@
 
 Starts one or more {transforms}.
 
-beta[]
-
 [[start-transform-request]]
 ==== {api-request-title}
 

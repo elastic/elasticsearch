@@ -18,18 +18,12 @@
  */
 package org.elasticsearch.gradle.test
 
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
-import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
-import org.gradle.api.file.FileCopyDetails
-import org.gradle.api.tasks.Copy
-import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.testing.Test
-import org.gradle.plugins.ide.idea.IdeaPlugin
+
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -37,20 +31,12 @@ class RestIntegTestTask extends DefaultTask {
 
     protected Test runner
 
-    /** Flag indicating whether the rest tests in the rest spec should be run. */
-    @Input
-    Boolean includePackaged = false
-
     RestIntegTestTask() {
         runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
         super.dependsOn(runner)
 
-        project.testClusters {
-                "$name" {
-                    javaHome = BuildParams.runtimeJavaHome
-                }
-        }
-        runner.useCluster project.testClusters."$name"
+        ElasticsearchCluster cluster = project.testClusters.create(name)
+        runner.useCluster cluster
 
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
@@ -60,7 +46,6 @@ class RestIntegTestTask extends DefaultTask {
                 throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
 
-            ElasticsearchCluster cluster = project.testClusters."${name}"
             runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
             runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI}")
             runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName()}")
@@ -74,10 +59,6 @@ class RestIntegTestTask extends DefaultTask {
             runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
         }
 
-        // copy the rest spec/tests onto the test classpath
-        Copy copyRestSpec = createCopyRestSpecTask()
-        project.sourceSets.test.output.builtBy(copyRestSpec)
-
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
@@ -87,12 +68,6 @@ class RestIntegTestTask extends DefaultTask {
             }
         }
     }
-
-    /** Sets the includePackaged property */
-    public void includePackaged(boolean include) {
-        includePackaged = include
-    }
-
 
     @Override
     public Task dependsOn(Object... dependencies) {
@@ -119,37 +94,4 @@ class RestIntegTestTask extends DefaultTask {
         project.tasks.getByName("${name}Runner").configure(configure)
     }
 
-    Copy createCopyRestSpecTask() {
-        Boilerplate.maybeCreate(project.configurations, 'restSpec') {
-            project.dependencies.add(
-                    'restSpec',
-                    BuildParams.internal ? project.project(':rest-api-spec') :
-                            "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
-            )
-        }
-
-        return Boilerplate.maybeCreate(project.tasks, 'copyRestSpec', Copy) { Copy copy ->
-            copy.dependsOn project.configurations.restSpec
-            copy.into(project.sourceSets.test.output.resourcesDir)
-            copy.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
-                includeEmptyDirs = false
-                include 'rest-api-spec/**'
-                filesMatching('rest-api-spec/test/**') { FileCopyDetails details ->
-                    if (includePackaged == false) {
-                        details.exclude()
-                    }
-                }
-            }
-
-            if (project.plugins.hasPlugin(IdeaPlugin)) {
-                project.idea {
-                    module {
-                        if (scopes.TEST != null) {
-                            scopes.TEST.plus.add(project.configurations.restSpec)
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

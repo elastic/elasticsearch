@@ -1,0 +1,30 @@
+{
+  "eql.search":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/eql.html"
+    },
+    "stability": "beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_eql/search",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index to scope the operation"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"Eql request body. Use the `query` to limit the query scope.",
+      "required":true
+    }
+  }
+}

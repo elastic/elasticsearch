@@ -22,8 +22,11 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
+import org.elasticsearch.gradle.docker.DockerSupportPlugin;
+import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -37,6 +40,7 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
@@ -47,6 +51,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.gradle.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
@@ -69,11 +75,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+
+        Provider<DockerSupportService> dockerSupport = Boilerplate.getBuildService(
+            project.getGradle().getSharedServices(),
+            DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
+        );
 
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
-            return new ElasticsearchDistribution(name, project.getObjects(), fileConfiguration, extractedConfiguration);
+            return new ElasticsearchDistribution(name, project.getObjects(), dockerSupport, fileConfiguration, extractedConfiguration);
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
 
@@ -307,10 +319,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             distribution.getFlavor(),
             distribution.getBundledJdk() ? "" : "_nojdk"
         );
-    }
-
-    private static String capitalize(String s) {
-        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
     }
 
     private static String extractTaskName(ElasticsearchDistribution distribution) {

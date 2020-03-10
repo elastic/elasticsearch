@@ -80,7 +80,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -161,7 +160,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -227,7 +225,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -303,7 +300,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -392,7 +388,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             final Map<String, String> settings = new HashMap<>(2);
             final int numberOfShards = randomIntBetween(1, 2);
             settings.put("index.number_of_shards", Integer.toString(numberOfShards));
-            settings.put("index.soft_deletes.enabled", Boolean.TRUE.toString());
             createIndexRequest.settings(settings);
             final CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
@@ -837,7 +832,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -905,7 +899,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }

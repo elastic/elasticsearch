@@ -19,15 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an explicit cast.
@@ -45,35 +43,28 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
-        if (actual == null) {
+        if (output.actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 
-        child.expected = actual;
-        child.explicit = true;
-        child.analyze(scriptRoot, locals);
-        child = child.cast(scriptRoot, locals);
+        Input childInput = new Input();
+        childInput.expected = output.actual;
+        childInput.explicit = true;
+        child.analyze(scriptRoot, scope, childInput);
+        child.cast();
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    AExpression cast(ScriptRoot scriptRoot, Locals locals) {
-        child.expected = expected;
-        child.explicit = explicit;
-        child.internal = internal;
-
-        return child.cast(scriptRoot, locals);
+    ExpressionNode write(ClassNode classNode) {
+        return child.cast(child.write(classNode));
     }
 
     @Override

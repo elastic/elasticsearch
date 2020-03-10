@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -2368,15 +2369,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(113, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(50, stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(52, stats.getRxSize().getBytes());
+            assertEquals(113, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2483,7 +2484,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(113, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2497,8 +2498,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             // 49 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 55 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(113, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2698,13 +2699,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         int port = serviceA.boundAddress().publishAddress().getPort();
+        String address = serviceA.boundAddress().publishAddress().getAddress();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
+            .put(TransportSettings.HOST.getKey(), address)
             .put(TransportSettings.PORT.getKey(), port)
             .build();
         BindTransportException bindTransportException = expectThrows(BindTransportException.class,
             () -> buildService("test", Version.CURRENT, settings));
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
+        InetSocketAddress inetSocketAddress = serviceA.boundAddress().publishAddress().address();
+        assertEquals("Failed to bind to " + NetworkAddress.format(inetSocketAddress), bindTransportException.getMessage());
     }
 
     public void testChannelCloseWhileConnecting() {

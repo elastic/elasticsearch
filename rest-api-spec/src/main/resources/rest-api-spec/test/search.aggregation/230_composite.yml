@@ -879,11 +879,81 @@ setup:
   - do:
       search:
         index: test
+"Terms source from sorted":
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: keyword
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
         body:
           aggregations:
             test:
               composite:
                 sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Terms source from part of sorted":
+  - skip:
+      version: " - 7.99.99"
+      reason:  fixed in 8.0.0. will be backported to 7.7.0.
+
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: [keyword, long]
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+<<<<<<< HEAD
                   - date:
                       date_histogram:
                         field: date_nanos
@@ -903,3 +973,13 @@ setup:
   - match: { aggregations.test.buckets.1.key.date: "2017-11-22T00:00:00.000Z" }
   - match: { aggregations.test.buckets.1.doc_count: 2 }
   - match: { aggregations.test.buckets.1.avg.value_as_string: "2017-11-22T01:30:00.000Z" }
+=======
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+>>>>>>> master

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -655,13 +654,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     analyzer = fieldType.searchAnalyzer();
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
-                // TODO Intervals.wildcard() should take BytesRef
-                source = Intervals.fixField(useField, XIntervals.wildcard(normalizedTerm));
+                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
             }
             else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = XIntervals.wildcard(normalizedTerm);
+                source = Intervals.wildcard(normalizedTerm);
             }
             return source;
         }
@@ -798,7 +796,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
             CompiledAutomaton[] automata = fq.getAutomata();
-            source = XIntervals.multiterm(automata[automata.length - 1], term);
+            source = Intervals.multiterm(automata[automata.length - 1], term);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }

@@ -190,6 +190,12 @@ public class InternalEngine extends Engine {
     @Nullable
     private final String historyUUID;
 
+    /**
+     * UUID value that is updated every time the engine is force merged.
+     */
+    @Nullable
+    private volatile String forceMergeUUID;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, LocalCheckpointTracker::new);
     }
@@ -236,7 +242,9 @@ public class InternalEngine extends Engine {
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
-                historyUUID = loadHistoryUUID(writer);
+                final Map<String, String> commitData = commitDataAsMap(writer);
+                historyUUID = loadHistoryUUID(commitData);
+                forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -604,6 +612,12 @@ public class InternalEngine extends Engine {
         return historyUUID;
     }
 
+    /** returns the force merge uuid for the engine */
+    @Nullable
+    public String getForceMergeUUID() {
+        return forceMergeUUID;
+    }
+
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
     @Override
     public long getWritingBytes() {
@@ -613,8 +627,8 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(final IndexWriter writer) {
-        final String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+    private String loadHistoryUUID(Map<String, String> commitData) {
+        final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
         }
@@ -1945,7 +1959,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, IOException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments,
+                           final String forceMergeUUID) throws EngineException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -1977,6 +1992,7 @@ public class InternalEngine extends Engine {
                     indexWriter.maybeMerge();
                 } else {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
+                    this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
                     if (tryRenewSyncCommit() == false) {
@@ -2447,6 +2463,10 @@ public class InternalEngine extends Engine {
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 if (softDeleteEnabled) {
                     commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
+                }
+                final String currentForceMergeUUID = forceMergeUUID;
+                if (currentForceMergeUUID != null) {
+                    commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();

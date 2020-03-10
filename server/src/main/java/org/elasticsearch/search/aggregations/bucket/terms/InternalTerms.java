@@ -283,7 +283,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 list[i] = ordered.pop();
             }
         } else {
-            // we don't need to prune buckets on non-final reduce since we keep them all.
+            // keep all buckets on partial reduce
+            // TODO: we could prune the buckets when sorting by key
             list = createBucketsArray(buckets.size());
             int pos = 0;
             for (List<B> sameTermBuckets : buckets.values()) {

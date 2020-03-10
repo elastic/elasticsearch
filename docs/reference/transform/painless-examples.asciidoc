@@ -107,8 +107,8 @@ snippet uses an index where `@timestamp` is defined as a `date` type field.
       }
     }
   }
-  --------------------------------------------------
-  // NOTCONSOLE
+--------------------------------------------------
+// NOTCONSOLE
 
 <1> Contains the Painless script that returns the hour of the day.
 <2> Sets `date` based on the timestamp of the document.

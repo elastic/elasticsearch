@@ -50,6 +50,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -105,7 +106,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -144,7 +149,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -198,7 +207,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 

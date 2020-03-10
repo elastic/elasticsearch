@@ -16,11 +16,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.client.transform.transforms.TransformStats;
-import org.elasticsearch.client.transform.transforms.DestConfig;
-import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,11 +65,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfig("transform-crud",
-            groups,
-            aggs,
-            "reviews-by-user-business-day",
-            indexName);
+        TransformConfig config = createTransformConfig("transform-crud", groups, aggs, "reviews-by-user-business-day", indexName);
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -98,27 +94,22 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder("transform-crud",
+        TransformConfig config = createTransformConfigBuilder(
+            "transform-crud",
             groups,
             aggs,
             "reviews-by-user-business-day",
             QueryBuilders.matchAllQuery(),
-            indexName)
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .build();
+            indexName
+        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
-                equalTo(TransformStats.State.STARTED));
+        assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(), equalTo(TransformStats.State.STARTED));
 
-        long docsIndexed = getTransformStats(config.getId())
-            .getTransformsStats()
-            .get(0)
-            .getIndexerStats()
-            .getNumDocuments();
+        long docsIndexed = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments();
 
         TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -132,11 +123,10 @@ public class TransformIT extends TransformIntegTestCase {
         waitUntilCheckpoint(config.getId(), 2L);
 
         // Assert that we wrote the new docs
-        assertThat(getTransformStats(config.getId())
-            .getTransformsStats()
-            .get(0)
-            .getIndexerStats()
-            .getNumDocuments(), greaterThan(docsIndexed));
+        assertThat(
+            getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments(),
+            greaterThan(docsIndexed)
+        );
 
         stopTransform(config.getId());
         deleteTransform(config.getId());
@@ -155,12 +145,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
-        TransformConfig config = createTransformConfigBuilder(id,
-            groups,
-            aggs,
-            dest,
-            QueryBuilders.matchAllQuery(),
-            indexName)
+        TransformConfig config = createTransformConfigBuilder(id, groups, aggs, dest, QueryBuilders.matchAllQuery(), indexName)
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .build();
 
@@ -168,14 +153,12 @@ public class TransformIT extends TransformIntegTestCase {
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
-            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
+        assertThat(
+            getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
+            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING)
+        );
 
-        long docsIndexed = getTransformStats(config.getId())
-            .getTransformsStats()
-            .get(0)
-            .getIndexerStats()
-            .getNumDocuments();
+        long docsIndexed = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments();
 
         TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -189,8 +172,7 @@ public class TransformIT extends TransformIntegTestCase {
             .build();
 
         RestHighLevelClient hlrc = new TestRestHighLevelClient();
-        final XContentBuilder pipelineBuilder = jsonBuilder()
-            .startObject()
+        final XContentBuilder pipelineBuilder = jsonBuilder().startObject()
             .startArray("processors")
             .startObject()
             .startObject("set")
@@ -200,8 +182,11 @@ public class TransformIT extends TransformIntegTestCase {
             .endObject()
             .endArray()
             .endObject();
-        hlrc.ingest().putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipelineBuilder), XContentType.JSON),
-            RequestOptions.DEFAULT);
+        hlrc.ingest()
+            .putPipeline(
+                new PutPipelineRequest(pipelineId, BytesReference.bytes(pipelineBuilder), XContentType.JSON),
+                RequestOptions.DEFAULT
+            );
 
         updateConfig(id, update);
 
@@ -212,18 +197,13 @@ public class TransformIT extends TransformIntegTestCase {
 
         // Since updates are loaded on checkpoint start, we should see the updated config on this next run
         waitUntilCheckpoint(config.getId(), 2L);
-        long numDocsAfterCp2 = getTransformStats(config.getId())
-            .getTransformsStats()
-            .get(0)
-            .getIndexerStats()
-            .getNumDocuments();
+        long numDocsAfterCp2 = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments();
         assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
 
-        final SearchRequest searchRequest = new SearchRequest(dest)
-                .source(new SearchSourceBuilder()
-                    .trackTotalHits(true)
-                    .query(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("static_forty_two", 42))));
+        final SearchRequest searchRequest = new SearchRequest(dest).source(
+            new SearchSourceBuilder().trackTotalHits(true)
+                .query(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("static_forty_two", 42)))
+        );
         // assert that we have the new field and its value is 42 in at least some docs
         assertBusy(() -> {
             final SearchResponse searchResponse = hlrc.search(searchRequest, RequestOptions.DEFAULT);
@@ -249,14 +229,14 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(transformId,
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
             groups,
             aggs,
             "reviews-by-user-business-day",
             QueryBuilders.matchAllQuery(),
-            indexName)
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .build();
+            indexName
+        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());

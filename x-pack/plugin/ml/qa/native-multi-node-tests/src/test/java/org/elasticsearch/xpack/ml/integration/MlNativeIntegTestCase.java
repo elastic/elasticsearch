@@ -28,6 +28,7 @@ import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -66,12 +68,21 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(
+            LocalStateCompositeXPackPlugin.class,
+            Netty4Plugin.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            XPackClientPlugin.class,
+            Netty4Plugin.class,
+            ReindexPlugin.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     @Override
@@ -88,6 +99,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
+        builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put("xpack.security.transport.ssl.enabled", true);
         builder.put("xpack.security.transport.ssl.key", key.toAbsolutePath().toString());
         builder.put("xpack.security.transport.ssl.certificate", certificate.toAbsolutePath().toString());

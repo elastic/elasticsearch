@@ -1342,7 +1342,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
             }
             aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
-                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateWriteIndex());
+                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateAliasProperties());
             return aliasAndIndexLookup;
         }
 

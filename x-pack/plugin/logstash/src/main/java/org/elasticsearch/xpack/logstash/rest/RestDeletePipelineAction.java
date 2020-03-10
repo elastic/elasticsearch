@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logstash.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineAction;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineRequest;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineResponse;
@@ -36,6 +37,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        client.threadPool().getThreadContext().allowSystemIndexAccess(List.of(Logstash.LOGSTASH_CONCRETE_INDEX_NAME));
         final String id = request.param("id");
         return restChannel -> client.execute(
             DeletePipelineAction.INSTANCE,

@@ -46,7 +46,7 @@ import java.util.function.UnaryOperator;
  */
 public class Logstash extends Plugin implements SystemIndexPlugin {
 
-    private static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
+    public static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
     private static final String LOGSTASH_TEMPLATE_FILE_NAME = "logstash-management";
     private static final String LOGSTASH_INDEX_TEMPLATE_NAME = ".logstash-management";
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";

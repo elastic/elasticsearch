@@ -71,14 +71,18 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return Arrays.asList(
             LocalStateCompositeXPackPlugin.class,
             Netty4Plugin.class,
-            ReindexPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            XPackClientPlugin.class,
+            Netty4Plugin.class,
+            ReindexPlugin.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     @Override

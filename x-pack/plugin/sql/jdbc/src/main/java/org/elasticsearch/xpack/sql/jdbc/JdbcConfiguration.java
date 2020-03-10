@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.StringUtils;
-import org.elasticsearch.xpack.sql.client.Version;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
@@ -70,7 +70,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         // typically this should have already happened but in case the
         // EsDriver/EsDataSource are not used and the impl. classes used directly
         // this covers that case
-        Version.CURRENT.toString();
+        ClientVersion.CURRENT.toString();
     }
 
     // immutable properties

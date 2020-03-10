@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 
 import java.util.List;
 import java.util.Random;
@@ -17,8 +18,6 @@ import java.util.Random;
  * is empty, then the row is not used for training but only to make predictions.
  */
 class DatasetSplittingCustomProcessor implements CustomProcessor {
-
-    private static final String EMPTY = "";
 
     private final int dependentVariableIndex;
     private final double trainingPercent;
@@ -47,7 +46,7 @@ class DatasetSplittingCustomProcessor implements CustomProcessor {
                 // Let's make sure we have at least one training row
                 isFirstRow = false;
             } else if (isRandomlyExcludedFromTraining()) {
-                row[dependentVariableIndex] = EMPTY;
+                row[dependentVariableIndex] = DataFrameDataExtractor.NULL_VALUE;
             }
         }
     }

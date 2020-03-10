@@ -10,7 +10,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -19,8 +18,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -52,11 +54,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final String repository = "repository";
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
         registerRepository(repository, repositoryType, true, repositorySettings);
-
-        final String searchableSnapshotRepository = "repository-searchable-snapshots";
-        logger.info("creating searchable snapshots repository [{}]", searchableSnapshotRepository);
-        registerRepository(searchableSnapshotRepository, SearchableSnapshotRepository.TYPE, false,
-            Settings.builder().put("delegate_type", repositoryType).put("readonly", true).put(repositorySettings).build());
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -112,7 +109,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, snapshot, restoredIndexName);
-        restoreSnapshot(searchableSnapshotRepository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
+        mountSnapshot(repository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
 
         ensureGreen(restoredIndexName);
 
@@ -272,12 +269,24 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion,
-                                          String renamePattern, String renameReplacement, Settings indexSettings) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot + "/_restore");
+    protected static void mountSnapshot(String repository, String snapshot, boolean waitForCompletion,
+                                        String snapshotIndexName, String mountIndexName, Settings indexSettings) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/" + snapshot + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-        request.setJsonEntity(Strings.toString(new RestoreSnapshotRequest(repository, snapshot)
-            .renamePattern(renamePattern).renameReplacement(renameReplacement).indexSettings(indexSettings)));
+
+        final XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .field("index", snapshotIndexName);
+        if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
+            builder.field("renamed_index", mountIndexName);
+        }
+        if (indexSettings.isEmpty() == false) {
+            builder.startObject("index_settings");
+            indexSettings.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+        }
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
 
         final Response response = client().performRequest(request);
         assertThat("Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,

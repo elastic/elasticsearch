@@ -102,21 +102,12 @@ teardown:
   - match: { error.root_cause.0.reason: "No searchable snapshots indices found" }
 
   - do:
-      snapshot.create_repository:
-        repository: repository-searchable-snapshots
-        body:
-          type: searchable
-          settings:
-            delegate_type: fs
-            location: "repository-fs"
-
-  - match: { acknowledged: true }
-
-  - do:
-      snapshot.restore:
-        repository: repository-searchable-snapshots
+      searchable_snapshots.mount:
+        repository: repository-fs
         snapshot: snapshot
         wait_for_completion: true
+        body:
+          index: docs
 
   - match: { snapshot.snapshot: snapshot }
   - match: { snapshot.shards.failed: 0 }

@@ -53,7 +53,6 @@ Check the
 {ref}/search-aggregations-metrics-scripted-metric-aggregation.html#_scope_of_scripts[scope of scripts]
 for detailed explanation on the respective scripts.
 
-
 You can retrieve the last value in a similar way: 
 
 [source,js]
@@ -73,6 +72,53 @@ You can retrieve the last value in a similar way:
 [discrete]
 [[painless-time-features]]
 ==== Getting time features as scripted fields
+
+This example shows how to extract time based features by using Painless. The 
+snippet uses an index where `@timestamp` is defined as a `date` type field.
+
+[source,js]
+--------------------------------------------------
+"script_fields": {
+    "hour_of_day": { <1>
+      "script": {
+        "lang": "painless",
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <2>
+          return date.getHour(); <3>
+        """
+      }
+    },
+    "month_of_year": { <4>
+      "script": {
+        "lang": "painless",
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <5>
+          return date.getMonthValue(); <6>
+        """
+      }
+    },
+    "original": { <7>
+      "script": {
+        "lang": "painless",
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <8>
+          return date; <9>
+        """
+      }
+    }
+  }
+  --------------------------------------------------
+  // NOTCONSOLE
+
+<1> Contains the Painless script that returns the hour of the day.
+<2> Sets `date` based on the timestamp of the document.
+<3> Returns the hour value from `date`.
+<4> Contains the Painless script that returns the month of the year.
+<5> Sets `date` based on the timestamp of the document.
+<6> Returns the month value from `date`.
+<7> Contains the Painless script that returns the entire date value.
+<8> Sets `date` based on the timestamp of the document.
+<9> Returns the full `date` value.
 
 
 [discrete]

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -51,6 +52,10 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
                 shardsIts, timeProvider, clusterState, task, new ArraySearchPhaseResults<>(shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
         this.searchPhaseController = searchPhaseController;
+        SearchProgressListener progressListener = task.getProgressListener();
+        SearchSourceBuilder sourceBuilder = request.source();
+        progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
+            progressListener.searchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
     @Override

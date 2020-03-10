@@ -23,7 +23,7 @@ public final class RestrictedIndicesNames {
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
 
     // public for tests
-    public static final String ASYNC_SEARCH_PREFIX = ".async-search-";
+    public static final String ASYNC_SEARCH_PREFIX = ".async-search";
     private static final Automaton ASYNC_SEARCH_AUTOMATON = Automatons.patterns(ASYNC_SEARCH_PREFIX + "*");
 
     // public for tests

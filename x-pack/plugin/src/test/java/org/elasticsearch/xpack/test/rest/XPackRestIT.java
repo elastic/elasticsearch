@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends ESClientYamlSuiteTestCase {
-    private static final String BASIC_AUTH_VALUE =
+    static final String BASIC_AUTH_VALUE =
             basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

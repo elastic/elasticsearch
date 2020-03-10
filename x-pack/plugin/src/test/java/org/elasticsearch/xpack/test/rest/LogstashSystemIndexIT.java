@@ -1,23 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.logstash;
+package org.elasticsearch.xpack.test.rest;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
@@ -25,6 +12,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,15 +25,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.test.rest.XPackRestIT.BASIC_AUTH_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class LogstashSystemIndexIT extends ESRestTestCase {
 
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+            .build();
+    }
+
     public void testTemplateIsPut() throws Exception {
         assertBusy(
             () -> assertThat(
-                client().performRequest(new Request("HEAD", "/_template/.logstash-pipeline")).getStatusLine().getStatusCode(),
+                client().performRequest(new Request("HEAD", "/_template/.logstash-management")).getStatusLine().getStatusCode(),
                 is(200)
             )
         );

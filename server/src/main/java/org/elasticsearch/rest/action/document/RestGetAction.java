@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -101,6 +102,7 @@ public class RestGetAction extends BaseRestHandler {
     }
 
     public static class CompatibleRestGetAction extends RestGetAction {
+
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetAction.class));
         private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
             "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
@@ -109,6 +111,8 @@ public class RestGetAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
+            assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
+
             return unmodifiableList(asList(
                 new Route(GET, "/{index}/{type}/{id}"),
                 new Route(HEAD, "/{index}/{type}/{id}")));

@@ -25,6 +25,9 @@ public class CompatibleHandlers {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
+    /**
+     * TODO revisit when https://github.com/elastic/elasticsearch/issues/52370 is resolved
+     */
     public static final String COMPATIBLE_HEADER = "Accept";
     public static final String COMPATIBLE_PARAMS_KEY = "Compatible-With";
     public static final String COMPATIBLE_VERSION = "7";

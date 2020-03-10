@@ -71,6 +71,8 @@ public class RestIndexAction extends BaseRestHandler {
     public static class CompatibleRestIndexAction extends  RestIndexAction{
         @Override
         public List<Route> routes() {
+            assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
+
             return List.of(
                 new Route(POST, "/{index}/{type}/{id}"),
                 new Route(PUT, "/{index}/{type}/{id}"));

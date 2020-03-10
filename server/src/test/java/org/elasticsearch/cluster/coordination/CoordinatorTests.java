@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -55,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
@@ -1383,6 +1386,55 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertThat("term should not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(expectedTerm));
             }
         }
+    }
+
+    public void testImprovecOnfigurationPerformsVotingConfigExclusionStateCheck() {
+        try (Cluster cluster = new Cluster(1)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final Coordinator coordinator = cluster.getAnyLeader().coordinator;
+            final ClusterState currentState = coordinator.getLastAcceptedState();
+
+            Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusion1 = new HashSet<>(){{
+                add(new CoordinationMetaData.VotingConfigExclusion("resolvableNodeId",
+                    CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER));
+            }};
+
+            ClusterState newState1 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
+
+            synchronized (coordinator.mutex) {
+                AssertionError error = expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState1));
+                assertEquals("Voting Config Exclusion in invalid state. Exclusions may not be processed correctly",
+                                error.getMessage());
+            }
+
+            Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusion2 = new HashSet<>(){{
+                add(new CoordinationMetaData.VotingConfigExclusion(CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER,
+                                                                    "resolvableNodeName"));
+            }};
+
+            ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
+
+            synchronized (coordinator.mutex) {
+                AssertionError error = expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState2));
+                assertEquals("Voting Config Exclusion in invalid state. Exclusions may not be processed correctly",
+                                error.getMessage());
+            }
+        }
+    }
+
+    private ClusterState buildNewClusterStateWithVotingConfigExclusion(ClusterState currentState,
+                                                                Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusion) {
+        DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
+                                        .add(new DiscoveryNode("resolvableNodeName", "resolvableNodeId", buildNewFakeTransportAddress(),
+                                                                emptyMap(), emptySet(), Version.CURRENT)).build();
+
+        CoordinationMetaData.Builder coordMetaDataBuilder = CoordinationMetaData.builder(currentState.coordinationMetaData());
+        newVotingConfigExclusion.forEach(coordMetaDataBuilder::addVotingConfigExclusion);
+        MetaData newMetaData = MetaData.builder(currentState.metaData()).coordinationMetaData(coordMetaDataBuilder.build()).build();
+
+        return ClusterState.builder(currentState).nodes(newNodes).metaData(newMetaData).build();
     }
 
 }

@@ -26,10 +26,12 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
+import org.elasticsearch.painless.ir.BraceNode;
+import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotNode;
+import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.ir.NullSafeSubNode;
-import org.elasticsearch.painless.ir.UnaryNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -210,10 +212,10 @@ public class EAssignment extends AExpression {
 
                 ExpressionNode expressionNode = leftOutput.expressionNode;
 
-                if (expressionNode instanceof UnaryNode && expressionNode instanceof NullSafeSubNode == false) {
-                    UnaryNode unaryNode = (UnaryNode)expressionNode;
-                    expressionNode = unaryNode.getChildNode();
-                    expressionNode.setExpressionType(leftOutput.actual);
+                if (expressionNode instanceof DotNode && ((DotNode)expressionNode).getRightNode() instanceof DotSubDefNode) {
+                    ((DotNode)expressionNode).getRightNode().setExpressionType(leftOutput.actual);
+                } else if (expressionNode instanceof BraceNode && ((BraceNode)expressionNode).getRightNode() instanceof BraceSubDefNode) {
+                    ((BraceNode)expressionNode).getRightNode().setExpressionType(leftOutput.actual);
                 }
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {

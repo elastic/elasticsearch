@@ -106,7 +106,6 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.certificates.setIdentityProviderX509SigningCertificates(idpCertificates);
         doc1.certificates.setIdentityProviderX509MetadataSigningCertificates(idpMetadataCertificates);
 
-        doc1.privileges.setApplication(randomAlphaOfLengthBetween(6, 24));
         doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
         final Map<String, String> roleActions = new HashMap<>();
         for (int i = randomIntBetween(1, 6); i > 0; i--) {

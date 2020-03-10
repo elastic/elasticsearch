@@ -107,7 +107,6 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         assertThat(request.getDocument().entityId, equalTo(entityId));
         assertThat(request.getDocument().acs, equalTo(fields.get("acs")));
         assertThat(request.getDocument().enabled, equalTo(fields.get("enabled")));
-        assertThat(request.getDocument().privileges.application, nullValue());
         assertThat(request.getDocument().privileges.resource, notNullValue());
         assertThat(request.getDocument().privileges.roleActions, aMapWithSize(1));
         assertThat(request.getDocument().privileges.roleActions.keySet(), contains("role_name"));

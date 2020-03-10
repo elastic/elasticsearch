@@ -52,14 +52,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     private static final Set<String> ALLOWED_SIGN_MESSAGES = Set.of(SIGN_AUTHN, SIGN_LOGOUT);
 
     public static class Privileges {
-        @Nullable
-        public String application;
         public String resource;
         public Map<String, String> roleActions = Map.of();
-
-        public void setApplication(String application) {
-            this.application = application;
-        }
 
         public void setResource(String resource) {
             this.resource = resource;
@@ -74,14 +68,13 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Privileges that = (Privileges) o;
-            return Objects.equals(application, that.application) &&
-                Objects.equals(resource, that.resource) &&
+            return Objects.equals(resource, that.resource) &&
                 Objects.equals(roleActions, that.roleActions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(application, resource, roleActions);
+            return Objects.hash(resource, roleActions);
         }
     }
 
@@ -263,7 +256,6 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         nameIdFormats = in.readSet(StreamInput::readString);
         authenticationExpiryMillis = in.readOptionalVLong();
 
-        privileges.application = in.readOptionalString();
         privileges.resource = in.readString();
         privileges.roleActions = in.readMap(StreamInput::readString, StreamInput::readString);
 
@@ -289,7 +281,6 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeCollection(nameIdFormats, StreamOutput::writeString);
         out.writeOptionalVLong(authenticationExpiryMillis);
 
-        out.writeOptionalString(privileges.application);
         out.writeString(privileges.resource);
         out.writeMap(privileges.roleActions == null ? Map.of() : privileges.roleActions,
             StreamOutput::writeString, StreamOutput::writeString);
@@ -408,7 +399,6 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             Fields.AUTHN_EXPIRY, ObjectParser.ValueType.LONG_OR_NULL);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (parser, doc) -> PRIVILEGES_PARSER.parse(parser, doc.privileges, null), Fields.PRIVILEGES);
-        PRIVILEGES_PARSER.declareStringOrNull(Privileges::setApplication, Fields.Privileges.APPLICATION);
         PRIVILEGES_PARSER.declareString(Privileges::setResource, Fields.Privileges.RESOURCE);
         PRIVILEGES_PARSER.declareField(Privileges::setRoleActions,
             (parser, ignore) -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.mapStrings(),
@@ -485,7 +475,6 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.AUTHN_EXPIRY.getPreferredName(), authenticationExpiryMillis);
 
         builder.startObject(Fields.PRIVILEGES.getPreferredName());
-        builder.field(Fields.Privileges.APPLICATION.getPreferredName(), privileges.application);
         builder.field(Fields.Privileges.RESOURCE.getPreferredName(), privileges.resource);
         builder.field(Fields.Privileges.ROLES.getPreferredName(), privileges.roleActions);
         builder.endObject();
@@ -523,7 +512,6 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         ParseField CERTIFICATES = new ParseField("certificates");
 
         interface Privileges {
-            ParseField APPLICATION = new ParseField("application");
             ParseField RESOURCE = new ParseField("resource");
             ParseField ROLES = new ParseField("roles");
         }

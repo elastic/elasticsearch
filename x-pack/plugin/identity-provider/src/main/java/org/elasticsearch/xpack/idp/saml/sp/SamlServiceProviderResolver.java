@@ -120,11 +120,9 @@ public class SamlServiceProviderResolver {
     }
 
     private ServiceProviderPrivileges buildPrivileges(SamlServiceProviderDocument.Privileges configuredPrivileges) {
-        final String applicationName = Optional.ofNullable(configuredPrivileges.application)
-            .orElse(defaults.applicationName);
         final String resource = configuredPrivileges.resource;
         final Map<String, String> roles = Optional.ofNullable(configuredPrivileges.roleActions).orElse(Map.of());
-        return new ServiceProviderPrivileges(applicationName, resource, roles);
+        return new ServiceProviderPrivileges(defaults.applicationName, resource, roles);
     }
 
     private URL parseUrl(SamlServiceProviderDocument document) {

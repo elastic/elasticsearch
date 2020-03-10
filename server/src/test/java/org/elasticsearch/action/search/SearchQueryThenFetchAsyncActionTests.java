@@ -38,6 +38,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -83,7 +84,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     assertNotEquals(shardId, (int) request.getBottomSortValues().getFormattedSortValues()[0]);
                     numWithTopDocs.incrementAndGet();
                 }
-                QuerySearchResult queryResult = new QuerySearchResult(123,
+                QuerySearchResult queryResult = new QuerySearchResult(new SearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE));
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
@@ -117,7 +118,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
-            null, shardsIter, timeProvider, 0, task,
+            null, shardsIter, timeProvider, null, task,
             SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -142,6 +143,5 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields.length, equalTo(1));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields[0], equalTo(0));
-
     }
 }

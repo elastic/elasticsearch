@@ -121,6 +121,8 @@ public class TransportExplainLifecycleAction
                         lifecycleState.getPhaseTime(),
                         lifecycleState.getActionTime(),
                         lifecycleState.getStepTime(),
+                        lifecycleState.getSnapshotRepository(),
+                        lifecycleState.getSnapshotName(),
                         stepInfoBytes,
                         phaseExecutionInfo);
                 } else {

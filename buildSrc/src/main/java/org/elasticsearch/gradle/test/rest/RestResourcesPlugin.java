@@ -91,21 +91,21 @@ public class RestResourcesPlugin implements Plugin<Project> {
             .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
-                task.coreConfig = project.getConfigurations().create("restTest");
+                task.coreConfig = project.getConfigurations().maybeCreate("restTests");
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
                     project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
                     // x-pack
-                    task.xpackConfig = project.getConfigurations().create("restXpackTest");
+                    task.xpackConfig = project.getConfigurations().maybeCreate("restXpackTests");
                     Dependency restXPackTestdependency = project.getDependencies()
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXPackTestdependency);
                     task.dependsOn(task.xpackConfig);
                     // watcher
                     Dependency restWatcherTests = project.getDependencies()
-                        .project(Map.of("path", ":x-pack:plugin:watcher:qa:rest", "configuration", "restTests"));
+                        .project(Map.of("path", ":x-pack:plugin:watcher:qa:rest", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), restWatcherTests);
                 } else {
                     Dependency dependency = project.getDependencies()
@@ -121,13 +121,13 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restApi.getIncludeCore());
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
-                task.coreConfig = project.getConfigurations().create("restSpec");
+                task.coreConfig = project.getConfigurations().maybeCreate("restSpecs");
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
                     project.getDependencies().add(task.coreConfig.getName(), restSpecDependency);
 
-                    task.xpackConfig = project.getConfigurations().create("restXpackSpec");
+                    task.xpackConfig = project.getConfigurations().maybeCreate("restXpackSpecs");
                     Dependency restXpackSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackSpecs"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXpackSpecDependency);

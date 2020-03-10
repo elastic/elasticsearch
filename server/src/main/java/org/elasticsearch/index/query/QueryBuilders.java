@@ -63,10 +63,10 @@ public final class QueryBuilders {
     }
 
     /**
-     * Creates a match query with type "BOOLEAN" for the provided field name and text.
+     * Creates a match query with type "BOOLEAN" for the provided field names and text.
      *
-     * @param fieldNames The field names.
      * @param text       The query text (to be analyzed).
+     * @param fieldNames The field names.
      */
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default

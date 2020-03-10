@@ -50,12 +50,6 @@ public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndex
         throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
     }
 
-    @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                        XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format) {
-        throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
-    }
-
     public static class LatLonShapeDVIndexFieldData extends AbstractLatLonShapeDVIndexFieldData {
         public LatLonShapeDVIndexFieldData(Index index, String fieldName) {
             super(index, fieldName);
@@ -74,6 +68,13 @@ public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndex
         @Override
         public AtomicGeoFieldData loadDirect(LeafReaderContext context) throws Exception {
             return load(context);
+        }
+
+        @Override
+        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                                            XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format,
+                                            int bucketSize, BucketedSort.ExtraData extra) {
+            throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
         }
 
         /** helper: checks a fieldinfo and throws exception if its definitely not a LatLonDocValuesField */

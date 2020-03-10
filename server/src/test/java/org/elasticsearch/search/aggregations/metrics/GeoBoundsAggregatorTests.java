@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -35,11 +36,16 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
@@ -48,12 +54,12 @@ import java.util.List;
 import static org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests.GEOHASH_TOLERANCE;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
     public void testEmptyGeoPoint() throws Exception {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
                 .wrapLongitude(false);
@@ -95,6 +101,92 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertTrue(Double.isInfinite(bounds.negLeft));
                 assertTrue(Double.isInfinite(bounds.negRight));
                 assertFalse(AggregationInspectionHelper.hasValue(bounds));
+            }
+        }
+    }
+
+    public void testUnmappedFieldWithDocs() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            if (randomBoolean()) {
+                Document doc = new Document();
+                doc.add(new LatLonDocValuesField("field", 0.0, 0.0));
+                w.addDocument(doc);
+            }
+
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
+                .field("non_existent")
+                .wrapLongitude(false);
+
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+            fieldType.setName("field");
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertTrue(Double.isInfinite(bounds.top));
+                assertTrue(Double.isInfinite(bounds.bottom));
+                assertTrue(Double.isInfinite(bounds.posLeft));
+                assertTrue(Double.isInfinite(bounds.posRight));
+                assertTrue(Double.isInfinite(bounds.negLeft));
+                assertTrue(Double.isInfinite(bounds.negRight));
+                assertFalse(AggregationInspectionHelper.hasValue(bounds));
+            }
+        }
+    }
+
+    public void testMissing() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("not_field", 1000L));
+            w.addDocument(doc);
+
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+            fieldType.setHasDocValues(true);
+            fieldType.setName("field");
+
+            Point point = GeometryTestUtils.randomPoint(false);
+            double lon = point.getX();
+            double lat = point.getY();
+
+            // valid missing values
+            for (Object missingVal : List.of("POINT(" + lon + " " + lat + ")", lat + ", " + lon, new GeoPoint(lat, lon))) {
+                GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
+                    .field("field")
+                    .missing(missingVal)
+                    .wrapLongitude(false);
+
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                    assertThat(bounds.top, equalTo(lat));
+                    assertThat(bounds.bottom, equalTo(lat));
+                    assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
+                    assertThat(bounds.posRight, equalTo(lon >= 0 ? lon : Double.NEGATIVE_INFINITY));
+                    assertThat(bounds.negLeft, equalTo(lon >= 0 ? Double.POSITIVE_INFINITY : lon));
+                    assertThat(bounds.negRight, equalTo(lon >= 0 ? Double.NEGATIVE_INFINITY : lon));
+                }
+            }
+        }
+    }
+
+    public void testInvalidMissing() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("not_field", 1000L));
+            w.addDocument(doc);
+
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+            fieldType.setHasDocValues(true);
+            fieldType.setName("field");
+
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
+                .field("field")
+                .missing("invalid")
+                .wrapLongitude(false);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+                    () -> search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
+                assertThat(exception.getMessage(), startsWith("unsupported symbol"));
             }
         }
     }
@@ -361,5 +453,15 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertThat(shapeBounds, equalTo(pointBounds));
             }
         }
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new GeoBoundsAggregationBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.GEOPOINT);
     }
 }

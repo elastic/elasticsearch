@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 
 /**
@@ -125,6 +126,29 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     @Override
     public String getName() {
         return name;
+    }
+
+    /**
+     * Rewrite the sub-aggregations in the buckets in this aggregation.
+     * Returns a copy of this {@linkplain InternalAggregation} with the
+     * rewritten buckets, or, if there aren't any modifications to
+     * the buckets then this method will return this aggregation. Either
+     * way, it doesn't modify this aggregation.
+     * <p>
+     * Implementers of this should call the {@code rewriter} once per bucket
+     * with its {@linkplain InternalAggregations}. The {@code rewriter}
+     * should return {@code null} if it doen't have any rewriting to do or
+     * it should return a new {@linkplain InternalAggregations} to make
+     * changs.
+     * <p>
+     * The default implementation throws an exception because most
+     * aggregations don't <strong>have</strong> buckets in them. It
+     * should be overridden by aggregations that contain buckets. Implementers
+     * should respect the description above.
+     */
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        throw new IllegalStateException(
+                "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
     }
 
     /**

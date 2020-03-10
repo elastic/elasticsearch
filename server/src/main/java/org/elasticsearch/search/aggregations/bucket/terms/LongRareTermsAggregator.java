@@ -150,7 +150,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
         }
 
-        CollectionUtil.introSort(buckets, ORDER.comparator(this));
+        CollectionUtil.introSort(buckets, ORDER.comparator());
         return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
     }
 

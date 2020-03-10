@@ -107,7 +107,7 @@ abstract class SearchProgressListener {
      */
     protected void onFetchFailure(int shardIndex, Exception exc) {}
 
-    protected final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
+    final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
         this.shards = shards;
         try {
             onListShards(shards, skippedShards, clusters, fetchPhase);
@@ -116,7 +116,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    protected final void notifyQueryResult(int shardIndex) {
+    final void notifyQueryResult(int shardIndex) {
         try {
             onQueryResult(shardIndex);
         } catch (Exception e) {
@@ -125,7 +125,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    protected final void notifyQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+    final void notifyQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         try {
             onQueryFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
@@ -134,7 +134,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    protected final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+    final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
         try {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
@@ -150,7 +150,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    protected final void notifyFetchResult(int shardIndex) {
+    final void notifyFetchResult(int shardIndex) {
         try {
             onFetchResult(shardIndex);
         } catch (Exception e) {
@@ -159,7 +159,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    protected final void notifyFetchFailure(int shardIndex, Exception exc) {
+    final void notifyFetchFailure(int shardIndex, Exception exc) {
         try {
             onFetchFailure(shardIndex, exc);
         } catch (Exception e) {

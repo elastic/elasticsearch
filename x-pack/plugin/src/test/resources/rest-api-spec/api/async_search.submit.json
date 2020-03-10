@@ -33,18 +33,14 @@
         "type":"time",
         "description":"Specify the time that the request should block waiting for the final response (default: 1s)"
       },
-      "clean_on_completion":{
-        "type":"boolean",
-        "description":"Specify whether the response should not be stored in the cluster if it completed within the provided wait_for_completion time (default: true)"
+      "keep_alive": {
+        "type": "time",
+        "description": "Optional parameter to update how long to keep responses (partial or final) for this request alive"
       },
       "batched_reduce_size":{
         "type":"number",
-        "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",
+        "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available. (default: 5)",
         "default":5
-      },
-      "keep_alive": {
-        "type": "time",
-        "description": "Specify the time that the request should remain reachable in the cluster."
       },
       "analyzer":{
         "type":"string",
@@ -217,6 +213,10 @@
         "type":"number",
         "description":"The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
         "default":5
+      },
+      "clean_on_completion":{
+        "type":"boolean",
+        "description":"Control whether the response should not be stored in the cluster if it completed within the provided [wait_for_completion] time (default: true)"
       }
     },
     "body":{

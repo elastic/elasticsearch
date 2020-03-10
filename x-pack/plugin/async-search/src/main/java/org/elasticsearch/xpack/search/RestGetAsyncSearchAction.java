@@ -40,9 +40,6 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
         if (request.hasParam("keep_alive")) {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
-        if (request.hasParam("last_version")) {
-            get.setLastVersion(request.paramAsInt("last_version", get.getLastVersion()));
-        }
         return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestStatusToXContentListener<>(channel));
     }
 

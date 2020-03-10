@@ -25,9 +25,6 @@ public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<
             req.setWaitForCompletion(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
         }
         if (randomBoolean()) {
-            req.setLastVersion(randomIntBetween(-1, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
             req.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
         }
         return req;

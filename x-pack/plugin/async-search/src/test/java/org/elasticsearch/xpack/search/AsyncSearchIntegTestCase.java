@@ -209,8 +209,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 assertBusy(() -> {
                     AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
                         new GetAsyncSearchAction.Request(response.getId())
-                            .setWaitForCompletion(TimeValue.timeValueMillis(10))
-                            .setLastVersion(lastVersion)).get();
+                            .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
                     atomic.set(newResp);
                     assertNotEquals(lastVersion, newResp.getVersion());
                 });

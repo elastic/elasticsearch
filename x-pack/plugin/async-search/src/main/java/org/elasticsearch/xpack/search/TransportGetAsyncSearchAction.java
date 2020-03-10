@@ -139,14 +139,6 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
             return;
         }
 
-        // check last version
-        if (response.getVersion() <= request.getLastVersion()) {
-            // return a not-modified response
-            listener.onResponse(new AsyncSearchResponse(response.getId(), response.getVersion(),
-                response.isPartial(), false, response.getStartTime(), response.getExpirationTime()));
-            return;
-        }
-
         listener.onResponse(response);
     }
 }

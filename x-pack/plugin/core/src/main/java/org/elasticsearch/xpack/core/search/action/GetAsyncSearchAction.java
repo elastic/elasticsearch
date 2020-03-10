@@ -34,7 +34,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
 
     public static class Request extends ActionRequest {
         private final String id;
-        private int lastVersion = -1;
         private TimeValue waitForCompletion = TimeValue.MINUS_ONE;
         private TimeValue keepAlive = TimeValue.MINUS_ONE;
 
@@ -52,7 +51,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             this.id = in.readString();
             this.waitForCompletion = TimeValue.timeValueMillis(in.readLong());
             this.keepAlive = in.readTimeValue();
-            this.lastVersion = in.readInt();
         }
 
         @Override
@@ -61,7 +59,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             out.writeString(id);
             out.writeLong(waitForCompletion.millis());
             out.writeTimeValue(keepAlive);
-            out.writeInt(lastVersion);
         }
 
         @Override
@@ -79,18 +76,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
          */
         public String getId() {
             return id;
-        }
-
-        /**
-         * Omits the result from the response if the new version is greater than the provided <code>version</code> (not-modified).
-         */
-        public Request setLastVersion(int version) {
-            this.lastVersion = version;
-            return this;
-        }
-
-        public int getLastVersion() {
-            return lastVersion;
         }
 
         /**
@@ -122,15 +107,14 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return lastVersion == request.lastVersion &&
-                Objects.equals(id, request.id) &&
+            return Objects.equals(id, request.id) &&
                 waitForCompletion.equals(request.waitForCompletion) &&
                 keepAlive.equals(request.keepAlive);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, lastVersion, waitForCompletion, keepAlive);
+            return Objects.hash(id, waitForCompletion, keepAlive);
         }
     }
 }

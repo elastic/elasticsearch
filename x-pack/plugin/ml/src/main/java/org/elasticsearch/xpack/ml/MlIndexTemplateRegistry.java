@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -38,10 +39,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final IndexTemplateConfig ANOMALY_DETECTION_RESULTS_TEMPLATE = anomalyDetectionResultsTemplate();
 
-    private static final IndexTemplateConfig ANOMALY_DETECTION_STATE_TEMPLATE = new IndexTemplateConfig(
-        AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,ANOMALY_DETECTION_PATH + "state_index_template.json",
-        Version.CURRENT.id, VERSION_PATTERN,
-        Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
+    private static final IndexTemplateConfig ANOMALY_DETECTION_STATE_TEMPLATE = stateTemplate(true);
+    private static final IndexTemplateConfig ANOMALY_DETECTION_STATE_TEMPLATE_NO_ILM = stateTemplate(false);
 
     private static final IndexTemplateConfig META_TEMPLATE = new IndexTemplateConfig(MlMetaIndex.INDEX_NAME,
         ROOT_RESOURCE_PATH + "meta_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
@@ -59,6 +58,10 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final IndexTemplateConfig STATS_TEMPLATE = statsTemplate();
 
+    private static final String ML_STATE_ILM_POLICY_NAME = "ml-state-ilm-policy";
+    private static final LifecyclePolicyConfig ML_STATE_ILM_POLICY =
+        new LifecyclePolicyConfig(ML_STATE_ILM_POLICY_NAME, ANOMALY_DETECTION_PATH + "state_index_ilm_policy.json");
+
     private static IndexTemplateConfig configTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
@@ -68,6 +71,22 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
         return new IndexTemplateConfig(AnomalyDetectorsIndex.configIndexName(),
             ROOT_RESOURCE_PATH + "config_index_template.json",
+            Version.CURRENT.id, VERSION_PATTERN,
+            variables);
+    }
+
+    private static IndexTemplateConfig stateTemplate(boolean ilmEnabled) {
+        Map<String, String> variables = new HashMap<>();
+        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        variables.put(
+            "xpack.ml.index.lifecycle.settings",
+            ilmEnabled
+                ? ",\"index.lifecycle.name\": \"" + ML_STATE_ILM_POLICY_NAME + "\"\n" +
+                  ",\"index.lifecycle.rollover_alias\": \"" + AnomalyDetectorsIndex.jobStateIndexWriteAlias() + "\"\n"
+                : "");
+
+        return new IndexTemplateConfig(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+            ANOMALY_DETECTION_PATH + "state_index_template.json",
             Version.CURRENT.id, VERSION_PATTERN,
             variables);
     }
@@ -94,9 +113,20 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
             variables);
     }
 
+    private final List<IndexTemplateConfig> templatesToUse;
+
     public MlIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                    NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        boolean ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
+        templatesToUse = Arrays.asList(
+            ANOMALY_DETECTION_RESULTS_TEMPLATE,
+            ilmEnabled ? ANOMALY_DETECTION_STATE_TEMPLATE : ANOMALY_DETECTION_STATE_TEMPLATE_NO_ILM,
+            CONFIG_TEMPLATE,
+            INFERENCE_TEMPLATE,
+            META_TEMPLATE,
+            NOTIFICATIONS_TEMPLATE,
+            STATS_TEMPLATE);
     }
 
     @Override
@@ -106,20 +136,12 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getTemplateConfigs() {
-        return Arrays.asList(
-            ANOMALY_DETECTION_RESULTS_TEMPLATE,
-            ANOMALY_DETECTION_STATE_TEMPLATE,
-            CONFIG_TEMPLATE,
-            INFERENCE_TEMPLATE,
-            META_TEMPLATE,
-            NOTIFICATIONS_TEMPLATE,
-            STATS_TEMPLATE
-        );
+        return templatesToUse;
     }
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        return Collections.emptyList();
+        return Collections.singletonList(ML_STATE_ILM_POLICY);
     }
 
     @Override

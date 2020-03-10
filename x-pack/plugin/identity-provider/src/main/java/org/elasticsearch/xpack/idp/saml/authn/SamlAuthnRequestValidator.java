@@ -126,8 +126,7 @@ public class SamlAuthnRequestValidator {
         if (parameters.isEmpty()) {
             throw new ElasticsearchSecurityException("Invalid Authentication Request query string (zero parameters)");
         }
-        logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}",
-            RestStatus.BAD_REQUEST, parameters));
+        logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}", parameters));
         final String samlRequest = parameters.get("SAMLRequest");
         if (null == samlRequest) {
             throw new ElasticsearchSecurityException("Query string [{}] does not contain a SAMLRequest parameter",

@@ -16,13 +16,11 @@ public class ServiceProviderPrivileges {
 
     private final String applicationName;
     private final String resource;
-    private final String loginAction;
     private final Map<String, String> roles;
 
-    public ServiceProviderPrivileges(String applicationName, String resource, String loginAction, Map<String, String> roles) {
+    public ServiceProviderPrivileges(String applicationName, String resource, Map<String, String> roles) {
         this.applicationName = Objects.requireNonNull(applicationName, "Application name cannot be null");
         this.resource = Objects.requireNonNull(resource, "Resource cannot be null");
-        this.loginAction = Objects.requireNonNull(loginAction, "Login action cannot be null");
         this.roles = Map.copyOf(roles);
     }
 
@@ -40,14 +38,6 @@ public class ServiceProviderPrivileges {
      */
     public String getResource() {
         return resource;
-    }
-
-    /**
-     * Returns the "action" (see {@link ApplicationPrivilegeDescriptor#getActions()}) in the IdP's security cluster that represents
-     * the right to SSO (login) to this Service Provider.
-     */
-    public String getLoginAction() {
-        return loginAction;
     }
 
     /**

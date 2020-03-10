@@ -98,7 +98,6 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         ));
         fields.put("privileges", Map.of(
             "resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999),
-            "login", "action:" + randomAlphaOfLengthBetween(3, 12),
             "roles", Map.of("role_name", "role:" + randomAlphaOfLengthBetween(4, 8))
         ));
         fields.put("certificates", Map.of());
@@ -110,7 +109,6 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         assertThat(request.getDocument().enabled, equalTo(fields.get("enabled")));
         assertThat(request.getDocument().privileges.application, nullValue());
         assertThat(request.getDocument().privileges.resource, notNullValue());
-        assertThat(request.getDocument().privileges.loginAction, notNullValue());
         assertThat(request.getDocument().privileges.roleActions, aMapWithSize(1));
         assertThat(request.getDocument().privileges.roleActions.keySet(), contains("role_name"));
         assertThat(request.getDocument().attributeNames.principal, startsWith("urn:oid:0.1"));

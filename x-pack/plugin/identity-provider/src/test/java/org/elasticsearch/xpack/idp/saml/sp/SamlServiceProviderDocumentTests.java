@@ -108,7 +108,6 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
         doc1.privileges.setApplication(randomAlphaOfLengthBetween(6, 24));
         doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
-        doc1.privileges.setLoginAction(randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
         final Map<String, String> roleActions = new HashMap<>();
         for (int i = randomIntBetween(1, 6); i > 0; i--) {
             roleActions.put(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));

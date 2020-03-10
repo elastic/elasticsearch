@@ -87,8 +87,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
 
         // TODO
-        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login",
-            NameID.TRANSIENT, Duration.standardMinutes(5));
+        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud",
+                NameID.TRANSIENT, Duration.standardMinutes(5));
         final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
             .fromSettings(environment)

@@ -243,9 +243,6 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             document.privileges.setApplication(randomAlphaOfLengthBetween(4, 12));
         }
-        if (randomBoolean()) {
-            document.privileges.setLoginAction(randomAlphaOfLengthBetween(3, 6) + ":" + randomAlphaOfLengthBetween(3, 6));
-        }
         final int roleCount = randomIntBetween(0, 4);
         final Map<String, String> roles = new HashMap<>();
         for (int i = 0; i < roleCount; i++) {

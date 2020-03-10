@@ -19,11 +19,20 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class BitArrayTests extends ESTestCase {
     public void testRandom() {
@@ -48,6 +57,46 @@ public class BitArrayTests extends ESTestCase {
                     assertEquals(bitArray.get(i), bits[i]);
                 }
             }
+        }
+    }
+
+    public void testTooBigIsNotSet() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            for (int i = 0; i < 1000; i++) {
+                /*
+                 * The first few times this is called we check within the
+                 * array. But we quickly go beyond it and those all return
+                 * false as well.
+                 */
+                assertFalse(bitArray.get(i));
+            }
+        }
+    }
+
+    public void testClearingDoesntAllocate() {
+        CircuitBreakerService breaker = mock(CircuitBreakerService.class);
+        ByteSizeValue max = new ByteSizeValue(1, ByteSizeUnit.KB);
+        when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            private long total = 0;
+
+            @Override
+            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                total += bytes;
+                if (total > max.getBytes()) {
+                    throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
+                }
+                return total;
+            }
+
+            @Override
+            public long addWithoutBreaking(long bytes) {
+                total += bytes;
+                return total;
+            }
+        });
+        BigArrays bigArrays = new BigArrays(null, breaker, CircuitBreaker.REQUEST, true);
+        try (BitArray bitArray = new BitArray(1, bigArrays)) {
+            bitArray.clear(100000000);
         }
     }
 }

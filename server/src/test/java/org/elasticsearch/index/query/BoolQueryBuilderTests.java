@@ -137,7 +137,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
         if (tempQueryBuilder.mustNot().size() > 0) {
             QueryBuilder mustNot = tempQueryBuilder.mustNot().get(0);
-            contentString += (randomBoolean() ? "\"must_not\": " : "\"mustNot\": ") + mustNot.toString() + ",";
+            contentString += "\"must_not\":" + mustNot.toString() + ",";
             expectedQuery.mustNot(mustNot);
         }
         if (tempQueryBuilder.should().size() > 0) {
@@ -295,6 +295,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         Throwable e = ex.getCause();
         assertThat(e.getMessage(), containsString("unknown query [unknown_query]"));
 
+    }
+
+    public void testDeprecation() throws IOException {
+        String query = "{\"bool\" : {\"mustNot\" : { \"match_all\" : { } } } }";
+        QueryBuilder q = parseQuery(query);
+        QueryBuilder expected = new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder());
+        assertEquals(expected, q);
+        assertWarnings("Deprecated field [mustNot] used, expected [must_not] instead");
     }
 
     public void testRewrite() throws IOException {

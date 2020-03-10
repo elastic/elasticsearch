@@ -24,6 +24,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
@@ -46,7 +47,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     final AtomicInteger numSuccess;
     final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
-    final Set<Long> releasedSearchContexts = new HashSet<>();
+    final Set<SearchContextId> releasedSearchContexts = new HashSet<>();
     final SearchRequest searchRequest = new SearchRequest();
     final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
@@ -135,7 +136,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    public void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
     }
 }

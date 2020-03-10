@@ -23,11 +23,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
@@ -123,7 +123,7 @@ public class TransformProgressIT extends ESRestTestCase {
         DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0))
+            Collections.singletonMap("every_50", new HistogramGroupSource("count", null, 50.0))
         );
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
@@ -169,7 +169,7 @@ public class TransformProgressIT extends ESRestTestCase {
 
         histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", 50.0))
+            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null);

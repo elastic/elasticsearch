@@ -165,7 +165,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
-    private byte compatibleVersion;
+    private byte compatibleMajorVersion;
 
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
@@ -1000,13 +1000,13 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder compatibleVersion(byte compatibleVersion){
-        this.compatibleVersion = compatibleVersion;
+    public XContentBuilder setCompatibleMajorVersion(byte compatibleMajorVersion){
+        this.compatibleMajorVersion = compatibleMajorVersion;
         return this;
     }
 
     public byte getCompatibleMajorVersion() {
-        return compatibleVersion;
+        return compatibleMajorVersion;
     }
 
 

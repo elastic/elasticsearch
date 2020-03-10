@@ -20,6 +20,3 @@ integTest.dependsOn(copyRestTestsResources)
 dependencies {
   compile project(':test:framework')
 }
-
-//fix convention not finding any tests
-testingConventions.enabled = false

@@ -120,7 +120,7 @@ public class DocWriteResponseTests extends ESTestCase {
                 // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
             };
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.compatibleVersion((byte)7);
+            builder.setCompatibleMajorVersion((byte)7);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -129,7 +129,7 @@ public class DocWriteResponseTests extends ESTestCase {
         }
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.compatibleVersion((byte)6);
+            builder.setCompatibleMajorVersion((byte)6);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {

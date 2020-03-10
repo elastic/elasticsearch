@@ -623,6 +623,39 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(context.isSystemIndexAccessAllowed());
     }
 
+    public void testDispatchCompatibleHandler() {
+        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with=7");
+        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        final List<String> contentTypeHeader = Collections.singletonList(mimeType);
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                XContentBuilder xContentBuilder = channel.newBuilder();
+                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo((byte) 7));
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean supportsContentStream() {
+                return true;
+            }
+
+            @Override
+            public boolean compatibilityRequired() {
+                return true;
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {
 

@@ -328,11 +328,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                       return;
                   }
                 } else {
-                    if(handler.compatibilityRequired() == false //regular (not removed) handlers are always passed
+                    if(handler.compatibilityRequired() == false //regular (not removed) handlers are always dispatched
                         || CompatibleHandlers.isV7Compatible(request)) { //handlers that were registered compatible, require request to be compatible
                         dispatchRequest(request, channel, handler);
                     } else {
-                        handleCompatibleNotAllowed(rawPath,request.getHeaders(),channel);
+                        handleCompatibleNotAllowed(rawPath, channel);
                     }
                     return;
                 }
@@ -345,8 +345,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         handleBadRequest(uri, requestMethod, channel);
     }
 
-    private void handleCompatibleNotAllowed(String rawPath, Map<String, List<String>> headers, RestChannel channel) throws IOException {
-        String msg = "compatible api can be only accessed with Compatible Header. path " + rawPath;
+    private void handleCompatibleNotAllowed(String rawPath, RestChannel channel) throws IOException {
+        String msg = "Compatible api can be only accessed with Compatible Header. Path used: " + rawPath;
         BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_FOUND, msg);
 
         channel.sendResponse(bytesRestResponse);

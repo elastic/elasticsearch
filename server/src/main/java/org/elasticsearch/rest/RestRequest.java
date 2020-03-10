@@ -102,6 +102,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
+        addCompatibleParameter();
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -133,23 +134,23 @@ public class RestRequest implements ToXContent.Params {
         String path = path(httpRequest.uri());
         RestRequest restRequest = new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet());
-        addCompatibleParameter(restRequest);
         return restRequest;
     }
 
-    private static void addCompatibleParameter(RestRequest request) {
-        if (isRequestCompatible(request)) {
-            String compatibleVersion = XContentType.parseVersion(request.header(CompatibleHandlers.COMPATIBLE_HEADER));
-            request.params().put(CompatibleHandlers.COMPATIBLE_PARAMS_KEY, compatibleVersion);
+    private void addCompatibleParameter() {
+        if (isRequestCompatible()) {
+            String compatibleVersion = XContentType.parseVersion(header(CompatibleHandlers.COMPATIBLE_HEADER));
+            params().put(CompatibleHandlers.COMPATIBLE_PARAMS_KEY, compatibleVersion);
             //use it so it won't fail request validation with unused parameter
-            request.param(CompatibleHandlers.COMPATIBLE_PARAMS_KEY);
+            param(CompatibleHandlers.COMPATIBLE_PARAMS_KEY);
         }
     }
 
-    public static boolean isRequestCompatible(RestRequest request) {
-        return isHeaderCompatible(request.header(CompatibleHandlers.COMPATIBLE_HEADER));
+    private boolean isRequestCompatible() {
+        return isHeaderCompatible(header(CompatibleHandlers.COMPATIBLE_HEADER));
     }
-    public static boolean isHeaderCompatible(String headerValue) {
+
+    private boolean isHeaderCompatible(String headerValue) {
         String version = XContentType.parseVersion(headerValue);
         return CompatibleHandlers.COMPATIBLE_VERSION.equals(version);
     }

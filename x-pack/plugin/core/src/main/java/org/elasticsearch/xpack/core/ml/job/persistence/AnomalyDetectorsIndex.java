@@ -14,6 +14,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.util.Collections;
+
 /**
  * Methods for handling index naming related functions
  */

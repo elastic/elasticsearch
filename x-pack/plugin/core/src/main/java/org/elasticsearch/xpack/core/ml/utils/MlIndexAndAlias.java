@@ -26,7 +26,6 @@ import org.elasticsearch.common.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -88,7 +87,7 @@ public final class MlIndexAndAlias {
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
-            if (indexPointedByCurrentWriteAlias.isEmpty()) {
+            if (indexPointedByCurrentWriteAlias.isPresent() == false) {
                 createFirstConcreteIndex(client, firstConcreteIndex, alias, true, listener);
                 return;
             }
@@ -96,7 +95,7 @@ public final class MlIndexAndAlias {
                 "There are no indices matching '{}' pattern but '{}' alias points at [{}]. This should never happen.",
                 indexPattern, alias, indexPointedByCurrentWriteAlias.get());
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
-            if (indexPointedByCurrentWriteAlias.isEmpty()) {
+            if (indexPointedByCurrentWriteAlias.isPresent() == false) {
                 createFirstConcreteIndex(client, firstConcreteIndex, alias, true, listener);
                 return;
             }
@@ -116,7 +115,7 @@ public final class MlIndexAndAlias {
                 "There is exactly one index (i.e. '{}') matching '{}' pattern but '{}' alias points at [{}]. This should never happen.",
                 legacyIndexWithoutSuffix, indexPattern, alias, indexPointedByCurrentWriteAlias.get());
         } else {
-            if (indexPointedByCurrentWriteAlias.isEmpty()) {
+            if (indexPointedByCurrentWriteAlias.isPresent() == false) {
                 assert concreteIndexNames.length > 0;
                 String latestConcreteIndexName = Arrays.stream(concreteIndexNames).max(INDEX_NAME_COMPARATOR).get();
                 updateWriteAlias(client, alias, null, latestConcreteIndexName, listener);

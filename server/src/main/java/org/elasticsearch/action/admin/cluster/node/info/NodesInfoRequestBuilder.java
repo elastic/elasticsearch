@@ -48,7 +48,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node settings be returned.
      */
     public NodesInfoRequestBuilder setSettings(boolean settings) {
-        addOrRemoveMetric(settings, NodesInfoRequest.Metrics.SETTINGS);
+        addOrRemoveMetric(settings, NodesInfoRequest.Metric.SETTINGS);
         return this;
     }
 
@@ -56,7 +56,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node OS info be returned.
      */
     public NodesInfoRequestBuilder setOs(boolean os) {
-        addOrRemoveMetric(os, NodesInfoRequest.Metrics.OS);
+        addOrRemoveMetric(os, NodesInfoRequest.Metric.OS);
         return this;
     }
 
@@ -64,7 +64,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node OS process be returned.
      */
     public NodesInfoRequestBuilder setProcess(boolean process) {
-        addOrRemoveMetric(process, NodesInfoRequest.Metrics.PROCESS);
+        addOrRemoveMetric(process, NodesInfoRequest.Metric.PROCESS);
         return this;
     }
 
@@ -72,7 +72,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node JVM info be returned.
      */
     public NodesInfoRequestBuilder setJvm(boolean jvm) {
-        addOrRemoveMetric(jvm, NodesInfoRequest.Metrics.JVM);
+        addOrRemoveMetric(jvm, NodesInfoRequest.Metric.JVM);
         return this;
     }
 
@@ -80,7 +80,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node thread pool info be returned.
      */
     public NodesInfoRequestBuilder setThreadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, NodesInfoRequest.Metrics.THREAD_POOL);
+        addOrRemoveMetric(threadPool, NodesInfoRequest.Metric.THREAD_POOL);
         return this;
     }
 
@@ -88,7 +88,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {
-        addOrRemoveMetric(transport, NodesInfoRequest.Metrics.TRANSPORT);
+        addOrRemoveMetric(transport, NodesInfoRequest.Metric.TRANSPORT);
         return this;
     }
 
@@ -96,7 +96,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node HTTP info be returned.
      */
     public NodesInfoRequestBuilder setHttp(boolean http) {
-        addOrRemoveMetric(http, NodesInfoRequest.Metrics.HTTP);
+        addOrRemoveMetric(http, NodesInfoRequest.Metric.HTTP);
         return this;
     }
 
@@ -104,7 +104,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node plugins info be returned.
      */
     public NodesInfoRequestBuilder setPlugins(boolean plugins) {
-        addOrRemoveMetric(plugins, NodesInfoRequest.Metrics.PLUGINS);
+        addOrRemoveMetric(plugins, NodesInfoRequest.Metric.PLUGINS);
         return this;
     }
 
@@ -112,7 +112,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node ingest info be returned.
      */
     public NodesInfoRequestBuilder setIngest(boolean ingest) {
-        addOrRemoveMetric(ingest, NodesInfoRequest.Metrics.INGEST);
+        addOrRemoveMetric(ingest, NodesInfoRequest.Metric.INGEST);
         return this;
     }
 
@@ -120,11 +120,11 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node indices info be returned.
      */
     public NodesInfoRequestBuilder setIndices(boolean indices) {
-        addOrRemoveMetric(indices, NodesInfoRequest.Metrics.INDICES);
+        addOrRemoveMetric(indices, NodesInfoRequest.Metric.INDICES);
         return this;
     }
 
-    private void addOrRemoveMetric(boolean includeMetric, NodesInfoRequest.Metrics metric) {
+    private void addOrRemoveMetric(boolean includeMetric, NodesInfoRequest.Metric metric) {
         if (includeMetric) {
             request.addMetric(metric.metricName());
         } else {

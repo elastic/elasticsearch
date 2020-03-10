@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  */
 public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private Set<String> requestedMetrics = Metrics.allMetrics();
+    private Set<String> requestedMetrics = Metric.allMetrics();
 
     /**
      * Create a new NodeInfoRequest from a {@link StreamInput} object.
@@ -49,16 +49,16 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         if (in.getVersion().before(Version.V_7_7_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
-            optionallyAddMetric(in.readBoolean(), Metrics.SETTINGS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.OS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.PROCESS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.JVM.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.THREAD_POOL.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.TRANSPORT.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.HTTP.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.PLUGINS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.INGEST.metricName());
-            optionallyAddMetric(in.readBoolean(), Metrics.INDICES.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.SETTINGS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.OS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.PROCESS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.JVM.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.HTTP.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.PLUGINS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.INDICES.metricName());
         } else {
             requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
         }
@@ -85,7 +85,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Sets to return all the data.
      */
     public NodesInfoRequest all() {
-        requestedMetrics.addAll(Metrics.allMetrics());
+        requestedMetrics.addAll(Metric.allMetrics());
         return this;
     }
 
@@ -100,7 +100,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Add metric
      */
     public NodesInfoRequest addMetric(String metric) {
-        if (Metrics.allMetrics().contains(metric) == false) {
+        if (Metric.allMetrics().contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
         requestedMetrics.add(metric);
@@ -111,7 +111,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Add collection of metrics
      */
     public NodesInfoRequest addMetrics(Collection<String> metrics) {
-        if (Metrics.allMetrics().containsAll(metrics) == false) {
+        if (Metric.allMetrics().containsAll(metrics) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metrics);
         }
         requestedMetrics.addAll(metrics);
@@ -122,7 +122,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Remove metric
      */
     public NodesInfoRequest removeMetric(String metric) {
-        if (Metrics.allMetrics().contains(metric) == false) {
+        if (Metric.allMetrics().contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
         requestedMetrics.remove(metric);
@@ -148,16 +148,16 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         if (out.getVersion().before(Version.V_7_7_0)){
             // prior to version 8.x, a NodesInfoRequest was serialized as a list
             // of booleans in a fixed order
-            out.writeBoolean(Metrics.SETTINGS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.OS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.PROCESS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.JVM.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.THREAD_POOL.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.TRANSPORT.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.HTTP.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.PLUGINS.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.INGEST.containedIn(requestedMetrics));
-            out.writeBoolean(Metrics.INDICES.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.SETTINGS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.OS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.PROCESS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.JVM.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.THREAD_POOL.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.TRANSPORT.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.HTTP.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.PLUGINS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.INGEST.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.INDICES.containedIn(requestedMetrics));
         } else {
             out.writeStringArray(requestedMetrics.toArray(String[]::new));
         }
@@ -168,7 +168,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * from the nodes information endpoint. Eventually this list list will be
      * pluggable.
      */
-    public enum Metrics {
+    public enum Metric {
         SETTINGS("settings"),
         OS("os"),
         PROCESS("process"),
@@ -182,7 +182,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
         private String metricName;
 
-        Metrics(String name) {
+        Metric(String name) {
             this.metricName = name;
         }
 
@@ -195,7 +195,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         }
 
         public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metrics::metricName).collect(Collectors.toSet());
+            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
     }
 }

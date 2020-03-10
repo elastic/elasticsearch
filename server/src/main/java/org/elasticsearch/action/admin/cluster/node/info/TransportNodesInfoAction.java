@@ -72,16 +72,16 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         NodesInfoRequest request = nodeRequest.request;
         Set<String> metrics = request.requestedMetrics();
         return nodeService.info(
-            metrics.contains(NodesInfoRequest.Metrics.SETTINGS.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.OS.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.PROCESS.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.JVM.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.THREAD_POOL.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.TRANSPORT.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.HTTP.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.PLUGINS.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.INGEST.metricName()),
-            metrics.contains(NodesInfoRequest.Metrics.INDICES.metricName()));
+            metrics.contains(NodesInfoRequest.Metric.SETTINGS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.OS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.PROCESS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.JVM.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.THREAD_POOL.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.TRANSPORT.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.HTTP.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName()));
     }
 
     public static class NodeInfoRequest extends BaseNodeRequest {

@@ -42,14 +42,14 @@ public class NodesInfoRequestTests extends ESTestCase {
      */
     public void testMetricsSetters() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
-        request.addMetrics(randomSubsetOf(NodesInfoRequest.Metrics.allMetrics()));
+        request.addMetrics(randomSubsetOf(NodesInfoRequest.Metric.allMetrics()));
         NodesInfoRequest deserializedRequest = roundTripRequest(request);
         assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
     }
 
     /**
      * Test that a newly constructed NodesInfoRequestObject requests all of the
-     * possible metrics defined in {@link NodesInfoRequest.Metrics}.
+     * possible metrics defined in {@link NodesInfoRequest.Metric}.
      */
     public void testNodesInfoRequestDefaults() {
         NodesInfoRequest defaultNodesInfoRequest = new NodesInfoRequest(randomAlphaOfLength(8));
@@ -67,7 +67,7 @@ public class NodesInfoRequestTests extends ESTestCase {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.all();
 
-        assertThat(request.requestedMetrics(), equalTo(NodesInfoRequest.Metrics.allMetrics()));
+        assertThat(request.requestedMetrics(), equalTo(NodesInfoRequest.Metric.allMetrics()));
     }
 
     /**
@@ -88,7 +88,7 @@ public class NodesInfoRequestTests extends ESTestCase {
         String unknownMetric = "unknown_metric1";
         Set<String> unknownMetrics = new HashSet<>();
         unknownMetrics.add(unknownMetric);
-        unknownMetrics.addAll(randomSubsetOf(NodesInfoRequest.Metrics.allMetrics()));
+        unknownMetrics.addAll(randomSubsetOf(NodesInfoRequest.Metric.allMetrics()));
 
         NodesInfoRequest request = new NodesInfoRequest();
 

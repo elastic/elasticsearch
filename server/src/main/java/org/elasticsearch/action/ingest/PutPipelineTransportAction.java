@@ -75,7 +75,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
             throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear()
-            .addMetric(NodesInfoRequest.Metrics.INGEST.metricName());
+            .addMetric(NodesInfoRequest.Metric.INGEST.metricName());
         client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
             Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
             for (NodeInfo nodeInfo : nodeInfos.getNodes()) {

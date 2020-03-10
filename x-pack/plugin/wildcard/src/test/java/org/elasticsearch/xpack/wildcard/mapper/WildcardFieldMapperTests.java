@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -115,6 +116,34 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();        
     }
+    
+    //Test long query strings don't cause exceptions
+    public void testTooBigQueryField() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+        
+        // Create a string that is too large and will not be indexed
+        String docContent = randomABString(10);
+        Document doc = new Document();
+        ParseContext.Document parseDoc = new ParseContext.Document();                        
+        addFields(parseDoc, doc, docContent);
+        indexDoc(parseDoc, doc, iw);        
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        String queryString = randomABString((BooleanQuery.getMaxClauseCount() * 2) + 1);
+        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
+        TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
+        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+                
+        reader.close();
+        dir.close();        
+    }    
     
     
     public void testSearchResultsVersusKeywordField() throws IOException {

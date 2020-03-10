@@ -73,6 +73,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_NUM_CHARS_COUNT = 6; //maximum allowed number of characters per ngram
+    public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10; 
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new WildcardFieldType();
@@ -330,8 +331,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
             PatternStructure patternStructure = new PatternStructure(wildcardPattern);
             
-            
-            BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
+            ArrayList<BooleanClause> clauses = new ArrayList<>();
             
             for (int i = 0; i < patternStructure.fragments.length; i++) {
                 String fragment = patternStructure.fragments[i];
@@ -352,7 +352,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 
                 if (fragment.length() == numChars) {
                     TermQuery tq = new TermQuery(new Term(name(), fragment));
-                    bqBuilder.add(new BooleanClause(tq, Occur.MUST));                    
+                    clauses.add(new BooleanClause(tq, Occur.MUST));                    
                 } else if (fragment.length() > numChars) {
                     // Break fragment into multiple Ngrams                
                     KeywordTokenizer kt = new KeywordTokenizer(256);
@@ -369,7 +369,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         while (filter.incrementToken()) {                            
                             if (charPos == nextRequiredCoverage) {
                                 TermQuery tq = new TermQuery(new Term(name(), termAtt.toString()));
-                                bqBuilder.add(new BooleanClause(tq, Occur.MUST));
+                                clauses.add(new BooleanClause(tq, Occur.MUST));
                                 nextRequiredCoverage = charPos + termAtt.length() - 1;
                             } else {
                                 lastUnusedToken = termAtt.toString();
@@ -380,7 +380,7 @@ public class WildcardFieldMapper extends FieldMapper {
                             // given `cake` and 3 grams the loop above would output only `cak` and we need to add trailing
                             // `ake` to complete the logic.
                             TermQuery tq = new TermQuery(new Term(name(), lastUnusedToken));
-                            bqBuilder.add(new BooleanClause(tq, Occur.MUST));                            
+                            clauses.add(new BooleanClause(tq, Occur.MUST));                            
                         }
                         kt.end();
                         kt.close();
@@ -393,17 +393,17 @@ public class WildcardFieldMapper extends FieldMapper {
                         // fragment occurs mid-string so will need a wildcard query
                         WildcardQuery wq = new WildcardQuery(new Term(name(),fragment+"*"));
                         wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-                        bqBuilder.add(new BooleanClause(wq, Occur.MUST));
+                        clauses.add(new BooleanClause(wq, Occur.MUST));
                     } else {
                         // fragment occurs at end of string so can rely on Jim's indexing rule to optimise 
                         // *foo by indexing smaller ngrams at the end of a string
                         TermQuery tq = new TermQuery(new Term(name(), fragment));
-                        bqBuilder.add(new BooleanClause(tq, Occur.MUST));
+                        clauses.add(new BooleanClause(tq, Occur.MUST));
                     }
                 }
             }
-            
-            BooleanQuery approximation = bqBuilder.build();
+
+            BooleanQuery approximation = createApproximationQuery(clauses);
             if (patternStructure.isMatchAll()) {
                 return new MatchAllDocsQuery();
             } 
@@ -416,6 +416,23 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             return approximation;
         }                
+
+        private BooleanQuery createApproximationQuery(ArrayList<BooleanClause> clauses) {
+            BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
+            if (clauses.size() <= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                for (BooleanClause booleanClause : clauses) {
+                        bqBuilder.add(booleanClause);
+                }
+                return bqBuilder.build();
+            }
+            // Thin out the number of clauses using a selection spread 
+            // evenly across the range
+            float step = (float)(clauses.size() - 1) / (float)(MAX_CLAUSES_IN_APPROXIMATION_QUERY - 1); //set step size
+            for (int i=0; i<MAX_CLAUSES_IN_APPROXIMATION_QUERY; i++) {
+                 bqBuilder.add(clauses.get(Math.round(step * i)));  //add each element of a position which is a multiple of step
+            }
+            return bqBuilder.build();
+        }
 
         int numChars() {
             return numChars;

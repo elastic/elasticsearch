@@ -24,11 +24,13 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
@@ -37,6 +39,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -139,7 +142,8 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchProgressActionListener listener = new SearchProgressActionListener() {
             @Override
-            public void onListShards(List<SearchShard> shards, boolean fetchPhase) {
+            public void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards,
+                                     SearchResponse.Clusters clusters, boolean fetchPhase) {
                 shardsListener.set(shards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
@@ -151,7 +155,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onQueryFailure(int shardIndex, Exception exc) {
+            public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
                 assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryFailures.incrementAndGet();
             }
@@ -169,12 +173,12 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int version) {
+            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
             @Override
-            public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {
+            public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
@@ -189,7 +193,14 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 throw new AssertionError();
             }
         };
-        client.executeSearchLocally(request, listener);
+        client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
+            @Override
+            public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                SearchTask task = super.createTask(id, type, action, parentTaskId, headers);
+                task.setProgressListener(listener);
+                return task;
+            }
+        }, listener);
         latch.await();
 
         assertThat(shardsListener.get(), equalTo(expectedShards));

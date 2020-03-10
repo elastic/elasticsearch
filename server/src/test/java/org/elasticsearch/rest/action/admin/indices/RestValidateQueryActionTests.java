@@ -82,7 +82,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, taskManager, () -> "local", null);
+        client.initialize(actions, () -> "local", null);
         controller.registerHandler(action);
     }
 

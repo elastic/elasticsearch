@@ -44,7 +44,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(enabled));
 
-        assertSettingDeprecationsAndWarnings(new Setting[] { XPackSettings.LOGSTASH_ENABLED });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.LOGSTASH_ENABLED });
     }
 
     public void testEnabledDefault() throws Exception {

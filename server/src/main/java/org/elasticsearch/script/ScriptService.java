@@ -536,7 +536,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      */
     static class CacheUpdater {
         private final Object lock = new Object();
-        private static final Tuple<Integer, TimeValue> ZERO = new Tuple<>(0, TimeValue.ZERO);
+        private static final Tuple<Integer, TimeValue> SCRIPT_COMPILATION_RATE_ZERO = new Tuple<>(0, TimeValue.ZERO);
 
         final boolean generalSizeSet;
         final Set<String> contextSizeSet;
@@ -565,7 +565,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             generalSettings = new CacheSettings(
                 SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings),
                 SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
-                compilationLimitsEnabled ? SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.get(settings) : ZERO
+                compilationLimitsEnabled ? SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.get(settings) : SCRIPT_COMPILATION_RATE_ZERO
             );
 
             Map<String, Integer> cacheSize = SCRIPT_CACHE_SIZE_SETTING.getAsMap(settings);
@@ -580,7 +580,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                         cacheSize.getOrDefault(context, SCRIPT_CACHE_SIZE_SETTING.getDefault(settings)),
                         cacheExpire.getOrDefault(context, SCRIPT_CACHE_EXPIRE_SETTING.getDefault(settings)),
                         compilationLimitsEnabled ?
-                            compileRate.getOrDefault(context, SCRIPT_MAX_COMPILATIONS_RATE.getDefault(settings)) : ZERO
+                            compileRate.getOrDefault(context, SCRIPT_MAX_COMPILATIONS_RATE.getDefault(settings)) :
+                            SCRIPT_COMPILATION_RATE_ZERO
                     )
                 );
             }

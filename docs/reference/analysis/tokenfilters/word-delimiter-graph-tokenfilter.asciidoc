@@ -126,7 +126,7 @@ The filter produces the following tokens:
 ----
 ////
 
-[analysis-word-delimiter-tokenfilter-analyzer-ex]]
+[[analysis-word-delimiter-graph-tokenfilter-analyzer-ex]]
 ==== Add to an analyzer
 
 The following <<indices-create-index,create index API>> request uses the

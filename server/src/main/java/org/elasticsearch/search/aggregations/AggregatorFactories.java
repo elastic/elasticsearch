@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,6 +52,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
@@ -493,6 +497,22 @@ public class AggregatorFactories {
             } else {
                 return this;
             }
+        }
+
+        /**
+         * Build a tree of {@link PipelineAggregator}s to modify the tree of
+         * aggregation results after the final reduction.
+         */
+        public PipelineTree buildPipelineTree() {
+            if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
+                return PipelineTree.EMPTY;
+            }
+            Map<String, PipelineTree> subTrees = aggregationBuilders.stream()
+                    .collect(toMap(AggregationBuilder::getName, AggregationBuilder::buildPipelineTree));
+            List<PipelineAggregator> aggregators = pipelineAggregatorBuilders.stream()
+                    .map(PipelineAggregationBuilder::create)
+                    .collect(toList());
+            return new PipelineTree(subTrees, aggregators);
         }
     }
 }

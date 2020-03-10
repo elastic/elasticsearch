@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -36,13 +36,14 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
     private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
 
     private final NodeClient nodeClient;
-    private final Supplier<ReduceContext> reduceContextSupplier;
+    private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final AsyncSearchIndexService store;
 
@@ -57,7 +58,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                             TransportSearchAction searchAction) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
         this.nodeClient = nodeClient;
-        this.reduceContextSupplier = () -> searchService.createReduceContext(true);
+        this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.store = new AsyncSearchIndexService(clusterService, transportService.getThreadPool().getThreadContext(), client, registry);
     }
@@ -135,8 +136,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
                 AsyncSearchId searchId = new AsyncSearchId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
+                Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
+                        () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId, keepAlive, originHeaders, taskHeaders, searchId,
-                    store.getClient(), nodeClient.threadPool(), reduceContextSupplier);
+                    store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
         searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), parentTaskId));

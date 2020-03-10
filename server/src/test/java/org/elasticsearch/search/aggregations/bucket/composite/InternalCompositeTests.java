@@ -409,6 +409,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     private InternalAggregation.ReduceContext reduceContext() {
-        return new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, true);
+        return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, i -> {}, null);
     }
 }

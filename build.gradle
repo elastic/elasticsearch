@@ -116,6 +116,7 @@ subprojects {
       ':distribution:tools:plugin-cli',
       ':modules:logstash',
       ':qa:os',
+      ':qa:wildfly',
       ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich'
     ]

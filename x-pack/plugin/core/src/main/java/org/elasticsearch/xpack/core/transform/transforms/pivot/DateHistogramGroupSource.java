@@ -27,7 +27,6 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-
 public class DateHistogramGroupSource extends SingleGroupSource {
 
     private static final int CALENDAR_INTERVAL_ID = 1;
@@ -43,7 +42,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
      */
     public interface Interval extends Writeable, ToXContentFragment {
         String getName();
+
         DateHistogramInterval getInterval();
+
         byte getIntervalTypeId();
     }
 
@@ -113,8 +114,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public CalendarInterval(DateHistogramInterval interval) {
             this.interval = interval;
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-                throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " +
-                    "as a calendar interval.");
+                throw new IllegalArgumentException(
+                    "The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval."
+                );
             }
         }
 
@@ -172,12 +174,12 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private Interval readInterval(StreamInput in) throws IOException {
         byte id = in.readByte();
         switch (id) {
-        case FIXED_INTERVAL_ID:
-            return new FixedInterval(in);
-        case CALENDAR_INTERVAL_ID:
-            return new CalendarInterval(in);
-        default:
-            throw new IllegalArgumentException("unknown interval type [" + id + "]");
+            case FIXED_INTERVAL_ID:
+                return new FixedInterval(in);
+            case CALENDAR_INTERVAL_ID:
+                return new CalendarInterval(in);
+            default:
+                throw new IllegalArgumentException("unknown interval type [" + id + "]");
         }
     }
 
@@ -195,8 +197,8 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private final Interval interval;
     private ZoneId timeZone;
 
-    public DateHistogramGroupSource(String field, Interval interval) {
-        super(field);
+    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, Interval interval) {
+        super(field, scriptConfig);
         this.interval = interval;
     }
 
@@ -213,8 +215,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private static ConstructingObjectParser<DateHistogramGroupSource, Void> createParser(boolean lenient) {
         ConstructingObjectParser<DateHistogramGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
-            String fixedInterval = (String) args[1];
-            String calendarInterval = (String) args[2];
+            ScriptConfig scriptConfig = (ScriptConfig) args[1];
+            String fixedInterval = (String) args[2];
+            String calendarInterval = (String) args[3];
 
             Interval interval = null;
 
@@ -228,10 +231,10 @@ public class DateHistogramGroupSource extends SingleGroupSource {
                 throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
-            return new DateHistogramGroupSource(field, interval);
+            return new DateHistogramGroupSource(field, scriptConfig, interval);
         });
 
-        declareValuesSourceFields(parser);
+        declareValuesSourceFields(parser, lenient);
 
         parser.declareString(optionalConstructorArg(), new ParseField(FixedInterval.NAME));
         parser.declareString(optionalConstructorArg(), new ParseField(CalendarInterval.NAME));
@@ -270,7 +273,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(field);
+        super.writeTo(out);
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
         // Format was optional in 7.2.x, removed in 7.3+
@@ -282,9 +285,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (field != null) {
-            builder.field(FIELD.getPreferredName(), field);
-        }
+        super.innerXContent(builder, params);
         interval.toXContent(builder, params);
         if (timeZone != null) {
             builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
@@ -305,9 +306,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         final DateHistogramGroupSource that = (DateHistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field) &&
-            Objects.equals(interval, that.interval) &&
-            Objects.equals(timeZone, that.timeZone);
+        return Objects.equals(this.field, that.field) && Objects.equals(interval, that.interval) && Objects.equals(timeZone, that.timeZone);
     }
 
     @Override

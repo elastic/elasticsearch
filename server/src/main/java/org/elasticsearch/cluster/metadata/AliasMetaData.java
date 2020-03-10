@@ -198,7 +198,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         }
         out.writeOptionalBoolean(writeIndex());
 
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeOptionalBoolean(isHidden);
         }
     }
@@ -224,7 +224,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         }
         writeIndex = in.readOptionalBoolean();
 
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isHidden = in.readOptionalBoolean();
         } else {
             isHidden = null;

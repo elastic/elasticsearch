@@ -131,20 +131,17 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 boxplotUsage = in.readVLong();
             } else {
                 boxplotUsage = 0;
             }
             cumulativeCardinalityUsage = in.readZLong();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
-                stringStatsUsage = in.readVLong();
-            } else {
-                stringStatsUsage = 0;
-            }
             if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                stringStatsUsage = in.readVLong();
                 topMetricsUsage = in.readVLong();
             } else {
+                stringStatsUsage = 0;
                 topMetricsUsage = 0;
             }
         }
@@ -152,14 +149,12 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeVLong(boxplotUsage);
             }
             out.writeVLong(cumulativeCardinalityUsage);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.7.0 after backport
-                out.writeVLong(stringStatsUsage);
-            }
             if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
             }
         }

@@ -567,6 +567,7 @@ public class InternalEngine extends Engine {
     }
 
     /** returns the force merge uuid for the engine */
+    @Nullable
     public String getForceMergeUUID() {
         return forceMergeUUID;
     }

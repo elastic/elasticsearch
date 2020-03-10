@@ -58,8 +58,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     private static final Version FORCE_MERGE_UUID_VERSION = Version.V_8_0_0;
 
-    private static final String FORCE_MERGE_UUID_NA_VALUE = "_na_";
-
     /**
      * Force merge UUID to store in the live commit data of a shard under
      * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
@@ -83,12 +81,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            final String readUUID = in.readString();
-            if (FORCE_MERGE_UUID_NA_VALUE.equals(readUUID)) {
-                forceMergeUUID = null;
-            } else {
-                forceMergeUUID = readUUID;
-            }
+            forceMergeUUID = in.readOptionalString();
         } else {
             forceMergeUUID = null;
         }
@@ -167,7 +160,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            out.writeString(forceMergeUUID == null ? FORCE_MERGE_UUID_NA_VALUE : forceMergeUUID);
+            out.writeOptionalString(forceMergeUUID);
         }
     }
 

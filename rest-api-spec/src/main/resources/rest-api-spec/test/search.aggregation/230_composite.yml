@@ -850,3 +850,87 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.date: "2017-10-21T00:00:00.000-02:00" }
   - match: { aggregations.test.buckets.0.doc_count: 2 }
+
+---
+"Terms source from sorted":
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: keyword
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Terms source from part of sorted":
+  - skip:
+      version: " - 7.99.99"
+      reason:  fixed in 8.0.0. will be backported to 7.7.0.
+
+  - do:
+        indices.create:
+          index: sorted_test
+          body:
+              settings:
+                sort.field: [keyword, long]
+              mappings:
+                properties:
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+
+
+  - do:
+      index:
+        index:   sorted_test
+        id:      2
+        refresh: true
+        body:  { "keyword": "foo", "long": 1 }
+
+  - do:
+      search:
+        index: sorted_test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - keyword:
+                      terms:
+                        field: keyword
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.keyword: "foo" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }

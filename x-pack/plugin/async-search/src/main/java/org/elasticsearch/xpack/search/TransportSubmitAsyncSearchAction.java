@@ -83,7 +83,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 onFatalFailure(searchTask, cause, false, submitListener);
                             } else {
                                 final String docId = searchTask.getSearchId().getDocId();
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), searchResponse,
+                                // creates the fallback response if the node crashes/restarts in the middle of the request
+                                // TODO: store intermediate results ?
+                                AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId(), false);
+                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
@@ -114,7 +117,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                         // the task completed within the timeout so the response is sent back to the user
                         // with a null id since nothing was stored on the cluster.
                         taskManager.unregister(searchTask);
-                        submitListener.onResponse(searchResponse.clone(null));
+                        submitListener.onResponse(searchResponse.clone(null, false));
                     }
                 }
 

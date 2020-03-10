@@ -99,7 +99,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         out.writeLong(expirationTimeMillis);
     }
 
-    public AsyncSearchResponse clone(String id) {
+    public AsyncSearchResponse clone(String id, boolean isRunning) {
         return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 

@@ -11,3 +11,4 @@ This section explains the fundamental concepts of text analysis in {es}.
 
 include::anatomy.asciidoc[]
 include::index-search-time.asciidoc[]
+include::token-graphs.asciidoc[]

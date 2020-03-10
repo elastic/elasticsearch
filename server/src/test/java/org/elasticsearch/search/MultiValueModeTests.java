@@ -524,6 +524,11 @@ public class MultiValueModeTests extends ESTestCase {
             public int docValueCount() {
                 return array[doc].length;
             }
+
+            @Override
+            public BytesRef normalizeValue(BytesRef value) {
+                return value;
+            }
         };
         verifySortedBinary(multiValues, numDocs);
         final FixedBitSet rootDocs = randomRootDocs(numDocs);

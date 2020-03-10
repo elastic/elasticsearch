@@ -8,9 +8,7 @@
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
 more about the Painless scripting language in the 
-https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html[Painless guide]. 
-The example snippets below help you being able to infer how to use Painless for 
-your use case.
+https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html[Painless guide].
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
@@ -21,9 +19,10 @@ your use case.
 [[painless-top-hits]]
 ==== Getting top hits by using scripted metric
 
-This example shows how to achieve the function of a 
-<<search-aggregations-metrics-top-hits-aggregation>> by using scripted metric 
-aggregation which provides a metric output.
+This example shows how to find the latest document, in other words the document 
+with the earliest timestamp. From a technical perspective, it helps to achieve 
+the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
+scripted metric aggregation which provides a metric output.
 
 [source,js]
 --------------------------------------------------
@@ -96,15 +95,6 @@ snippet uses an index where `@timestamp` is defined as a `date` type field.
           return date.getMonthValue(); <6>
         """
       }
-    },
-    "original": { <7>
-      "script": {
-        "lang": "painless",
-        "source": """
-          ZonedDateTime date =  doc['@timestamp'].value; <8>
-          return date; <9>
-        """
-      }
     }
   }
 --------------------------------------------------
@@ -116,12 +106,10 @@ snippet uses an index where `@timestamp` is defined as a `date` type field.
 <4> Contains the Painless script that returns the month of the year.
 <5> Sets `date` based on the timestamp of the document.
 <6> Returns the month value from `date`.
-<7> Contains the Painless script that returns the entire date value.
-<8> Sets `date` based on the timestamp of the document.
-<9> Returns the full `date` value.
 
 
 [discrete]
 [[painless-group-by]]
 ==== Using Painless in `group_by`
+
 

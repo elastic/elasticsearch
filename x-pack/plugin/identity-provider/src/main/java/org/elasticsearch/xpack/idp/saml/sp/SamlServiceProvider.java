@@ -17,6 +17,11 @@ import java.util.Set;
  * SAML 2.0 configuration information about a specific service provider
  */
 public interface SamlServiceProvider {
+
+    String getName();
+
+    boolean isEnabled();
+
     String getEntityId();
 
     Set<String> getAllowedNameIdFormats();
@@ -29,13 +34,13 @@ public interface SamlServiceProvider {
         public final String principal;
         public final String name;
         public final String email;
-        public final String groups;
+        public final String roles;
 
-        public AttributeNames(String principal, String name, String email, String groups) {
+        public AttributeNames(String principal, String name, String email, String roles) {
             this.principal = principal;
             this.name = name;
             this.email = email;
-            this.groups = groups;
+            this.roles = roles;
         }
     }
 

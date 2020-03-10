@@ -52,7 +52,7 @@ public class TransportSamlInitiateSingleSignOnAction
     @Override
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
-        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), ActionListener.wrap(
+        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), false, ActionListener.wrap(
             sp -> {
                 try {
                     if (null == sp) {
@@ -104,7 +104,7 @@ public class TransportSamlInitiateSingleSignOnAction
                             listener.onResponse(null);
                         } else {
                             listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
-                                userPrivileges.groups, serviceProvider));
+                                userPrivileges.roles, serviceProvider));
                         }
                     },
                     listener::onFailure

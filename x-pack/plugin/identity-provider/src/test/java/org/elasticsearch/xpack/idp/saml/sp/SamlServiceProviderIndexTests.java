@@ -246,12 +246,12 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             document.privileges.setLoginAction(randomAlphaOfLengthBetween(3, 6) + ":" + randomAlphaOfLengthBetween(3, 6));
         }
-        final int groupCount = randomIntBetween(0, 4);
-        final Map<String, String> groups = new HashMap<>();
-        for (int i = 0; i < groupCount; i++) {
-            groups.put(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6) + ":" + randomAlphaOfLengthBetween(3, 6));
+        final int roleCount = randomIntBetween(0, 4);
+        final Map<String, String> roles = new HashMap<>();
+        for (int i = 0; i < roleCount; i++) {
+            roles.put(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6) + ":" + randomAlphaOfLengthBetween(3, 6));
         }
-        document.privileges.setGroupActions(groups);
+        document.privileges.setRoleActions(roles);
 
         document.attributeNames.setPrincipal(randomUri());
         if (randomBoolean()) {
@@ -260,8 +260,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             document.attributeNames.setEmail(randomUri());
         }
-        if (groups.isEmpty() == false) {
-            document.attributeNames.setGroups(randomUri());
+        if (roles.isEmpty() == false) {
+            document.attributeNames.setRoles(randomUri());
         }
 
         assertThat(document.validate(), nullValue());

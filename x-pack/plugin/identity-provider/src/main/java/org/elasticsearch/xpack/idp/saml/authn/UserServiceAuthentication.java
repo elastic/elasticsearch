@@ -16,28 +16,30 @@ import java.util.Set;
  * Lightweight representation of a user that has authenticated to the IdP in the context of a specific service provider
  */
 public class UserServiceAuthentication {
+
     private final String principal;
     private final String name;
     private final String email;
-    private final Set<String> groups;
+    private final Set<String> roles;
+
     private final SamlServiceProvider serviceProvider;
     private final Set<AuthenticationMethod> authenticationMethods;
     private final Set<NetworkControl> networkControls;
 
-    public UserServiceAuthentication(String principal, String name, String email, Set<String> groups,
+    public UserServiceAuthentication(String principal, String name, String email, Set<String> roles,
                                      SamlServiceProvider serviceProvider,
                                      Set<AuthenticationMethod> authenticationMethods, Set<NetworkControl> networkControls) {
         this.principal = principal;
         this.name = name;
         this.email = email;
-        this.groups = Set.copyOf(groups);
+        this.roles = Set.copyOf(roles);
         this.serviceProvider = serviceProvider;
         this.authenticationMethods = authenticationMethods;
         this.networkControls = networkControls;
     }
 
-    public UserServiceAuthentication(String principal, String name, String email, Set<String> groups, SamlServiceProvider serviceProvider) {
-        this(principal, name, email, groups, serviceProvider, Set.of(AuthenticationMethod.PASSWORD), Set.of(NetworkControl.TLS));
+    public UserServiceAuthentication(String principal, String name, String email, Set<String> roles, SamlServiceProvider serviceProvider) {
+        this(principal, name, email, roles, serviceProvider, Set.of(AuthenticationMethod.PASSWORD), Set.of(NetworkControl.TLS));
     }
 
     public String getPrincipal() {
@@ -52,8 +54,8 @@ public class UserServiceAuthentication {
         return email;
     }
 
-    public Set<String> getGroups() {
-        return groups;
+    public Set<String> getRoles() {
+        return roles;
     }
 
     public SamlServiceProvider getServiceProvider() {

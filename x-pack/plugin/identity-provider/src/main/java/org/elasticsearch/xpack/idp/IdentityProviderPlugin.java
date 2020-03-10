@@ -34,9 +34,9 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
-import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.SamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
@@ -45,11 +45,15 @@ import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
-import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
-import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.joda.time.Duration;
+import org.opensaml.saml.saml2.core.NameID;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -82,14 +86,24 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         }
 
         SamlInit.initialize();
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder().fromSettings(environment).build();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
         final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext);
+
+        // TODO
+        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login",
+            NameID.TRANSIENT, Duration.standardMinutes(5));
+        final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
+            .fromSettings(environment)
+            .serviceProviderDefaults(serviceProviderDefaults)
+            .build();
+
         final SamlFactory factory = new SamlFactory();
+
         return List.of(
-            idp,
             index,
+            idp,
             factory,
             userPrivilegeResolver
         );

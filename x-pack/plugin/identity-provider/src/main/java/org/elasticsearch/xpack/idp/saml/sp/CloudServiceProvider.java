@@ -18,6 +18,8 @@ import java.util.Set;
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityId;
+    private final String name;
+    private final boolean enabled;
     private final URL assertionConsumerService;
     private final Set<String> allowedNameIdFormats;
     private final ReadableDuration authnExpiry;
@@ -27,13 +29,16 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, URL assertionConsumerService, Set<String> allowedNameIdFormats,
-                                ReadableDuration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
+    public CloudServiceProvider(String entityId, String name, boolean enabled, URL assertionConsumerService,
+                                Set<String> allowedNameIdFormats, ReadableDuration authnExpiry,
+                                ServiceProviderPrivileges privileges, AttributeNames attributeNames,
                                 Set<X509Credential> spSigningCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
         this.entityId = entityId;
+        this.name = name;
+        this.enabled = enabled;
         this.assertionConsumerService = assertionConsumerService;
         this.allowedNameIdFormats = Set.copyOf(allowedNameIdFormats);
         this.authnExpiry = authnExpiry;
@@ -47,6 +52,16 @@ public class CloudServiceProvider implements SamlServiceProvider {
     @Override
     public String getEntityId() {
         return entityId;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return enabled;
     }
 
     @Override
@@ -87,5 +102,16 @@ public class CloudServiceProvider implements SamlServiceProvider {
     @Override
     public ServiceProviderPrivileges getPrivileges() {
         return privileges;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName()
+            + "{"
+            + "entityId=[" + entityId + ']'
+            + " name=[" + name + ']'
+            + " enabled=" + enabled
+            + " acs=[" + assertionConsumerService + "]"
+            + "}";
     }
 }

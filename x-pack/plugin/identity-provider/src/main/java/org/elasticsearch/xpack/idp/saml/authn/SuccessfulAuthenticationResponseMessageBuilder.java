@@ -174,9 +174,9 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
         // TODO Add principal, email, name
-        final Attribute groups = buildAttribute(serviceProvider.getAttributeNames().groups, "groups", user.getGroups());
-        if (groups != null) {
-            statement.getAttributes().add(groups);
+        final Attribute roles = buildAttribute(serviceProvider.getAttributeNames().roles, "roles", user.getRoles());
+        if (roles != null) {
+            statement.getAttributes().add(roles);
         }
         if (statement.getAttributes().isEmpty()) {
             return null;

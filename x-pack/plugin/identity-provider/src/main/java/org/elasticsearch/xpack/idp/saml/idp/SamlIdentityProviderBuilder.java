@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
@@ -70,6 +71,8 @@ public class SamlIdentityProviderBuilder {
         Setting.Property.NodeScope);
     public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email", Setting.Property.NodeScope);
 
+    private final SamlServiceProviderResolver serviceProviderResolver;
+
     private String entityId;
     private Map<String, URL> ssoEndpoints;
     private Map<String, URL> sloEndpoints;
@@ -77,8 +80,10 @@ public class SamlIdentityProviderBuilder {
     private X509Credential metadataSigningCredential;
     private SamlIdentityProvider.ContactInfo technicalContact;
     private SamlIdentityProvider.OrganizationInfo organization;
+    private SamlIdentityProvider.ServiceProviderDefaults serviceProviderDefaults;
 
-    SamlIdentityProviderBuilder() {
+    SamlIdentityProviderBuilder(SamlServiceProviderResolver serviceProviderResolver) {
+        this.serviceProviderResolver = serviceProviderResolver;
         this.ssoEndpoints = new HashMap<>();
         this.sloEndpoints = new HashMap<>();
     }
@@ -110,12 +115,22 @@ public class SamlIdentityProviderBuilder {
             }
         }
 
+        if (serviceProviderDefaults == null) {
+            ex.addValidationError("Service provider defaults must be specified");
+        }
+
+        if (ex.validationErrors().isEmpty() == false) {
+            throw ex;
+        }
+
         return new SamlIdentityProvider(
             entityId,
             Map.copyOf(ssoEndpoints),
             sloEndpoints == null ? Map.of() : Map.copyOf(sloEndpoints),
             signingCredential, metadataSigningCredential,
-            technicalContact, organization);
+            technicalContact, organization,
+            serviceProviderDefaults,
+            serviceProviderResolver);
     }
 
     public SamlIdentityProviderBuilder fromSettings(Environment env) {
@@ -157,6 +172,10 @@ public class SamlIdentityProviderBuilder {
             IDP_CONTACT_EMAIL);
     }
 
+    public SamlIdentityProviderBuilder serviceProviderDefaults(SamlIdentityProvider.ServiceProviderDefaults serviceProviderDefaults) {
+        this.serviceProviderDefaults = serviceProviderDefaults;
+        return this;
+    }
 
     public SamlIdentityProviderBuilder entityId(String entityId) {
         this.entityId = entityId;

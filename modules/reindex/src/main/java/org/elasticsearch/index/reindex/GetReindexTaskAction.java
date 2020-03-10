@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -36,7 +37,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Response> {
 
@@ -49,15 +54,15 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
     public static class Request extends ActionRequest {
 
-        private final String id;
+        private final String[] ids;
 
-        public Request(String id) {
-            this.id = id;
+        public Request(String[] ids) {
+            this.ids = ids;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.id = in.readString();
+            this.ids = in.readStringArray();
         }
 
         @Override
@@ -68,18 +73,68 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(id);
+            out.writeStringArray(ids);
         }
 
-        public String getId() {
-            return id;
+        public String[] getId() {
+            return ids;
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        public static final ConstructingObjectParser<Response, Void> PARSER =
-            new ConstructingObjectParser<>("reindex/get_task", a -> new Response(
+        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            "reindex/get_reindex_task",
+            true,
+            args -> {
+                @SuppressWarnings("unchecked") // We're careful about the type in the list
+                List<ReindexTaskWrapper> jobs = (List<ReindexTaskWrapper>) args[0];
+                return new Response(unmodifiableList(jobs));
+            });
+
+        private static final String TASKS = "tasks";
+
+        static {
+            PARSER.declareObjectArray(constructorArg(), ReindexTaskWrapper.PARSER::apply, new ParseField(TASKS));
+        }
+
+        private List<ReindexTaskWrapper> responses;
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            responses = in.readList(ReindexTaskWrapper::new);
+        }
+
+        public Response(List<ReindexTaskWrapper> responses) {
+            this.responses = responses;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(responses);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(TASKS);
+            builder.startArray();
+            for (ReindexTaskWrapper response : responses) {
+                response.toXContent(builder, params);
+            }
+            builder.endArray();
+            return builder.endObject();
+        }
+
+        public static Response fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+    }
+
+    public static class ReindexTaskWrapper implements ToXContentObject, Writeable {
+
+        public static final ConstructingObjectParser<ReindexTaskWrapper, Void> PARSER =
+            new ConstructingObjectParser<>("reindex/get_task_wrapper", a -> new ReindexTaskWrapper(
                 (String) a[0],
                 (String) a[1],
                 (Long) a[2],
@@ -103,8 +158,8 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(ID));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(STATE));
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(START_TIME)); // Fix millis
-            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME)); // Fix millis
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(START_TIME));
+            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
                 new ParseField(REINDEX_RESULT));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
@@ -118,8 +173,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         private final BulkByScrollResponse reindexResponse;
         private final ElasticsearchException exception;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
+        public ReindexTaskWrapper(StreamInput in) throws IOException {
             this.id = in.readString();
             this.state = in.readString();
             this.startMillis = in.readLong();
@@ -128,13 +182,13 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             this.exception = in.readOptionalWriteable(ElasticsearchException::new);
         }
 
-        public Response(String id, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
-                        @Nullable ElasticsearchException exception) {
+        public ReindexTaskWrapper(String id, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
+                                  @Nullable ElasticsearchException exception) {
             this(id, getState(reindexResponse, exception), startMillis, endMillis, reindexResponse, exception);
         }
 
-        public Response(String id, String state, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
-                        @Nullable ElasticsearchException exception) {
+        public ReindexTaskWrapper(String id, String state, long startMillis, @Nullable Long endMillis,
+                                  @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
             assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
             this.id = id;
             this.state = state;
@@ -188,10 +242,6 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             }
 
             return builder.endObject();
-        }
-
-        public static Response fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
     }
 }

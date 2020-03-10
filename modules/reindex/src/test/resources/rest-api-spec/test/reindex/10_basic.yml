@@ -125,19 +125,21 @@
       reindex.get:
         id: $id
 
-  - match: {state: "done"}
-  - match: {start_time: /.+/}
-  - match: {end_time: /.+/}
-  - gte: {duration_in_millis: 0}
-  - match: {result.created: 1}
-  - match: {result.updated: 0}
-  - match: {result.version_conflicts: 0}
-  - match: {result.batches: 1}
-  - match: {result.failures: []}
-  - match: {result.throttled_millis: 0}
-  - gte: {result.took: 0}
-  - is_false: result.task
-  - is_false: result.deleted
+  - match: {tasks.0.state: "done"}
+  - match: {tasks.0.start_time: /.+/}
+  - match: {tasks.0.end_time: /.+/}
+  - match: {tasks.0.result.created: 1}
+  - match: {tasks.0.result.noops: 0}
+  - match: {tasks.0.result.batches: 1}
+  - match: {tasks.0.result.updated: 0}
+  - match: {tasks.0.result.total: 1}
+  - match: {tasks.0.result.version_conflicts: 0}
+  - match: {tasks.0.result.batches: 1}
+  - match: {tasks.0.result.failures: []}
+  - match: {tasks.0.result.throttled_millis: 0}
+  - match: {tasks.0.result.throttled_until_millis: 0}
+  - match: {tasks.0.result.timed_out: false}
+  - gte: {tasks.0.duration_in_millis: 0}
 
   # Make sure reindex closed all the scroll contexts
   - do:

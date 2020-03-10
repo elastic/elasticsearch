@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+
 public class TransportGetReindexTaskAction extends HandledTransportAction<GetReindexTaskAction.Request, GetReindexTaskAction.Response> {
 
     private final ReindexIndexClient reindexIndexClient;
@@ -42,14 +44,15 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
 
     @Override
     protected void doExecute(Task task, GetReindexTaskAction.Request request, ActionListener<GetReindexTaskAction.Response> listener) {
-        String id = request.getId();
+        String id = request.getId()[0];
         reindexIndexClient.getReindexTaskDoc(id, ActionListener.map(listener,
             (state) -> TransportGetReindexTaskAction.toResponse(id, state)));
     }
 
     private static GetReindexTaskAction.Response toResponse(String id, ReindexTaskState taskState) {
         ReindexTaskStateDoc stateDoc = taskState.getStateDoc();
-        return new GetReindexTaskAction.Response(id, stateDoc.getStartTimeMillis(), stateDoc.getEndTimeMillis(),
-            stateDoc.getReindexResponse(), stateDoc.getException());
+        final GetReindexTaskAction.ReindexTaskWrapper taskResponse = new GetReindexTaskAction.ReindexTaskWrapper(id,
+            stateDoc.getStartTimeMillis(), stateDoc.getEndTimeMillis(), stateDoc.getReindexResponse(), stateDoc.getException());
+        return new GetReindexTaskAction.Response(Collections.singletonList(taskResponse));
     }
 }

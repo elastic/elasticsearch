@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import com.carrotsearch.hppc.LongHashSet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -32,7 +29,10 @@ import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
 import org.elasticsearch.test.ESTestCase;
 
-import com.carrotsearch.hppc.LongHashSet;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BinaryRangeAggregatorTests extends ESTestCase {
 
@@ -167,6 +167,11 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         @Override
         public BytesRef nextValue() {
             return terms[(int) ords[i++]];
+        }
+
+        @Override
+        public BytesRef normalizeValue(BytesRef value) {
+            return value;
         }
 
     }

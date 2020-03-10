@@ -73,6 +73,11 @@ public class MissingValuesTests extends ESTestCase {
             public int docValueCount() {
                 return values[doc].length;
             }
+
+            @Override
+            public BytesRef normalizeValue(BytesRef value) {
+                return value;
+            }
         };
         final BytesRef missing = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 2));
         SortedBinaryDocValues withMissingReplaced = MissingValues.replaceMissing(asBinaryValues, missing);

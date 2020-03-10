@@ -119,6 +119,11 @@ public class FunctionScoreTests extends ESTestCase {
                         public BytesRef nextValue() {
                             return new BytesRef("0");
                         }
+
+                        @Override
+                        public BytesRef normalizeValue(BytesRef value) {
+                            return value;
+                        }
                     };
                 }
 

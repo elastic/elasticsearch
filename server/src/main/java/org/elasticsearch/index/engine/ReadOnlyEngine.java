@@ -22,7 +22,6 @@ import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -36,7 +35,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -76,7 +74,6 @@ public class ReadOnlyEngine extends Engine {
     private final ElasticsearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
-    private final DocsStats docsStats;
     private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
@@ -119,7 +116,6 @@ public class ReadOnlyEngine extends Engine {
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
                 readerManager = new ElasticsearchReaderManager(reader, refreshListener);
-                this.docsStats = docsStats(lastCommittedSegmentInfos);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
@@ -180,24 +176,6 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES), Lucene.SOFT_DELETES_FIELD);
-    }
-
-    private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
-        long numDocs = 0;
-        long numDeletedDocs = 0;
-        long sizeInBytes = 0;
-        if (lastCommittedSegmentInfos != null) {
-            for (SegmentCommitInfo segmentCommitInfo : lastCommittedSegmentInfos) {
-                numDocs += segmentCommitInfo.info.maxDoc() - segmentCommitInfo.getDelCount() - segmentCommitInfo.getSoftDelCount();
-                numDeletedDocs += segmentCommitInfo.getDelCount() + segmentCommitInfo.getSoftDelCount();
-                try {
-                    sizeInBytes += segmentCommitInfo.sizeInBytes();
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to get size for [" + segmentCommitInfo.info.name + "]", e);
-                }
-            }
-        }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     @Override
@@ -464,11 +442,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public DocsStats docStats() {
-        return docsStats;
-    }
-
-    @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
     }
@@ -511,13 +484,9 @@ public class ReadOnlyEngine extends Engine {
             maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 
-    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
+    protected static DirectoryReader openDirectory(Directory directory) throws IOException {
         final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
-        if (wrapSoftDeletes) {
-            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-        } else {
-            return reader;
-        }
+        return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
     }
 
     @Override

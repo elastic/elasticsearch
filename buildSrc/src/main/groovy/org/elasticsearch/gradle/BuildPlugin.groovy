@@ -714,7 +714,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static void configurePrecommit(Project project) {
+    private static configurePrecommit(Project project) {
         TaskProvider precommit = PrecommitTasks.create(project, true)
         project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(precommit) }
         project.tasks.named(JavaPlugin.TEST_TASK_NAME).configure { it.mustRunAfter(precommit) }
@@ -726,7 +726,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static TaskProvider<DependenciesInfoTask> configureDependenciesInfo(Project project) {
+    private static configureDependenciesInfo(Project project) {
         project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
             task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
             task.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
@@ -765,7 +765,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static boolean inFipsJvm(){
+    private static inFipsJvm(){
         return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

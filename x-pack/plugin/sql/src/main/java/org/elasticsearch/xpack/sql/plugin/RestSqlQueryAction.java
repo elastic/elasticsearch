@@ -60,7 +60,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          */
         String accept = null;
 
-        if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
+        if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
                 && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             accept = XContentType.CBOR.name();

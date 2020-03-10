@@ -215,8 +215,14 @@ public interface DocValueFormat extends NamedWriteable {
                 //if stream is from 7.7 Node it will have a flag indicating if format is joda
                 isJoda = in.readBoolean();
             } else {
-                //when received a stream from 6.0-6.latest Node it can be java if starts with 8 otherwise joda
-                // If a stream is from [7.0 - 7.7) it will assume (sometimes incorrectly) that the date is java
+                /*
+                 When received a stream from 6.0-6.latest Node it can be java if starts with 8 otherwise joda.
+
+                 If a stream is from [7.0 - 7.7) the boolean indicating that this is joda is not present.
+                 This means that if an index was created in 6.x using joda pattern and then cluster was upgraded to
+                 7.x but earlier then 7.0, there is no information that can tell that the index is using joda style pattern.
+                 It will be assumed that clusters upgrading from [7.0 - 7.7) are using java style patterns.
+                 */
                 isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
             }
             this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);

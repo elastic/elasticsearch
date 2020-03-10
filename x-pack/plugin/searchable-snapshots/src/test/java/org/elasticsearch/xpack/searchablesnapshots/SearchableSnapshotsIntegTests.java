@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,6 +27,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
+import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
@@ -42,7 +45,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotRepository.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -80,7 +83,6 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
-        final String searchableRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -117,35 +119,27 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        assertAcked(client().admin().cluster().preparePutRepository(searchableRepoName)
-            .setType("searchable")
-            .setSettings(Settings.builder()
-                .put("delegate_type", "fs")
-                .put("location", repo)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
         final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster()
-            .prepareRestoreSnapshot(searchableRepoName, snapshotName).setIndices(indexName)
-            .setRenamePattern(indexName)
-            .setRenameReplacement(restoredIndexName)
-            .setIndexSettings(Settings.builder()
-                .put(SearchableSnapshotRepository.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(restoredIndexName, fsRepoName,
+            snapshotInfo.snapshotId().getName(), indexName,
+            Settings.builder()
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-                .build())
-            .setWaitForCompletion(true).get();
+                .build(), Strings.EMPTY_ARRAY, true);
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         final Settings settings
             = client().admin().indices().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
-        assertThat(SearchableSnapshotRepository.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(searchableRepoName));
-        assertThat(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
+        assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(fsRepoName));
+        assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_DIRECTORY_FACTORY_KEY));
         assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(settings));
-        assertTrue(SearchableSnapshotRepository.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
-        assertTrue(SearchableSnapshotRepository.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
+        assertTrue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
+        assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
 

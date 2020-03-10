@@ -559,7 +559,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "{\n" +
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
-        "  \"default_field_mappings\": {\"col_1_alias\": \"col1\"},\n" +
+        "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n" +
         "  \"definition\": " + CLASSIFICATION_DEFINITION +
         "}";
 

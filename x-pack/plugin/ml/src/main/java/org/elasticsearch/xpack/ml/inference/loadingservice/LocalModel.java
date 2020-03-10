@@ -29,16 +29,16 @@ public class LocalModel implements Model {
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
     private final Set<String> fieldNames;
-    private final Map<String, String> defaultFieldMappings;
+    private final Map<String, String> defaultFieldMap;
 
     public LocalModel(String modelId,
                       TrainedModelDefinition trainedModelDefinition,
                       TrainedModelInput input,
-                      Map<String, String> defaultFieldMappings) {
+                      Map<String, String> defaultFieldMap) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
-        this.defaultFieldMappings = defaultFieldMappings == null ? null : new HashMap<>(defaultFieldMappings);
+        this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
     }
 
     long ramBytesUsed() {
@@ -67,7 +67,7 @@ public class LocalModel implements Model {
     @Override
     public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
         try {
-            Model.mapFieldsIfNecessary(fields, defaultFieldMappings);
+            Model.mapFieldsIfNecessary(fields, defaultFieldMap);
             if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;

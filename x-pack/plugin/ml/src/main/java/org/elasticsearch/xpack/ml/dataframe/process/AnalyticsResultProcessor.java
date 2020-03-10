@@ -218,7 +218,7 @@ public class AnalyticsResultProcessor {
             .setParsedDefinition(inferenceModel)
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setDefaultFieldMappings(defaultFieldMapping)
+            .setDefaultFieldMap(defaultFieldMapping)
             .build();
     }
 

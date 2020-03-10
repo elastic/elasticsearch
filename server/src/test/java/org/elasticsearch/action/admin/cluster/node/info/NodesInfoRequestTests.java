@@ -28,6 +28,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -40,11 +42,35 @@ public class NodesInfoRequestTests extends ESTestCase {
      * Make sure that we can set, serialize, and deserialize arbitrary sets
      * of metrics.
      */
-    public void testMetricsSetters() throws Exception {
+    public void testAddMetricsSet() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
         request.addMetrics(randomSubsetOf(NodesInfoRequest.Metric.allMetrics()));
         NodesInfoRequest deserializedRequest = roundTripRequest(request);
         assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
+    }
+
+    /**
+     * Check that we can add a metric.
+     */
+    public void testAddSingleMetric() throws Exception {
+        NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
+        request.addMetric(randomFrom(NodesInfoRequest.Metric.allMetrics()));
+        NodesInfoRequest deserializedRequest = roundTripRequest(request);
+        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
+    }
+
+    /**
+     * Check that we can remove a metric.
+     */
+    public void testRemoveSingleMetric() throws Exception {
+        NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
+        request.all();
+        String metric = randomFrom(NodesInfoRequest.Metric.allMetrics());
+        request.removeMetric(metric);
+
+        NodesInfoRequest deserializedRequest = roundTripRequest(request);
+        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
+        assertThat(metric, not(in(request.requestedMetrics())));
     }
 
     /**

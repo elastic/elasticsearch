@@ -80,9 +80,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear()
-                    .addMetric(NodesInfoRequest.Metric.PROCESS.metricName())
-                    .addMetric(NodesInfoRequest.Metric.THREAD_POOL.metricName());
+                nodesInfoRequest.clear().addMetrics(
+                    NodesInfoRequest.Metric.PROCESS.metricName(),
+                    NodesInfoRequest.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {

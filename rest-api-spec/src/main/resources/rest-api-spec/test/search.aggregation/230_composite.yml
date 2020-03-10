@@ -879,6 +879,31 @@ setup:
   - do:
       search:
         index: test
+          aggregations:
+            test:
+              composite:
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date_nanos
+                        calendar_interval: 1d
+                        format: iso8601 # Format makes the comparisons a little more obvious
+              aggregations:
+                avg:
+                  avg:
+                    field: date_nanos
+
+  - match: { hits.total.value: 9 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-11-21T00:00:00.000Z" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.0.avg.value_as_string: "2017-11-21T01:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.key.date: "2017-11-22T00:00:00.000Z" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.avg.value_as_string: "2017-11-22T01:30:00.000Z" }
+
+---
 "Terms source from sorted":
   - do:
         indices.create:
@@ -953,27 +978,6 @@ setup:
             test:
               composite:
                 sources:
-<<<<<<< HEAD
-                  - date:
-                      date_histogram:
-                        field: date_nanos
-                        calendar_interval: 1d
-                        format: iso8601 # Format makes the comparisons a little more obvious
-              aggregations:
-                avg:
-                  avg:
-                    field: date_nanos
-
-  - match: { hits.total.value: 9 }
-  - match: { hits.total.relation: eq }
-  - length: { aggregations.test.buckets: 2 }
-  - match: { aggregations.test.buckets.0.key.date: "2017-11-21T00:00:00.000Z" }
-  - match: { aggregations.test.buckets.0.doc_count: 1 }
-  - match: { aggregations.test.buckets.0.avg.value_as_string: "2017-11-21T01:00:00.000Z" }
-  - match: { aggregations.test.buckets.1.key.date: "2017-11-22T00:00:00.000Z" }
-  - match: { aggregations.test.buckets.1.doc_count: 2 }
-  - match: { aggregations.test.buckets.1.avg.value_as_string: "2017-11-22T01:30:00.000Z" }
-=======
                   - keyword:
                       terms:
                         field: keyword
@@ -982,4 +986,3 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.keyword: "foo" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
->>>>>>> master

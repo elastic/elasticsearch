@@ -49,8 +49,6 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     private final String[] nodeIds;
     private final String[] nodeNames;
     private final TimeValue timeout;
-    public static final String nodeDescriptionDeprecationMsg = "Using [node_name] for adding voting config exclustion will be removed " +
-        "in a future version. Please use [node_ids] or [node_names] instead";
 
     /**
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for a

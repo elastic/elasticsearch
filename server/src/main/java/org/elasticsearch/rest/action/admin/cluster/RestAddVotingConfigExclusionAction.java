@@ -34,19 +34,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 
-import static org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest.nodeDescriptionDeprecationMsg;
-
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
-
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
     private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
+    private static final String DEPRECATION_MESSAGE = "Using [node_name] for adding voting config exclustion will be removed " +
+        "in a future version. Please use [node_ids] or [node_names] instead";
+
     public RestAddVotingConfigExclusionAction(RestController controller) {
         controller.registerAsDeprecatedHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this,
-                                                nodeDescriptionDeprecationMsg, DEPRECATION_LOGGER);
+                                                DEPRECATION_MESSAGE, DEPRECATION_LOGGER);
 
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions", this);
+
     }
 
     @Override

@@ -16,13 +16,7 @@ public interface Model {
 
     String getResultsType();
 
-    default void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener) {
-        try {
-            listener.onResponse(infer(fields, inferenceConfig));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
+    void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener);
 
     InferenceResults infer(Map<String, Object> fields, InferenceConfig inferenceConfig);
 

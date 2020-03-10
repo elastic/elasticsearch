@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -63,6 +64,15 @@ public class LocalModel implements Model {
     }
 
     @Override
+    public void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener) {
+        try {
+            listener.onResponse(infer(fields, inferenceConfig));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
         if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
             return new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
@@ -70,5 +80,4 @@ public class LocalModel implements Model {
 
         return trainedModelDefinition.infer(fields, config);
     }
-
 }

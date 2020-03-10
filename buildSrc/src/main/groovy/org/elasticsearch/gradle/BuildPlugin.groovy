@@ -82,7 +82,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
-
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -327,9 +326,13 @@ class BuildPlugin implements Plugin<Project> {
             // extract the revision number from the version with a regex matcher
             List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
             String revision = matches.get(1)
-            repos.maven { MavenArtifactRepository repo ->
+            MavenArtifactRepository luceneRepo = repos.maven { MavenArtifactRepository repo ->
                 repo.name = 'lucene-snapshots'
                 repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+            repos.exclusiveContent {exclusiveRepo ->
+                exclusiveRepo.filter { it.includeGroup('org.apache.lucene') }
+                exclusiveRepo.forRepositories(luceneRepo)
             }
         }
     }
@@ -711,7 +714,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static configurePrecommit(Project project) {
+    private static void configurePrecommit(Project project) {
         TaskProvider precommit = PrecommitTasks.create(project, true)
         project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(precommit) }
         project.tasks.named(JavaPlugin.TEST_TASK_NAME).configure { it.mustRunAfter(precommit) }
@@ -723,7 +726,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static configureDependenciesInfo(Project project) {
+    private static TaskProvider<DependenciesInfoTask> configureDependenciesInfo(Project project) {
         project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
             task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
             task.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
@@ -762,7 +765,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static inFipsJvm(){
+    private static boolean inFipsJvm(){
         return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

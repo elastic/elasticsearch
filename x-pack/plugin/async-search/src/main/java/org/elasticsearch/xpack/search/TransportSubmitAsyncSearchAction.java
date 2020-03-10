@@ -67,7 +67,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         CancellableTask submitTask = (CancellableTask) task;
         final SearchRequest searchRequest = createSearchRequest(request, submitTask.getId(), request.getKeepAlive());
         AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register("transport", SearchAction.INSTANCE.name(), searchRequest);
-        searchAction.execute(searchTask, searchRequest, searchTask.getProgressListener());
+        searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
         searchTask.addCompletionListener(
             new ActionListener<>() {
                 @Override

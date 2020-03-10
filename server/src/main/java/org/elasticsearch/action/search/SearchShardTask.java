@@ -30,7 +30,7 @@ import java.util.Map;
  * Task storing information about a currently running search shard request.
  * See {@link ShardSearchRequest}, {@link ShardFetchSearchRequest}, ...
  */
-public class SearchShardTask extends CancellableTask {
+public final class SearchShardTask extends CancellableTask {
 
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -40,5 +40,4 @@ public class SearchShardTask extends CancellableTask {
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
     }
-
 }

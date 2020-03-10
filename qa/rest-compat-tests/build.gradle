@@ -20,3 +20,5 @@ integTest.dependsOn(copyRestTestsResources)
 dependencies {
   compile project(':test:framework')
 }
+
+test.enabled = false

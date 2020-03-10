@@ -74,7 +74,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         entries.add(new NamedXContentRegistry.Entry(ExecutableSection.class,
                 new ParseField("compare_analyzers"), CompareAnalyzers::parse));
         NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(entries);
-        return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
+        return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry, TESTS_PATH);
     }
 
     @Override

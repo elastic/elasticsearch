@@ -912,6 +912,7 @@ setup:
   - do:
       search:
         index: sorted_test
+        rest_total_hits_as_int: true
         body:
           aggregations:
             test:
@@ -921,7 +922,7 @@ setup:
                       terms:
                         field: keyword
 
-  - match: {hits.total.value: 1}
+  - match: {hits.total: 1}
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.keyword: "foo" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }

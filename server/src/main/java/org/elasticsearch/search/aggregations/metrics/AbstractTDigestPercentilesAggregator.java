@@ -40,7 +40,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
+public abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
     private static int indexOfKey(double[] keys, double key) {
         return ArrayUtils.binarySearch(keys, key, 0.001);
@@ -53,7 +53,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     protected final double compression;
     protected final boolean keyed;
 
-    AbstractTDigestPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+    protected AbstractTDigestPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
             double[] keys, double compression, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

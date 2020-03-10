@@ -82,6 +82,8 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         } else {
             relevantTargetCustomData.setAction(action);
         }
+        relevantTargetCustomData.setSnapshotRepository(lifecycleState.getSnapshotRepository());
+        relevantTargetCustomData.setSnapshotName(lifecycleState.getSnapshotName());
 
         MetaData.Builder newMetaData = MetaData.builder(clusterState.getMetaData())
             .put(IndexMetaData.builder(targetIndexMetaData)

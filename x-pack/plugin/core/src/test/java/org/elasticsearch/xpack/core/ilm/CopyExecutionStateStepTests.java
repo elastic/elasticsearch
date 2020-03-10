@@ -88,10 +88,12 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         LifecycleExecutionState newIndexData = LifecycleExecutionState
             .fromIndexMetadata(newClusterState.metaData().index(step.getTargetIndexPrefix() + indexName));
 
-        assertEquals(oldIndexData.getLifecycleDate(), newIndexData.getLifecycleDate());
-        assertEquals(oldIndexData.getPhase(), newIndexData.getPhase());
-        assertEquals(oldIndexData.getAction(), newIndexData.getAction());
-        assertEquals(step.getTargetNextStepName(), newIndexData.getStep());
+        assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
+        assertEquals(newIndexData.getPhase(), oldIndexData.getPhase());
+        assertEquals(newIndexData.getAction(), oldIndexData.getAction());
+        assertEquals(newIndexData.getStep(), step.getTargetNextStepName());
+        assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
+        assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
     }
     public void testPerformActionWithNoTarget() {
         CopyExecutionStateStep step = createRandomInstance();

@@ -16,9 +16,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,18 +36,19 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 // TODO: add tests for keepAlive and expiration
+@ESIntegTestCase.SuiteScopeTestCase
 public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
-    private String indexName;
-    private int numShards;
-    private int numDocs;
+    private static String indexName;
+    private static int numShards;
+    private static int numDocs;
 
-    private int numKeywords;
-    private Map<String, AtomicInteger> keywordFreqs;
-    private float maxMetric = Float.NEGATIVE_INFINITY;
-    private float minMetric = Float.POSITIVE_INFINITY;
+    private static int numKeywords;
+    private static Map<String, AtomicInteger> keywordFreqs;
+    private static float maxMetric = Float.NEGATIVE_INFINITY;
+    private static float minMetric = Float.POSITIVE_INFINITY;
 
-    @Before
-    public void indexDocuments() throws InterruptedException {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         indexName = "test-async";
         numShards = randomIntBetween(internalCluster().numDataNodes(), internalCluster().numDataNodes()*10);
         numDocs = randomIntBetween(numShards, numShards*10);

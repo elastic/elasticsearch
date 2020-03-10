@@ -15,6 +15,14 @@ Adds and updates roles in the native realm.
 `PUT /_security/role/<name>`
 
 
+Using curl still requires for the following format:
+
+`POST /api/security/role/<name>` +
+
+`PUT /api/security/role/<name>`
+
+
+
 [[security-api-put-role-prereqs]]
 ==== {api-prereq-title}
 

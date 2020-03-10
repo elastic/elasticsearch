@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 // TODO: add tests for keepAlive and expiration
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53360")
 public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     private String indexName;
     private int numShards;

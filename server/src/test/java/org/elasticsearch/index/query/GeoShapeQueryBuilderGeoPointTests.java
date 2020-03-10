@@ -18,10 +18,37 @@
  */
 package org.elasticsearch.index.query;
 
-public abstract class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests {
-// public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
+
+public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests {
 
     protected String fieldName() {
         return GEO_POINT_FIELD_NAME;
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        GeoShapeQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        try {
+            rewriteQuery(queryBuilder, new QueryShardContext(context));
+        } catch (
+            QueryShardException e) {
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [mapped_geo_point] does not support point queries"));
+        }
+    }
+
+    @Override
+    public void testToQuery() throws IOException {
+        try {
+            createTestQueryBuilder();
+        } catch (
+            QueryShardException e) {
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [mapped_geo_point] does not support point queries"));
+        }
     }
 }

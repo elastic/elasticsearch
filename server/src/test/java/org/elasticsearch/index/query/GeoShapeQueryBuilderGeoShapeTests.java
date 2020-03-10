@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
-public abstract class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests {
-// public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
+public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests {
 
     protected String fieldName() {
         return GEO_SHAPE_FIELD_NAME;

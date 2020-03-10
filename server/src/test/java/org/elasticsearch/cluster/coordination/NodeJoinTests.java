@@ -113,6 +113,8 @@ public class NodeJoinTests extends ESTestCase {
                         .term(term)
                         .lastAcceptedConfiguration(config)
                         .lastCommittedConfiguration(config)
+                        .addVotingConfigExclusion(new CoordinationMetaData.VotingConfigExclusion(
+                            CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName"))
                     .build()))
             .version(version)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
@@ -302,8 +304,7 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
     }
 
-    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() {
-        DiscoveryNode node0 = newNode(0, true);
+    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() { DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
@@ -375,6 +376,27 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(new JoinRequest(node1,
             Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))));
         assertTrue(isLocalNodeElectedMaster());
+    }
+
+    public void testJoinUpdateVotingConfigExclusion() throws Exception {
+        DiscoveryNode initialNode = newNode(0, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+
+        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(initialNode, initialTerm, initialVersion,
+                                                new VotingConfiguration(Collections.singleton(initialNode.getId()))));
+
+        DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
+                                                            emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+        long newerTerm = newTerm + randomLongBetween(1, 10);
+
+        joinNodeAndRun(new JoinRequest(knownJoiningNode,
+            Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))));
+
+        assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+        }));
     }
 
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {

@@ -49,11 +49,12 @@ public final class SIfElse extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Scope scope) {
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.cast();
 
-        if (condition.constant != null) {
+        if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -93,7 +94,7 @@ public final class SIfElse extends AStatement {
     IfElseNode write(ClassNode classNode) {
         IfElseNode ifElseNode = new IfElseNode();
 
-        ifElseNode.setConditionNode(condition.write(classNode));
+        ifElseNode.setConditionNode(condition.cast(condition.write(classNode)));
         ifElseNode.setBlockNode(ifblock.write(classNode));
         ifElseNode.setElseBlockNode(elseblock.write(classNode));
 

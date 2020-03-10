@@ -1760,6 +1760,7 @@ public class InternalEngineTests extends EngineTestCase {
         return opsPerformed;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53182")
     public void testNonInternalVersioningOnPrimary() throws IOException {
         final Set<VersionType> nonInternalVersioning = new HashSet<>(Arrays.asList(VersionType.values()));
         nonInternalVersioning.remove(VersionType.INTERNAL);
@@ -4507,8 +4508,8 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.syncTranslog();
                 }
                 if (frequently()) {
-                    final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
                     engine.flush(randomBoolean(), true);
+                    final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
                     final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                     // Keep only one safe commit as the oldest commit.
                     final IndexCommit safeCommit = commits.get(0);

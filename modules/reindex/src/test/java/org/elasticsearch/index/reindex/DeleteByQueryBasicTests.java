@@ -245,6 +245,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         // so we should test both case of disk allocation decider is enabled and disabled
         boolean diskAllocationDeciderEnabled = randomBoolean();
         try {
+            if (diskAllocationDeciderEnabled == false) {
+                // Disable the disk allocation decider to ensure the read_only_allow_delete block cannot be released
+                setDiskAllocationDeciderEnabled(false);
+            }
             // When a read_only_allow_delete block is set on the index,
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
@@ -259,8 +263,6 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
                     matcher().deleted(docs));
             } else {
-                // Disable the disk allocation decider to ensure the read_only_allow_delete block cannot be released
-                setDiskAllocationDeciderEnabled(false);
                 // The delete by query request will not be executed successfully because the block cannot be released
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
                         .setMaxRetries(2).setRetryBackoffInitialTime(TimeValue.timeValueMillis(50)).get(),

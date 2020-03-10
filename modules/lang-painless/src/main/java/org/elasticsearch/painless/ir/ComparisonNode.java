@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -63,13 +62,13 @@ public class ComparisonNode extends BinaryNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
-        getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
+        getLeftNode().write(classWriter, methodWriter, scopeTable);
 
         if (getRightNode() instanceof NullNode == false) {
-            getRightNode().write(classWriter, methodWriter, globals, scopeTable);
+            getRightNode().write(classWriter, methodWriter, scopeTable);
         }
 
         Label jump = new Label();

@@ -22,9 +22,9 @@ import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
 import org.elasticsearch.xpack.sql.client.ClientException;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.Version;
 import org.jline.terminal.TerminalBuilder;
 
 import java.io.IOException;
@@ -161,7 +161,7 @@ public class Cli extends LoggingAwareCommand {
                 // Most likely we connected to something other than Elasticsearch
                 throw new UserException(ExitCodes.DATA_ERROR,
                         "Cannot communicate with the server " + con.connectionString() +
-                                ". This version of CLI only works with Elasticsearch version " + Version.CURRENT.toString());
+                                ". This version of CLI only works with Elasticsearch version " + ClientVersion.CURRENT.toString());
             }
         }
     }

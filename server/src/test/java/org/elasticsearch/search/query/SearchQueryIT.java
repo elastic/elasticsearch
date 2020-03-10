@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -28,6 +31,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -1758,4 +1762,20 @@ public class SearchQueryIT extends ESIntegTestCase {
        }
 
    }
+
+    /**
+     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
+     * {@link AttributeSource}.
+     */
+    public void testIssueFuzzyInsideSpanMulti() {
+        createIndex("test");
+        client().prepareIndex("test").setId("1").setSource("field", "foobarbaz").get();
+        ensureGreen();
+        refresh();
+
+        BoolQueryBuilder query = boolQuery().filter(spanMultiTermQueryBuilder(fuzzyQuery("field", "foobarbiz").rewrite("constant_score")));
+        SearchResponse response = client().prepareSearch("test").setQuery(query).get();
+        assertHitCount(response, 1);
+    }
 }

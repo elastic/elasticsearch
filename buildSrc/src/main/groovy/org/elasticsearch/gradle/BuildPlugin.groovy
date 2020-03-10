@@ -46,6 +46,7 @@ import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ExclusiveContentRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -82,6 +83,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -330,7 +332,7 @@ class BuildPlugin implements Plugin<Project> {
                 repo.name = 'lucene-snapshots'
                 repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
-            repos.exclusiveContent {exclusiveRepo ->
+            repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
                 exclusiveRepo.filter { it.includeGroup('org.apache.lucene') }
                 exclusiveRepo.forRepositories(luceneRepo)
             }

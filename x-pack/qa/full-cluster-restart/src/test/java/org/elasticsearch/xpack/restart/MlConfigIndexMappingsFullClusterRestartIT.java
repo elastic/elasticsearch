@@ -80,7 +80,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             Map<String, Object> configIndexMappings = getConfigIndexMappings();
 
             // Remove renamed fields
-            if (getOldClusterVersion().onOrAfter(Version.V_7_7_0)) {
+            if (getOldClusterVersion().before(Version.V_8_0_0)) {
                 configIndexMappings = XContentMapValues.filter(expectedConfigIndexMappings, null, new String[] {
                     "analysis.properties.*.properties.maximum_number_trees" // This was renamed to max_trees
                 });

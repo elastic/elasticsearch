@@ -15,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
@@ -86,7 +87,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
             assertNotNull(request);
             assertEquals(1, request.indices().length);
             assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
-            listener.onResponse(null);
+            listener.onResponse(new FreezeResponse(true, true));
             return null;
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
@@ -145,6 +146,40 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(exception, e);
+                exceptionThrown.set(true);
+            }
+        });
+
+        assertThat(exceptionThrown.get(), equalTo(true));
+    }
+
+    public void testNotAcknowledged() {
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            listener.onResponse(new FreezeResponse(false, false));
+            return null;
+        }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
+
+        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
+        FreezeStep step = createRandomInstance();
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                throw new AssertionError("Unexpected method call");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertEquals("freeze index request failed to be acknowledged", e.getMessage());
                 exceptionThrown.set(true);
             }
         });

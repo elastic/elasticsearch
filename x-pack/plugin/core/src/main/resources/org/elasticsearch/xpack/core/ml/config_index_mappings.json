@@ -40,9 +40,6 @@
               "lambda" : {
                 "type" : "double"
               },
-              "maximum_number_trees" : {
-                "type" : "integer"
-              },
               "max_trees" : {
                 "type" : "integer"
               },
@@ -89,9 +86,6 @@
               },
               "lambda" : {
                 "type" : "double"
-              },
-              "maximum_number_trees" : {
-                "type" : "integer"
               },
               "max_trees" : {
                 "type" : "integer"

@@ -10,7 +10,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -19,9 +18,9 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
- * Deletes the snapshot designated by the snapshot name present in the lifecycle execution state, hosted in the configured repository.
+ * Deletes the snapshot designated by the repository and snapshot name present in the lifecycle execution state.
  */
-public class CleanupSnapshotStep extends AsyncActionStep {
+public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "cleanup-snapshot";
 
     public CleanupSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
@@ -30,28 +29,23 @@ public class CleanupSnapshotStep extends AsyncActionStep {
 
     @Override
     public boolean isRetryable() {
-        return true;
+        return false;
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, ClusterStateObserver observer,
-                              Listener listener) {
+    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
         final String indexName = indexMetaData.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
-        final String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String repositoryName = lifecycleState.getSnapshotRepository();
+        // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {
-            listener.onFailure(
-                new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName +
-                    "]"));
+            listener.onResponse(true);
             return;
         }
         final String snapshotName = lifecycleState.getSnapshotName();
         if (Strings.hasText(snapshotName) == false) {
-            listener.onFailure(
-                new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
-            );
+            listener.onResponse(true);
             return;
         }
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(repositoryName, snapshotName);

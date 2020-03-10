@@ -22,7 +22,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapshotStep> {
@@ -56,7 +55,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         return new CleanupSnapshotStep(key, nextKey, instance.getClient());
     }
 
-    public void testPerformActionFailure() {
+    public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
 
@@ -74,14 +73,13 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
-                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
+                    assertThat(complete, is(true));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
-                    assertThat(e.getMessage(),
-                        is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
+                    fail("expecting the step to report success if repository information is missing from the ILM execution state as there" +
+                        " is no snapshot to deleter");
                 }
             });
         }
@@ -102,14 +100,13 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
-                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
+                    assertThat(complete, is(true));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
-                    assertThat(e.getMessage(),
-                        is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
+                    fail("expecting the step to report success if the snapshot name is missing from the ILM execution state as there is " +
+                        "no snapshot to delete");
                 }
             });
         }

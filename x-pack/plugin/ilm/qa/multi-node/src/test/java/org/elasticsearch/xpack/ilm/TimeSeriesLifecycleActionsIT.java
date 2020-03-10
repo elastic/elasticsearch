@@ -57,6 +57,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1584,6 +1585,87 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
     }
 
+    public void testDeleteActionDoenstDeleteGeneratedSnapshot() throws Exception {
+        String snapshotRepo = randomAlphaOfLengthBetween(15, 20);
+        Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + snapshotRepo);
+        String location = System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRequest.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                //random location to avoid clash with other snapshots
+                .field("location", location)
+                .field("max_snapshot_bytes_per_sec", "100m")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(createSnapshotRequest));
+        String searchableSnapshotRepo = createSearchableSnapshotRepo(location);
+
+        // create policy with cold and delete phases
+        Map<String, LifecycleAction> coldActions =
+            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, searchableSnapshotRepo));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction(false))));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setEntity(entity);
+        assertOK(client().performRequest(createPolicyRequest));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        String[] snapshotName = new String[1];
+        assertTrue(waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndex = explainIndex(restoredIndexName);
+                String action = (String) explainIndex.get("action");
+                snapshotName[0] = (String) explainIndex.get("snapshot_name");
+                return DeleteAction.NAME.equals(action);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 60, TimeUnit.SECONDS));
+
+        assertTrue("the snapshot we generate in the cold phase should not be deleted by the delete phase", waitUntil(() -> {
+            try {
+                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/" + snapshotName[0]);
+                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+                Map<String, Object> snapshotsResponseMap;
+                try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
+                    snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
+                for (Object response : responses) {
+                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
+                    if (responseAsMap.get("snapshots") != null) {
+                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
+                        for (Object snapshot : snapshots) {
+                            if ((((Map<String, Object>) snapshot).get("snapshot")).equals(snapshotName[0])) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+    }
+
     // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success, String stepName) throws IOException {
         assertHistoryIsPresent(policyName, indexName, success, null, null, stepName);
@@ -1879,7 +1961,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .field("type", "searchable")
                 .startObject("settings")
                 .field("compress", randomBoolean())
-                //random location to avoid clash with other snapshots
                 .field("location", delegateRepoLocation)
                 .field("max_snapshot_bytes_per_sec", "100m")
                 .field("delegate_type", "fs")

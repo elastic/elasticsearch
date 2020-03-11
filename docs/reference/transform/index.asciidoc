@@ -2,6 +2,8 @@
 [[transforms]]
 == Transforming data
 
+beta[]
+
 // tag::transform-intro[]
 {transforms-cap} enable you to convert existing {es} indices into summarized
 indices, which provide opportunities for new insights and analytics.

@@ -47,7 +47,6 @@ public interface ExistingShardsAllocator {
      */
     void beforeAllocation(RoutingAllocation allocation);
 
-
     /**
      * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
      * to prepare for replica allocation.

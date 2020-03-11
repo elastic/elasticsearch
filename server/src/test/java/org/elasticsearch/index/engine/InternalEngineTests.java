@@ -536,7 +536,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
             // now, optimize and wait for merges, see that we have no merge flag
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
 
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -546,7 +546,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             final boolean flush = randomBoolean();
             final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-            engine.forceMerge(flush);
+            engine.forceMerge(flush, 1, false, false, false, UUIDs.randomBase64UUID());
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
             }
@@ -1239,7 +1239,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals(3, engine.segments(false).size());
 
                 engine.forceMerge(forceMergeFlushes, 1, false,
-                    false, false);
+                    false, false, UUIDs.randomBase64UUID());
                 if (forceMergeFlushes == false) {
                     engine.refresh("make all segments visible");
                     assertEquals(4, engine.segments(false).size());
@@ -1476,7 +1476,7 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.Searcher test = engine.acquireSearcher("test")) {
                 assertEquals(numDocs, test.getIndexReader().numDocs());
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
             assertEquals(engine.segments(true).size(), 1);
 
@@ -1484,7 +1484,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = indexForDoc(doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid(), primaryTerm.get()));
             //expunge deletes
-            engine.forceMerge(true, 10, true, false, false);
+            engine.forceMerge(true, 10, true, false, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
 
             assertEquals(engine.segments(true).size(), 1);
@@ -1497,7 +1497,7 @@ public class InternalEngineTests extends EngineTestCase {
             index = indexForDoc(doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid(), primaryTerm.get()));
             //expunge deletes
-            engine.forceMerge(true, 10, false, false, false);
+            engine.forceMerge(true, 10, false, false, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
             assertEquals(engine.segments(true).size(), 1);
             try (Engine.Searcher test = engine.acquireSearcher("test")) {
@@ -1605,7 +1605,7 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
                 safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
@@ -1630,7 +1630,7 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(localCheckpoint);
             engine.syncTranslog();
 
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
         }
@@ -1695,7 +1695,7 @@ public class InternalEngineTests extends EngineTestCase {
                     safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
                 minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
@@ -1739,7 +1739,7 @@ public class InternalEngineTests extends EngineTestCase {
                 globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 engine.syncTranslog();
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocsWithSource.size()));
         }
@@ -1776,7 +1776,7 @@ public class InternalEngineTests extends EngineTestCase {
                                 indexed.countDown();
                                 try {
                                     engine.forceMerge(randomBoolean(), 1, false, randomBoolean(),
-                                        randomBoolean());
+                                        randomBoolean(), UUIDs.randomBase64UUID());
                                 } catch (IOException e) {
                                     return;
                                 }
@@ -1793,7 +1793,7 @@ public class InternalEngineTests extends EngineTestCase {
                 startGun.countDown();
                 int someIters = randomIntBetween(1, 10);
                 for (int i = 0; i < someIters; i++) {
-                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
+                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean(), UUIDs.randomBase64UUID());
                 }
                 indexed.await();
                 IOUtils.close(engine);
@@ -3192,7 +3192,7 @@ public class InternalEngineTests extends EngineTestCase {
                         switch (operation) {
                             case "optimize": {
                                 engine.forceMerge(true, 1, false, false,
-                                    false);
+                                    false, UUIDs.randomBase64UUID());
                                 break;
                             }
                             case "refresh": {
@@ -4435,7 +4435,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush();
             }
             if (randomBoolean()) {
-                engine.forceMerge(randomBoolean(), between(1, 10), randomBoolean(), false, false);
+                engine.forceMerge(randomBoolean(), between(1, 10), randomBoolean(), false, false, UUIDs.randomBase64UUID());
             }
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
@@ -5135,7 +5135,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(doc));
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(2));
         engine.refresh("test");
-        engine.forceMerge(false, 1, false, false, false);
+        engine.forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID());
         assertBusy(() -> {
             // the merge listner runs concurrently after the force merge returned
             assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
@@ -5384,7 +5384,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.flush();
                 }
                 if (rarely()) {
-                    engine.forceMerge(true);
+                    engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
                 }
             }
             MapperService mapperService = createMapperService("test");
@@ -5465,7 +5465,7 @@ public class InternalEngineTests extends EngineTestCase {
                     equalTo(engine.getMinRetainedSeqNo()));
             }
             if (rarely()) {
-                engine.forceMerge(randomBoolean());
+                engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
             }
             try (Closeable ignored = engine.acquireHistoryRetentionLock(Engine.HistorySource.INDEX)) {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
@@ -5955,7 +5955,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.delete(new Engine.Delete("_doc", "0", newUid("0"), primaryTerm.get()));
             engine.refresh("test");
             // now we have 2 segments since we now added a tombstone plus the old segment with the delete
@@ -5974,7 +5974,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                 IndexReader reader = searcher.getIndexReader();
@@ -6018,7 +6018,7 @@ public class InternalEngineTests extends EngineTestCase {
                         engine.flush();
                     }
                     if (randomInt(100) < 5) {
-                        engine.forceMerge(randomBoolean(), 1, false, false, false);
+                        engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
                     }
                 }
                 if (randomBoolean()) {

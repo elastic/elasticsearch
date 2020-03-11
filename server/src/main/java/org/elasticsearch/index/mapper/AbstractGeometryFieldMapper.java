@@ -53,8 +53,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
 
 /**
- * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeF￼ nknize added >feature :Analytics/Geo v8.0.0 v7.7.0 labels 2 days ago
-ieldMapper}
+ * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
  */
 public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 

@@ -329,7 +329,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                   }
                 } else {
                     if(handler.compatibilityRequired() == false //regular (not removed) handlers are always dispatched
-                        || CompatibleHandlers.isV7Compatible(request)) { //handlers that were registered compatible, require request to be compatible
+                        //handlers that were registered compatible, require request to be compatible
+                        || CompatibleHandlers.isV7Compatible(request)) {
                         dispatchRequest(request, channel, handler);
                     } else {
                         handleCompatibleNotAllowed(rawPath, channel);

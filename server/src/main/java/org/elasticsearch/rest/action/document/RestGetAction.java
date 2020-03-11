@@ -19,17 +19,12 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.CompatibleHandlers;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -38,23 +33,13 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.List;
-import java.util.function.Consumer;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetAction.class));
-    private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
-    private static final Consumer<RestRequest> DEPRECATION_WARNING = r -> deprecationLogger.deprecatedAndMaybeLog("get_with_types",TYPES_DEPRECATION_MESSAGE);
-
 
     @Override
     public String getName() {
@@ -92,42 +77,11 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
-
         return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override
             protected RestStatus getStatus(final GetResponse response) {
                 return response.isExists() ? OK : NOT_FOUND;
             }
         });
-    }
-
-    public static class CompatibleRestGetAction extends RestGetAction {
-
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetAction.class));
-        private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-            "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
-        private static final Consumer<RestRequest> DEPRECATION_WARNING = r -> deprecationLogger.deprecatedAndMaybeLog("get_with_types",TYPES_DEPRECATION_MESSAGE);
-
-
-        @Override
-        public List<Route> routes() {
-            assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
-
-            return unmodifiableList(asList(
-                new Route(GET, "/{index}/{type}/{id}"),
-                new Route(HEAD, "/{index}/{type}/{id}")));
-        }
-
-        @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
-            return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public boolean compatibilityRequired() {
-            return true;
-        }
     }
 }

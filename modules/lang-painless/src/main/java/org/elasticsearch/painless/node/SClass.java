@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
@@ -49,22 +48,17 @@ public class SClass extends ANode {
         this.functions.addAll(Objects.requireNonNull(functions));
     }
 
+    public void buildClassScope(ScriptRoot scriptRoot) {
+        for (SFunction function : functions) {
+            function.buildClassScope(scriptRoot);
+        }
+    }
+
     public ClassNode writeClass(ScriptRoot scriptRoot) {
         scriptRoot.addStaticConstant("$NAME", name);
         scriptRoot.addStaticConstant("$SOURCE", sourceText);
 
-        for (SFunction function : functions) {
-            function.generateSignature(scriptRoot.getPainlessLookup());
-
-            String key = FunctionTable.buildLocalFunctionKey(function.name, function.typeParameters.size());
-
-            if (scriptRoot.getFunctionTable().getFunction(key) != null) {
-                throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
-            }
-
-            scriptRoot.getFunctionTable().addFunction(
-                    function.name, function.returnType, function.typeParameters, function.isInternal, function.isStatic);
-        }
+        buildClassScope(scriptRoot);
 
         ClassNode classNode = new ClassNode();
 

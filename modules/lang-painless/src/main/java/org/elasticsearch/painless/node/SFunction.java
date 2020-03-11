@@ -32,9 +32,9 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AStatement.Input;
 import org.elasticsearch.painless.node.AStatement.Output;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -63,12 +63,6 @@ public class SFunction extends ANode {
      */
     protected final boolean isAutoReturnEnabled;
 
-    protected Class<?> returnType;
-    protected List<Class<?>> typeParameters;
-    protected MethodType methodType;
-
-    protected org.objectweb.asm.commons.Method method;
-
     public SFunction(Location location, String rtnType, String name,
             List<String> paramTypes, List<String> paramNames,
             SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean isAutoReturnEnabled) {
@@ -85,45 +79,54 @@ public class SFunction extends ANode {
         this.isAutoReturnEnabled = isAutoReturnEnabled;
     }
 
-    // TODO: do this in class on add to remove need for mutable state
-    void generateSignature(PainlessLookup painlessLookup) {
-        returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
+    void buildClassScope(ScriptRoot scriptRoot) {
+        if (paramTypeStrs.size() != paramNameStrs.size()) {
+            throw createError(new IllegalStateException(
+                "parameter types size [" + paramTypeStrs.size() + "] is not equal to " +
+                "parameter names size [" + paramNameStrs.size() + "]"));
+        }
+
+        PainlessLookup painlessLookup = scriptRoot.getPainlessLookup();
+        FunctionTable functionTable = scriptRoot.getFunctionTable();
+
+        String functionKey = FunctionTable.buildLocalFunctionKey(name, paramTypeStrs.size());
+
+        if (functionTable.getFunction(functionKey) != null) {
+            throw createError(new IllegalArgumentException("illegal duplicate functions [" + functionKey + "]."));
+        }
+
+        Class<?> returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
 
         if (returnType == null) {
-            throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
+            throw createError(new IllegalArgumentException(
+                "return type [" + rtnTypeStr + "] not found for function [" + functionKey + "]"));
         }
 
-        if (paramTypeStrs.size() != paramNameStrs.size()) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        List<Class<?>> typeParameters = new ArrayList<>();
 
-        Class<?>[] paramClasses = new Class<?>[this.paramTypeStrs.size()];
-        List<Class<?>> paramTypes = new ArrayList<>();
-
-        for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
-            Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
+        for (String typeParameter : paramTypeStrs) {
+            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
 
             if (paramType == null) {
                 throw createError(new IllegalArgumentException(
-                    "Illegal parameter type [" + this.paramTypeStrs.get(param) + "] for function [" + name + "]."));
+                    "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
             }
 
-            paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
-            paramTypes.add(paramType);
+            typeParameters.add(paramType);
         }
 
-        typeParameters = paramTypes;
-        methodType = MethodType.methodType(PainlessLookupUtility.typeToJavaType(returnType), paramClasses);
-        method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
-                PainlessLookupUtility.typeToJavaType(returnType), paramClasses).toMethodDescriptorString());
+        functionTable.addFunction(name, returnType, typeParameters, isInternal, isStatic);
     }
 
     // TODO: decouple from ir
     FunctionNode writeFunction(ClassNode classNode, ScriptRoot scriptRoot) {
-        FunctionScope functionScope = newFunctionScope(returnType);
+        FunctionTable.LocalFunction localFunction = scriptRoot.getFunctionTable().getFunction(name, paramTypeStrs.size());
+        Class<?> returnType = localFunction.getReturnType();
+        List<Class<?>> typeParameters = localFunction.getTypeParameters();
+        FunctionScope functionScope = newFunctionScope(localFunction.getReturnType());
 
-        for (int index = 0; index < typeParameters.size(); ++index) {
-            Class<?> typeParameter = typeParameters.get(index);
+        for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
+            Class<?> typeParameter = localFunction.getTypeParameters().get(index);
             String parameterName = paramNameStrs.get(index);
             functionScope.defineVariable(location, typeParameter, parameterName, false);
         }

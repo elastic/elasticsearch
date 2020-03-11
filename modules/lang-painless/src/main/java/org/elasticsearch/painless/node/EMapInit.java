@@ -116,9 +116,4 @@ public class EMapInit extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(pairwiseToString(keys, values));
-    }
 }

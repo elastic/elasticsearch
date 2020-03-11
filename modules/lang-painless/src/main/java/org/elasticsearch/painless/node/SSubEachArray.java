@@ -77,10 +77,4 @@ public class SSubEachArray extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        //return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
-        return null;
-    }
 }

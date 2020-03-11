@@ -135,9 +135,4 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
     public List<Class<?>> getCaptures() {
         return Collections.emptyList();
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type + "[]", "new");
-    }
 }

@@ -155,9 +155,4 @@ public class SFor extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), Arrays.asList(initializer, condition, afterthought, block));
-    }
 }

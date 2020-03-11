@@ -188,9 +188,4 @@ public class ECallLocal extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, name);
-    }
 }

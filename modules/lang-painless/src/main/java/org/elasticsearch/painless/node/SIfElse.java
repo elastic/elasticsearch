@@ -104,9 +104,4 @@ public class SIfElse extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return multilineToString(singleton(condition), Arrays.asList(ifblock, elseblock));
-    }
 }

@@ -61,11 +61,4 @@ public class SClass extends ANode {
 
         return classNode;
     }
-
-    @Override
-    public String toString() {
-        List<Object> subs = new ArrayList<>(functions.size());
-        subs.addAll(functions);
-        return multilineToString(emptyList(), subs);
-    }
 }

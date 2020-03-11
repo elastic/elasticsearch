@@ -94,9 +94,4 @@ public class SBlock extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), statements);
-    }
 }

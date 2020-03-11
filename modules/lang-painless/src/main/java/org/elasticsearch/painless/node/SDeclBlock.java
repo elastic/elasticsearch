@@ -69,9 +69,4 @@ public class SDeclBlock extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
-    }
 }

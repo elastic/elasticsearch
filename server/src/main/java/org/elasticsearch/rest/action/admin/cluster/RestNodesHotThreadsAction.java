@@ -19,12 +19,10 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -37,14 +35,11 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestNodesHotThreadsAction.class));
     static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. Please use [/nodes/hot_threads] instead.";
     static final String formatDeprecatedMessageWithNodeID = "[%s] is a deprecated endpoint. Please use [/nodes/{nodeId}/hot_threads] instead.";
     static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS = String.format(Locale.ROOT, 
@@ -104,11 +99,6 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        List<String> deprecatedRoutesPath = deprecatedRoutes().stream().map(DeprecatedRoute::getPath).collect(Collectors.toList());
-        int getDeprecatedRoutesPathIndex = deprecatedRoutesPath.indexOf(request.rawPath());
-        if (getDeprecatedRoutesPathIndex != -1) {
-            deprecationLogger.deprecated(deprecatedRoutes().get(getDeprecatedRoutesPathIndex).getDeprecationMessage());
-        }
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));

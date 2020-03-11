@@ -59,7 +59,9 @@ public class DeleteAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(deleteGeneratedSnapshot);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(deleteGeneratedSnapshot);
+        }
     }
 
     @Override

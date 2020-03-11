@@ -106,7 +106,11 @@ class NodeDeprecationChecks {
         return checkThreadPoolListenerSetting("thread_pool.listener.size", settings, pluginsAndModules);
     }
 
-    private static DeprecationIssue checkThreadPoolListenerSetting(final String name, final Settings settings, final PluginsAndModules pluginsAndModules) {
+    private static DeprecationIssue checkThreadPoolListenerSetting(
+        final String name,
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules
+    ) {
         final FixedExecutorBuilder builder = new FixedExecutorBuilder(settings, "listener", 1, -1, "thread_pool.listener", true);
         final List<Setting<?>> listenerSettings = builder.getRegisteredSettings();
         final Optional<Setting<?>> setting = listenerSettings.stream().filter(s -> s.getKey().equals(name)).findFirst();

@@ -44,7 +44,7 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
     }
 
     @Before
-    private void indexDocuments() throws IOException {
+    public void indexDocuments() throws IOException {
         createIndex("index", Settings.EMPTY);
         index("index", "0", "foo", "bar");
         refresh("index");
@@ -122,24 +122,13 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
         return client().performRequest(request);
     }
 
-    static Response submitAsyncSearch(String indexName, String query, String user) throws IOException {
-        return submitAsyncSearch(indexName, query, TimeValue.MINUS_ONE, user);
-    }
-
     static Response submitAsyncSearch(String indexName, String query, TimeValue waitForCompletion, String user) throws IOException {
-        final Request request = new Request("GET", indexName + "/_async_search");
+        final Request request = new Request("POST", indexName + "/_async_search");
         setRunAsHeader(request, user);
         request.addParameter("q", query);
         request.addParameter("wait_for_completion", waitForCompletion.toString());
         // we do the cleanup explicitly
         request.addParameter("clean_on_completion", "false");
-        return client().performRequest(request);
-    }
-
-    static Response search(String indexName, String query, String user) throws IOException {
-        final Request request = new Request("GET", indexName + "/_search");
-        setRunAsHeader(request, user);
-        request.addParameter("q", query);
         return client().performRequest(request);
     }
 

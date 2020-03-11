@@ -36,12 +36,12 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,15 +55,15 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
-    private final GatewayAllocator gatewayAllocator;
+    private final AllocationService allocationService;
 
     @Inject
     public TransportClusterHealthAction(TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
+                                        IndexNameExpressionResolver indexNameExpressionResolver, AllocationService allocationService) {
         super(ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
             ClusterHealthRequest::new, indexNameExpressionResolver);
-        this.gatewayAllocator = gatewayAllocator;
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -229,14 +229,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
     private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitCount) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
-                gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
+            allocationService.getNumberOfInFlightFetches(), clusterService.getMasterService().getMaxTaskWaitTime());
         return prepareResponse(request, response, clusterState, indexNameExpressionResolver) == waitCount;
     }
 
     private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState,
                                               final int waitFor, boolean timedOut) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
-                gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
+            allocationService.getNumberOfInFlightFetches(), clusterService.getMasterService().getMaxTaskWaitTime());
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
         boolean valid = (readyCounter == waitFor);
         assert valid || timedOut;

@@ -51,7 +51,7 @@ The following upgrade path is *not* supported (both full cluster restart and rol
 
 * 6.8 to 7.0.
 
-The following upgrade path is supported but requires a <<restart-upgrade, Full cluster restart upgrade>>.
+The following upgrade path is supported but requires a <<restart-upgrade,full cluster restart upgrade>>.
 
 * 6.0–6.7 directly to {version}.
 

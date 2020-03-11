@@ -341,7 +341,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptCache scriptCache = this.cache.get().contextCache.get(context.name);
-        assert scriptCache == null : "script context [" + context.name + "] has no script cache";
+        assert scriptCache != null : "script context [" + context.name + "] has no script cache";
         return scriptCache.compile(context, scriptEngine, id, idOrCode, type, options);
     }
 

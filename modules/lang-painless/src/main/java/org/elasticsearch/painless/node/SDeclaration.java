@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.node.AExpression.Input;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -52,8 +53,9 @@ public final class SDeclaration extends AStatement {
         type = resolvedType;
 
         if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope);
+            Input expressionInput = new Input();
+            expressionInput.expected = resolvedType.getType();
+            expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
 

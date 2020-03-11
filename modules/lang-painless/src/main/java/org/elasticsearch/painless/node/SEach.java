@@ -54,8 +54,8 @@ public class SEach extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Scope scope) {
-        expression.analyze(scriptRoot, scope);
-        expression.expected = expression.actual;
+        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, new AExpression.Input());
+        expression.input.expected = expressionOutput.actual;
         expression.cast();
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
@@ -67,13 +67,13 @@ public class SEach extends AStatement {
         scope = scope.newLocalScope();
         Variable variable = scope.defineVariable(location, clazz, name, true);
 
-        if (expression.actual.isArray()) {
+        if (expressionOutput.actual.isArray()) {
             sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
+        } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expressionOutput.actual) + "]."));
         }
 
         sub.analyze(scriptRoot, scope);

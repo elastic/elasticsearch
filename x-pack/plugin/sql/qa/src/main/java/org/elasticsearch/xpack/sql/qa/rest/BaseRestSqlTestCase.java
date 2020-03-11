@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.qa.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -38,6 +39,14 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
         return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
     }
 
+    public static String version(String mode) {
+        Mode m = Mode.fromString(mode);
+        if (Mode.isDedicatedClient(m)) {
+            return ",\"version\":" + "\"" + Version.CURRENT.toString() + "\"";
+        }
+        return StringUtils.EMPTY;
+    }
+
     public static String randomMode() {
         return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
     }
@@ -49,7 +58,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     public static Number xContentDependentFloatingNumberValue(String mode, Number value) {
         Mode m = Mode.fromString(mode);
         // for drivers and the CLI return the number as is, while for REST cast it implicitly to Double (the JSON standard).
-        if (Mode.isDriver(m) || m == Mode.CLI) {
+        if (Mode.isDedicatedClient(m)) {
             return value;
         } else {
             return value.doubleValue();

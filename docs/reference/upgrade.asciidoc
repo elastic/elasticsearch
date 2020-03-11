@@ -11,7 +11,7 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * From 6.8 to {version}
 
 
-The following table shows the recommended upgrade paths to {version}.
+The following table shows the *recommended* upgrade paths to {version}.
 
 [cols="<1m,3",options="header",]
 |====
@@ -47,12 +47,15 @@ a|
 
 [WARNING]
 ====
-The following upgrade paths are *not* supported:
+The following upgrade path is *not* supported (both full cluster restart and rolling upgrade):
 
 * 6.8 to 7.0.
-* 6.7 to 7.1.–{version}.
 
-In-place downgrades to earlier versions are not supported. To downgrade to an
+The following upgrade path is supported but requires a <<restart-upgrade, Full cluster restart upgrade>>.
+
+* 6.0–6.7 directly to {version}.
+
+In-place downgrades to earlier versions are *not supported*. To downgrade to an
 earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
 to the version upgrade.
 ====
@@ -67,10 +70,6 @@ information about upgrading old indices, see <<reindex-upgrade, Reindex to upgra
 When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
-
-To upgrade directly to {version} from 6.7 or earlier, you must shut down the
-cluster, install {version}, and restart. For more information, see
-<<restart-upgrade, Full cluster restart upgrade>>.
 
 --
 

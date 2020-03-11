@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -103,7 +104,9 @@ public class Accuracy implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
+                                                                                        String actualField,
+                                                                                        String predictedField) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
         this.actualField.trySet(actualField);
         List<AggregationBuilder> aggs = new ArrayList<>();
@@ -112,7 +115,8 @@ public class Accuracy implements EvaluationMetric {
             aggs.add(AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(buildScript(actualField, predictedField)));
         }
         if (result.get() == null) {
-            Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> matrixAggs = matrix.aggs(actualField, predictedField);
+            Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> matrixAggs =
+                matrix.aggs(parameters, actualField, predictedField);
             aggs.addAll(matrixAggs.v1());
             pipelineAggs.addAll(matrixAggs.v2());
         }

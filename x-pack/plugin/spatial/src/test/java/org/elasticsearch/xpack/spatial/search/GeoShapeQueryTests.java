@@ -42,7 +42,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     protected XContentBuilder createRandomMapping() throws Exception {
-        boolean hasDocValues = true; //randomBoolean();
+        boolean hasDocValues = randomBoolean();
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("geo")
             .field("doc_values", hasDocValues)

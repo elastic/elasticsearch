@@ -81,15 +81,12 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
             return dataHandler.defaultDocValues(indexCreated);
         }
 
+        @Override
         public Builder docValues(boolean hasDocValues) {
-            // TODO(talevy): see how to best make this pluggable with the DataHandler work
-            if (dataHandler.supportsDocValues() == false && hasDocValues) {
-                throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
-                    + "] does not support doc_values");
-            }
-            return (Builder)super.docValues(hasDocValues);
+            return (Builder)super.docValues(dataHandler.supportsDocValues(), hasDocValues);
         }
 
+        @Override
         protected Explicit<Boolean> docValues() {
             // TODO(talevy): see how to best make this pluggable with the DataHandler work
             // although these values can be true, an ElasticsearchParseException

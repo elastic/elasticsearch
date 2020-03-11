@@ -76,7 +76,7 @@ public class ShapeFieldMapperTests extends ESSingleNodeTestCase {
             equalTo(ShapeFieldMapper.Defaults.ORIENTATION.value()));
         assertThat(shapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
         assertFalse(shapeFieldMapper.docValues().value());
-        assertFalse(shapeFieldMapper.docValues().explicit());
+        assertTrue(shapeFieldMapper.docValues().explicit());
         assertFalse(shapeFieldMapper.fieldType().hasDocValues());
     }
 

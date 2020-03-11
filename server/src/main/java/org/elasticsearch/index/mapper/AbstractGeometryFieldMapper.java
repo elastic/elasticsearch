@@ -179,9 +179,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return this;
         }
 
-        public T docValues(boolean hasDocValues) {
+        public T docValues(boolean docValuesImplemented, boolean hasDocValues) {
             // TODO(talevy): see how to best make this pluggable with the DataHandler work
-            if (hasDocValues) {
+            if (docValuesImplemented == false && hasDocValues) {
                 throw new ElasticsearchParseException("field [" + name + "] of type [" + fieldType().typeName()
                     + "] does not support doc_values");
             }

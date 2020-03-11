@@ -67,6 +67,11 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
             return true;
         }
 
+        @Override
+        public Builder docValues(boolean hasDocValues) {
+            return (Builder)super.docValues(false, hasDocValues);
+        }
+
         @SuppressWarnings("unchecked")
         @Override
         protected void setupFieldType(BuilderContext context) {

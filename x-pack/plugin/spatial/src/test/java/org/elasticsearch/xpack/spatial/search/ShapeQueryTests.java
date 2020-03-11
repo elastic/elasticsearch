@@ -59,7 +59,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // create test index
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-            .setMapping(FIELD, "type=shape", "alias", "type=alias,path=" + FIELD).get());
+            .setMapping(FIELD, "type=shape,doc_values=true", "alias", "type=alias,path=" + FIELD).get());
         // create index that ignores malformed geometry
         assertAcked(client().admin().indices().prepareCreate(IGNORE_MALFORMED_INDEX)
             .setMapping(FIELD, "type=shape,ignore_malformed=true", "_source", "enabled=false").get());

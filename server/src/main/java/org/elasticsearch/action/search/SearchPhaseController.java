@@ -664,9 +664,9 @@ public final class SearchPhaseController {
                     }
                     numReducePhases++;
                     index = 1;
-                    if (hasAggs) {
+                    if (hasAggs || hasTopDocs) {
                         progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
-                            topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
+                            topDocsStats.getTotalHits(),  hasAggs ? aggsBuffer[0] : null, numReducePhases);
                     }
                 }
                 final int i = index++;
@@ -696,7 +696,7 @@ public final class SearchPhaseController {
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(),
                 getRemainingAggs(), getRemainingTopDocs(), topDocsStats, numReducePhases, false, performFinalReduce);
             progressListener.notifyReduce(progressListener.searchShards(results.asList()),
-                reducePhase.totalHits, reducePhase.aggregations);
+                reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             return reducePhase;
         }
 
@@ -751,7 +751,8 @@ public final class SearchPhaseController {
                 List<SearchPhaseResult> resultList = results.asList();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
-                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits, reducePhase.aggregations);
+                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits,
+                    reducePhase.aggregations, reducePhase.numReducePhases);
                 return reducePhase;
             }
         };

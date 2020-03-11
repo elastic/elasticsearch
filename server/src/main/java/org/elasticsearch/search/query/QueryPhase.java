@@ -110,7 +110,24 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess(true);
+        final Runnable cancellation;
+        if (context.lowLevelCancellation()) {
+            SearchShardTask task = context.getTask();
+            cancellation = context.searcher().addQueryCancellation(() -> {
+                if (task.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+            });
+        } else {
+            cancellation = null;
+        }
+        try {
+            context.preProcess(true);
+        } finally {
+            if (cancellation != null) {
+                context.searcher().removeQueryCancellation(cancellation);
+            }
+        }
     }
 
     @Override

@@ -44,8 +44,9 @@ public final class SIf extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Scope scope) {
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
         condition.cast();
 
         if (condition instanceof EBoolean) {

@@ -123,7 +123,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         protected boolean matches(String pattern, QueryShardContext context) {
             if (pattern.contains("?") == false) {
-                return Regex.simpleMatch(pattern, MapperService.SINGLE_MAPPING_NAME);
+                return Regex.simpleMatch(pattern, context.getMapperService().documentMapper().type());
             }
             boolean matches = Pattern.matches(pattern.replace("?", "."), MapperService.SINGLE_MAPPING_NAME);
             return matches;

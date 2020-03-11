@@ -208,7 +208,7 @@ final class Compiler {
      */
     ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup);
         ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
         ClassNode classNode = root.writeClass(scriptRoot);
         DefBootstrapInjectionPhase.phase(classNode);
@@ -237,9 +237,10 @@ final class Compiler {
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup);
         ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
         ClassNode classNode = root.writeClass(scriptRoot);
+        classNode.setDebugStream(debugStream);
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptRoot, classNode);
 

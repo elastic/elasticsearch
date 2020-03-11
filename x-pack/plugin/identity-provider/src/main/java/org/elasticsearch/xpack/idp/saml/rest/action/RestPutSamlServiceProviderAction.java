@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,8 +42,15 @@ public class RestPutSamlServiceProviderAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String entityId = restRequest.param("sp_entity_id");
+
+        final WriteRequest.RefreshPolicy refreshPolicy;
+        if (restRequest.hasParam("refresh")) {
+            refreshPolicy = WriteRequest.RefreshPolicy.parse(restRequest.param("refresh"));
+        } else {
+            refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
+        }
         try (XContentParser parser = restRequest.contentParser()) {
-            final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, parser);
+            final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, refreshPolicy, parser);
             return channel -> client.execute(PutSamlServiceProviderAction.INSTANCE, request,
                 new RestBuilderListener<>(channel) {
                     @Override

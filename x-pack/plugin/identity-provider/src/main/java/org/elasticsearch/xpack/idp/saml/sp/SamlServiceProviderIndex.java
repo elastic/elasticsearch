@@ -73,8 +73,8 @@ public class SamlServiceProviderIndex implements Closeable {
     private volatile boolean aliasExists;
     private volatile boolean templateInstalled;
 
-    static final String ALIAS_NAME = "saml-service-provider";
-    static final String INDEX_NAME = "saml-service-provider-v1";
+    public static final String ALIAS_NAME = "saml-service-provider";
+    public static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
     private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
@@ -230,7 +230,7 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     public void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
-                              ActionListener<DocWriteResponse> listener) {
+                              WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DocWriteResponse> listener) {
         final ValidationException exception = document.validate();
         if (exception != null) {
             listener.onFailure(exception);
@@ -238,14 +238,17 @@ public class SamlServiceProviderIndex implements Closeable {
         }
 
         if (templateInstalled) {
-            _writeDocument(document, opType, listener);
+            _writeDocument(document, opType, refreshPolicy, listener);
         } else {
-            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, opType, listener), listener::onFailure));
+            installIndexTemplate(ActionListener.wrap(
+                installed -> _writeDocument(document, opType, refreshPolicy, listener),
+                listener::onFailure)
+            );
         }
     }
 
     private void _writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
-                                ActionListener<DocWriteResponse> listener) {
+                                WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DocWriteResponse> listener) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              XContentBuilder xContentBuilder = new XContentBuilder(XContentType.JSON.xContent(), out)) {
             document.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -255,7 +258,8 @@ public class SamlServiceProviderIndex implements Closeable {
             final IndexRequest request = new IndexRequest(aliasExists ? ALIAS_NAME : INDEX_NAME)
                 .opType(opType)
                 .source(xContentBuilder)
-                .id(document.docId);
+                .id(document.docId)
+                .setRefreshPolicy(refreshPolicy);
             client.index(request, ActionListener.wrap(response -> {
                 logger.debug("Wrote service provider [{}][{}] as document [{}] ({})",
                     document.name, document.entityId, response.getId(), response.getResult());

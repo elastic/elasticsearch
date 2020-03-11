@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -51,6 +52,10 @@ public class GeoCentroidAggregationBuilder
         return PARSER.parse(parser, new GeoCentroidAggregationBuilder(aggregationName), null);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        GeoCentroidAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
+
     public GeoCentroidAggregationBuilder(String name) {
         super(name);
     }
@@ -61,8 +66,7 @@ public class GeoCentroidAggregationBuilder
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     @Override

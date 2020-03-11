@@ -495,6 +495,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
+            updateMaxTermSeen(joinRequest.getTerm());
+
             final CoordinationState coordState = coordinationState.get();
             final boolean prevElectionWon = coordState.electionWon();
 
@@ -1115,7 +1117,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
             synchronized (mutex) {
                 ensureTermAtLeast(masterNode, term);
-                joinHelper.sendJoinRequest(masterNode, joinWithDestination(lastJoin, masterNode, term));
+                joinHelper.sendJoinRequest(masterNode, getCurrentTerm(), joinWithDestination(lastJoin, masterNode, term));
             }
         }
 

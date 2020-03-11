@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,8 +25,10 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutSamlServiceProviderRequest extends ActionRequest {
+    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
     private final SamlServiceProviderDocument document;
+    private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
     public static PutSamlServiceProviderRequest fromXContent(String entityId, XContentParser parser) throws IOException {
         final SamlServiceProviderDocument document = SamlServiceProviderDocument.fromXContent(null, parser);
@@ -56,11 +59,21 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
 
     public PutSamlServiceProviderRequest(StreamInput in) throws IOException {
         this.document = new SamlServiceProviderDocument(in);
+        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
+    }
+
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
+    }
+
+    public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy must be provided");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         document.writeTo(out);
+        refreshPolicy.writeTo(out);
     }
 
     public SamlServiceProviderDocument getDocument() {

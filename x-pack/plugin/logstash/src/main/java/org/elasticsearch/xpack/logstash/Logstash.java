@@ -36,8 +36,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_VARIABLE = "logstash.template.version";
 
-    public Logstash() {
-    }
+    public Logstash() {}
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

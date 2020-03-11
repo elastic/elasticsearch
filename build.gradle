@@ -117,7 +117,8 @@ subprojects {
       ':qa:os',
       ':qa:wildfly',
       ':x-pack:plugin:autoscaling',
-      ':x-pack:plugin:enrich'
+      ':x-pack:plugin:enrich',
+      ':x-pack:plugin:logstash'
     ]
 
     if (projectPathsToFormat.contains(project.path)) {

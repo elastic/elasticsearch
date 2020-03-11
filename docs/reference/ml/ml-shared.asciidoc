@@ -946,10 +946,10 @@ remain started until it is explicitly stopped. By default this setting is not
 set.
 end::max-empty-searches[]
 
-tag::maximum-number-trees[]
+tag::max-trees[]
 Advanced configuration option. Defines the maximum number of trees the forest is
 allowed to contain. The maximum value is 2000.
-end::maximum-number-trees[]
+end::max-trees[]
 
 tag::memory-estimation[]
 An object containing the memory estimates. The object has the 

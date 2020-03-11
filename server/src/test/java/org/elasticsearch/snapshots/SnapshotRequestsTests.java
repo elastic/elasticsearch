@@ -66,7 +66,6 @@ public class SnapshotRequestsTests extends ESTestCase {
         builder.field("rename_replacement", "rename-to");
         boolean partial = randomBoolean();
         builder.field("partial", partial);
-        builder.startObject("settings").field("set1", "val1").endObject();
         builder.startObject("index_settings").field("set1", "val2").endObject();
         if (randomBoolean()) {
             builder.field("ignore_index_settings", "set2,set3");
@@ -96,8 +95,6 @@ public class SnapshotRequestsTests extends ESTestCase {
             ? indicesOptions.ignoreUnavailable()
             : IndicesOptions.strictExpandOpen().ignoreUnavailable();
         assertEquals(expectedIgnoreAvailable, request.indicesOptions().ignoreUnavailable());
-
-        assertWarnings("specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
     }
 
     public void testCreateSnapshotRequestParsing() throws IOException {

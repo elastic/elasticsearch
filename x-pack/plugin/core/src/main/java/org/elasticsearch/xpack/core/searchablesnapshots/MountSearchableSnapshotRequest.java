@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.action;
+package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -77,7 +77,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.waitForCompletion = waitForCompletion;
     }
 
-    MountSearchableSnapshotRequest(StreamInput in) throws IOException {
+    public MountSearchableSnapshotRequest(StreamInput in) throws IOException {
         super(in);
         this.mountedIndexName = in.readString();
         this.repositoryName = in.readString();

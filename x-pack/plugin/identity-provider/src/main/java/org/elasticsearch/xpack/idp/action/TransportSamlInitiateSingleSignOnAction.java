@@ -67,7 +67,7 @@ public class TransportSamlInitiateSingleSignOnAction
                     final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
                     if (secondaryAuthentication == null) {
                         listener.onFailure(
-                            new ElasticsearchStatusException("Request is missing secondary authentication", RestStatus.FORBIDDEN));
+                            new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN));
                         return;
                     }
                     buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(

@@ -33,7 +33,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.AutomatonQuery;
@@ -425,13 +424,13 @@ public class TextFieldMapper extends FieldMapper {
 
         public IntervalsSource intervals(BytesRef term) {
             if (term.length > maxChars) {
-                return XIntervals.prefix(term);
+                return Intervals.prefix(term);
             }
             if (term.length >= minChars) {
                 return Intervals.fixField(name(), Intervals.term(term));
             }
             String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
-            return Intervals.or(Intervals.fixField(name(), XIntervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
+            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
         }
 
         @Override
@@ -675,7 +674,7 @@ public class TextFieldMapper extends FieldMapper {
                 if (prefixFieldType != null) {
                     return prefixFieldType.intervals(normalizedTerm);
                 }
-                return XIntervals.prefix(normalizedTerm);
+                return Intervals.prefix(normalizedTerm);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);

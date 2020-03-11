@@ -11,12 +11,15 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.Map;
+import java.util.Set;
 
 public interface Model {
 
     String getResultsType();
 
     void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener);
+
+    InferenceResults infer(Map<String, Object> fields, InferenceConfig inferenceConfig);
 
     String getModelId();
 
@@ -42,4 +45,6 @@ public interface Model {
             });
         }
     }
+
+    Set<String> getFieldNames();
 }

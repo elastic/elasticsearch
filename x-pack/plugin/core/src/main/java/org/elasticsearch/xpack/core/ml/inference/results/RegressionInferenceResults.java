@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,6 +73,20 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
         if (getFeatureImportance().size() > 0) {
             document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance());
         }
+    }
+
+    @Override
+    public Map<String, Object> writeResultToMap(String parentResultField) {
+        Map<String, Object> parentResult = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        parentResult.put(parentResultField, result);
+
+        result.put(resultsField, value());
+        if (getFeatureImportance().size() > 0) {
+            result.put("feature_importance", getFeatureImportance());
+        }
+
+        return parentResult;
     }
 
     @Override

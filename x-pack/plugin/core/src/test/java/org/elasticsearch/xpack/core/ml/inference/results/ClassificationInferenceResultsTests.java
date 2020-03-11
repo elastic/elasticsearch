@@ -10,6 +10,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,6 +80,30 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         }
 
         assertThat(document.getFieldValue("result_field.my_results", String.class), equalTo("foo"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteResultsToMapWithTopClasses() {
+        List<ClassificationInferenceResults.TopClassEntry> entries = Arrays.asList(
+                new ClassificationInferenceResults.TopClassEntry("foo", 0.7),
+                new ClassificationInferenceResults.TopClassEntry("bar", 0.2),
+                new ClassificationInferenceResults.TopClassEntry("baz", 0.1));
+        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
+                "foo",
+                entries,
+                new ClassificationConfig(3, "my_results", "bar"));
+        Map<String, Object> resultsDoc = result.writeResultToMap("result_field");
+
+        List<?> list = (List<?>) MapHelper.dig("result_field.bar", resultsDoc);
+        assertThat(list.size(), equalTo(3));
+
+        for(int i = 0; i < 3; i++) {
+            Map<String, Object> map = (Map<String, Object>)list.get(i);
+            assertThat(map, equalTo(entries.get(i).asValueMap()));
+        }
+
+        Object value = MapHelper.dig("result_field.my_results", resultsDoc);
+        assertThat(value, equalTo("foo"));
     }
 
     @Override

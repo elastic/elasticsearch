@@ -82,6 +82,7 @@ public class RegressionConfig implements InferenceConfig {
         return numTopFeatureImportanceValues;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }

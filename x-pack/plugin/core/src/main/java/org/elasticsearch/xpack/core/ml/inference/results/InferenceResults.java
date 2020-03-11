@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.ingest.IngestDocument;
 
+import java.util.Map;
+
 public interface InferenceResults extends NamedWriteable {
 
     void writeResult(IngestDocument document, String parentResultField);
 
+    Map<String, Object> writeResultToMap(String parentResultField);
 }

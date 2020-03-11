@@ -24,6 +24,11 @@ public class NullInferenceConfig implements InferenceConfig {
     }
 
     @Override
+    public String getResultsField() {
+        return null;
+    }
+
+    @Override
     public boolean isTargetTypeSupported(TargetType targetType) {
         return true;
     }

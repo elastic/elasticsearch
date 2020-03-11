@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,6 +30,14 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
         result.writeResult(document, "result_field");
 
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));
+    }
+
+    public void testWriteResultsToMap() {
+        RegressionInferenceResults result = new RegressionInferenceResults(0.3, RegressionConfig.EMPTY_PARAMS);
+        Map<String, Object> doc = result.writeResultToMap("result_field");
+
+        Object value = MapHelper.dig("result_field.predicted_value", doc);
+        assertThat(value, equalTo(0.3));
     }
 
     @Override

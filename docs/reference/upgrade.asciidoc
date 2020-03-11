@@ -47,18 +47,16 @@ a|
 
 [WARNING]
 ====
-The following upgrade path is *not* supported (both full cluster restart and rolling upgrade):
-
-* 6.8 to 7.0.
-
-The following upgrade path is supported but requires a <<restart-upgrade,full cluster restart upgrade>>.
-
-* 6.0–6.7 directly to {version}.
+The upgrade path from 6.8 to 7.0 is *not* supported (both full cluster restart and rolling upgrade).
 
 In-place downgrades to earlier versions are *not* supported. To downgrade to an
 earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
 to the version upgrade.
 ====
+
+To upgrade directly to {version} from 6.7 or earlier, you must shut down the
+cluster, install {version}, and restart. For more information, see
+<<restart-upgrade, Full cluster restart upgrade>>.
 
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them

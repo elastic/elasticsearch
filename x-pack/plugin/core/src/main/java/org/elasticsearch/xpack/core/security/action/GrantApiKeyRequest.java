@@ -26,7 +26,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GrantApiKeyRequest extends ActionRequest {
 
-    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
     public static final String PASSWORD_GRANT_TYPE = "password";
     public static final String ACCESS_TOKEN_GRANT_TYPE = "access_token";
 
@@ -91,19 +90,16 @@ public final class GrantApiKeyRequest extends ActionRequest {
 
     private final Grant grant;
     private CreateApiKeyRequest apiKey;
-    private WriteRequest.RefreshPolicy refreshPolicy;
 
     public GrantApiKeyRequest() {
         this.grant = new Grant();
         this.apiKey = new CreateApiKeyRequest();
-        this.refreshPolicy = DEFAULT_REFRESH_POLICY;
     }
 
     public GrantApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.grant = new Grant(in);
         this.apiKey = new CreateApiKeyRequest(in);
-        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
     }
 
     @Override
@@ -111,15 +107,14 @@ public final class GrantApiKeyRequest extends ActionRequest {
         super.writeTo(out);
         grant.writeTo(out);
         apiKey.writeTo(out);
-        refreshPolicy.writeTo(out);
     }
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {
-        return refreshPolicy;
+        return apiKey.getRefreshPolicy();
     }
 
     public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
+        apiKey.setRefreshPolicy(refreshPolicy);
     }
 
     public Grant getGrant() {

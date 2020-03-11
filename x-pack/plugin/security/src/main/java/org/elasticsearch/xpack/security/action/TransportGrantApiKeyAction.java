@@ -64,6 +64,8 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
                 authentication -> generator.generateApiKey(authentication, request.getApiKeyRequest(), listener),
                 listener::onFailure
             ));
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

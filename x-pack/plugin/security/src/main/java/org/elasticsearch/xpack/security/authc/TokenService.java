@@ -404,22 +404,25 @@ public final class TokenService {
      * {@code null} authentication object.
      */
     public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
-        if (isEnabled()) {
-            decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
-                if (userToken != null) {
-                    checkIfTokenIsValid(userToken, ActionListener.wrap(
-                        token -> {
-                            listener.onResponse(token == null ? null : token.getAuthentication());
-                        },
-                        listener::onFailure
-                    ));
-                } else {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure));
-        } else {
-            listener.onResponse(null);
-        }
+        ensureEnabled();
+        decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
+            if (userToken != null) {
+                checkIfTokenIsValid(userToken, ActionListener.wrap(
+                    token -> {
+                        if (token == null) {
+                            // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
+                            // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
+                            listener.onFailure(new IllegalArgumentException("Cannot validate access token"));
+                        } else {
+                            listener.onResponse(token.getAuthentication());
+                        }
+                    },
+                    listener::onFailure
+                ));
+            } else {
+                listener.onFailure(new IllegalArgumentException("Cannot decode access token"));
+            }
+        }, listener::onFailure));
     }
 
     /**

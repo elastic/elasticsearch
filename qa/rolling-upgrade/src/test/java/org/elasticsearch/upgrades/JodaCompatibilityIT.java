@@ -265,8 +265,5 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
         );
         Response resp = client().performRequest(putDoc);
         assertEquals(HttpStatus.SC_CREATED, resp.getStatusLine().getStatusCode());
-//        flush(endpoint,true);
-
     }
-
 }

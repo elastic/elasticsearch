@@ -13,7 +13,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,7 +22,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
@@ -31,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -128,10 +127,9 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(Settings settings,
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
                                                                                         String actualField,
                                                                                         String predictedField) {
-        int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         if (topActualClassNames.get() == null && actualClassesCardinality.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
@@ -152,7 +150,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
             // too_many_buckets_exception exception is not thrown.
             // The only exception is when "search.max_buckets" is set far too low to even have 1 actual class in the batch.
             // In such case, the exception will be thrown telling the user they should increase the value of "search.max_buckets".
-            int actualClassesPerBatch = Math.max(maxBuckets / (topActualClassNames.get().size() + 2), 1);
+            int actualClassesPerBatch = Math.max(parameters.getMaxBuckets() / (topActualClassNames.get().size() + 2), 1);
             KeyedFilter[] keyedFiltersActual =
                 topActualClassNames.get().stream()
                     .skip(actualClasses.size())

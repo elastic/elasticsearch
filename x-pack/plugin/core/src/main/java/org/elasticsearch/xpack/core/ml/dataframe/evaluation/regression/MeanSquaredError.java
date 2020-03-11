@@ -9,7 +9,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +20,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 
 import java.io.IOException;
 import java.text.MessageFormat;
@@ -66,7 +66,7 @@ public class MeanSquaredError implements EvaluationMetric {
     }
 
     @Override
-    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(Settings settings,
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
                                                                                   String actualField,
                                                                                   String predictedField) {
         if (result != null) {

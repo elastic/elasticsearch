@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
@@ -28,6 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -86,7 +88,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
         Regression evaluation = new Regression("act", "pred", Arrays.asList(new MeanSquaredError()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(Settings.EMPTY, userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }

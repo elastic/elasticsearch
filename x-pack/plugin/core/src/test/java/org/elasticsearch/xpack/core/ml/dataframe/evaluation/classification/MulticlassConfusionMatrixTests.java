@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.Result;
@@ -22,17 +22,19 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockCardinality;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFiltersBucket;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTermsBucket;
-import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<MulticlassConfusionMatrix> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected MulticlassConfusionMatrix doParseInstance(XContentParser parser) throws IOException {
@@ -79,7 +81,7 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
 
     public void testAggs() {
         MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix();
-        Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs = confusionMatrix.aggs(Settings.EMPTY, "act", "pred");
+        Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs = confusionMatrix.aggs(EVALUATION_PARAMETERS, "act", "pred");
         assertThat(aggs, isTuple(not(empty()), empty()));
         assertThat(confusionMatrix.getResult(), isEmpty());
     }
@@ -113,7 +115,7 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
         MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix(2, null);
         confusionMatrix.process(aggs);
 
-        assertThat(confusionMatrix.aggs(Settings.EMPTY, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(confusionMatrix.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
         Result result = confusionMatrix.getResult().get();
         assertThat(result.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
@@ -154,7 +156,7 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
         MulticlassConfusionMatrix confusionMatrix = new MulticlassConfusionMatrix(2, null);
         confusionMatrix.process(aggs);
 
-        assertThat(confusionMatrix.aggs(Settings.EMPTY, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(confusionMatrix.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
         Result result = confusionMatrix.getResult().get();
         assertThat(result.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
@@ -238,7 +240,7 @@ public class MulticlassConfusionMatrixTests extends AbstractSerializingTestCase<
         confusionMatrix.process(aggsStep2);
         confusionMatrix.process(aggsStep3);
 
-        assertThat(confusionMatrix.aggs(Settings.EMPTY, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(confusionMatrix.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
         Result result = confusionMatrix.getResult().get();
         assertThat(result.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(

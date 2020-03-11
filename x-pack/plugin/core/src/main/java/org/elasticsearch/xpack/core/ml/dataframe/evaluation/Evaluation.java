@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -67,7 +66,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      * Builds the search required to collect data to compute the evaluation result
      * @param userProvidedQueryBuilder User-provided query that must be respected when collecting data
      */
-    default SearchSourceBuilder buildSearch(Settings settings, QueryBuilder userProvidedQueryBuilder) {
+    default SearchSourceBuilder buildSearch(EvaluationParameters parameters, QueryBuilder userProvidedQueryBuilder) {
         Objects.requireNonNull(userProvidedQueryBuilder);
         BoolQueryBuilder boolQuery =
             QueryBuilders.boolQuery()
@@ -80,7 +79,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
         for (EvaluationMetric metric : getMetrics()) {
             // Fetch aggregations requested by individual metrics
             Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs =
-                metric.aggs(settings, getActualField(), getPredictedField());
+                metric.aggs(parameters, getActualField(), getPredictedField());
             aggs.v1().forEach(searchSourceBuilder::aggregation);
             aggs.v2().forEach(searchSourceBuilder::aggregation);
         }

@@ -55,7 +55,7 @@ The following upgrade path is supported but requires a <<restart-upgrade,full cl
 
 * 6.0–6.7 directly to {version}.
 
-In-place downgrades to earlier versions are *not supported*. To downgrade to an
+In-place downgrades to earlier versions are *not* supported. To downgrade to an
 earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
 to the version upgrade.
 ====

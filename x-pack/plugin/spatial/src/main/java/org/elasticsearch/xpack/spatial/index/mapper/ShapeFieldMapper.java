@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShape;
+import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.geo.XYLine;
+import org.apache.lucene.geo.XYPoint;
 import org.apache.lucene.geo.XYPolygon;
+import org.apache.lucene.geo.XYRectangle;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -37,9 +40,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer.toLucenePolygon;
 
 /**
  * FieldMapper for indexing cartesian {@link XYShape}s.
@@ -145,9 +148,95 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
             if (shape == null) {
                 return new MatchNoDocsQuery();
             }
-            return shape.visit(new ShapeVisitor(context, fieldName, relation));
+            return makeQueryFromGeometry(shape, fieldName, relation, context);
         }
 
+        private static Query makeQueryFromGeometry(Geometry shape, String fieldName,
+                                                   ShapeRelation relation, QueryShardContext context) {
+            List<XYGeometry> geometries = new ArrayList<>();
+            shape.visit(new GeometryVisitor<>() {
+
+                @Override
+                public Void visit(Circle circle) {
+                    throw new QueryShardException(context, "Field [" + fieldName + "] found and unknown shape Circle");
+                }
+
+                @Override
+                public Void visit(GeometryCollection<?> collection) {
+                    for (Geometry shape : collection) {
+                        shape.visit(this);
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void visit(Line line) {
+                    if (line.isEmpty() == false) {
+                        geometries.add(ShapeUtils.toLuceneLine(line));
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void visit(LinearRing ring) {
+                    throw new QueryShardException(context, "Field [" + fieldName + "] found and unsupported shape LinearRing");
+                }
+
+                @Override
+                public Void visit(MultiLine multiLine) {
+                    for (Line line : multiLine) {
+                        visit(line);
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void visit(MultiPoint multiPoint) {
+                    for (Point point : multiPoint) {
+                        visit(point);
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void visit(MultiPolygon multiPolygon) {
+                    for (Polygon polygon : multiPolygon) {
+                        visit(polygon);
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void visit(Point point) {
+                    if (point.isEmpty() == false) {
+                        geometries.add(ShapeUtils.toLucenePoint(point));
+                    }
+                    return null;
+
+                }
+
+                @Override
+                public Void visit(Polygon polygon) {
+                    if (polygon.isEmpty() == false) {
+                        geometries.add(ShapeUtils.toLucenePolygon(polygon));
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void visit(Rectangle r) {
+                    if (r.isEmpty() == false) {
+                        geometries.add(ShapeUtils.toLuceneRectangle(r));
+                    }
+                    return null;
+                }
+            });
+            if (geometries.size() == 0) {
+                return new MatchNoDocsQuery();
+            }
+            return XYShape.newGeometryQuery(fieldName,
+                relation.getLuceneRelation(), geometries.toArray(new XYGeometry[geometries.size()]));
+        }
     }
 
     public ShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -166,117 +255,5 @@ public class ShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geom
     @Override
     public ShapeFieldType fieldType() {
         return (ShapeFieldType) super.fieldType();
-    }
-
-    private static class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
-        QueryShardContext context;
-        String fieldName;
-        ShapeRelation relation;
-
-        ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
-            this.context = context;
-            this.fieldName = fieldName;
-            this.relation = relation;
-        }
-
-        @Override
-        public Query visit(Circle circle) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] found and unknown shape Circle");
-        }
-
-        @Override
-        public Query visit(GeometryCollection<?> collection) {
-            BooleanQuery.Builder bqb = new BooleanQuery.Builder();
-            visit(bqb, collection);
-            return bqb.build();
-        }
-
-        private void visit(BooleanQuery.Builder bqb, GeometryCollection<?> collection) {
-            BooleanClause.Occur occur;
-            if (relation == ShapeRelation.CONTAINS || relation == ShapeRelation.DISJOINT) {
-                // all shapes must be disjoint / must be contained in relation to the indexed shape.
-                occur = BooleanClause.Occur.MUST;
-            } else {
-                // at least one shape must intersect / contain the indexed shape.
-                occur = BooleanClause.Occur.SHOULD;
-            }
-            for (Geometry shape : collection) {
-                bqb.add(shape.visit(this), occur);
-            }
-        }
-
-        @Override
-        public Query visit(Line line) {
-            return XYShape.newLineQuery(fieldName, relation.getLuceneRelation(),
-                new XYLine(doubleArrayToFloatArray(line.getX()), doubleArrayToFloatArray(line.getY())));
-        }
-
-        @Override
-        public Query visit(LinearRing ring) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] found and unsupported shape LinearRing");
-        }
-
-        @Override
-        public Query visit(MultiLine multiLine) {
-            XYLine[] lines = new XYLine[multiLine.size()];
-            for (int i=0; i<multiLine.size(); i++) {
-                lines[i] = new XYLine(doubleArrayToFloatArray(multiLine.get(i).getX()),
-                    doubleArrayToFloatArray(multiLine.get(i).getY()));
-            }
-            return XYShape.newLineQuery(fieldName, relation.getLuceneRelation(), lines);
-        }
-
-        @Override
-        public Query visit(MultiPoint multiPoint) {
-            float[][] points = new float[multiPoint.size()][2];
-            for (int i = 0; i < multiPoint.size(); i++) {
-                points[i] = new float[] {(float) multiPoint.get(i).getX(), (float) multiPoint.get(i).getY()};
-            }
-            return XYShape.newPointQuery(fieldName, relation.getLuceneRelation(), points);
-        }
-
-        @Override
-        public Query visit(MultiPolygon multiPolygon) {
-            XYPolygon[] polygons = new XYPolygon[multiPolygon.size()];
-            for (int i=0; i<multiPolygon.size(); i++) {
-                polygons[i] = toLucenePolygon(multiPolygon.get(i));
-            }
-            return visitMultiPolygon(polygons);
-        }
-
-        private Query visitMultiPolygon(XYPolygon... polygons) {
-            return XYShape.newPolygonQuery(fieldName, relation.getLuceneRelation(), polygons);
-        }
-
-        @Override
-        public Query visit(Point point) {
-            ShapeField.QueryRelation luceneRelation = relation.getLuceneRelation();
-            if (luceneRelation == ShapeField.QueryRelation.CONTAINS) {
-                // contains and intersects are equivalent but the implementation of
-                // intersects is more efficient.
-                luceneRelation = ShapeField.QueryRelation.INTERSECTS;
-            }
-            float[][] pointArray  = new float[][] {{(float)point.getX(), (float)point.getY()}};
-            return XYShape.newPointQuery(fieldName, luceneRelation, pointArray);
-        }
-
-        @Override
-        public Query visit(Polygon polygon) {
-            return XYShape.newPolygonQuery(fieldName, relation.getLuceneRelation(), toLucenePolygon(polygon));
-        }
-
-        @Override
-        public Query visit(Rectangle r) {
-            return XYShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
-                (float)r.getMinX(), (float)r.getMaxX(), (float)r.getMinY(), (float)r.getMaxY());
-        }
-    }
-
-    private static float[] doubleArrayToFloatArray(double[] array) {
-        float[] result = new float[array.length];
-        for (int i = 0; i < array.length; ++i) {
-            result[i] = (float) array[i];
-        }
-        return result;
     }
 }

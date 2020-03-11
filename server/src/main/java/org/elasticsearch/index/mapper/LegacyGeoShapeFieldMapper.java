@@ -389,7 +389,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         }
 
         static SpatialArgs getArgs(Geometry shape, ShapeRelation relation) {
-            ShapeBuilder<?,?,?> shapeBuilder = GeoUtils.geometryToShapeBuilder(shape);
+            ShapeBuilder<?,?,?> shapeBuilder = GeoShapeUtils.geometryToShapeBuilder(shape);
             switch (relation) {
                 case DISJOINT:
                     return new SpatialArgs(SpatialOperation.IsDisjointTo, shapeBuilder.buildS4J());

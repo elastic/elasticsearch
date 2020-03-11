@@ -156,9 +156,7 @@ public class DockerTests extends PackagingTestCase {
         // Move the auto-created one out of the way, or else the CLI prompts asks us to confirm
         sh.run("mv " + keystorePath + " " + keystorePathBackup);
 
-        waitForPathToExist(keystorePathBackup);
         sh.run(bin.keystoreTool + " create");
-        waitForPathToExist(keystorePath);
 
         final Result r = sh.run(bin.keystoreTool + " list");
         assertThat(r.stdout, containsString("keystore.seed"));

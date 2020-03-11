@@ -84,13 +84,4 @@ public class RestGetAction extends BaseRestHandler {
             }
         });
     }
-
-//    protected RestChannelConsumer response(final NodeClient client, GetRequest getRequest){
-//        return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
-//            @Override
-//            protected RestStatus getStatus(final GetResponse response) {
-//                return response.isExists() ? OK : NOT_FOUND;
-//            }
-//        });
-//    }
 }

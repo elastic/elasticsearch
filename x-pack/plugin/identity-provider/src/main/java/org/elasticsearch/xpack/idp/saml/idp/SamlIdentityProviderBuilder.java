@@ -99,7 +99,9 @@ public class SamlIdentityProviderBuilder {
             ex.addValidationError("The redirect ([ " + SAML2_REDIRECT_BINDING_URI + "]) SSO binding is required");
         }
 
-        if (signingCredential != null) {
+        if (signingCredential == null) {
+            ex.addValidationError("Signing credential must be specified");
+        } else {
             try {
                 validateSigningKey(signingCredential.getPrivateKey());
             } catch (ElasticsearchSecurityException e) {

@@ -1,0 +1,23 @@
+{
+  "ml.estimate_model_memory":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/_estimate_model_memory",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The analysis config, plus cardinality estimates for fields it references",
+      "required":true
+    }
+  }
+}

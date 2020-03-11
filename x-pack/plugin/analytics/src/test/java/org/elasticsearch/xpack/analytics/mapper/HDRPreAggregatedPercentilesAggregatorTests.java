@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
-import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
         return List.of(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            HistogramValuesSourceType.HISTOGRAM);
+            AnalyticsValuesSourceType.HISTOGRAM);
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {

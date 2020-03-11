@@ -54,7 +54,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -280,7 +280,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            return HistogramValuesSourceType.HISTOGRAM;
+            return AnalyticsValuesSourceType.HISTOGRAM;
         }
 
         @Override

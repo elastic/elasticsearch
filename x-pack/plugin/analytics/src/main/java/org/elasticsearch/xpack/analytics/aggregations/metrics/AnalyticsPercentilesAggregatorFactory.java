@@ -8,17 +8,18 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 public class AnalyticsPercentilesAggregatorFactory {
     public static void registerPercentilesAggregator(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
-            HistogramValuesSourceType.HISTOGRAM,
-            (AnalyticsPercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                                      formatter, pipelineAggregators, metaData) -> {
+            AnalyticsValuesSourceType.HISTOGRAM,
+            (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
+                                             formatter, pipelineAggregators, metaData) -> {
 
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
@@ -38,8 +39,8 @@ public class AnalyticsPercentilesAggregatorFactory {
 
     public static void registerPercentileRanksAggregator(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(PercentileRanksAggregationBuilder.NAME,
-            HistogramValuesSourceType.HISTOGRAM,
-            (AnalyticsPercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
+            AnalyticsValuesSourceType.HISTOGRAM,
+            (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
                                                       formatter, pipelineAggregators, metaData) -> {
 
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {

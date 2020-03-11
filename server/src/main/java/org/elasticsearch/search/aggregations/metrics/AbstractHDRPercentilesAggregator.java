@@ -98,12 +98,13 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         DoubleHistogram state = states.get(bucket);
         if (state == null) {
             state = new DoubleHistogram(numberOfSignificantValueDigits);
-            // Set the histogram to autosize so it can resize itself as
-            // the data range increases. Resize operations should be
-            // rare as the histogram buckets are exponential (on the top
-            // level). In the future we could expose the range as an
-            // option on the request so the histogram can be fixed at
-            // initialisation and doesn't need resizing.
+            /* Set the histogram to autosize so it can resize itself as
+               the data range increases. Resize operations should be
+               rare as the histogram buckets are exponential (on the top
+               level). In the future we could expose the range as an
+               option on the request so the histogram can be fixed at
+               initialisation and doesn't need resizing.
+             */
             state.setAutoResize(true);
             states.set(bucket, state);
         }

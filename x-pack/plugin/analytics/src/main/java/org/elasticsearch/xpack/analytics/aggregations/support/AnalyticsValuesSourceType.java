@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
-public enum HistogramValuesSourceType implements ValuesSourceType {
+public enum AnalyticsValuesSourceType implements ValuesSourceType {
     HISTOGRAM() {
         @Override
         public ValuesSource getEmpty() {
@@ -57,8 +57,8 @@ public enum HistogramValuesSourceType implements ValuesSourceType {
         if (valuesSourceType instanceof CoreValuesSourceType) {
             return false;
         }
-        HistogramValuesSourceType other = (HistogramValuesSourceType) valuesSourceType;
-        return other.value().equals(HistogramValuesSourceType.HISTOGRAM.value());
+        AnalyticsValuesSourceType other = (AnalyticsValuesSourceType) valuesSourceType;
+        return other.value().equals(AnalyticsValuesSourceType.HISTOGRAM.value());
     }
 
     public static ValuesSourceType fromString(String name) {

@@ -66,7 +66,6 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        assert valuesSource instanceof HistogramValuesSource.Histogram;
         final HistogramValues values = ((HistogramValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
 
         return new LeafBucketCollectorBase(sub, values) {

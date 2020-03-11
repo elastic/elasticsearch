@@ -49,9 +49,10 @@ public class PipelineRequestResponseSerializationTests extends ESTestCase {
     }
 
     public void testPutPipelineRequestSerialization() throws IOException {
-        PutPipelineRequest request = new PutPipelineRequest(randomAlphaOfLength(2),
-                                                            randomAlphaOfLengthBetween(10, 100),
-                                                            randomFrom(XContentType.values())
+        PutPipelineRequest request = new PutPipelineRequest(
+            randomAlphaOfLength(2),
+            randomAlphaOfLengthBetween(10, 100),
+            randomFrom(XContentType.values())
         );
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -65,7 +66,8 @@ public class TransportSamlInitiateSingleSignOnAction
                     }
                     final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
                     if (secondaryAuthentication == null) {
-                        listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
+                        listener.onFailure(
+                            new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN));
                         return;
                     }
                     buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(

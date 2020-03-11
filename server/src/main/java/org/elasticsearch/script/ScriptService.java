@@ -71,9 +71,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     // this allows you to easily define rates
     static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
             (String value) -> {
-                if (value.equals(USE_CONTEXT_RATE_KEY)) {
-                    return USE_CONTEXT_RATE_VALUE;
-                }
                 if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
                     throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
                             value + "]");
@@ -109,7 +106,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING =
-        new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION,
+        new Setting<>("script.max_compilations_rate", "75/5m",
+            (String value) -> value.equals(USE_CONTEXT_RATE_KEY) ? USE_CONTEXT_RATE_VALUE: MAX_COMPILATION_RATE_FUNCTION.apply(value),
             Property.Dynamic, Property.NodeScope);
 
     // Per-context settings
@@ -130,14 +128,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public static final Setting.AffixSetting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
             "max_compilations_rate",
-            key -> new Setting<>(key, "75/5m", MAX_COMPILATION_RATE_FUNCTION,
-                v -> {
-                    if (v.equals(USE_CONTEXT_RATE_VALUE)) {
-                        throw new IllegalArgumentException("[" + USE_CONTEXT_RATE_KEY + "] only valid for [" +
-                            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] setting");
-                    }
-                },
-                Property.NodeScope, Property.Dynamic));
+            key -> new Setting<>(key, "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.NodeScope, Property.Dynamic));
 
     public static final String ALLOW_NONE = "none";
 

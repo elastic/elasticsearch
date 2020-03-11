@@ -27,8 +27,8 @@ public class TransportPutPipelineAction extends HandledTransportAction<PutPipeli
     @Override
     protected void doExecute(Task task, PutPipelineRequest request, ActionListener<PutPipelineResponse> listener) {
         client.prepareIndex(".logstash")
-            .setId(request.getId())
-            .setSource(request.getSource(), request.getxContentType())
+            .setId(request.id())
+            .setSource(request.source(), request.xContentType())
             .execute(
                 ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutPipelineResponse(indexResponse.status())),

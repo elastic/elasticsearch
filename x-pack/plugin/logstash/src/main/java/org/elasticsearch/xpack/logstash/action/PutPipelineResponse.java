@@ -27,7 +27,7 @@ public class PutPipelineResponse extends ActionResponse {
         this.status = in.readEnum(RestStatus.class);
     }
 
-    public RestStatus getStatus() {
+    public RestStatus status() {
         return status;
     }
 

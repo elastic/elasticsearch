@@ -34,21 +34,22 @@ public class PutPipelineRequest extends ActionRequest {
         this.xContentType = in.readEnum(XContentType.class);
     }
 
-    public String getId() {
+    public String id() {
         return id;
     }
 
-    public String getSource() {
+    public String source() {
         return source;
     }
 
-    public XContentType getxContentType() {
+    public XContentType xContentType() {
         return xContentType;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(id);
         out.writeString(source);
         out.writeEnum(xContentType);
     }

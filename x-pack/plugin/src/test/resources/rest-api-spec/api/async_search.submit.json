@@ -9,14 +9,12 @@
         {
           "path":"/_async_search",
           "methods":[
-            "GET",
             "POST"
           ]
         },
         {
           "path":"/{index}/_async_search",
           "methods":[
-            "GET",
             "POST"
           ],
           "parts":{

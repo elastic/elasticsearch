@@ -5,15 +5,8 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYGeometry;
-import org.apache.lucene.geo.XYLine;
-import org.apache.lucene.geo.XYPoint;
-import org.apache.lucene.geo.XYPolygon;
-import org.apache.lucene.geo.XYRectangle;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;

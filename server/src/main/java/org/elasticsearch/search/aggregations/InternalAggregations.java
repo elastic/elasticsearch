@@ -86,6 +86,15 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     /**
+     * Make a mutable copy of the aggregation results.
+     * <p>
+     * IMPORTANT: The copy doesn't include any pipeline aggregations, if there are any.
+     */
+    public List<InternalAggregation> copyResults() {
+        return new ArrayList<>(getInternalAggregations());
+    }
+
+    /**
      * Returns the top-level pipeline aggregators.
      * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
      * become part of the list of {@link InternalAggregation}s.

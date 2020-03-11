@@ -133,7 +133,7 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
         mockRegisteredServiceProvider(resolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
         final SamlIdentityProvider.ServiceProviderDefaults defaults = new SamlIdentityProvider.ServiceProviderDefaults(
-            "elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(15));
+            "elastic-cloud", TRANSIENT, Duration.standardMinutes(15));
         final X509Credential signingCredential = readCredentials("RSA", randomFrom(1024, 2048, 4096));
         final SamlIdentityProvider idp = SamlIdentityProvider
             .builder(resolver)

@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
  */
 public class EvaluationParameters {
 
+    /**
+     * Maximum number of buckets allowed in any single search request.
+     */
     private final int maxBuckets;
 
     public EvaluationParameters(int maxBuckets) {

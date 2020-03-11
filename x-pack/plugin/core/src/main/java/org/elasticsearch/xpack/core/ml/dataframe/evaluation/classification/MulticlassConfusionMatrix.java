@@ -62,9 +62,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     private static ConstructingObjectParser<MulticlassConfusionMatrix, Void> createParser() {
         ConstructingObjectParser<MulticlassConfusionMatrix, Void>  parser =
             new ConstructingObjectParser<>(
-                NAME.getPreferredName(),
-                true,
-                args -> new MulticlassConfusionMatrix((Integer) args[0], (String) args[1]));
+                NAME.getPreferredName(), true, args -> new MulticlassConfusionMatrix((Integer) args[0], (String) args[1]));
         parser.declareInt(optionalConstructorArg(), SIZE);
         parser.declareString(optionalConstructorArg(), AGG_NAME_PREFIX);
         return parser;

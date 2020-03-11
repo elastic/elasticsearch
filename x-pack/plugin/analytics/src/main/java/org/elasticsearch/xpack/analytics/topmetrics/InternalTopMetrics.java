@@ -289,7 +289,12 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     }
 
     static class MetricValue implements Writeable, ToXContent {
-        private final DocValueFormat format; 
+        private final DocValueFormat format;
+        /**
+         * It is odd to have a "SortValue" be part of a MetricValue but it is
+         * a very convenient way to send a type-aware thing across the
+         * wire though. So here we are.
+         */
         private final SortValue value;
 
         MetricValue(DocValueFormat format, SortValue value) {

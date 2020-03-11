@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.objectweb.asm.Label;
@@ -28,13 +27,13 @@ import org.objectweb.asm.Label;
 public class NullSafeSubNode extends UnaryNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
         methodWriter.dup();
         methodWriter.ifNull(end);
-        getChildNode().write(classWriter, methodWriter, globals, scopeTable);
+        getChildNode().write(classWriter, methodWriter, scopeTable);
         methodWriter.mark(end);
     }
 }

@@ -20,39 +20,24 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.symbol.ScopeTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
-import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_METHOD;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
-import static org.elasticsearch.painless.WriterConstants.FUNCTION_TABLE_TYPE;
-import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
-import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
-import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 
 public class ClassNode extends IRNode {
 
@@ -60,6 +45,7 @@ public class ClassNode extends IRNode {
 
     private final List<FieldNode> fieldNodes = new ArrayList<>();
     private final List<FunctionNode> functionNodes = new ArrayList<>();
+    private final BlockNode clinitBlockNode;
 
     public void addFieldNode(FieldNode fieldNode) {
         fieldNodes.add(fieldNode);
@@ -76,7 +62,11 @@ public class ClassNode extends IRNode {
     public List<FunctionNode> getFunctionsNodes() {
         return functionNodes;
     }
-    
+
+    public BlockNode getClinitBlockNode() {
+        return clinitBlockNode;
+    }
+
     /* ---- end tree structure, begin node data ---- */
 
     private ScriptClassInfo scriptClassInfo;
@@ -127,19 +117,16 @@ public class ClassNode extends IRNode {
 
     /* ---- end node data ---- */
 
-    protected Globals globals;
-    protected byte[] bytes;
-
-    public BitSet getStatements() {
-        return globals.getStatements();
+    public ClassNode() {
+        clinitBlockNode = new BlockNode();
+        clinitBlockNode.setLocation(new Location("internal$clinit$blocknode", 0));
+        clinitBlockNode.setAllEscape(true);
+        clinitBlockNode.setStatementCount(1);
     }
 
-    public byte[] getBytes() {
-        return bytes;
-    }
-
-    public Map<String, Object> write() {
-        this.globals = new Globals(new BitSet(sourceText.length()));
+    public byte[] write() {
+        BitSet statements = new BitSet(sourceText.length());
+        scriptRoot.addStaticConstant("$STATEMENTS", statements);
 
         // Create the ClassWriter.
 
@@ -149,31 +136,10 @@ public class ClassNode extends IRNode {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), globals.getStatements(), debugStream,
+        ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), statements, debugStream,
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
         classVisitor.visitSource(Location.computeSourceName(name), null);
-
-        // Write the a method to bootstrap def calls
-        MethodWriter bootstrapDef = classWriter.newMethodWriter(Opcodes.ACC_STATIC | Opcodes.ACC_VARARGS, DEF_BOOTSTRAP_METHOD);
-        bootstrapDef.visitCode();
-        bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-        bootstrapDef.getStatic(CLASS_TYPE, "$FUNCTIONS", FUNCTION_TABLE_TYPE);
-        bootstrapDef.loadArgs();
-        bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
-        bootstrapDef.returnValue();
-        bootstrapDef.endMethod();
-
-        // Write static variables for name, source and statements used for writing exception messages
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$NAME", STRING_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$SOURCE", STRING_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$STATEMENTS", BITSET_TYPE.getDescriptor(), null, null).visitEnd();
-
-        // Write the static variables used by the method to bootstrap def calls
-        classVisitor.visitField(
-                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(
-                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$FUNCTIONS", FUNCTION_TABLE_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 
@@ -193,79 +159,27 @@ public class ClassNode extends IRNode {
         constructor.returnValue();
         constructor.endMethod();
 
-        // Write a method to get static variable source
-        MethodWriter nameMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, GET_NAME_METHOD);
-        nameMethod.visitCode();
-        nameMethod.getStatic(CLASS_TYPE, "$NAME", STRING_TYPE);
-        nameMethod.returnValue();
-        nameMethod.endMethod();
-
-        // Write a method to get static variable source
-        MethodWriter sourceMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, GET_SOURCE_METHOD);
-        sourceMethod.visitCode();
-        sourceMethod.getStatic(CLASS_TYPE, "$SOURCE", STRING_TYPE);
-        sourceMethod.returnValue();
-        sourceMethod.endMethod();
-
-        // Write a method to get static variable statements
-        MethodWriter statementsMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, GET_STATEMENTS_METHOD);
-        statementsMethod.visitCode();
-        statementsMethod.getStatic(CLASS_TYPE, "$STATEMENTS", BITSET_TYPE);
-        statementsMethod.returnValue();
-        statementsMethod.endMethod();
+        if (clinitBlockNode.getStatementsNodes().isEmpty() == false) {
+            MethodWriter methodWriter = classWriter.newMethodWriter(
+                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                    new Method("<clinit>", Type.getType(void.class), new Type[0]));
+            clinitBlockNode.write(classWriter, methodWriter, new ScopeTable());
+            methodWriter.returnValue();
+            methodWriter.endMethod();
+        }
 
         // Write all fields:
         for (FieldNode fieldNode : fieldNodes) {
-            fieldNode.write(classWriter, null, null, null);
+            fieldNode.write(classWriter, null, null);
         }
 
         // Write all functions:
         for (FunctionNode functionNode : functionNodes) {
-            functionNode.write(classWriter, null, globals, new ScopeTable());
-        }
-
-        // Write the constants
-        if (false == globals.getConstantInitializers().isEmpty()) {
-            Collection<Constant> inits = globals.getConstantInitializers().values();
-
-            // Initialize the constants in a static initializer
-            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
-                    WriterConstants.CLINIT, classVisitor, globals.getStatements(), scriptRoot.getCompilerSettings());
-            clinit.visitCode();
-            for (Constant constant : inits) {
-                constant.initializer.accept(clinit);
-                clinit.putStatic(CLASS_TYPE, constant.name, constant.type);
-            }
-            clinit.returnValue();
-            clinit.endMethod();
-        }
-
-        // Write any needsVarName methods for used variables
-        for (org.objectweb.asm.commons.Method needsMethod : scriptClassInfo.getNeedsMethods()) {
-            String name = needsMethod.getName();
-            name = name.substring(5);
-            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-            MethodWriter ifaceMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, needsMethod);
-            ifaceMethod.visitCode();
-            ifaceMethod.push(scriptRoot.getUsedVariables().contains(name));
-            ifaceMethod.returnValue();
-            ifaceMethod.endMethod();
+            functionNode.write(classWriter, null, new ScopeTable());
         }
 
         // End writing the class and store the generated bytes.
-
         classVisitor.visitEnd();
-        bytes = classWriter.getClassBytes();
-
-        Map<String, Object> statics = new HashMap<>();
-        statics.put("$FUNCTIONS", scriptRoot.getFunctionTable());
-
-        for (FieldNode fieldNode : fieldNodes) {
-            if (fieldNode.getInstance() != null) {
-                statics.put(fieldNode.getName(), fieldNode.getInstance());
-            }
-        }
-
-        return statics;
+        return classWriter.getClassBytes();
     }
 }

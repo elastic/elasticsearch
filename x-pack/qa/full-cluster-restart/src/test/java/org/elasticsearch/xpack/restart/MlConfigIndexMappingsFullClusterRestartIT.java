@@ -38,7 +38,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
@@ -70,13 +71,22 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
                 assertThat(getDataFrameAnalysisMappings().keySet(), hasItem("outlier_detection"));
             } else {
                 // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
-                assertThat(getDataFrameAnalysisMappings().keySet(), not(hasItem("outlier_detection")));
+                assertThat(getDataFrameAnalysisMappings(), is(nullValue()));
             }
         } else {
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
             // assert that the mappings are updated
-            assertThat(getConfigIndexMappings(), equalTo(expectedConfigIndexMappings));
+            Map<String, Object> configIndexMappings = getConfigIndexMappings();
+
+            // Remove renamed fields
+            if (getOldClusterVersion().before(Version.V_8_0_0)) {
+                configIndexMappings = XContentMapValues.filter(expectedConfigIndexMappings, null, new String[] {
+                    "analysis.properties.*.properties.maximum_number_trees" // This was renamed to max_trees
+                });
+            }
+
+            assertThat(configIndexMappings, equalTo(expectedConfigIndexMappings));
         }
     }
 

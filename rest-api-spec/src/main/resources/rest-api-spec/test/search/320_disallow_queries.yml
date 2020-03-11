@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "implemented in 8.0.0"
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
 
   - do:
       indices.create:
@@ -35,8 +35,8 @@ setup:
 ---
 teardown:
   - skip:
-      version: " - 7.99.99"
-      reason: "implemented in 8.0.0"
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
 
   - do:
       cluster.put_settings:
@@ -47,8 +47,8 @@ teardown:
 ---
 "Test disallow expensive queries":
   - skip:
-      version: " - 7.99.99"
-      reason: "implemented in 8.0.0"
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
 
   ### Check for initial setting = null -> false
   - do:

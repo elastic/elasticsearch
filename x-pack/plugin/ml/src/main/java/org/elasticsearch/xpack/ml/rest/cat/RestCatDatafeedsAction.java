@@ -66,21 +66,21 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Datafeed Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the datafeed_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the datafeed state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the datafeed_id").build());
+        table.addCell("state",
+            TableColumnAttributeBuilder.builder("the datafeed state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
         table.addCell("assignment_explanation",
             TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false)
                 .setAliases("ae")
                 .build());
 
         // Timing stats
-        table.addCell("bucket.count",
+        table.addCell("buckets.count",
             TableColumnAttributeBuilder.builder("bucket count")
-                .setAliases("bc", "bucketCount")
+                .setAliases("bc", "bucketsCount")
                 .build());
         table.addCell("search.count",
             TableColumnAttributeBuilder.builder("number of searches ran by the datafeed")
@@ -92,7 +92,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
                 .build());
         table.addCell("search.bucket_avg",
             TableColumnAttributeBuilder.builder("the average search time per bucket (millisecond)", false)
-                .setAliases("sba", "bucketTimeMin")
+                .setAliases("sba", "searchBucketAvg")
                 .build());
         table.addCell("search.exp_avg_hour",
             TableColumnAttributeBuilder.builder("the exponential average search time per hour (millisecond)", false)

@@ -36,6 +36,8 @@ import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
 
+import static org.elasticsearch.gradle.tool.Boilerplate.noop;
+
 public class TestClustersPlugin implements Plugin<Project> {
 
     public static final String EXTENSION_NAME = "testClusters";
@@ -59,7 +61,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         createListClustersTask(project, container);
 
         // register cluster registry as a global build service
-        project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, spec -> {});
+        project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
 
         // register throttle so we only run at most max-workers/2 nodes concurrently
         project.getGradle()

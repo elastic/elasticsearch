@@ -12,7 +12,8 @@
       "auto_expand_replicas" : "0-1",
       "query" : {
         "default_field" : "all_field_values"
-      }
+      },
+      "hidden": true
     }
   },
   "mappings": ${xpack.ml.anomalydetection.results.mappings}

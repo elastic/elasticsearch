@@ -12,11 +12,14 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -35,7 +38,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
@@ -130,6 +132,34 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("value", tq.value());
     }
 
+    public void testAliasAndGroupByResolution(){
+        LogicalPlan p = plan("SELECT COUNT(*) AS c FROM test WHERE ABS(int) > 0 GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        var pc = ((Aggregate) p).child();
+        assertTrue(pc instanceof Filter);
+        Expression condition = ((Filter) pc).condition();
+        assertEquals(((GreaterThan) condition).functionName(), "GREATERTHAN");
+        List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.get(0).resolved());
+        var agg = ((Aggregate) p).aggregates();
+        assertEquals((agg.get(0)).name(), "c");
+        assertEquals(((Count) ((Alias) agg.get(0)).child()).functionName(), "COUNT");
+    }
+    public void testLiteralWithGroupBy(){
+        LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
+        assertTrue(p instanceof Aggregate);
+        List<Expression> groupings = ((Aggregate) p).groupings();
+        assertTrue(groupings.size() == 1);
+        assertTrue(groupings.get(0).resolved());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        var aggs = ((Aggregate) p).aggregates();
+        assertTrue(aggs.size() == 2);
+        assertEquals((aggs.get(0)).name(), "t");
+        assertTrue(((Alias) aggs.get(0)).child() instanceof Literal);
+        assertEquals(((Alias) aggs.get(0)).child().toString(), "1");
+        assertEquals(((Alias) aggs.get(1)).child().toString(), "2");
+    }
+
     public void testTermEqualityNotAnalyzed() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE int = 5");
         assertTrue(p instanceof Project);
@@ -200,7 +230,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Line 1:43: Comparisons against variables are not (currently) supported; offender [int] in [>]", ex.getMessage());
     }
 
@@ -445,7 +475,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) like '%a%'", ex.getMessage());
     }
 
@@ -455,7 +485,7 @@ public class QueryTranslatorTests extends ESTestCase {
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) RLIKE '.*a.*'", ex.getMessage());
     }
 
@@ -615,6 +645,33 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(params.a0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
+    }
+
+    public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
+                                         "WHERE c > 10 GROUP BY c HAVING m > '2020-01-01'::date");
+        assertTrue(p instanceof EsQueryExec);
+        EsQueryExec esQExec = (EsQueryExec) p;
+        assertEquals(2, esQExec.output().size());
+        AggregationBuilder aggBuilder = esQExec.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
+                ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
+                "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
+                "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
+                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
+                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+        assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
+        ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+                sq.script().toString());
+        assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
     }
 
     public void testTranslateInExpression_WhereClause() {
@@ -997,6 +1054,21 @@ public class QueryTranslatorTests extends ESTestCase {
                     + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
     }
 
+    public void testGroupByHistogramWithScalarsQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int), HISTOGRAM(date, INTERVAL 5 YEARS - INTERVAL 6 MONTHS) AS h " +
+                                         "FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(2, eqe.output().size());
+        assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
+        assertEquals(INTEGER, eqe.output().get(0).dataType());
+        assertEquals("h", eqe.output().get(1).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(1).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\"," +
+                        "\"order\":\"asc\",\"fixed_interval\":\"139968000000ms\",\"time_zone\":\"Z\"}}}]}"));
+    }
+
     public void testGroupByYearQueryTranslator() {
         PhysicalPlan p = optimizeAndPlan("SELECT YEAR(date) FROM test GROUP BY YEAR(date)");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -1007,6 +1079,69 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
                     + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+    
+    public void testGroupByOneMonthHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"calendar_interval\":\"1M\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+    
+    public void testGroupByMoreMonthsHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 5 MONTH) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"fixed_interval\":\"12960000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+
+    public void testGroupByOneDayHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL 1 DAY) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+    
+    public void testGroupByMoreDaysHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date, INTERVAL '1 5' DAY TO HOUR) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"fixed_interval\":\"104400000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+
+    public void testGroupByMoreDaysHistogram_WithFunction_QueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT HISTOGRAM(date + INTERVAL 5 DAYS, INTERVAL 1 DAY) AS h FROM test GROUP BY h");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("h", eqe.output().get(0).qualifiedName());
+        assertEquals(DATETIME, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"date_histogram\":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(" +
+                        "InternalSqlScriptUtils.docValue(doc,params.v0),InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
+                        "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT120H\",\"v2\":\"INTERVAL_DAY\"}}," +
+                        "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"," +
+                        "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
     public void testGroupByYearAndScalarsQueryTranslator() {

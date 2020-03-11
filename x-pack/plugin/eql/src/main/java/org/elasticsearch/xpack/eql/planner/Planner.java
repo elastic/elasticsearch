@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.eql.planner;
 
-import org.elasticsearch.xpack.eql.common.Failure;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.List;

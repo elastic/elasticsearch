@@ -52,7 +52,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -242,16 +241,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format("badFormat"));
     }
 
-    /**
-     * Specifying a timezone together with an unmapped field should throw an exception.
-     */
-    public void testToQueryUnmappedWithTimezone() throws QueryShardException {
-        RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
-        query.from(1).to(10).timeZone("UTC");
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
-    }
-
     public void testToQueryNumericField() throws IOException {
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
         // since age is automatically registered in data, we encode it as numeric
@@ -343,6 +332,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "}";
         QueryShardContext context = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
+        assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
+        parsedQuery = ((DateRangeIncludingNowQuery)parsedQuery).getQuery();
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
@@ -563,35 +554,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertEquals(ShapeRelation.WITHIN, builder.relation());
         builder.relation("intersects");
         assertEquals(ShapeRelation.INTERSECTS, builder.relation());
-    }
-
-    public void testConvertNowRangeToMatchAll() throws IOException {
-        RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
-        DateTime queryFromValue = new DateTime(2019, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime queryToValue = new DateTime(2020, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        if (randomBoolean()) {
-            query.from("now");
-            query.to(queryToValue);
-        } else if (randomBoolean()) {
-            query.from(queryFromValue);
-            query.to("now");
-        } else {
-            query.from("now");
-            query.to("now+1h");
-        }
-        QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-
-        queryShardContext = new QueryShardContext(queryShardContext) {
-
-            @Override
-            public boolean convertNowRangeToMatchAll() {
-                return true;
-            }
-        };
-        rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
     public void testTypeField() throws IOException {

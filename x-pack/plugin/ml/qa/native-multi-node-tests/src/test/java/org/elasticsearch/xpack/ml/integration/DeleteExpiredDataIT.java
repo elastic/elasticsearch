@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
@@ -91,12 +92,14 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
     public void testDeleteExpiredData() throws Exception {
         // Index some unused state documents (more than 10K to test scrolling works)
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        String mlStateIndexName = AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001";
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10010; i++) {
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(docId);
-            indexRequest.source(Collections.emptyMap());
+            IndexRequest indexRequest =
+                new IndexRequest(mlStateIndexName)
+                    .id(docId)
+                    .source(Collections.emptyMap());
             bulkRequestBuilder.add(indexRequest);
         }
         ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
@@ -161,7 +164,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Refresh to ensure the snapshot timestamp updates are visible
-        client().admin().indices().prepareRefresh("*").get();
+        refresh("*");
 
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
         // FIXME it would be better to wait for something concrete instead of wait for time to elapse
@@ -292,6 +295,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             client().execute(UpdateModelSnapshotAction.INSTANCE, request).get();
         }
         // We need to refresh to ensure the updates are visible
-        client().admin().indices().prepareRefresh("*").get();
+        refresh("*");
     }
 }

@@ -75,6 +75,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -119,7 +120,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
@@ -160,7 +165,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
@@ -223,7 +232,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
         assertEvaluation(dependentVariable, dependentVariableValues, "ml." + predictedClassField);
     }
@@ -421,7 +434,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setGamma(1.0)
             .setEta(1.0)
             .setFeatureBagFraction(1.0)
-            .setMaximumNumberTrees(1)
+            .setMaxTrees(1)
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
@@ -480,7 +493,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Now calling the _delete_expired_data API should remove unused state
         assertThat(deleteExpiredData().isDeleted(), is(true));
 
-        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state").execute().actionGet();
+        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state*").execute().actionGet();
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 

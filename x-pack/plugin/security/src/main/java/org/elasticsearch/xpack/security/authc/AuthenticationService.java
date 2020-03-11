@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,6 +78,7 @@ public class AuthenticationService {
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
+    private final XPackLicenseState licenseState;
     private final AuditTrail auditTrail;
     private final AuthenticationFailureHandler failureHandler;
     private final ThreadContext threadContext;
@@ -90,11 +92,12 @@ public class AuthenticationService {
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
 
-    public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
+    public AuthenticationService(Settings settings, Realms realms, XPackLicenseState licenseState, AuditTrailService auditTrail,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
                                  AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
+        this.licenseState = licenseState;
         this.auditTrail = auditTrail;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -184,7 +187,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportMessage message,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
+        createAuthenticator(action, message, true, listener).authenticateToken(token);
     }
 
     public void expire(String principal) {
@@ -211,19 +214,37 @@ public class AuthenticationService {
 
     // pkg private method for testing
     Authenticator createAuthenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-        return new Authenticator(request, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
+        final AuthenticatedRequest authRequest;
+        if (licenseState.isAuditingAllowed()) {
+            authRequest = new AuditableAuthenticatedRestRequest(auditTrail, failureHandler, threadContext, request);
+        } else {
+            authRequest = new AuthenticatedRestRequest(failureHandler, threadContext, request);
+        }
+        return new Authenticator(authRequest, null, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
     }
 
     // pkg private method for testing
     Authenticator createAuthenticator(String action, TransportMessage message, boolean fallbackToAnonymous,
                                       ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
+        final AuthenticatedRequest authRequest;
+        if (licenseState.isAuditingAllowed()) {
+            authRequest = new AuditableAuthenticatedTransportRequest(auditTrail, failureHandler, threadContext, action, message);
+        } else {
+            authRequest = new AuthenticatedTransportRequest(failureHandler, threadContext, action, message);
+        }
+        return new Authenticator(authRequest, null, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
     }
 
     // pkg private method for testing
     Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser,
                                       ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, fallbackUser, listener);
+        final AuthenticatedRequest authRequest;
+        if (licenseState.isAuditingAllowed()) {
+            authRequest = new AuditableAuthenticatedTransportRequest(auditTrail, failureHandler, threadContext, action, message);
+        } else {
+            authRequest = new AuthenticatedTransportRequest(failureHandler, threadContext, action, message);
+        }
+        return new Authenticator(authRequest, Objects.requireNonNull(fallbackUser, "Fallback user cannot be null"), false, listener);
     }
 
     // pkg private method for testing
@@ -262,7 +283,7 @@ public class AuthenticationService {
      */
     class Authenticator {
 
-        private final AuditableRequest request;
+        private final AuthenticatedRequest request;
         private final User fallbackUser;
         private final boolean fallbackToAnonymous;
         private final List<Realm> defaultOrderedRealmList;
@@ -273,21 +294,7 @@ public class AuthenticationService {
         private AuthenticationToken authenticationToken = null;
         private AuthenticationResult authenticationResult = null;
 
-        Authenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, fallbackToAnonymous, listener);
-        }
-
-        Authenticator(String action, TransportMessage message, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
-                null, fallbackToAnonymous, listener);
-        }
-
-        Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
-                Objects.requireNonNull(fallbackUser, "Fallback user cannot be null"), false, listener);
-        }
-
-        private Authenticator(AuditableRequest auditableRequest, User fallbackUser, boolean fallbackToAnonymous,
+        private Authenticator(AuthenticatedRequest auditableRequest, User fallbackUser, boolean fallbackToAnonymous,
                               ActionListener<Authentication> listener) {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
@@ -379,7 +386,7 @@ public class AuthenticationService {
             Runnable action;
             try {
                 final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
-                if (authentication != null && request instanceof AuditableRestRequest) {
+                if (authentication != null && request instanceof AuditableAuthenticatedRestRequest) {
                     action = () -> listener.onFailure(request.tamperedRequest());
                 } else {
                     action = () -> authenticationConsumer.accept(authentication);
@@ -691,19 +698,9 @@ public class AuthenticationService {
         }
     }
 
-    abstract static class AuditableRequest {
+    abstract static class AuthenticatedRequest {
 
-        final AuditTrail auditTrail;
-        final AuthenticationFailureHandler failureHandler;
-        final ThreadContext threadContext;
-
-        AuditableRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext) {
-            this.auditTrail = auditTrail;
-            this.failureHandler = failureHandler;
-            this.threadContext = threadContext;
-        }
-
-        abstract void realmAuthenticationFailed(AuthenticationToken token, String realm);
+        void realmAuthenticationFailed(AuthenticationToken token, String realm) {}
 
         abstract ElasticsearchSecurityException tamperedRequest();
 
@@ -715,23 +712,65 @@ public class AuthenticationService {
 
         abstract ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token);
 
-        abstract void authenticationSuccess(String realm, User user);
-
+        void authenticationSuccess(String realm, User user) {}
     }
 
-    static class AuditableTransportRequest extends AuditableRequest {
+    static class AuthenticatedTransportRequest extends AuthenticatedRequest {
+        private final AuthenticationFailureHandler failureHandler;
+        private final ThreadContext threadContext;
+        final String action;
+        final TransportMessage message;
+        final String requestId;
 
-        private final String action;
-        private final TransportMessage message;
-        private final String requestId;
-
-        AuditableTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
-                                  String action, TransportMessage message) {
-            super(auditTrail, failureHandler, threadContext);
+        AuthenticatedTransportRequest(AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
+                                      String action, TransportMessage message) {
+            this.failureHandler = failureHandler;
+            this.threadContext = threadContext;
             this.action = action;
             this.message = message;
             // There might be an existing audit-id (e.g. generated by the  rest request) but there might not be (e.g. an internal action)
             this.requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException tamperedRequest() {
+            return new ElasticsearchSecurityException("failed to verify signed authentication information");
+        }
+
+        @Override
+        ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
+            return failureHandler.exceptionProcessingRequest(message, action, e, threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
+            return failureHandler.failedAuthentication(message, token, action, threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException anonymousAccessDenied() {
+            return failureHandler.missingToken(message, action, threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
+            return failureHandler.failedAuthentication(message, token, action, threadContext);
+        }
+
+        @Override
+        public String toString() {
+            return "transport request action [" + action + "]";
+        }
+    }
+
+    static class AuditableAuthenticatedTransportRequest extends AuthenticatedTransportRequest {
+
+        private final AuditTrail auditTrail;
+
+        AuditableAuthenticatedTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler,
+                                               ThreadContext threadContext, String action, TransportMessage message) {
+            super(failureHandler, threadContext, action, message);
+            this.auditTrail = auditTrail;
         }
 
         @Override
@@ -747,7 +786,7 @@ public class AuthenticationService {
         @Override
         ElasticsearchSecurityException tamperedRequest() {
             auditTrail.tamperedRequest(requestId, action, message);
-            return new ElasticsearchSecurityException("failed to verify signed authentication information");
+            return super.tamperedRequest();
         }
 
         @Override
@@ -757,45 +796,82 @@ public class AuthenticationService {
             } else {
                 auditTrail.authenticationFailed(requestId, action, message);
             }
-            return failureHandler.exceptionProcessingRequest(message, action, e, threadContext);
+            return super.exceptionProcessingRequest(e, token);
         }
 
         @Override
         ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
             auditTrail.authenticationFailed(requestId, token, action, message);
-            return failureHandler.failedAuthentication(message, token, action, threadContext);
+            return super.authenticationFailed(token);
         }
 
         @Override
         ElasticsearchSecurityException anonymousAccessDenied() {
             auditTrail.anonymousAccessDenied(requestId, action, message);
-            return failureHandler.missingToken(message, action, threadContext);
+            return super.anonymousAccessDenied();
         }
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
             auditTrail.runAsDenied(requestId, authentication, action, message, EmptyAuthorizationInfo.INSTANCE);
-            return failureHandler.failedAuthentication(message, token, action, threadContext);
+            return super.runAsDenied(authentication, token);
+        }
+    }
+
+    static class AuthenticatedRestRequest extends AuthenticatedRequest {
+
+        private final AuthenticationFailureHandler failureHandler;
+        private final ThreadContext threadContext;
+        final RestRequest request;
+        final String requestId;
+
+        AuthenticatedRestRequest(AuthenticationFailureHandler failureHandler, ThreadContext threadContext, RestRequest request) {
+            this.failureHandler = failureHandler;
+            this.threadContext = threadContext;
+            this.request = request;
+            // There should never be an existing audit-id when processing a rest request.
+            this.requestId = AuditUtil.generateRequestId(threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException tamperedRequest() {
+            return new ElasticsearchSecurityException("rest request attempted to inject a user");
+        }
+
+        @Override
+        ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
+            return failureHandler.exceptionProcessingRequest(request, e, threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
+            return failureHandler.failedAuthentication(request, token, threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException anonymousAccessDenied() {
+            return failureHandler.missingToken(request, threadContext);
+        }
+
+        @Override
+        ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
+            return failureHandler.failedAuthentication(request, token, threadContext);
         }
 
         @Override
         public String toString() {
-            return "transport request action [" + action + "]";
+            return "rest request uri [" + request.uri() + "]";
         }
-
     }
 
-    static class AuditableRestRequest extends AuditableRequest {
+    static class AuditableAuthenticatedRestRequest extends AuthenticatedRestRequest {
 
-        private final RestRequest request;
-        private final String requestId;
+        private final AuditTrail auditTrail;
 
-        AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
-                             RestRequest request) {
-            super(auditTrail, failureHandler, threadContext);
-            this.request = request;
-            // There should never be an existing audit-id when processing a rest request.
-            this.requestId = AuditUtil.generateRequestId(threadContext);
+        AuditableAuthenticatedRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
+                                          RestRequest request) {
+            super(failureHandler, threadContext, request);
+            this.auditTrail = auditTrail;
         }
 
         @Override
@@ -811,7 +887,7 @@ public class AuthenticationService {
         @Override
         ElasticsearchSecurityException tamperedRequest() {
             auditTrail.tamperedRequest(requestId, request);
-            return new ElasticsearchSecurityException("rest request attempted to inject a user");
+            return super.tamperedRequest();
         }
 
         @Override
@@ -821,25 +897,25 @@ public class AuthenticationService {
             } else {
                 auditTrail.authenticationFailed(requestId, request);
             }
-            return failureHandler.exceptionProcessingRequest(request, e, threadContext);
+            return super.exceptionProcessingRequest(e, token);
         }
 
         @Override
         ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
             auditTrail.authenticationFailed(requestId, token, request);
-            return failureHandler.failedAuthentication(request, token, threadContext);
+            return super.authenticationFailed(token);
         }
 
         @Override
         ElasticsearchSecurityException anonymousAccessDenied() {
             auditTrail.anonymousAccessDenied(requestId, request);
-            return failureHandler.missingToken(request, threadContext);
+            return super.anonymousAccessDenied();
         }
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
             auditTrail.runAsDenied(requestId, authentication, request, EmptyAuthorizationInfo.INSTANCE);
-            return failureHandler.failedAuthentication(request, token, threadContext);
+            return super.runAsDenied(authentication, token);
         }
 
         @Override

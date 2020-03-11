@@ -121,7 +121,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
         final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
             securityIndex, clusterService, threadPool);
-        authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
+        authenticationService = new AuthenticationService(settings, realms, licenseState, auditTrail, failureHandler, threadPool, anonymous,
             tokenService, apiKeyService);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }

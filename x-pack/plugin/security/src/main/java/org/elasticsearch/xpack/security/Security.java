@@ -380,7 +380,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
                 ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
                 : Collections.emptyList();
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -446,7 +446,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
+        authcService.set(new AuthenticationService(settings, realms, getLicenseState(), auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService, apiKeyService));
         components.add(authcService.get());
         securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);

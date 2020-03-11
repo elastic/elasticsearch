@@ -55,7 +55,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList());
         final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
@@ -107,7 +107,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList());
         final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
         Role role = Role.builder()
                 .add(IndexPrivilege.ALL, "target")

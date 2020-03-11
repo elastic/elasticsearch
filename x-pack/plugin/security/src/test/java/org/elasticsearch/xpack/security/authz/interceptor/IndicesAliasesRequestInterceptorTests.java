@@ -49,7 +49,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList());
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
         final FieldPermissions fieldPermissions;
@@ -108,7 +108,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList());
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
         final String action = IndicesAliasesAction.NAME;

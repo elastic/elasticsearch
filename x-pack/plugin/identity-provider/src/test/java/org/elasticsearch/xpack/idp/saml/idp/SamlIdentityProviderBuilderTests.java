@@ -110,8 +110,8 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
         final SamlIdentityProvider.ServiceProviderDefaults defaults = new SamlIdentityProvider.ServiceProviderDefaults(
-            randomAlphaOfLengthBetween(4, 8), randomAlphaOfLength(4) + ":" + randomAlphaOfLengthBetween(3, 7),
-            randomFrom(NameID.TRANSIENT, NameID.PERSISTENT), Duration.standardMinutes(randomIntBetween(2, 90)));
+            randomAlphaOfLengthBetween(4, 8), randomFrom(NameID.TRANSIENT, NameID.PERSISTENT),
+            Duration.standardMinutes(randomIntBetween(2, 90)));
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
             () -> SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build());
         assertThat(e, instanceOf(ValidationException.class));

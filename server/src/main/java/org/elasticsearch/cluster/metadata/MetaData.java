@@ -73,6 +73,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -171,7 +172,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final DiffableStringMap hashesOfConsistentSettings;
     private final ImmutableOpenMap<String, IndexMetaData> indices;
     private final ImmutableOpenMap<String, IndexTemplateMetaData> templates;
-    private final ImmutableOpenMap<String, ComponentTemplate> componentTemplates;
     private final ImmutableOpenMap<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
@@ -189,8 +189,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     MetaData(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetaData coordinationMetaData,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
-             ImmutableOpenMap<String, ComponentTemplate> componentTemplates, ImmutableOpenMap<String, Custom> customs,
-             String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
+             ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
              String[] visibleOpenIndices, String[] allClosedIndices, String[] visibleClosedIndices,
              SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
@@ -204,7 +203,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         this.indices = indices;
         this.customs = customs;
         this.templates = templates;
-        this.componentTemplates = componentTemplates;
         int totalNumberOfShards = 0;
         int totalOpenIndexShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
@@ -664,8 +662,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return this.templates;
     }
 
-    public ImmutableOpenMap<String, ComponentTemplate> componentTemplates() {
-        return this.componentTemplates;
+    public Map<String, ComponentTemplate> componentTemplates() {
+        return Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
+            .map(ComponentTemplateMetadata::componentTemplates)
+            .orElse(Collections.emptyMap());
     }
 
     public ImmutableOpenMap<String, Custom> customs() {
@@ -762,9 +762,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         if (!metaData1.templates.equals(metaData2.templates())) {
             return false;
         }
-        if (!metaData1.componentTemplates.equals(metaData2.componentTemplates())) {
-            return false;
-        }
         if (!metaData1.clusterUUID.equals(metaData2.clusterUUID)) {
             return false;
         }
@@ -819,7 +816,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private Diff<DiffableStringMap> hashesOfConsistentSettings;
         private Diff<ImmutableOpenMap<String, IndexMetaData>> indices;
         private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
-        private Diff<ImmutableOpenMap<String, ComponentTemplate>> componentTemplates;
         private Diff<ImmutableOpenMap<String, Custom>> customs;
 
         MetaDataDiff(MetaData before, MetaData after) {
@@ -832,8 +828,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
             templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
-            componentTemplates = DiffableUtils.diff(before.componentTemplates,
-                after.componentTemplates, DiffableUtils.getStringKeySerializer());
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
@@ -853,13 +847,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 IndexMetaData::readDiffFrom);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData::readFrom,
                 IndexTemplateMetaData::readDiffFrom);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                componentTemplates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                    ComponentTemplate::new, ComponentTemplate::readComponentTemplateDiffFrom);
-            } else {
-                componentTemplates = DiffableUtils.emptyOpenMapDiff(DiffableUtils.getStringKeySerializer(),
-                    new DiffableUtils.DiffableValueReader<>(ComponentTemplate::new, ComponentTemplate::readComponentTemplateDiffFrom));
-            }
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
@@ -876,9 +863,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
             indices.writeTo(out);
             templates.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                componentTemplates.writeTo(out);
-            }
             customs.writeTo(out);
         }
 
@@ -894,7 +878,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(indices.apply(part.indices));
             builder.templates(templates.apply(part.templates));
-            builder.componentTemplates(componentTemplates.apply(part.componentTemplates));
             builder.customs(customs.apply(part.customs));
             return builder.build();
         }
@@ -918,14 +901,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
             builder.put(IndexTemplateMetaData.readFrom(in));
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            int componentCount = in.readVInt();
-            for (int i = 0; i < componentCount; i++) {
-                String id = in.readString();
-                ComponentTemplate componentTemplate = new ComponentTemplate(in);
-                builder.put(id, componentTemplate);
-            }
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
@@ -953,13 +928,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         out.writeVInt(templates.size());
         for (ObjectCursor<IndexTemplateMetaData> cursor : templates.values()) {
             cursor.value.writeTo(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVInt(componentTemplates.size());
-            for (ObjectObjectCursor<String, ComponentTemplate> cursor : componentTemplates) {
-                out.writeString(cursor.key);
-                cursor.value.writeTo(out);
-            }
         }
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
@@ -997,14 +965,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         private final ImmutableOpenMap.Builder<String, IndexMetaData> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templates;
-        private final ImmutableOpenMap.Builder<String, ComponentTemplate> componentTemplates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
-            componentTemplates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
@@ -1019,7 +985,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             this.version = metaData.version;
             this.indices = ImmutableOpenMap.builder(metaData.indices);
             this.templates = ImmutableOpenMap.builder(metaData.templates);
-            this.componentTemplates = ImmutableOpenMap.builder(metaData.componentTemplates);
             this.customs = ImmutableOpenMap.builder(metaData.customs);
         }
 
@@ -1095,17 +1060,30 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public Builder put(String name, ComponentTemplate componentTemplate) {
-            componentTemplates.put(name, componentTemplate);
+            Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, ComponentTemplate> existingTemplates =
+                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
+                    .map(ctm -> new HashMap<>(ctm.componentTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.put(name, componentTemplate);
+            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
             return this;
         }
 
-        public Builder removeComponentTemplate(String componentTemplate) {
-            componentTemplates.remove(componentTemplate);
+        public Builder removeComponentTemplate(String name) {
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, ComponentTemplate> existingTemplates =
+                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
+                    .map(ctm -> new HashMap<>(ctm.componentTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.remove(name);
+            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
             return this;
         }
 
-        public Builder componentTemplates(ImmutableOpenMap<String, ComponentTemplate> componentTemplates) {
-            this.componentTemplates.putAll(componentTemplates);
+        public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
+            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(componentTemplates));
             return this;
         }
 
@@ -1298,7 +1276,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
 
             return new MetaData(clusterUUID, clusterUUIDCommitted, version, coordinationMetaData, transientSettings, persistentSettings,
-                hashesOfConsistentSettings, indices.build(), templates.build(), componentTemplates.build(), customs.build(),
+                hashesOfConsistentSettings, indices.build(), templates.build(), customs.build(),
                 allIndicesArray, visibleIndicesArray, allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray,
                 visibleClosedIndicesArray, aliasAndIndexLookup);
         }
@@ -1367,12 +1345,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
             builder.endObject();
 
-            builder.startObject("component_templates");
-            for (ObjectObjectCursor<String, ComponentTemplate> cursor : metaData.componentTemplates()) {
-                builder.field(cursor.key, cursor.value);
-            }
-            builder.endObject();
-
             if (context == XContentContext.API && !metaData.indices().isEmpty()) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
@@ -1435,11 +1407,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
-                        }
-                    } else if ("component_templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            String name = parser.currentName();
-                            builder.put(name, ComponentTemplate.parse(parser));
                         }
                     } else {
                         try {

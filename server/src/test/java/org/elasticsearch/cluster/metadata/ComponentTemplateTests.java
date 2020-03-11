@@ -122,6 +122,10 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     @Override
     protected ComponentTemplate mutateInstance(ComponentTemplate orig) throws IOException {
+        return mutateTemplate(orig);
+    }
+
+    public static ComponentTemplate mutateTemplate(ComponentTemplate orig) {
         switch (randomIntBetween(0, 2)) {
             case 0:
                 switch (randomIntBetween(0, 2)) {
@@ -155,10 +159,5 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
-    }
-
-    @Override
-    protected void assertEqualInstances(ComponentTemplate expectedInstance, ComponentTemplate newInstance) {
-        super.assertEqualInstances(expectedInstance, newInstance);
     }
 }

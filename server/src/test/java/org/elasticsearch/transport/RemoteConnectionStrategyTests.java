@@ -36,6 +36,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
+            .put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
             .build();
         assertTrue(first.shouldRebuildConnection(newSettings));
     }
@@ -47,6 +48,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
+            .put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
             .build();
         assertFalse(first.shouldRebuildConnection(newSettings));
     }
@@ -61,6 +63,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
+        newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
         if (randomBoolean()) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5));

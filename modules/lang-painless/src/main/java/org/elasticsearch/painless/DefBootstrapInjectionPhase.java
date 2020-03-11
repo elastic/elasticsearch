@@ -23,7 +23,7 @@ import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.MemberFieldNode;
+import org.elasticsearch.painless.ir.MemberFieldLoadNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
@@ -121,50 +121,50 @@ public class DefBootstrapInjectionPhase {
             callSubNode.setLocation(internalLocation);
             callSubNode.setExpressionType(CallSite.class);
             callSubNode.setMethod(new PainlessMethod(
-                            DefBootstrap.class.getMethod("bootstrap",
-                                    PainlessLookup.class,
-                                    FunctionTable.class,
-                                    Lookup.class,
-                                    String.class,
-                                    MethodType.class,
-                                    int.class,
-                                    int.class,
-                                    Object[].class),
-                            DefBootstrap.class,
-                            CallSite.class,
-                            Arrays.asList(
-                                    PainlessLookup.class,
-                                    FunctionTable.class,
-                                    Lookup.class,
-                                    String.class,
-                                    MethodType.class,
-                                    int.class,
-                                    int.class,
-                                    Object[].class),
-                            null,
-                            null,
-                            null
+                    DefBootstrap.class.getMethod("bootstrap",
+                            PainlessLookup.class,
+                            FunctionTable.class,
+                            Lookup.class,
+                            String.class,
+                            MethodType.class,
+                            int.class,
+                            int.class,
+                            Object[].class),
+                    DefBootstrap.class,
+                    CallSite.class,
+                    Arrays.asList(
+                            PainlessLookup.class,
+                            FunctionTable.class,
+                            Lookup.class,
+                            String.class,
+                            MethodType.class,
+                            int.class,
+                            int.class,
+                            Object[].class),
+                    null,
+                    null,
+                    null
                     )
             );
             callSubNode.setBox(DefBootstrap.class);
 
             callNode.setRightNode(callSubNode);
 
-            MemberFieldNode memberFieldNode = new MemberFieldNode();
-            memberFieldNode.setLocation(internalLocation);
-            memberFieldNode.setExpressionType(PainlessLookup.class);
-            memberFieldNode.setName("$DEFINITION");
-            memberFieldNode.setStatic(true);
+            MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
+            memberFieldLoadNode.setLocation(internalLocation);
+            memberFieldLoadNode.setExpressionType(PainlessLookup.class);
+            memberFieldLoadNode.setName("$DEFINITION");
+            memberFieldLoadNode.setStatic(true);
 
-            callSubNode.addArgumentNode(memberFieldNode);
+            callSubNode.addArgumentNode(memberFieldLoadNode);
 
-            memberFieldNode = new MemberFieldNode();
-            memberFieldNode.setLocation(internalLocation);
-            memberFieldNode.setExpressionType(FunctionTable.class);
-            memberFieldNode.setName("$FUNCTIONS");
-            memberFieldNode.setStatic(true);
+            memberFieldLoadNode = new MemberFieldLoadNode();
+            memberFieldLoadNode.setLocation(internalLocation);
+            memberFieldLoadNode.setExpressionType(FunctionTable.class);
+            memberFieldLoadNode.setName("$FUNCTIONS");
+            memberFieldLoadNode.setStatic(true);
 
-            callSubNode.addArgumentNode(memberFieldNode);
+            callSubNode.addArgumentNode(memberFieldLoadNode);
 
             VariableNode variableNode = new VariableNode();
             variableNode.setLocation(internalLocation);

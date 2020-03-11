@@ -22,7 +22,7 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
 task setupPorts {
   dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
   // Don't attempt to get ephemeral ports when Docker is not available
-  onlyIf { idpFixtureProject.postProcessFixture.enabled }
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
   doLast {
     String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
     int ephemeralPort = Integer.valueOf(portString)

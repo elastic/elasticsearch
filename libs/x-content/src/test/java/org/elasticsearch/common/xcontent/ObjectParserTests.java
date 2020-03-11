@@ -500,55 +500,68 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {} }}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {\"foo\" : 11} }}");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
+        assertEquals("a", h.named.name);
+        assertEquals(11, h.named.foo);
+    }
+
+    public void testParseNamedObjectUnexpectedArray() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ \"a\": {\"foo\" : 11} }]");
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] named doesn't support values of type: START_ARRAY"));
+    }
+
+    public void testParseNamedObjects() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {} }}");
+        NamedObjectsHolder h = NamedObjectsHolder.PARSER.apply(parser, null);
         assertThat(h.named, hasSize(1));
         assertEquals("a", h.named.get(0).name);
         assertFalse(h.namedSuppliedInOrder);
     }
 
-    public void testParseNamedObjectInOrder() throws IOException {
+    public void testParseNamedObjectsInOrder() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}} ] }");
-        NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
+        NamedObjectsHolder h = NamedObjectsHolder.PARSER.apply(parser, null);
         assertThat(h.named, hasSize(1));
         assertEquals("a", h.named.get(0).name);
         assertTrue(h.namedSuppliedInOrder);
     }
 
-    public void testParseNamedObjectTwoFieldsInArray() throws IOException {
+    public void testParseNamedObjectsTwoFieldsInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}, \"b\": {}}]}");
-        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
         assertThat(e.getCause().getMessage(),
                 containsString("[named] can be a single object with any number of fields " +
                     "or an array where each entry is an object with a single field"));
     }
 
-    public void testParseNamedObjectNoFieldsInArray() throws IOException {
+    public void testParseNamedObjectsNoFieldsInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {} ]}");
-        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
         assertThat(e.getCause().getMessage(),
                 containsString("[named] can be a single object with any number of fields " +
                     "or an array where each entry is an object with a single field"));
     }
 
-    public void testParseNamedObjectJunkInArray() throws IOException {
+    public void testParseNamedObjectsJunkInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ \"junk\" ] }");
-        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
         assertThat(e.getCause().getMessage(),
                 containsString("[named] can be a single object with any number of fields " +
                     "or an array where each entry is an object with a single field"));
     }
 
-    public void testParseNamedObjectInOrderNotSupported() throws IOException {
+    public void testParseNamedObjectsInOrderNotSupported() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}} ] }");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
-        ObjectParser<NamedObjectHolder, Void> objectParser = new ObjectParser<>("named_object_holder",
-                NamedObjectHolder::new);
-        objectParser.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
+        ObjectParser<NamedObjectsHolder, Void> objectParser = new ObjectParser<>("named_object_holder",
+                NamedObjectsHolder::new);
+        objectParser.declareNamedObjects(NamedObjectsHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
 
         // Now firing the xml through it fails
         XContentParseException e = expectThrows(XContentParseException.class, () -> objectParser.apply(parser, null));
@@ -728,11 +741,27 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("expected value but got [FIELD_NAME]", sneakyError.getCause().getMessage());
     }
 
+    // singular
     static class NamedObjectHolder {
         public static final ObjectParser<NamedObjectHolder, Void> PARSER = new ObjectParser<>("named_object_holder",
                 NamedObjectHolder::new);
         static {
-            PARSER.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, NamedObjectHolder::keepNamedInOrder,
+            PARSER.declareNamedObject(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
+        }
+
+        private NamedObject named;
+
+        public void setNamed(NamedObject named) {
+            this.named = named;
+        }
+    }
+
+    // plural
+    static class NamedObjectsHolder {
+        public static final ObjectParser<NamedObjectsHolder, Void> PARSER = new ObjectParser<>("named_objects_holder",
+                NamedObjectsHolder::new);
+        static {
+            PARSER.declareNamedObjects(NamedObjectsHolder::setNamed, NamedObject.PARSER, NamedObjectsHolder::keepNamedInOrder,
                     new ParseField("named"));
         }
 
@@ -850,29 +879,30 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(obj.b, equalTo(456L));
     }
 
-    public void testMultipleRequiredFieldSet() throws IOException {
-        class TestStruct {
-            private Long a;
-            private Long b;
-            private Long c;
-            private Long d;
+    private static class TestStruct {
+        private Long a;
+        private Long b;
+        private Long c;
+        private Long d;
 
-            private void setA(long value) {
-                this.a = value;
-            }
-
-            private void setB(long value) {
-                this.b = value;
-            }
-
-            private void setC(long value) {
-                this.c = value;
-            }
-
-            private void setD(long value) {
-                this.d = value;
-            }
+        private void setA(long value) {
+            this.a = value;
         }
+
+        private void setB(long value) {
+            this.b = value;
+        }
+
+        private void setC(long value) {
+            this.c = value;
+        }
+
+        private void setD(long value) {
+            this.d = value;
+        }
+    }
+
+    public void testMultipleRequiredFieldSet() throws IOException {
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unrelated\": \"123\"}");
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
@@ -886,6 +916,32 @@ public class ObjectParserTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
         assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
             "Required one of fields [c, d], but none were specified. "));
+    }
+
+    public void testExclusiveFieldSet() throws IOException {
+
+        XContentParser goodA = createParser(JsonXContent.jsonXContent, "{\"a\" : 1, \"c\" : 4}");
+        XContentParser bad = createParser(JsonXContent.jsonXContent, "{\"a\" : 1, \"b\" : 2}");
+        XContentParser badmulti = createParser(JsonXContent.jsonXContent, "{\"a\" : 1, \"b\" : 2, \"c\" : 3, \"d\" : 4 }");
+
+        ObjectParser<TestStruct, Void> parser = new ObjectParser<>("foo", TestStruct::new);
+        parser.declareLong(TestStruct::setA, new ParseField("a"));
+        parser.declareLong(TestStruct::setB, new ParseField("b"));
+        parser.declareLong(TestStruct::setC, new ParseField("c"));
+        parser.declareLong(TestStruct::setD, new ParseField("d"));
+        parser.declareExclusiveFieldSet("a", "b");
+        parser.declareExclusiveFieldSet("c", "d");
+
+        TestStruct actualA = parser.parse(goodA, null);
+        assertThat(actualA.a, equalTo(1L));
+        assertThat(actualA.c, equalTo(4L));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(bad, null));
+        assertThat(e.getMessage(), containsString("The following fields are not allowed together: [a, b]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> parser.parse(badmulti, null));
+        assertThat(e.getMessage(),
+            containsString("allowed together: [a, b] The following fields are not allowed together: [c, d]"));
     }
 
     @Override

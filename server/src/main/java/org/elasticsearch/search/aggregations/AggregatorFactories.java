@@ -315,8 +315,10 @@ public class AggregatorFactories {
             if (skipResolveOrder) {
                 orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorBuilders);
             } else {
-                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders,
-                        parent);
+                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
+                for (PipelineAggregationBuilder builder : orderedpipelineAggregators) {
+                    builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
+                }
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
 
@@ -329,8 +331,7 @@ public class AggregatorFactories {
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders, Collection<AggregationBuilder> aggregationBuilders,
-                AggregatorFactory parent) {
+                Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders, Collection<AggregationBuilder> aggregationBuilders) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
             for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
@@ -344,7 +345,6 @@ public class AggregatorFactories {
             Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
-                builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
             }
@@ -509,7 +509,8 @@ public class AggregatorFactories {
             }
             Map<String, PipelineTree> subTrees = aggregationBuilders.stream()
                     .collect(toMap(AggregationBuilder::getName, AggregationBuilder::buildPipelineTree));
-            List<PipelineAggregator> aggregators = pipelineAggregatorBuilders.stream()
+            List<PipelineAggregator> aggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders)
+                    .stream()
                     .map(PipelineAggregationBuilder::create)
                     .collect(toList());
             return new PipelineTree(subTrees, aggregators);

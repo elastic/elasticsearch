@@ -94,6 +94,11 @@ public abstract class PipelineAggregator implements NamedWriteable {
         public PipelineTree subTree(String name) {
             return subTrees.getOrDefault(name, EMPTY);
         }
+
+        @Override
+        public String toString() {
+            return "PipelineTree[" + aggregators + "," + subTrees + "]";
+        }
     }
 
     private String name;

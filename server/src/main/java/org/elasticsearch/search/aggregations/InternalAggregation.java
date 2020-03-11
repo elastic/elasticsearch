@@ -38,6 +38,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
@@ -74,7 +76,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          */
         public static ReduceContext forFinalReduction(BigArrays bigArrays, ScriptService scriptService,
                 IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot) {
-            return new ReduceContext(bigArrays, scriptService, multiBucketConsumer, pipelineTreeRoot);
+            return new ReduceContext(bigArrays, scriptService, multiBucketConsumer,
+                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"));
         }
 
         private ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer,

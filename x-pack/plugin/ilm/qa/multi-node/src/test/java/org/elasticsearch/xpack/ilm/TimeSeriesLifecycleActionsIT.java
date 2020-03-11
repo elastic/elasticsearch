@@ -1600,7 +1600,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(restoredIndexName);
-                System.out.println(explainIndex);
                 String action = (String) explainIndex.get("action");
                 snapshotName[0] = (String) explainIndex.get("snapshot_name");
                 return DeleteAction.NAME.equals(action);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.wildcard.mapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
+import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -62,7 +63,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -72,8 +72,8 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
-    public static short MAX_NUM_CHARS_COUNT = 6; //maximum allowed number of characters per ngram
     public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10; 
+    public static final int NGRAM_SIZE = 3;        
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new WildcardFieldType();
@@ -86,11 +86,9 @@ public class WildcardFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;        
-        public static final int NUM_CHARS = 3;        
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, WildcardFieldMapper> {
-        private int numChars = Defaults.NUM_CHARS;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
@@ -101,8 +99,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Builder docValues(boolean docValues) {
             if (docValues == false) {
-                throw new MapperParsingException("The field [" + name +
-                        "] cannot have doc values = false");                
+                throw new MapperParsingException("The field [" + name + "] cannot have doc values = false");                
             }
             return this;
         }
@@ -110,18 +107,8 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Builder index(boolean index) {
             if (index == false) {
-                throw new MapperParsingException("The field [" + name +
-                        "] cannot have index = false");                
+                throw new MapperParsingException("The field [" + name + "] cannot have index = false");                
             }
-            return this;
-        }
-
-        public Builder numChars(int numChars) {
-            if ((numChars > MAX_NUM_CHARS_COUNT) || (numChars < 1)) {
-                throw new MapperParsingException("The number of characters for ngrams in field [" + name +
-                    "] should be in the range [1, " + MAX_NUM_CHARS_COUNT + "]");
-            }
-            this.numChars = numChars;
             return this;
         }
         
@@ -137,7 +124,6 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            fieldType().setNumChars(numChars);
             fieldType().setHasDocValues(true);
             fieldType().setTokenized(false);
             fieldType().setIndexOptions(IndexOptions.DOCS);                
@@ -152,7 +138,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(BuilderContext context) {
             setupFieldType(context);            
             return new WildcardFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove, numChars,
+                    name, fieldType, defaultFieldType, ignoreAbove, 
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -168,13 +154,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (propName.equals("num_chars")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [numChars] cannot be null.");
-                    }
-                    builder.numChars(XContentMapValues.nodeIntegerValue(propNode));
-                    iterator.remove();
-                } else if (propName.equals("ignore_above")) {
+                if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
                 }
@@ -187,7 +167,7 @@ public class WildcardFieldMapper extends FieldMapper {
      public static final char TOKEN_START_OR_END_CHAR = 0;    
     
      public static final class WildcardFieldType extends MappedFieldType {
-        private int numChars;
+//        private int numChars;
 
         public WildcardFieldType() {            
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -200,22 +180,10 @@ public class WildcardFieldMapper extends FieldMapper {
 
         public WildcardFieldType clone() {
             WildcardFieldType result = new WildcardFieldType(this);
-            result.setNumChars(numChars);
             return result;
         }
         
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), numChars);
-        }        
-        
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            WildcardFieldType that = (WildcardFieldType) o;
-            return numChars == that.numChars;
-        }        
-        
+                
         // Holds parsed information about the wildcard pattern
         static class PatternStructure {
             boolean openStart, openEnd, hasSymbols;            
@@ -329,10 +297,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
-            PatternStructure patternStructure = new PatternStructure(wildcardPattern);
-            
-            ArrayList<BooleanClause> clauses = new ArrayList<>();
-            
+            PatternStructure patternStructure = new PatternStructure(wildcardPattern);            
+            ArrayList<String> tokens = new ArrayList<>();
+
             for (int i = 0; i < patternStructure.fragments.length; i++) {
                 String fragment = patternStructure.fragments[i];
                 int fLength = fragment.length();
@@ -347,29 +314,27 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
                 if (patternStructure.openEnd == false && i == patternStructure.fragments.length - 1) {
                     // End-of-string anchored (is not a trailing wildcard)
-                    fragment = fragment + TOKEN_START_OR_END_CHAR;
+                    fragment = fragment + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
                 }
                 
-                if (fragment.length() == numChars) {
-                    TermQuery tq = new TermQuery(new Term(name(), fragment));
-                    clauses.add(new BooleanClause(tq, Occur.MUST));                    
-                } else if (fragment.length() > numChars) {
+                if (fragment.length() <= NGRAM_SIZE) {
+                    tokens.add(fragment);
+                } else if (fragment.length() > NGRAM_SIZE) {
                     // Break fragment into multiple Ngrams                
                     KeywordTokenizer kt = new KeywordTokenizer(256);
                     kt.setReader(new StringReader(fragment));
-                    TokenFilter filter = new NGramTokenFilter(kt, numChars, numChars, false);
+                    TokenFilter filter = new NGramTokenFilter(kt, NGRAM_SIZE, NGRAM_SIZE, false);
                     CharTermAttribute termAtt = filter.addAttribute(CharTermAttribute.class);
                     String lastUnusedToken = null;
                     try {
                         filter.reset();
                         int nextRequiredCoverage = 0;
                         int charPos = 0;
-                        // minimise number of terms searched - eg for "1234567" and 4grams we only need terms 
-                        // `1234` and `4567` - no need to search for 2345 and 3456
-                        while (filter.incrementToken()) {                            
+                        // minimise number of terms searched - eg for "12345" and 3grams we only need terms
+                        // `123` and `345` - no need to search for 234
+                        while (filter.incrementToken()) {
                             if (charPos == nextRequiredCoverage) {
-                                TermQuery tq = new TermQuery(new Term(name(), termAtt.toString()));
-                                clauses.add(new BooleanClause(tq, Occur.MUST));
+                                tokens.add(termAtt.toString());
                                 nextRequiredCoverage = charPos + termAtt.length() - 1;
                             } else {
                                 lastUnusedToken = termAtt.toString();
@@ -379,31 +344,17 @@ public class WildcardFieldMapper extends FieldMapper {
                         if (lastUnusedToken != null) {
                             // given `cake` and 3 grams the loop above would output only `cak` and we need to add trailing
                             // `ake` to complete the logic.
-                            TermQuery tq = new TermQuery(new Term(name(), lastUnusedToken));
-                            clauses.add(new BooleanClause(tq, Occur.MUST));                            
+                            tokens.add(lastUnusedToken);
                         }
                         kt.end();
                         kt.close();
-                    } catch(IOException ioe) {
-                        throw new ElasticsearchParseException("Error parsing wildcard query pattern fragment ["+fragment+"]");
-                    }
-                } else {
-                    // fragment is smaller than smallest ngram size
-                    if (patternStructure.openEnd || i < patternStructure.fragments.length - 1) {
-                        // fragment occurs mid-string so will need a wildcard query
-                        WildcardQuery wq = new WildcardQuery(new Term(name(),fragment+"*"));
-                        wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-                        clauses.add(new BooleanClause(wq, Occur.MUST));
-                    } else {
-                        // fragment occurs at end of string so can rely on Jim's indexing rule to optimise 
-                        // *foo by indexing smaller ngrams at the end of a string
-                        TermQuery tq = new TermQuery(new Term(name(), fragment));
-                        clauses.add(new BooleanClause(tq, Occur.MUST));
+                    } catch (IOException ioe) {
+                        throw new ElasticsearchParseException("Error parsing wildcard query pattern fragment [" + fragment + "]");
                     }
                 }
             }
 
-            BooleanQuery approximation = createApproximationQuery(clauses);
+            BooleanQuery approximation = createApproximationQuery(tokens);
             if (patternStructure.isMatchAll()) {
                 return new MatchAllDocsQuery();
             } 
@@ -417,41 +368,34 @@ public class WildcardFieldMapper extends FieldMapper {
             return approximation;
         }                
 
-        private BooleanQuery createApproximationQuery(ArrayList<BooleanClause> clauses) {
+        private BooleanQuery createApproximationQuery(ArrayList<String> tokens) {
             BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-            if (clauses.size() <= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                for (BooleanClause booleanClause : clauses) {
-                        bqBuilder.add(booleanClause);
+            if (tokens.size() <= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                for (String token : tokens) {
+                    addClause(token, bqBuilder);
                 }
                 return bqBuilder.build();
             }
-            // Thin out the number of clauses using a selection spread 
-            // evenly across the range
-            float step = (float)(clauses.size() - 1) / (float)(MAX_CLAUSES_IN_APPROXIMATION_QUERY - 1); //set step size
-            for (int i=0; i<MAX_CLAUSES_IN_APPROXIMATION_QUERY; i++) {
-                 bqBuilder.add(clauses.get(Math.round(step * i)));  //add each element of a position which is a multiple of step
+            // Thin out the number of clauses using a selection spread evenly across the range
+            float step = (float) (tokens.size() - 1) / (float) (MAX_CLAUSES_IN_APPROXIMATION_QUERY - 1); // set step size
+            for (int i = 0; i < MAX_CLAUSES_IN_APPROXIMATION_QUERY; i++) {
+                addClause(tokens.get(Math.round(step * i)), bqBuilder); // add each element of a position which is a multiple of step
             }
             return bqBuilder.build();
         }
 
-        int numChars() {
-            return numChars;
-        }
-
-        void setNumChars(int numChars) {
-            checkIfFrozen();
-            this.numChars = numChars;
-        }
-        
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            WildcardFieldType other = (WildcardFieldType)fieldType;
-            // prevent user from changing num_chars
-            if (numChars() != other.numChars()) {
-                conflicts.add("mapper [" + name() + "] has different [num_chars]");
+        private void addClause(String token, BooleanQuery.Builder bqBuilder) {
+            assert token.length() <= NGRAM_SIZE;
+            if (token.length() == NGRAM_SIZE) {
+                TermQuery tq = new TermQuery(new Term(name(), token));
+                bqBuilder.add(new BooleanClause(tq, Occur.MUST));
+            } else {
+                WildcardQuery wq = new WildcardQuery(new Term(name(), token + "*"));
+                wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                bqBuilder.add(new BooleanClause(wq, Occur.MUST));
             }
-        }        
+
+        }
 
         @Override
         public String typeName() {
@@ -513,10 +457,16 @@ public class WildcardFieldMapper extends FieldMapper {
     private int ignoreAbove;
 
     private WildcardFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                int ignoreAbove, int numChars, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreAbove = ignoreAbove;
         assert fieldType.indexOptions() == IndexOptions.DOCS;
+        
+        ngramFieldType = new FieldType();
+        ngramFieldType.setTokenized(true);            
+        ngramFieldType.setIndexOptions(IndexOptions.DOCS);
+        ngramFieldType.setOmitNorms(true);
+        ngramFieldType.freeze();
     }
 
 
@@ -540,9 +490,6 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || fieldType().numChars() != Defaults.NUM_CHARS) {
-            builder.field("num_chars", fieldType().numChars());
-        }
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
@@ -567,22 +514,16 @@ public class WildcardFieldMapper extends FieldMapper {
     }   
     
     // For internal use by Lucene only - used to define ngram index
-    FieldType ngramFieldType = null;
+    final FieldType ngramFieldType;
     
     void createFields(String value, Document parseDoc, List<IndexableField>fields) {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
-        TaperedNgramTokenizer tokenizer = new TaperedNgramTokenizer(fieldType().numChars);
-        tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR));
-    
-        if (ngramFieldType == null) {            
-            ngramFieldType = new FieldType();
-            ngramFieldType.setTokenized(true);            
-            ngramFieldType.setIndexOptions(IndexOptions.DOCS);
-            ngramFieldType.setOmitNorms(true);
-            ngramFieldType.freeze();
-        }
+        NGramTokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
+        //encode end of string with double end char so that 3gram index can be search for single char end eg "*c"
+        tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR));
+
         
         Field ngramField = new Field(fieldType().name(), tokenizer, ngramFieldType);
         fields.add(ngramField);

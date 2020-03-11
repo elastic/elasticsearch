@@ -33,7 +33,7 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     private final String field;
     private final String matchPattern;
-    private Automaton automaton;
+    private final Automaton automaton;
 
     public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
         this.field = field;
@@ -45,13 +45,12 @@ public class AutomatonQueryOnBinaryDv extends Query {
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                 
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
-        ByteArrayDataInput badi = new ByteArrayDataInput();
-        
         
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
+                ByteArrayDataInput badi = new ByteArrayDataInput();
                 final BinaryDocValues values = DocValues.getBinary(context.reader(), field);               
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override

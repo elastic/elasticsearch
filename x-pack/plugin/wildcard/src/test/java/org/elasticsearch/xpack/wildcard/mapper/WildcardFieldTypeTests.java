@@ -9,24 +9,11 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.WildcardFieldType;
-import org.junit.Before;
 
 public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new WildcardFieldMapper.WildcardFieldType();
-    }
-    
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("num_chars", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                WildcardFieldType fieldType = (WildcardFieldType) ft;
-                fieldType.setNumChars(5);
-            }
-        });
-    }    
+    }  
 }

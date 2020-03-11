@@ -28,11 +28,6 @@ public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests
         return GEO_POINT_FIELD_NAME;
     }
 
-    @Override
-    protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
-        return doCreateTestQueryBuilder(randomBoolean());
-    }
-
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
         RandomShapeGenerator.ShapeType shapeType = RandomShapeGenerator.ShapeType.POLYGON;
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);

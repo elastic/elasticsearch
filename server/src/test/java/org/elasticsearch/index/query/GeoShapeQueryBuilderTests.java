@@ -29,7 +29,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -79,54 +78,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         return doCreateTestQueryBuilder(randomBoolean());
     }
 
-    protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        RandomShapeGenerator.ShapeType shapeType =
-            randomFrom(ShapeType.POINT, ShapeType.MULTIPOINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON);
-        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
-        GeoShapeQueryBuilder builder;
-        clearShapeFields();
-        if (indexedShape == false) {
-            builder = new GeoShapeQueryBuilder(fieldName(), shape);
-        } else {
-            indexedShapeToReturn = shape;
-            indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId);
-            if (randomBoolean()) {
-                indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
-                builder.indexedShapeIndex(indexedShapeIndex);
-            }
-            if (randomBoolean()) {
-                indexedShapePath = randomAlphaOfLengthBetween(3, 20);
-                builder.indexedShapePath(indexedShapePath);
-            }
-            if (randomBoolean()) {
-                indexedShapeRouting = randomAlphaOfLengthBetween(3, 20);
-                builder.indexedShapeRouting(indexedShapeRouting);
-            }
-        }
-        if (randomBoolean()) {
-            QueryShardContext context = createShardContext();
-            if (context.indexVersionCreated().onOrAfter(Version.V_7_5_0)) { // CONTAINS is only supported from version 7.5
-                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
-                } else {
-                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS,
-                        ShapeRelation.WITHIN, ShapeRelation.CONTAINS));
-                }
-            } else {
-                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
-                } else {
-                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
-                }
-            }
-        }
-
-        if (randomBoolean()) {
-            builder.ignoreUnmapped(randomBoolean());
-        }
-        return builder;
-    }
+    abstract GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape);
 
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {

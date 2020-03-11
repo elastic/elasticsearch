@@ -26,10 +26,16 @@ import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
- * ValuesSourceType wraps the creation of specific per-source instances each {@link ValuesSource} needs to provide.  Every top-level
- * subclass of {@link ValuesSource} should have a corresponding implementation of this interface.  In general, new data types seeking
- * aggregation support should create a top level {@link ValuesSource}, then implement this to return wrappers for the specific sources of
- * values.
+ * {@link ValuesSourceType}s are the quantum unit of aggregations support.  {@link org.elasticsearch.index.mapper.MappedFieldType}s that
+ * allow aggregations map to exactly one ValuesSourceType, although multiple field types can map to the same ValuesSourceType.  Aggregations
+ * in turn provide a set of ValuesSourceTypes they can operate on.  ValuesSourceTypes in turn map to a single direct sub-class of
+ * {@link ValuesSource} (e.g. {@link ValuesSource.Numeric}; note that a given ValuesSourceType can yield different sub-sub-classes, e.g.
+ * {@link ValuesSource.Numeric.WithScript}, depending on the configuration).  Note that it's possible that two different ValuesSourceTypes
+ * will yield the same ValuesSource subclass.  This typically happens when the underlying representation is shared, but logically the data
+ * are different, such as with numbers and dates.
+ *
+ * ValuesSourceTypes should be stateless, and thus immutable.  We recommend that plugins define an enum for their ValuesSourceTypes, even
+ * if the plugin only intends to define one ValuesSourceType.  ValuesSourceTypes are not serialized as part of the aggregations framework.
  */
 public interface ValuesSourceType {
     /**
@@ -66,11 +72,11 @@ public interface ValuesSourceType {
      * @param valuesSource - The original {@link ValuesSource}
      * @param rawMissing - The missing value we got from the parser, typically a string or number
      * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
-     * @param now - Used in conjunction with the formatter, should return the current time in milliseconds
+     * @param nowSupplier - Used in conjunction with the formatter, should return the current time in milliseconds
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                LongSupplier now);
+                                LongSupplier nowSupplier);
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a

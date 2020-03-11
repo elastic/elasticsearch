@@ -36,8 +36,6 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**

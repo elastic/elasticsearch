@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.Scope.newFunctionScope;
 
 /**

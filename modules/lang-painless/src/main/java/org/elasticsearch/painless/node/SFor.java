@@ -26,10 +26,6 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Arrays;
-
-import static java.util.Collections.emptyList;
-
 /**
  * Represents a for loop.
  */

@@ -29,8 +29,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 /**
  * Represents a set of statements as a branch of control-flow.
  */

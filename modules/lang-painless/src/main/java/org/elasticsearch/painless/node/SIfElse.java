@@ -26,10 +26,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfElseNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Arrays;
 import java.util.Objects;
-
-import static java.util.Collections.singleton;
 
 /**
  * Represents an if/else block.

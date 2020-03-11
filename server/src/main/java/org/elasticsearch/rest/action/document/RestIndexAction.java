@@ -66,29 +66,6 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
-    public static class CompatibleRestIndexAction extends  RestIndexAction{
-        @Override
-        public List<Route> routes() {
-            assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
-
-            return List.of(
-                new Route(POST, "/{index}/{type}/{id}"),
-                new Route(PUT, "/{index}/{type}/{id}"));
-        }
-
-        @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
-            return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public boolean compatibilityRequired() {
-            return true;
-        }
-    }
-
     public static class CreateHandler extends RestIndexAction {
 
         @Override
@@ -114,27 +91,6 @@ public class RestIndexAction extends BaseRestHandler {
             if (null != opType && false == "create".equals(opType.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("opType must be 'create', found: [" + opType + "]");
             }
-        }
-    }
-
-    public static class CompatibleCreateHandler extends CreateHandler {
-        @Override
-        public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/{type}/{id}/_create"),
-                new Route(PUT, "/{index}/{type}/{id}/_create")));
-        }
-
-        @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
-            return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public boolean compatibilityRequired() {
-            return true;
         }
     }
 
@@ -164,29 +120,6 @@ public class RestIndexAction extends BaseRestHandler {
                 request.params().put("op_type", "create");
             }
             return super.prepareRequest(request, client);
-        }
-    }
-    public static final class CompatibleAutoIdHandler extends AutoIdHandler {
-
-        public CompatibleAutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
-            super(nodesInCluster);
-        }
-
-        @Override
-        public List<Route> routes() {
-            return singletonList(new Route(POST, "/{index}/{type}"));
-        }
-
-        @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
-            return super.prepareRequest(request, client);
-        }
-
-        @Override
-        public boolean compatibilityRequired() {
-            return true;
         }
     }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.compat.version7.RestGetActionV7;
+import org.elasticsearch.rest.compat.version7.RestIndexActionV7;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -46,7 +47,11 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-
-        return List.of(new RestGetActionV7());
+        return List.of(
+            new RestGetActionV7(),
+            new RestIndexActionV7.CompatibleRestIndexAction(),
+            new RestIndexActionV7.CompatibleCreateHandler(),
+            new RestIndexActionV7.CompatibleAutoIdHandler(nodesInCluster)
+        );
     }
 }

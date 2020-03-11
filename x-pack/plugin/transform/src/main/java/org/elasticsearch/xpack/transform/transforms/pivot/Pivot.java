@@ -28,8 +28,8 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -63,7 +63,7 @@ public class Pivot {
         this.cachedCompositeAggregation = createCompositeAggregation(config);
 
         boolean supportsIncrementalBucketUpdate = false;
-        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
             supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
         }
 
@@ -83,13 +83,18 @@ public class Pivot {
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
-                listener.onFailure(new ElasticsearchStatusException("Unexpected null response from test query",
-                    RestStatus.SERVICE_UNAVAILABLE));
+                listener.onFailure(
+                    new ElasticsearchStatusException("Unexpected null response from test query", RestStatus.SERVICE_UNAVAILABLE)
+                );
                 return;
             }
             if (response.status() != RestStatus.OK) {
-                listener.onFailure(new ElasticsearchStatusException("Unexpected status from response of test query: " + response.status(),
-                    response.status()));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Unexpected status from response of test query: " + response.status(),
+                        response.status()
+                    )
+                );
                 return;
             }
             listener.onResponse(true);
@@ -128,6 +133,8 @@ public class Pivot {
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+
+        logger.trace("Search request: {}", searchRequest);
         return searchRequest;
     }
 
@@ -149,7 +156,7 @@ public class Pivot {
     public Map<String, Set<String>> initialIncrementalBucketUpdateMap() {
 
         Map<String, Set<String>> changedBuckets = new HashMap<>();
-        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
             if (entry.getValue().supportsIncrementalBucketUpdate()) {
                 changedBuckets.put(entry.getKey(), new HashSet<>());
             }
@@ -162,20 +169,24 @@ public class Pivot {
         return supportsIncrementalBucketUpdate;
     }
 
-    public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
-                                                      Map<String, String> fieldTypeMap,
-                                                      TransformIndexerStats transformIndexerStats) {
+    public Stream<Map<String, Object>> extractResults(
+        CompositeAggregation agg,
+        Map<String, String> fieldTypeMap,
+        TransformIndexerStats transformIndexerStats
+    ) {
 
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg,
+        return AggregationResultUtils.extractCompositeAggregationResults(
+            agg,
             groups,
             aggregationBuilders,
             pipelineAggregationBuilders,
             fieldTypeMap,
-            transformIndexerStats);
+            transformIndexerStats
+        );
     }
 
     public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
@@ -235,8 +246,10 @@ public class Pivot {
 
         try (XContentBuilder builder = jsonBuilder()) {
             config.toCompositeAggXContent(builder, forChangeDetection);
-            XContentParser parser = builder.generator().contentType().xContent().createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
             throw new RuntimeException(TransformMessages.TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);

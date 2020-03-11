@@ -26,6 +26,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.mode;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.toMap;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.version;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 
@@ -110,7 +111,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         expected.put("rows", singletonList(singletonList(count)));
 
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"" + mode(mode) + "}");
+        request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"" + mode(mode) + version(mode) + "}");
         Map<String, Object> actual = toMap(client.performRequest(request), mode);
 
         if (false == expected.equals(actual)) {

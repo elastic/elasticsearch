@@ -21,10 +21,7 @@ public class LogstashFeatureSetTests extends ESTestCase {
 
     public void testEnabledSetting() throws Exception {
         boolean enabled = randomBoolean();
-        Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("xpack.logstash.enabled", enabled)
-            .build();
+        Settings settings = Settings.builder().put("path.home", createTempDir()).put("xpack.logstash.enabled", enabled).build();
         LogstashFeatureSet featureSet = new LogstashFeatureSet(settings, null);
         assertThat(featureSet.enabled(), is(enabled));
 

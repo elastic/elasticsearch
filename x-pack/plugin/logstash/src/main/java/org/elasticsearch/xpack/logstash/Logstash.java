@@ -45,27 +45,31 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     }
 
     boolean isEnabled() {
-      return enabled;
+        return enabled;
     }
 
     boolean isTransportClient() {
-      return transportClientMode;
+        return transportClientMode;
     }
 
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-        modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, LogstashFeatureSet.class);
-        });
+        modules.add(b -> { XPackPlugin.bindFeatureSet(b, LogstashFeatureSet.class); });
         return modules;
     }
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
-            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
-                    Version.CURRENT.toString(), TEMPLATE_VERSION_VARIABLE, LogManager.getLogger(Logstash.class));
-            //internal representation of typeless templates requires the default "_doc" type, which is also required for internal templates
+            TemplateUtils.loadTemplateIntoMap(
+                "/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json",
+                templates,
+                LOGSTASH_INDEX_TEMPLATE_NAME,
+                Version.CURRENT.toString(),
+                TEMPLATE_VERSION_VARIABLE,
+                LogManager.getLogger(Logstash.class)
+            );
+            // internal representation of typeless templates requires the default "_doc" type, which is also required for internal templates
             assert templates.get(LOGSTASH_INDEX_TEMPLATE_NAME).mappings().get(MapperService.SINGLE_MAPPING_NAME) != null;
             return templates;
         };
@@ -73,7 +77,8 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME,
-            "Contains data for Logstash Central Management"));
+        return Collections.singletonList(
+            new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management")
+        );
     }
 }

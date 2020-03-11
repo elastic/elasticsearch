@@ -264,7 +264,8 @@ public class ClusterModule extends AbstractModule {
                 : clusterPlugin.getExistingShardsAllocators().entrySet()) {
                 final String allocatorName = existingShardsAllocatorEntry.getKey();
                 if (existingShardsAllocators.put(allocatorName, existingShardsAllocatorEntry.getValue()) != null) {
-                    throw new IllegalArgumentException("ExistingShardsAllocator [" + allocatorName + "] already defined");
+                    throw new IllegalArgumentException("ExistingShardsAllocator [" + allocatorName + "] from [" +
+                        clusterPlugin.getClass().getName() + "] was already defined");
                 }
             }
         }

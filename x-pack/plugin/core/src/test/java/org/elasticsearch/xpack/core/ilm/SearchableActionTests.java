@@ -41,7 +41,7 @@ public class SearchableActionTests extends AbstractActionTestCase<SearchableSnap
         StepKey expectedFourthStep = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
         StepKey expectedFifthStep = new StepKey(phase, NAME, WaitForSnapshotInProgressStep.NAME);
         StepKey expectedSixthStep = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
-        StepKey expectedSeventhStep = new StepKey(phase, NAME, RestoreSnapshotStep.NAME);
+        StepKey expectedSeventhStep = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey expectedEighthStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey expectedNinthStep = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey expectedTenthStep = new StepKey(phase, NAME, CopySettingsStep.NAME);
@@ -201,6 +201,6 @@ public class SearchableActionTests extends AbstractActionTestCase<SearchableSnap
     }
 
     static SearchableSnapshotAction randomInstance() {
-        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
+        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10));
     }
 }

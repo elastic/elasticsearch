@@ -26,30 +26,27 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RestoreSnapshotStepTests extends AbstractStepTestCase<RestoreSnapshotStep> {
+public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotStep> {
 
     @Override
-    public RestoreSnapshotStep createRandomInstance() {
+    public MountSnapshotStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        String repository = randomAlphaOfLength(10);
         String restoredIndexPrefix = randomAlphaOfLength(10);
-        return new RestoreSnapshotStep(stepKey, nextStepKey, client, repository, restoredIndexPrefix);
+        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix);
     }
 
     @Override
-    protected RestoreSnapshotStep copyInstance(RestoreSnapshotStep instance) {
-        return new RestoreSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getSnapshotRepository(), instance.getRestoredIndexPrefix());
+    protected MountSnapshotStep copyInstance(MountSnapshotStep instance) {
+        return new MountSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getRestoredIndexPrefix());
     }
 
     @Override
-    public RestoreSnapshotStep mutateInstance(RestoreSnapshotStep instance) {
+    public MountSnapshotStep mutateInstance(MountSnapshotStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String snapshotRepository = instance.getSnapshotRepository();
         String restoredIndexPrefix = instance.getRestoredIndexPrefix();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
@@ -57,42 +54,71 @@ public class RestoreSnapshotStepTests extends AbstractStepTestCase<RestoreSnapsh
                 nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(1, 10));
-                break;
-            case 3:
                 restoredIndexPrefix = randomValueOtherThan(restoredIndexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new RestoreSnapshotStep(key, nextKey, instance.getClient(), snapshotRepository, restoredIndexPrefix);
+        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix);
     }
 
     public void testPerformActionFailure() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetaData.Builder indexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetaData indexMetaData = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetaData indexMetaData = indexMetadataBuilder.build();
 
-        RestoreSnapshotStep restoreSnapshotStep = createRandomInstance();
-        restoreSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
-            }
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(IllegalStateException.class));
-                assertThat(e.getMessage(),
-                    is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
-            }
-        });
+            MountSnapshotStep mountSnapshotStep = createRandomInstance();
+            mountSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+                @Override
+                public void onResponse(boolean complete) {
+                    fail("expecting a failure as the index doesn't have any repository name in its ILM execution state");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalStateException.class));
+                    assertThat(e.getMessage(),
+                        is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
+                }
+            });
+        }
+
+        {
+            IndexMetaData.Builder indexMetadataBuilder =
+                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            Map<String, String> ilmCustom = new HashMap<>();
+            String repository = "repository";
+            ilmCustom.put("snapshot_repository", repository);
+            indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
+            IndexMetaData indexMetaData = indexMetadataBuilder.build();
+
+            ClusterState clusterState =
+                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+
+            MountSnapshotStep mountSnapshotStep = createRandomInstance();
+            mountSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+                @Override
+                public void onResponse(boolean complete) {
+                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalStateException.class));
+                    assertThat(e.getMessage(),
+                        is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
+                }
+            });
+        }
     }
 
     public void testPerformAction() {
@@ -114,7 +140,7 @@ public class RestoreSnapshotStepTests extends AbstractStepTestCase<RestoreSnapsh
         String repository = "repository";
         String restoredIndexPrefix = "restored-";
         try (NoOpClient client = getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, restoredIndexPrefix)) {
-            RestoreSnapshotStep step = new RestoreSnapshotStep(randomStepKey(), randomStepKey(), client, repository, restoredIndexPrefix);
+            MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), client, restoredIndexPrefix);
             step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
@@ -139,7 +165,7 @@ public class RestoreSnapshotStepTests extends AbstractStepTestCase<RestoreSnapsh
                 RestoreSnapshotRequest restoreSnapshotRequest = (RestoreSnapshotRequest) request;
                 assertThat(restoreSnapshotRequest.repository(), is(expectedRepoName));
                 assertThat(restoreSnapshotRequest.snapshot(), is(expectedSnapshotName));
-                assertThat("another ILM step will wait for the restore to complete. the " + RestoreSnapshotStep.NAME + " step should not",
+                assertThat("another ILM step will wait for the restore to complete. the " + MountSnapshotStep.NAME + " step should not",
                     restoreSnapshotRequest.waitForCompletion(), is(false));
                 assertThat("another ILM step will transfer the aliases to the restored index", restoreSnapshotRequest.includeAliases(),
                     is(false));

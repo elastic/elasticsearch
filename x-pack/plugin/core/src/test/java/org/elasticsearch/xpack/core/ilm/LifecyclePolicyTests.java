@@ -133,7 +133,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
                 case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
@@ -189,7 +189,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
                 case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};

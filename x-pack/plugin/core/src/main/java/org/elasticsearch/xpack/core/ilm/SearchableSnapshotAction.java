@@ -44,16 +44,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final String NAME = "searchable-snapshot";
 
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot-repository");
-    public static final ParseField SEARCHABLE_REPOSITORY = new ParseField("searchable-repository");
 
     public static final String RESTORED_INDEX_PREFIX = "restored-";
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new SearchableSnapshotAction((String) a[0], (String) a[1]));
+        a -> new SearchableSnapshotAction((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SEARCHABLE_REPOSITORY);
     }
 
     public static SearchableSnapshotAction parse(XContentParser parser) {
@@ -61,21 +59,16 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     private final String snapshotRepository;
-    private final String searchableRepository;
 
-    public SearchableSnapshotAction(String snapshotRepository, String searchableRepository) {
+    public SearchableSnapshotAction(String snapshotRepository) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
         }
-        if (Strings.hasText(searchableRepository) == false) {
-            throw new IllegalArgumentException("the searchable repository must be specified");
-        }
         this.snapshotRepository = snapshotRepository;
-        this.searchableRepository = searchableRepository;
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
-        this(in.readString(), in.readString());
+        this(in.readString());
     }
 
     @Override
@@ -86,7 +79,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
         StepKey waitForSnapshotInProgressKey = new StepKey(phase, NAME, WaitForSnapshotInProgressStep.NAME);
         StepKey verifySnapshotStatusBranchingKey = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
-        StepKey restoreFromSearchableRepoKey = new StepKey(phase, NAME, RestoreSnapshotStep.NAME);
+        StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
@@ -101,9 +94,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = new WaitForSnapshotInProgressStep(waitForSnapshotInProgressKey,
             verifySnapshotStatusBranchingKey);
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(verifySnapshotStatusBranchingKey,
-            cleanSnapshotKey, restoreFromSearchableRepoKey, client, getCheckSnapshotStatusAsyncAction());
-        RestoreSnapshotStep restoreSnapshotStep = new RestoreSnapshotStep(restoreFromSearchableRepoKey, waitForGreenRestoredIndexKey,
-            client, searchableRepository, RESTORED_INDEX_PREFIX);
+            cleanSnapshotKey, mountSnapshotKey, client, getCheckSnapshotStatusAsyncAction());
+        MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
+            client, RESTORED_INDEX_PREFIX);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
             copyMetadataKey, ClusterHealthStatus.GREEN, RESTORED_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
@@ -116,7 +109,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             null, client, RESTORED_INDEX_PREFIX);
 
         return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotStep,
-            waitForSnapshotInProgressStep, onAsyncWaitBranchingStep, restoreSnapshotStep, waitForGreenIndexHealthStep,
+            waitForSnapshotInProgressStep, onAsyncWaitBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep,
             copyMetadataStep, copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
     }
 
@@ -226,14 +219,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
-        out.writeString(searchableRepository);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SNAPSHOT_REPOSITORY.getPreferredName(), snapshotRepository);
-        builder.field(SEARCHABLE_REPOSITORY.getPreferredName(), searchableRepository);
         builder.endObject();
         return builder;
     }
@@ -247,12 +238,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
             return false;
         }
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return Objects.equals(snapshotRepository, that.snapshotRepository) &&
-            Objects.equals(searchableRepository, that.searchableRepository);
+        return Objects.equals(snapshotRepository, that.snapshotRepository);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository, searchableRepository);
+        return Objects.hash(snapshotRepository);
     }
 }

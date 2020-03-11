@@ -1547,24 +1547,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testSearchableSnapshotAction() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
-        Request request = new Request("PUT", "/_snapshot/" + snapshotRepo);
-        String location = System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10);
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("compress", randomBoolean())
-                //random location to avoid clash with other snapshots
-                .field("location", location)
-                .field("max_snapshot_bytes_per_sec", "100m")
-                .endObject()
-                .endObject()));
-        assertOK(client().performRequest(request));
-        String searchableSnapshotRepo = createSearchableSnapshotRepo(location);
-
-        createNewSingletonPolicy("cold", new SearchableSnapshotAction(snapshotRepo, searchableSnapshotRepo));
+        String snapshotRepo = createSnapshotRepo();
+        createNewSingletonPolicy("cold", new SearchableSnapshotAction(snapshotRepo));
 
         createIndexWithSettings(index,
             Settings.builder()
@@ -1586,26 +1570,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testDeleteActionDoenstDeleteGeneratedSnapshot() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(15, 20);
-        Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + snapshotRepo);
-        String location = System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10);
-        createSnapshotRequest.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("compress", randomBoolean())
-                //random location to avoid clash with other snapshots
-                .field("location", location)
-                .field("max_snapshot_bytes_per_sec", "100m")
-                .endObject()
-                .endObject()));
-        assertOK(client().performRequest(createSnapshotRequest));
-        String searchableSnapshotRepo = createSearchableSnapshotRepo(location);
+        String snapshotRepo = createSnapshotRepo();
 
         // create policy with cold and delete phases
         Map<String, LifecycleAction> coldActions =
-            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, searchableSnapshotRepo));
+            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction(false))));
@@ -1631,6 +1600,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(restoredIndexName);
+                System.out.println(explainIndex);
                 String action = (String) explainIndex.get("action");
                 snapshotName[0] = (String) explainIndex.get("snapshot_name");
                 return DeleteAction.NAME.equals(action);
@@ -1946,24 +1916,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 //random location to avoid clash with other snapshots
                 .field("location", System.getProperty("tests.path.repo")+ "/" + randomAlphaOfLengthBetween(4, 10))
                 .field("max_snapshot_bytes_per_sec", "100m")
-                .endObject()
-                .endObject()));
-        assertOK(client().performRequest(request));
-        return repo;
-    }
-
-    private String createSearchableSnapshotRepo(String delegateRepoLocation) throws IOException {
-        String repo = randomAlphaOfLengthBetween(4, 10);
-        Request request = new Request("PUT", "/_snapshot/" + repo);
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "searchable")
-                .startObject("settings")
-                .field("compress", randomBoolean())
-                .field("location", delegateRepoLocation)
-                .field("max_snapshot_bytes_per_sec", "100m")
-                .field("delegate_type", "fs")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));

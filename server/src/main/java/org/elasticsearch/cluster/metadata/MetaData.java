@@ -1276,9 +1276,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
 
             return new MetaData(clusterUUID, clusterUUIDCommitted, version, coordinationMetaData, transientSettings, persistentSettings,
-                hashesOfConsistentSettings, indices.build(), templates.build(), customs.build(),
-                allIndicesArray, visibleIndicesArray, allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray,
-                visibleClosedIndicesArray, aliasAndIndexLookup);
+                hashesOfConsistentSettings, indices.build(), templates.build(), customs.build(), allIndicesArray, visibleIndicesArray,
+                allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, aliasAndIndexLookup);
         }
 
         private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {

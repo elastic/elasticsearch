@@ -52,7 +52,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
             },
             {"equalsAndInFilter", "process where process_path == \"*\\\\red_ttp\\\\wininit.*\" and opcode in (0,1,2,3)",
                     new Object[]{
-                            "\"term\":{\"process_path\":{\"value\":\"*\\\\red_ttp\\\\wininit.*\"",
+                            "\"wildcard\":{\"process_path\":{\"wildcard\":\"*\\\\\\\\red_ttp\\\\\\\\wininit.*\"",
                             "\"term\":{\"opcode\":{\"value\":0",
                             "\"term\":{\"opcode\":{\"value\":1",
                             "\"term\":{\"opcode\":{\"value\":2",

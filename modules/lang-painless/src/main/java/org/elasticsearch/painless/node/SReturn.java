@@ -48,10 +48,11 @@ public final class SReturn extends AStatement {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
-            expression.expected = scope.getReturnType();
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = scope.getReturnType();
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.cast();
         }
 
         methodEscape = true;
@@ -65,7 +66,7 @@ public final class SReturn extends AStatement {
     ReturnNode write(ClassNode classNode) {
         ReturnNode returnNode = new ReturnNode();
 
-        returnNode.setExpressionNode(expression == null ? null : expression.write(classNode));
+        returnNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
 
         returnNode.setLocation(location);
 

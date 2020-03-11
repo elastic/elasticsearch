@@ -1,9 +1,5 @@
 ---
 "sort by long field":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       bulk:
         index: test
@@ -23,7 +19,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -36,7 +32,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: asc
@@ -49,7 +45,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s:
@@ -60,10 +56,6 @@
 
 ---
 "sort by double field":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -92,7 +84,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -105,7 +97,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: asc
@@ -114,10 +106,6 @@
 
 ---
 "sort by scaled float field":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -146,7 +134,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
@@ -159,7 +147,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: asc
@@ -168,10 +156,6 @@
 
 ---
 "sort by keyword field fails":
-  - skip:
-      version: " - 8.0.0"
-      reason: backport to 7.7.0 pending
-
   - do:
       indices.create:
         index: test
@@ -196,17 +180,13 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort: s.keyword
   - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
 
 ---
 "sort by score":
-  - skip:
-      version: " - 8.0.0"
-      reason: backport to 7.7.0 pending
-
   - do:
       indices.create:
         index: test
@@ -236,7 +216,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort: _score
   - match: { aggregations.tm.top.0.metrics.v: 3.1414999961853027 }
@@ -244,10 +224,6 @@
 
 ---
 "sort by numeric script":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.7.0 pending"
-
   - do:
       bulk:
         index: test
@@ -263,7 +239,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   _script:
@@ -275,10 +251,6 @@
 
 ---
 "sort by string script fails":
-  - skip:
-      version: " - 8.0.0"
-      reason: backport to 7.7.0 pending
-
   - do:
       indices.create:
         index: test
@@ -303,7 +275,7 @@
           aggs:
             tm:
               top_metrics:
-                metric:
+                metrics:
                   field: v
                 sort:
                   _script:
@@ -314,10 +286,6 @@
 
 ---
 "sort by geo_distance":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.7.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -345,7 +313,7 @@
           aggs:
             pop:
               top_metrics:
-                metric:
+                metrics:
                   field: population
                 sort:
                   _geo_distance:
@@ -361,7 +329,7 @@
             pop:
               top_metrics:
                 size: 3
-                metric:
+                metrics:
                   field: population
                 sort:
                   _geo_distance:
@@ -375,10 +343,6 @@
 
 ---
 "inside terms":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.7.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -412,7 +376,7 @@
               aggs:
                 tm:
                   top_metrics:
-                    metric:
+                    metrics:
                       field: v
                     sort:
                       date: desc
@@ -437,7 +401,7 @@
               aggs:
                 tm:
                   top_metrics:
-                    metric:
+                    metrics:
                       field: v
                     sort:
                       date: desc
@@ -451,10 +415,6 @@
 
 ---
 "size is index setting":
-  - skip:
-      version: " - 8.0.0"
-      reason: "backport to 7.0.0 pending"
-
   - do:
       indices.create:
         index: test
@@ -483,11 +443,11 @@
             tm:
               top_metrics:
                 size: 100
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc
-  - match: { error.root_cause.0.reason: "error building sort for field [s.keyword] of type [keyword] in index [test]: only supported on numeric fields" }
+  - match: { error.root_cause.0.reason: "[top_metrics.size] must not be more than [10] but was [100]. This limit can be set by changing the [index.top_metrics_max_size] index level setting." }
 
   - do:
       indices.put_settings:
@@ -503,7 +463,7 @@
             tm:
               top_metrics:
                 size: 100
-                metric:
+                metrics:
                   field: v
                 sort:
                   s: desc

@@ -13,6 +13,8 @@ import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
 import org.opensaml.saml.saml2.core.NameID;
 
+import java.util.List;
+
 /**
  * Defines default values for a service provider if they are not configured in {@link SamlServiceProviderDocument}
  */
@@ -56,5 +58,9 @@ public final class ServiceProviderDefaults {
             throw new IllegalStateException("Setting [" + setting.getKey() + "] must be configured");
         }
         return value;
+    }
+
+    public static List<Setting<?>> getSettings() {
+        return List.of(APPLICATION_NAME_SETTING, LOGIN_ACTION_SETTING, NAMEID_FORMAT_SETTING, AUTHN_EXPIRY_SETTING);
     }
 }

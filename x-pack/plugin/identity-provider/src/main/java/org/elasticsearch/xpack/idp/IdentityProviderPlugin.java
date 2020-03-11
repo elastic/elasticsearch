@@ -134,6 +134,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(ENABLED_SETTING);
         settings.addAll(SamlIdentityProviderBuilder.getSettings());
+        settings.addAll(ServiceProviderDefaults.getSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);

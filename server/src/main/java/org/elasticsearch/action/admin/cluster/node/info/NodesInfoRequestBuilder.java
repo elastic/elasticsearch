@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
+// TODO: This class's interface should match that of NodesInfoRequest
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public NodesInfoRequestBuilder(ElasticsearchClient client, NodesInfoAction action) {

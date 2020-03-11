@@ -278,7 +278,7 @@ Defaults to `true`.
 If `true`, the filter includes the original version of any split tokens in the
 output. This original version includes non-alphanumeric delimiters. For example:
 `super-duper-xl-500` -> [ **`super-duper-xl-500`**, `super`, `duper`, `xl`,
-`500`]. Defaults to `false`.
+`500` ]. Defaults to `false`.
 
 [WARNING]
 ====

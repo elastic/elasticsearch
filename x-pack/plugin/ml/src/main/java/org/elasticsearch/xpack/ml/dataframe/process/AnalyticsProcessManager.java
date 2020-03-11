@@ -434,7 +434,7 @@ public class AnalyticsProcessManager {
                 new DataFrameRowsJoiner(config.getId(), dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
                 config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, resultsPersisterService,
-                dataExtractor.get().getFieldNames());
+                dataExtractor.get().getAllExtractedFields());
         }
     }
 }

@@ -112,4 +112,136 @@ snippet uses an index where `@timestamp` is defined as a `date` type field.
 [[painless-group-by]]
 ==== Using Painless in `group_by`
 
+It is possible to base the `group_by` property of a {transform} on the output of 
+a script. The following example uses the {kib} sample web logs dataset. The goal 
+here is to make the {transform} output easier to understand through normalizing 
+the value of the fields that the data is grouped by.
+
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": [ <1>
+      "kibana_sample_data_logs"
+    ]
+  },
+  "pivot": {
+    "group_by": {
+      "agent": {
+        "terms": {
+          "script": { <2>
+            "source": """String agent = doc['agent.keyword'].value; 
+            if (agent.contains("MSIE")) { 
+              return "internet explorer";
+            } else if (agent.contains("AppleWebKit")) { 
+              return "safari"; 
+            } else if (agent.contains('Firefox')) { 
+              return "firefox";
+            } else { return agent }""",
+            "lang": "painless"
+          }
+        }
+      }
+    },
+    "aggregations": { <3>
+      "200": {
+        "filter": {
+          "term": {
+            "response": "200"
+          }
+        }
+      },
+      "404": {
+        "filter": {
+          "term": {
+            "response": "404"
+          }
+        }
+      },
+      "503": {
+        "filter": {
+          "term": {
+            "response": "503"
+          }
+        }
+      }
+    }
+  },
+  "dest": { <4>
+    "index": "pivot_logs"
+  }
+} 
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> Specifies the source index or indices.
+<2> The script defines an `agent` string based on the `agent` field of the 
+documents, then iterates through the values. If an `agent` field contains 
+"MSIE", than the script returns "Internet Explorer". If it contains 
+`AppleWebKit`, it returns "safari". It returns "firefox" if the field value 
+contains "Firefox". Finally, in every other case, the value of the field is 
+returned.
+<3> The aggregations object contains filters that narrow down the results to 
+documents that contains `200`, `404`, or `503` values in the `response` field.
+<4> Specifies the destination index of the {transform}.
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "preview" : [
+    {
+      "agent" : "firefox",
+      "200" : 4931,
+      "404" : 259,
+      "503" : 172
+    },
+    {
+      "agent" : "internet explorer",
+      "200" : 3674,
+      "404" : 210,
+      "503" : 126
+    },
+    {
+      "agent" : "safari",
+      "200" : 4227,
+      "404" : 332,
+      "503" : 143
+    }
+  ],
+  "mappings" : {
+    "properties" : {
+      "200" : {
+        "type" : "long"
+      },
+      "agent" : {
+        "type" : "keyword"
+      },
+      "404" : {
+        "type" : "long"
+      },
+      "503" : {
+        "type" : "long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+You can see that the `agent` values are simplified so it is easier to interpret 
+them. The table below shows how normalization modifies the output of the 
+{transform} in our example compared to the non-normalized values.
+
+[width="50%"]
+
+|===
+| Non-normalized `agent` value                                                 | Normalized `agent` value 
+
+| "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)" | "internet explorer"
+| "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
+| "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
+|===
 

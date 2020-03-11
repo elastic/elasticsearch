@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -51,7 +50,9 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
 
         MapperService mapperService = Mockito.mock(MapperService.class);
-        Mockito.when(mapperService.documentMapper()).thenReturn(null);
+        DocumentMapper docMapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(mapperService.documentMapper()).thenReturn(docMapper);
+        Mockito.when(docMapper.type()).thenReturn(MapperService.SINGLE_MAPPING_NAME);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
@@ -61,10 +62,6 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
         query = ft.termQuery("_doc", context);
         assertEquals(new MatchAllDocsQuery(), query);
-
-        Mockito.when(mapperService.hasNested()).thenReturn(true);
-        query = ft.termQuery("_doc", context);
-        assertEquals(Queries.newNonNestedFilter(), query);
 
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
@@ -84,7 +81,9 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
 
         MapperService mapperService = Mockito.mock(MapperService.class);
-        Mockito.when(mapperService.documentMapper()).thenReturn(null);
+        DocumentMapper docMapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(mapperService.documentMapper()).thenReturn(docMapper);
+        Mockito.when(docMapper.type()).thenReturn(MapperService.SINGLE_MAPPING_NAME);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();

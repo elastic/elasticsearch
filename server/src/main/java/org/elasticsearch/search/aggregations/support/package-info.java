@@ -18,7 +18,7 @@
  */
 
 /**
- * The Aggregations Support package holds shared code for the aggregations  framework, especially around dealing with values.
+ * The Aggregations Support package holds shared code for the aggregations framework, especially around dealing with values.
  *
  * Key Classes
  *
@@ -55,7 +55,8 @@
  *
  * Classes we are trying to phase out
  * {@link org.elasticsearch.search.aggregations.support.ValueType}
- * This class is primarially used for parsing user type hints.  We hope to deprecate it before 8.0.
+ * This class is primarily used for parsing user type hints, and is deprecated for new use.  Work is ongoing to remove it from existing
+ * code.
  *
  */
 package org.elasticsearch.search.aggregations.support;

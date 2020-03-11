@@ -44,13 +44,18 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-         if (write && Modifier.isFinal(field.javaField.getModifiers())) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        this.input = input;
+        output = new Output();
+
+         if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
              throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
                      "for type [" + PainlessLookupUtility.typeToCanonicalTypeName(field.javaField.getDeclaringClass()) + "]."));
          }
 
-        actual = field.typeParameter;
+         output.actual = field.typeParameter;
+
+         return output;
     }
 
     @Override
@@ -58,7 +63,7 @@ final class PSubField extends AStoreable {
         DotSubNode dotSubNode = new DotSubNode();
 
         dotSubNode.setLocation(location);
-        dotSubNode.setExpressionType(actual);
+        dotSubNode.setExpressionType(output.actual);
         dotSubNode.setField(field);
 
         return dotSubNode;

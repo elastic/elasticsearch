@@ -50,8 +50,8 @@ import static org.elasticsearch.script.ScriptService.CacheSettings;
 import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTION;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
-import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE;
-import static org.elasticsearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE;
+import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING;
+import static org.elasticsearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -391,7 +391,7 @@ public class ScriptServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 101)
             .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), TimeValue.timeValueMinutes(60))
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.getKey(), "80/2m")
+            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "80/2m")
             .build();
         List<ScriptContext<?>> contextList = List.of(FieldScript.CONTEXT, AggregationScript.CONTEXT, UpdateScript.CONTEXT,
                                                         IngestScript.CONTEXT);
@@ -456,7 +456,7 @@ public class ScriptServiceTests extends ESTestCase {
                                cs.size.toString());
             settingBuilder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name).getKey(),
                                cs.expire.seconds() + "s");
-            settingBuilder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getConcreteSettingForNamespace(context.name).getKey(),
+            settingBuilder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name).getKey(),
                                cs.compileRate.v1() + "/" +  cs.compileRate.v2().getMillis() + "ms"
             );
         }
@@ -464,7 +464,7 @@ public class ScriptServiceTests extends ESTestCase {
         CacheSettings generalSettings = randomCacheSettings();
         settingBuilder.put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), generalSettings.size.toString());
         settingBuilder.put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), generalSettings.expire.seconds() + "s");
-        settingBuilder.put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.getKey(), ScriptService.USE_CONTEXT_RATE_KEY);
+        settingBuilder.put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY);
 
         AtomicReference<Cache> cacheRef = new AtomicReference<>();
         ScriptService.CacheUpdater updater = new ScriptService.CacheUpdater(settingBuilder.build(), contexts, true, cacheRef);
@@ -484,7 +484,7 @@ public class ScriptServiceTests extends ESTestCase {
             } else {
                 assertEquals(sc.cacheExpire, generalSettings.expire);
                 assertEquals(sc.cacheSize, generalSettings.size.intValue());
-                assertEquals(sc.rate, SCRIPT_MAX_COMPILATIONS_RATE.getDefault(Settings.EMPTY));
+                assertEquals(sc.rate, SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getDefault(Settings.EMPTY));
             }
         }
     }

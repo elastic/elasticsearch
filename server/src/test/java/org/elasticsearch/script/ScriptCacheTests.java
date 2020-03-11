@@ -31,7 +31,7 @@ public class ScriptCacheTests extends ESTestCase {
         ScriptCache cache = new ScriptCache(
             ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(Settings.EMPTY),
             ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(Settings.EMPTY),
-            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE.get(Settings.EMPTY)
+            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(Settings.EMPTY)
         );
         cache.setMaxCompilationRate(Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
         cache.checkCompilationLimit(); // should pass

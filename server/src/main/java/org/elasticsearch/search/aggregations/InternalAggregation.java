@@ -43,7 +43,7 @@ import java.util.function.IntConsumer;
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     /**
-     * Builds {@link ReduceContext}
+     * Builds {@link ReduceContext}.
      */
     public interface ReduceContextBuilder {
         /**

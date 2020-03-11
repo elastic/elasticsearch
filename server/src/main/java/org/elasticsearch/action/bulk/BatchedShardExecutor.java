@@ -47,13 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 public class BatchedShardExecutor implements IndexEventListener {
 
-    private static final long SYNC_SCHEDULE_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(5);
-    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(25);
+    private static final long MAX_EXECUTE_NANOS = TimeUnit.MILLISECONDS.toNanos(200);
     private static final String CLOSED_SHARD_MESSAGE = "Cannot perform operation, IndexShard is closed.";
 
     private static final Logger logger = LogManager.getLogger(BatchedShardExecutor.class);
@@ -96,9 +94,6 @@ public class BatchedShardExecutor implements IndexEventListener {
                 while ((shardOp = state.pollPreIndexed()) != null) {
                     listenersToFail.add(shardOp.getWriteListener());
                 }
-                while ((shardOp = state.pollPostIndexed()) != null) {
-                    listenersToFail.add(shardOp.getFlushListener());
-                }
                 onFailure(listenersToFail.stream(), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
             }
         }
@@ -139,13 +134,6 @@ public class BatchedShardExecutor implements IndexEventListener {
         }
     }
 
-    private void enqueueFlush(ShardState shardState, ShardOp shardOp) {
-        shardState.postIndexedEnqueue(shardOp);
-        if (shardState.isClosed() && shardState.removePostIndexed(shardOp)) {
-            onFailure(Stream.of(shardOp.getFlushListener()), new AlreadyClosedException(CLOSED_SHARD_MESSAGE));
-        }
-    }
-
     private void maybeSchedule(ShardState shardState) {
         if (shardState.shouldScheduleWriteTask()) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
@@ -174,7 +162,7 @@ public class BatchedShardExecutor implements IndexEventListener {
 
                 @Override
                 public void onAfter() {
-                    if (shardState.preIndexedQueue.isEmpty() == false || shardState.postIndexedQueue.isEmpty() == false) {
+                    if (shardState.preIndexedQueue.isEmpty() == false) {
                         maybeSchedule(shardState);
                     }
                 }
@@ -185,13 +173,13 @@ public class BatchedShardExecutor implements IndexEventListener {
     private void performShardOperations(ShardState shardState) {
         IndexShard indexShard = shardState.indexShard;
 
+        ArrayList<ShardOp> indexedOps = new ArrayList<>();
         ArrayList<ShardOp> needRefresh = new ArrayList<>(0);
         boolean immediateRefresh = false;
         try {
             ShardOp shardOp;
             int opsExecuted = 0;
             long startNanos = System.nanoTime();
-            long lastSyncCheckNanos = 0;
             long nanosSpentExecuting = 0;
             boolean continueExecuting = true;
             while (continueExecuting && (shardOp = shardState.pollPreIndexed()) != null) {
@@ -212,7 +200,7 @@ public class BatchedShardExecutor implements IndexEventListener {
                         // Complete the write listener
                         onResponse(Stream.of(shardOp.getWriteListener()), null);
 
-                        enqueueFlush(shardState, shardOp);
+                        indexedOps.add(shardOp);
 
                         WriteRequest.RefreshPolicy refreshPolicy = shardOp.getRequest().getRefreshPolicy();
                         if (refreshPolicy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
@@ -228,13 +216,6 @@ public class BatchedShardExecutor implements IndexEventListener {
                     // Update nanosSpentExecuting every 8 operations
                     if ((opsExecuted & (8 - 1)) == 0) {
                         nanosSpentExecuting = System.nanoTime() - startNanos;
-                        if ((nanosSpentExecuting - lastSyncCheckNanos) > SYNC_SCHEDULE_INTERVAL_NANOS) {
-                            lastSyncCheckNanos = nanosSpentExecuting;
-                            boolean performedSyncs = maybeExecuteSync(shardState);
-                            if (performedSyncs) {
-                                continueExecuting = false;
-                            }
-                        }
                         if (nanosSpentExecuting >= MAX_EXECUTE_NANOS) {
                             continueExecuting = false;
                         }
@@ -242,68 +223,47 @@ public class BatchedShardExecutor implements IndexEventListener {
                 }
             }
         } finally {
+            executeSync(shardState, indexedOps);
             if (needRefresh.isEmpty() == false) {
                 performRefreshes(indexShard, needRefresh, immediateRefresh);
             }
-            maybeExecuteSync(shardState);
         }
     }
 
-    private boolean maybeExecuteSync(ShardState shardState) {
-        if (shardState.shouldStartSyncing()) {
-            IndexShard indexShard = shardState.indexShard;
-            try {
-                while (true) {
-                    ArrayList<ShardOp> completedOpsAlreadySynced = new ArrayList<>();
-                    ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
+    private void executeSync(ShardState shardState, ArrayList<ShardOp> indexedOps) {
+        IndexShard indexShard = shardState.indexShard;
+        ArrayList<ShardOp> completedOpsNeedSync = new ArrayList<>();
 
-                    Translog.Location maxLocation = null;
-                    Translog.Location syncedLocation = null;
-                    try {
-                        syncedLocation = indexShard.getTranslogLastSyncedLocation();
-                    } catch (Exception e) {
-                        // The Translog might have closed. Ignore.
+        Translog.Location maxLocation = null;
+        Translog.Location syncedLocation = null;
+        try {
+            syncedLocation = indexShard.getTranslogLastSyncedLocation();
+        } catch (Exception e) {
+            // The Translog might have closed. Ignore.
+        }
+
+        for (ShardOp indexedOp : indexedOps) {
+            Translog.Location location = indexedOp.locationToSync();
+            if (location != null) {
+                if (syncedLocation == null || needsSync(location, syncedLocation)) {
+                    completedOpsNeedSync.add(indexedOp);
+                    if (maxLocation == null) {
+                        maxLocation = location;
+                    } else if (location.compareTo(maxLocation) > 0) {
+                        maxLocation = location;
                     }
-
-                    ShardOp indexedOp;
-                    int opsToHandle = 0;
-                    while ((indexedOp = shardState.pollPostIndexed()) != null) {
-                        ++opsToHandle;
-                        Translog.Location location = indexedOp.locationToSync();
-                        if (location != null) {
-                            if (syncedLocation == null || needsSync(location, syncedLocation)) {
-                                completedOpsNeedSync.add(indexedOp);
-                                if (maxLocation == null) {
-                                    maxLocation = location;
-                                } else if (location.compareTo(maxLocation) > 0) {
-                                    maxLocation = location;
-                                }
-                            } else {
-                                completedOpsAlreadySynced.add(indexedOp);
-                            }
-                        } else {
-                            completedOpsAlreadySynced.add(indexedOp);
-                        }
-                    }
-
-                    if (opsToHandle == 0) {
-                        break;
-                    }
-
-                    onResponse(completedOpsAlreadySynced.stream().map(ShardOp::getFlushListener), null);
-
-                    if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
-                        syncOperations(indexShard, maxLocation, completedOpsNeedSync);
-                    } else {
-                        onResponse(completedOpsNeedSync.stream().map(ShardOp::getFlushListener), null);
-                    }
+                } else {
+                    onResponse(Stream.of(indexedOp.getFlushListener()), null);
                 }
-            } finally {
-                shardState.markDoneSyncing();
+            } else {
+                onResponse(Stream.of(indexedOp.getFlushListener()), null);
             }
-            return true;
+        }
+
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && maxLocation != null) {
+            syncOperations(indexShard, maxLocation, completedOpsNeedSync);
         } else {
-            return false;
+            onResponse(completedOpsNeedSync.stream().map(ShardOp::getFlushListener), null);
         }
     }
 
@@ -445,11 +405,9 @@ public class BatchedShardExecutor implements IndexEventListener {
     static class ShardState {
 
         private final ConcurrentLinkedQueue<ShardOp> preIndexedQueue = new ConcurrentLinkedQueue<>();
-        private final ConcurrentLinkedQueue<ShardOp> postIndexedQueue = new ConcurrentLinkedQueue<>();
         private final IndexShard indexShard;
         private final int maxScheduledTasks;
         private final Semaphore scheduleTaskSemaphore;
-        private final AtomicBoolean syncLock = new AtomicBoolean(false);
         private volatile boolean isClosed = false;
 
         private ShardState(int maxScheduledTasks, IndexShard indexShard) {
@@ -468,27 +426,6 @@ public class BatchedShardExecutor implements IndexEventListener {
 
         private ShardOp pollPreIndexed() {
             return preIndexedQueue.poll();
-        }
-
-        private void postIndexedEnqueue(ShardOp shardOp) {
-            postIndexedQueue.add(shardOp);
-        }
-
-        private boolean removePostIndexed(ShardOp shardOp) {
-            return postIndexedQueue.remove(shardOp);
-        }
-
-        private ShardOp pollPostIndexed() {
-            return postIndexedQueue.poll();
-        }
-
-        private boolean shouldStartSyncing() {
-            return syncLock.get() == false && syncLock.compareAndSet(false, true);
-        }
-
-        private void markDoneSyncing() {
-            assert syncLock.get();
-            syncLock.set(false);
         }
 
         private boolean shouldScheduleWriteTask() {

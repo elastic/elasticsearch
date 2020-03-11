@@ -66,7 +66,7 @@ public class GeoShapeUtils {
     }
 
     static org.apache.lucene.geo.Rectangle toLuceneRectangle(Rectangle r) {
-        return new org.apache.lucene.geo.Rectangle(r.getMaxLat(), r.getMaxLat(), r.getMinLon(), r.getMaxLon());
+        return new org.apache.lucene.geo.Rectangle(r.getMinLat(), r.getMaxLat(), r.getMinLon(), r.getMaxLon());
     }
 
     static org.apache.lucene.geo.Point toLucenePoint(Point point) {

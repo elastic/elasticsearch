@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +27,12 @@ public class FreezeStep extends AsyncRetryDuringSnapshotActionStep {
     public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices().execute(FreezeIndexAction.INSTANCE,
             new FreezeRequest(indexMetaData.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
-            ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+            ActionListener.wrap(response -> {
+                if (response.isAcknowledged() == false) {
+                    throw new ElasticsearchException("freeze index request failed to be acknowledged");
+                }
+                listener.onResponse(true);
+            }, listener::onFailure));
     }
 
     @Override

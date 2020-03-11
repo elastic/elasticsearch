@@ -57,6 +57,8 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 <<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles aggregations.
 
+<<constant-keyword>>:: Specialization of `keyword` for the case when all documents have the same value.
+
 [float]
 [[types-array-handling]]
 === Arrays
@@ -127,3 +129,5 @@ include::types/text.asciidoc[]
 include::types/token-count.asciidoc[]
 
 include::types/shape.asciidoc[]
+
+include::types/constant-keyword.asciidoc[]

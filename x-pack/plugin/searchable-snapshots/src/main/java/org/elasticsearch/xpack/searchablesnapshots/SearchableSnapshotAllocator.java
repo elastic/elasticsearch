@@ -22,7 +22,7 @@ import java.util.List;
 
 public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
-    static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
+    public static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
 
     @Override
     public void beforeAllocation(RoutingAllocation allocation) {

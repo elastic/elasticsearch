@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StatementNode;
@@ -58,7 +59,7 @@ public final class SExpression extends AStatement {
 
         expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(scriptRoot, scope);
+        expression.cast();
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -68,10 +69,12 @@ public final class SExpression extends AStatement {
 
     @Override
     StatementNode write(ClassNode classNode) {
+        ExpressionNode expressionNode = expression.cast(expression.write(classNode));
+
         if (methodEscape) {
             ReturnNode returnNode = new ReturnNode();
 
-            returnNode.setExpressionNode(expression.write(classNode));
+            returnNode.setExpressionNode(expressionNode);
 
             returnNode.setLocation(location);
 
@@ -79,7 +82,7 @@ public final class SExpression extends AStatement {
         } else {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
 
-            statementExpressionNode.setExpressionNode(expression.write(classNode));
+            statementExpressionNode.setExpressionNode(expressionNode);
 
             statementExpressionNode.setLocation(location);
 

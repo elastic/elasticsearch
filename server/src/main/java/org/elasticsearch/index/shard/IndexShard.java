@@ -332,7 +332,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
-                new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
+                new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.replicationTracker = new ReplicationTracker(
                 shardId,
                 aId,
@@ -3101,7 +3101,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
-            threadPool.executor(ThreadPool.Names.LISTENER),
             logger, threadPool.getThreadContext(),
             externalRefreshMetric);
     }

@@ -12,7 +12,7 @@ API, unless otherwise specified.
 * <<url-access-control>>
 
 [[multi-index]]
-=== Multiple Indices
+=== Multiple indices
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
@@ -28,6 +28,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
+
+Some multi index APIs also support the following url query string parameter:
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 NOTE: Single index APIs such as the <<docs>> and the
 <<indices-aliases,single-index `alias` APIs>> do not support multiple indices.

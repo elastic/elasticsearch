@@ -33,6 +33,14 @@ setup:
           settings:
             location: "repository-fs"
 
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
   - do:
       snapshot.create:
         repository: repository-fs
@@ -94,21 +102,12 @@ teardown:
   - match: { error.root_cause.0.reason: "No searchable snapshots indices found" }
 
   - do:
-      snapshot.create_repository:
-        repository: repository-searchable-snapshots
-        body:
-          type: searchable
-          settings:
-            delegate_type: fs
-            location: "repository-fs"
-
-  - match: { acknowledged: true }
-
-  - do:
-      snapshot.restore:
-        repository: repository-searchable-snapshots
+      searchable_snapshots.mount:
+        repository: repository-fs
         snapshot: snapshot
         wait_for_completion: true
+        body:
+          index: docs
 
   - match: { snapshot.snapshot: snapshot }
   - match: { snapshot.shards.failed: 0 }
@@ -132,6 +131,9 @@ teardown:
   - do:
       searchable_snapshots.stats:
         index: "d*"
+
+  - match:  { _shards.total: 1 }
+  - match:  { _shards.failed: 0 }
 
   - length:  { indices: 1 }
   - length:  { indices.docs.shards: 1 }

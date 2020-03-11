@@ -59,20 +59,52 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
 
-        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("my_type");
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
-        query = ft.termQuery("my_type", context);
+        query = ft.termQuery("_doc", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
         Mockito.when(mapperService.hasNested()).thenReturn(true);
-        query = ft.termQuery("my_type", context);
+        query = ft.termQuery("_doc", context);
         assertEquals(Queries.newNonNestedFilter(), query);
 
-        mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("other_type");
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
+        assertEquals(new MatchNoDocsQuery(), query);
+    }
+
+    public void testPrefixAndWildCardQuery() throws Exception {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        Version indexVersionCreated = VersionUtils.randomIndexCompatibleVersion(random());
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
+        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
+        Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Mockito.when(mapperService.documentMapper()).thenReturn(null);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        Query query = ft.prefixQuery("_do", null, context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        query = ft.prefixQuery("_fo", null, context);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        ft.setName(TypeFieldMapper.NAME);
+        query = ft.wildcardQuery("_d*", null, context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        ft.setName(TypeFieldMapper.NAME);
+        query = ft.wildcardQuery("_d?c", null, context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        ft.setName(TypeFieldMapper.NAME);
+        query = ft.wildcardQuery("_fo*", null, context);
         assertEquals(new MatchNoDocsQuery(), query);
     }
 }

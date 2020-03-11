@@ -30,22 +30,17 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -56,8 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import java.util.regex.Pattern;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -96,7 +90,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class TypeFieldType extends StringFieldType {
+    public static final class TypeFieldType extends ConstantFieldType {
 
         TypeFieldType() {
         }
@@ -127,79 +121,12 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            return true;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            return termsQuery(Arrays.asList(value), context);
-        }
-
-        @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
-            DocumentMapper mapper = context.getMapperService().documentMapper();
-            if (mapper == null) {
-                return new MatchNoDocsQuery("No types");
+        protected boolean matches(String pattern, QueryShardContext context) {
+            if (pattern.contains("?") == false) {
+                return Regex.simpleMatch(pattern, MapperService.SINGLE_MAPPING_NAME);
             }
-            BytesRef indexType = indexedValueForSearch(mapper.type());
-            if (values.stream()
-                    .map(this::indexedValueForSearch)
-                    .anyMatch(indexType::equals)) {
-                if (context.getMapperService().hasNested()) {
-                    // type filters are expected not to match nested docs
-                    return Queries.newNonNestedFilter();
-                } else {
-                    return new MatchAllDocsQuery();
-                }
-            } else {
-                return new MatchNoDocsQuery("Type list does not contain the index type");
-            }
-        }
-
-        @Override
-        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            Query termQuery = termQuery(value, context);
-            if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
-                return termQuery;
-            }
-
-            if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
-                        ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
-            }
-            Term term = MappedFieldType.extractTerm(termQuery);
-
-            WildcardQuery query = new WildcardQuery(term);
-            QueryParsers.setRewriteMethod(query, method);
-            return query;
-        }
-
-        @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            Query result = new MatchAllDocsQuery();
-            String type = context.getMapperService().documentMapper().type();
-            if (type != null) {
-                BytesRef typeBytes = new BytesRef(type);
-                if (lowerTerm != null) {
-                    int comp = indexedValueForSearch(lowerTerm).compareTo(typeBytes);
-                    if (comp > 0 || (comp == 0 && includeLower == false)) {
-                        result = new MatchNoDocsQuery("[_type] was lexicographically smaller than lower bound of range");
-                    }
-                }
-                if (upperTerm != null) {
-                    int comp = indexedValueForSearch(upperTerm).compareTo(typeBytes);
-                    if (comp < 0 || (comp == 0 && includeUpper == false)) {
-                        result = new MatchNoDocsQuery("[_type] was lexicographically greater than upper bound of range");
-                    }
-                }
-            }
-            return result;
+            boolean matches = Pattern.matches(pattern.replace("?", "."), MapperService.SINGLE_MAPPING_NAME);
+            return matches;
         }
     }
 

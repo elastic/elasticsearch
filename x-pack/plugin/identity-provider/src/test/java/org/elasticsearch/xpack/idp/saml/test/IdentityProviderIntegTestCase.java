@@ -12,12 +12,13 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -31,26 +32,34 @@ import org.junit.ClassRule;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_CONTACT_EMAIL;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_CONTACT_GIVEN_NAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_CONTACT_SURNAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ENTITY_ID;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ORGANIZATION_DISPLAY_NAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ORGANIZATION_NAME;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_ORGANIZATION_URL;
-import static org.elasticsearch.xpack.idp.IdentityProviderPlugin.IDP_SSO_REDIRECT_ENDPOINT;
-import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_EMAIL;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_GIVEN_NAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_SURNAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_DISPLAY_NAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_NAME;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_URL;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
 
 public class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
@@ -60,12 +69,6 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
         new String(Hasher.resolve("bcrypt9").hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "idp_user_role";
     public static final String TEST_SUPERUSER = "test_superuser";
-    public static final RequestOptions IDP_REQUEST_WITH_SECONDARY_AUTH_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .addHeader("Authorization", basicAuthHeaderValue(TEST_SUPERUSER,
-            new SecureString(TEST_PASSWORD.toCharArray())))
-        .addHeader("es-secondary-authorization", basicAuthHeaderValue(TEST_USER_NAME,
-            new SecureString(TEST_PASSWORD.toCharArray())))
-        .build();
     public static final RequestOptions IDP_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .addHeader("Authorization", basicAuthHeaderValue(TEST_SUPERUSER,
             new SecureString(TEST_PASSWORD.toCharArray())))
@@ -204,7 +207,7 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
     }
 
     private static ClusterScope getAnnotation(Class<?> clazz) {
-        if (clazz == Object.class || clazz == SecurityIntegTestCase.class) {
+        if (clazz == Object.class || clazz == IdentityProviderIntegTestCase.class) {
             return null;
         }
         ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
@@ -212,5 +215,32 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
             return annotation;
         }
         return getAnnotation(clazz.getSuperclass());
+    }
+
+    private static String writeFile(Path folder, String name, byte[] content) {
+        final Path path = folder.resolve(name);
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            try (OutputStream os = Files.newOutputStream(tempFile, CREATE, TRUNCATE_EXISTING, WRITE)) {
+                Streams.copy(content, os);
+            }
+
+            try {
+                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(tempFile, path, REPLACE_EXISTING);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
+        } finally {
+            // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
+            IOUtils.deleteFilesIgnoringExceptions(tempFile);
+        }
+        return path.toAbsolutePath().toString();
+    }
+
+    private static String writeFile(Path folder, String name, String content) {
+        return writeFile(folder, name, content.getBytes(StandardCharsets.UTF_8));
     }
 }

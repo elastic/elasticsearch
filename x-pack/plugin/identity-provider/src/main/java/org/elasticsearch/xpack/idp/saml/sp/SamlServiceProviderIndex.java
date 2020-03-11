@@ -19,6 +19,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -172,6 +173,7 @@ public class SamlServiceProviderIndex implements Closeable {
     private void checkForAliasStateChange(ClusterState state) {
         final AliasOrIndex aliasInfo = state.getMetaData().getAliasAndIndexLookup().get(ALIAS_NAME);
         final boolean previousState = aliasExists;
+        logger.info("alias info : " + aliasInfo);
         this.aliasExists = aliasInfo != null;
         if (aliasExists != previousState) {
             logChangedAliasState(aliasInfo);
@@ -240,7 +242,8 @@ public class SamlServiceProviderIndex implements Closeable {
             final IndexRequest request = new IndexRequest(aliasExists ? ALIAS_NAME : INDEX_NAME)
                 .opType(opType)
                 .source(xContentBuilder)
-                .id(document.docId);
+                .id(document.docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             client.index(request, ActionListener.wrap(response -> {
                 logger.debug("Wrote service provider [{}][{}] as document [{}] ({})",
                     document.name, document.entityId, response.getId(), response.getResult());
@@ -275,8 +278,8 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     private void findDocuments(QueryBuilder query, ActionListener<Set<DocumentSupplier>> listener) {
-        logger.trace("Searching [{}] for [{}]", ALIAS_NAME, query);
-        final SearchRequest request = client.prepareSearch(ALIAS_NAME)
+        logger.trace("Searching [{}] for [{}]", aliasExists ? ALIAS_NAME : INDEX_NAME, query);
+        final SearchRequest request = client.prepareSearch(aliasExists ? ALIAS_NAME : INDEX_NAME)
             .setQuery(query)
             .setSize(1000)
             .setFetchSource(true)

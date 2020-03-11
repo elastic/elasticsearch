@@ -14,6 +14,7 @@ archivesBaseName = 'x-pack-identity-provider'
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  // So that we can extend LocalStateCompositeXPackPlugin
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
   // the following are all SAML dependencies - might as well download the whole internet

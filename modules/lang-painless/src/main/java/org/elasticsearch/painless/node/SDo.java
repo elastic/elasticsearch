@@ -60,8 +60,9 @@ public final class SDo extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
         condition.cast();
 
         if (condition instanceof EBoolean) {

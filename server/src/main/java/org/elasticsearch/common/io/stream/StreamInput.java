@@ -315,6 +315,14 @@ public abstract class StreamInput extends InputStream {
         return i;
     }
 
+    @Nullable
+    public Long readOptionalVLong() throws IOException {
+        if (readBoolean()) {
+            return readVLong();
+        }
+        return null;
+    }
+
     public long readZLong() throws IOException {
         long accumulator = 0L;
         int i = 0;

@@ -28,7 +28,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -1122,33 +1121,33 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "term1"), new Term("field", "term2"),
             new Term("field", "term3"), new Term("field", "term4"));
 
-        source = Intervals.ordered(Intervals.term("term1"), XIntervals.wildcard(new BytesRef("a*")));
+        source = Intervals.ordered(Intervals.term("term1"), Intervals.wildcard(new BytesRef("a*")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, new Term("field", "term1"));
 
-        source = Intervals.ordered(XIntervals.wildcard(new BytesRef("a*")));
+        source = Intervals.ordered(Intervals.wildcard(new BytesRef("a*")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
-        source = Intervals.or(Intervals.term("b"), XIntervals.wildcard(new BytesRef("a*")));
+        source = Intervals.or(Intervals.term("b"), Intervals.wildcard(new BytesRef("a*")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
-        source = Intervals.ordered(Intervals.term("term1"), XIntervals.prefix(new BytesRef("a")));
+        source = Intervals.ordered(Intervals.term("term1"), Intervals.prefix(new BytesRef("a")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, new Term("field", "term1"));
 
-        source = Intervals.ordered(XIntervals.prefix(new BytesRef("a")));
+        source = Intervals.ordered(Intervals.prefix(new BytesRef("a")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
-        source = Intervals.or(Intervals.term("b"), XIntervals.prefix(new BytesRef("a")));
+        source = Intervals.or(Intervals.term("b"), Intervals.prefix(new BytesRef("a")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 

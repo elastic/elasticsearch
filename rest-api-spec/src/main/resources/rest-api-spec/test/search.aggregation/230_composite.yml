@@ -947,8 +947,8 @@ setup:
 ---
 "Terms source from part of sorted":
   - skip:
-      version: " - 7.99.99"
-      reason:  fixed in 8.0.0. will be backported to 7.7.0.
+      version: " - 7.6.99"
+      reason:  fixed in 7.7.0.
 
   - do:
         indices.create:

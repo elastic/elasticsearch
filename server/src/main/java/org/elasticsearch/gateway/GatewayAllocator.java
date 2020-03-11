@@ -153,9 +153,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                                    ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
         assert shardRouting.unassigned();
         if (shardRouting.primary()) {
-            primaryShardAllocator.allocateUnassigned(allocation, shardRouting, unassignedAllocationHandler);
+            primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
         } else {
-            replicaShardAllocator.allocateUnassigned(allocation, shardRouting, unassignedAllocationHandler);
+            replicaShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
         }
     }
 

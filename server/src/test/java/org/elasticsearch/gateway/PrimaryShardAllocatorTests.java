@@ -81,7 +81,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private void allocateAllUnassigned(final RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
-            testAllocator.allocateUnassigned(allocation, iterator.next(), iterator);
+            testAllocator.allocateUnassigned(iterator.next(), allocation, iterator);
         }
     }
 

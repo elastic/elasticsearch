@@ -53,48 +53,54 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        prefix.analyze(scriptRoot, scope);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, scope);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-        if (prefix.actual == def.class) {
+        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
+        prefix.input.expected = prefixOutput.actual;
+        prefix.cast();
+
+        if (prefixOutput.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            PainlessMethod method =
-                    scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+            PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
+                    prefixOutput.actual, prefix instanceof EStatic, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+                        "method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
             scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
+            sub = new PSubCallInvoke(location, method, prefixOutput.actual, arguments);
         }
 
         if (nullSafe) {
             sub = new PSubNullSafeCallInvoke(location, sub);
         }
 
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(scriptRoot, scope);
-        actual = sub.actual;
+        Input subInput = new Input();
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
 
-        statement = true;
+        output.statement = true;
+
+        return output;
     }
 
     @Override
     CallNode write(ClassNode classNode) {
         CallNode callNode = new CallNode();
 
-        callNode.setLeftNode(prefix.write(classNode));
+        callNode.setLeftNode(prefix.cast(prefix.write(classNode)));
         callNode.setRightNode(sub.write(classNode));
 
         callNode.setLocation(location);
-        callNode.setExpressionType(actual);
+        callNode.setExpressionType(output.actual);
 
         return callNode;
     }

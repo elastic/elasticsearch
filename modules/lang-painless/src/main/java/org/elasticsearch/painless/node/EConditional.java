@@ -47,50 +47,60 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-        left.expected = expected;
-        left.explicit = explicit;
-        left.internal = internal;
-        right.expected = expected;
-        right.explicit = explicit;
-        right.internal = internal;
-        actual = expected;
+        Input conditionInput = new Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.cast();
 
-        left.analyze(scriptRoot, scope);
-        right.analyze(scriptRoot, scope);
+        Input leftInput = new Input();
+        leftInput.expected = input.expected;
+        leftInput.explicit = input.explicit;
+        leftInput.internal = input.internal;
 
-        if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual);
+        Input rightInput = new Input();
+        rightInput.expected = input.expected;
+        rightInput.explicit = input.explicit;
+        rightInput.internal = input.internal;
+
+        output.actual = input.expected;
+
+        Output leftOutput = left.analyze(scriptRoot, scope, leftInput);
+        Output rightOutput = right.analyze(scriptRoot, scope, rightInput);
+
+        if (input.expected == null) {
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
 
             if (promote == null) {
-                throw createError(new ClassCastException("cannot apply a conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]"));
+                throw createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
             }
 
-            left.expected = promote;
-            right.expected = promote;
-            actual = promote;
+            left.input.expected = promote;
+            right.input.expected = promote;
+            output.actual = promote;
         }
 
-        left = left.cast(scriptRoot, scope);
-        right = right.cast(scriptRoot, scope);
+        left.cast();
+        right.cast();
+
+        return output;
     }
 
     @Override
     ConditionalNode write(ClassNode classNode) {
         ConditionalNode conditionalNode = new ConditionalNode();
 
-        conditionalNode.setLeftNode(left.write(classNode));
-        conditionalNode.setRightNode(right.write(classNode));
-        conditionalNode.setConditionNode(condition.write(classNode));
+        conditionalNode.setLeftNode(left.cast(left.write(classNode)));
+        conditionalNode.setRightNode(right.cast(right.write(classNode)));
+        conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
 
         conditionalNode.setLocation(location);
-        conditionalNode.setExpressionType(actual);
+        conditionalNode.setExpressionType(output.actual);
 
         return conditionalNode;
     }

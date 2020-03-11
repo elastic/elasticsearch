@@ -289,7 +289,7 @@ public class IndexResolver {
     public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
 
-        if (fieldCaps == null || fieldCaps.isEmpty()) {
+        if (indexNames.length == 0) {
             return IndexResolution.notFound(indexPattern);
         }
 

@@ -59,4 +59,7 @@ class ShapeUtils {
         }
         return result;
     }
+
+    private ShapeUtils() {
+    }
 }

@@ -11,7 +11,7 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * From 6.8 to {version}
 
 
-The following table shows the *recommended* upgrade paths to {version}.
+The following table shows the recommended upgrade paths to {version}.
 
 [cols="<1m,3",options="header",]
 |====

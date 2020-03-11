@@ -52,7 +52,9 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
                 newBytesArray()), sortFormats);
             collector.consumeTopDocs(createTopDocs(sortFields[0], 50,
                 newBytesArray("tar", "zar", "zzz")), sortFormats);
-            assertThat(collector.getTotalHits(), equalTo(300L));
+            collector.consumeTopDocs(createTopDocs(sortFields[0], 50,
+                newBytesArray(null, null, "zzz")), sortFormats);
+            assertThat(collector.getTotalHits(), equalTo(350L));
             assertNotNull(collector.getBottomSortValues());
             assertThat(collector.getBottomSortValues().getSortValueFormats().length, equalTo(1));
             assertThat(collector.getBottomSortValues().getSortValueFormats()[0], instanceOf(DocValueFormat.RAW.getClass()));
@@ -81,8 +83,11 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
                 newLongArray(1L, 2L, 3L)), sortFormats);
             collector.consumeTopDocs(createTopDocs(sortFields[0], 50,
                 newLongArray()), sortFormats);
+            // ignore bottom if we have less top docs than the requested size
+            collector.consumeTopDocs(createTopDocs(sortFields[0], 1,
+                newLongArray(-100L)), sortFormats);
             assertNotNull(collector.getBottomSortValues());
-            assertThat(collector.getTotalHits(), equalTo(300L));
+            assertThat(collector.getTotalHits(), equalTo(301L));
             assertThat(collector.getBottomSortValues().getSortValueFormats().length, equalTo(1));
             assertThat(collector.getBottomSortValues().getSortValueFormats()[0], instanceOf(DocValueFormat.RAW.getClass()));
             assertThat(collector.getBottomSortValues().getRawSortValues().length, equalTo(1));
@@ -110,7 +115,10 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
                 newDoubleArray()), sortFormats);
             collector.consumeTopDocs(createTopDocs(sortFields[0], 50,
                 newDoubleArray(100d, 101d, 102d)), sortFormats);
-            assertThat(collector.getTotalHits(), equalTo(300L));
+            // ignore bottom if we have less top docs than the requested size
+            collector.consumeTopDocs(createTopDocs(sortFields[0], 2,
+                newDoubleArray(0d, 1d)), sortFormats);
+            assertThat(collector.getTotalHits(), equalTo(302L));
             assertNotNull(collector.getBottomSortValues());
             assertThat(collector.getBottomSortValues().getSortValueFormats().length, equalTo(1));
             assertThat(collector.getBottomSortValues().getSortValueFormats()[0], instanceOf(DocValueFormat.RAW.getClass()));
@@ -184,6 +192,31 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
         }
     }
 
+    public void testWithMixedTypes() {
+        for (boolean reverse : new boolean[] { true, false }) {
+            SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, reverse) };
+            SortField[] otherSortFields = new SortField[] { new SortField("foo", SortField.Type.STRING_VAL, reverse) };
+            DocValueFormat[] sortFormats = new DocValueFormat[] { DocValueFormat.RAW };
+            BottomSortValuesCollector collector = new BottomSortValuesCollector(3, sortFields);
+            collector.consumeTopDocs(createTopDocs(sortFields[0], 100,
+                newLongArray(1000L, 100L, 10L)), sortFormats);
+            collector.consumeTopDocs(createTopDocs(otherSortFields[0], 50,
+                newBytesArray("foo", "bar", "zoo")), sortFormats);
+            assertThat(collector.getTotalHits(), equalTo(150L));
+            assertNotNull(collector.getBottomSortValues());
+            assertThat(collector.getBottomSortValues().getSortValueFormats().length, equalTo(1));
+            assertThat(collector.getBottomSortValues().getSortValueFormats()[0], instanceOf(DocValueFormat.RAW.getClass()));
+            assertThat(collector.getBottomSortValues().getRawSortValues().length, equalTo(1));
+            if (reverse) {
+                assertThat(collector.getBottomSortValues().getRawSortValues()[0], equalTo(10L));
+                assertThat(collector.getBottomSortValues().getFormattedSortValues()[0], equalTo(10L));
+            } else {
+                assertThat(collector.getBottomSortValues().getRawSortValues()[0], equalTo(1000L));
+                assertThat(collector.getBottomSortValues().getFormattedSortValues()[0], equalTo(1000L));
+            }
+        }
+    }
+
     private Object[] newDoubleArray(Double... values) {
         return values;
     }
@@ -195,7 +228,7 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
     private Object[] newBytesArray(String... values) {
         BytesRef[] bytesRefs = new BytesRef[values.length];
         for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = new BytesRef(values[i]);
+            bytesRefs[i] = values[i] == null ? null : new BytesRef(values[i]);
         }
         return bytesRefs;
     }

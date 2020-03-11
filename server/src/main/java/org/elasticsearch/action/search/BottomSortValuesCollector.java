@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchSortValuesAndFormats;
  */
 class BottomSortValuesCollector {
     private final int topNSize;
+    private final SortField[] sortFields;
     private final FieldComparator[] comparators;
     private final int[] reverseMuls;
 
@@ -41,6 +42,7 @@ class BottomSortValuesCollector {
         this.topNSize = topNSize;
         this.comparators = new FieldComparator[sortFields.length];
         this.reverseMuls = new int[sortFields.length];
+        this.sortFields = sortFields;
         for (int i = 0; i < sortFields.length; i++) {
             comparators[i] = sortFields[i].getComparator(1, i);
             reverseMuls[i] = sortFields[i].getReverse() ? -1 : 1;
@@ -60,6 +62,9 @@ class BottomSortValuesCollector {
 
     synchronized void consumeTopDocs(TopFieldDocs topDocs, DocValueFormat[] sortValuesFormat) {
         totalHits += topDocs.totalHits.value;
+        if (validateShardSortFields(topDocs.fields) == false) {
+            return;
+        }
 
         FieldDoc shardBottomDoc = extractBottom(topDocs);
         if (shardBottomDoc == null) {
@@ -69,6 +74,24 @@ class BottomSortValuesCollector {
                 || compareValues(shardBottomDoc.fields, bottomSortValues.getRawSortValues()) < 0) {
             bottomSortValues = new SearchSortValuesAndFormats(shardBottomDoc.fields, sortValuesFormat);
         }
+    }
+
+    /**
+     * @return <code>false</code> if the provided {@link SortField} array differs
+     * from the initial {@link BottomSortValuesCollector#sortFields}.
+     */
+    private boolean validateShardSortFields(SortField[] shardSortFields) {
+        for (int i = 0; i  < shardSortFields.length; i++) {
+            if (shardSortFields[i].equals(sortFields[i]) == false) {
+                // ignore shards response that would make the sort incompatible
+                // (e.g.: mixing keyword/numeric or long/double).
+                // TODO: we should fail the entire request because the topdocs
+                //  merge will likely fail later but this is not possible with
+                //  the current async logic that only allows shard failures here.
+                return false;
+            }
+        }
+        return true;
     }
 
     private FieldDoc extractBottom(TopFieldDocs topDocs) {

@@ -28,7 +28,6 @@ public abstract class AbstractQueryFolderTestCase extends ESTestCase {
 
     protected IndexResolution index = IndexResolution.valid(new EsIndex("test", loadMapping("mapping-default.json")));
 
-
     protected PhysicalPlan plan(IndexResolution resolution, String eql) {
         return planner.plan(optimizer.optimize(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution))));
     }

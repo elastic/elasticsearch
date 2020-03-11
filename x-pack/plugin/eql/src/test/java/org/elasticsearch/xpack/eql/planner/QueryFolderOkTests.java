@@ -71,12 +71,10 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         this.expect = expect;
     }
 
-
     @ParametersFactory(shuffle = false, argumentFormatting = "%1$s.test")
     public static Iterable<Object[]> parameters() {
         return Arrays.asList(specs);
     }
-
 
     public void test() {
         PhysicalPlan p = plan(query);

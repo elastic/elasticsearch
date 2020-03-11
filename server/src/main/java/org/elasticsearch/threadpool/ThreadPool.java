@@ -68,7 +68,6 @@ public class ThreadPool implements Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
-        @Deprecated public static final String LISTENER = "listener";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -115,7 +114,6 @@ public class ThreadPool implements Scheduler {
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
         entry(Names.SAME, ThreadPoolType.DIRECT),
         entry(Names.GENERIC, ThreadPoolType.SCALING),
-        entry(Names.LISTENER, ThreadPoolType.FIXED),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
@@ -172,7 +170,6 @@ public class ThreadPool implements Scheduler {
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
-        builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1, false, true));
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));

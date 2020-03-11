@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedFunction;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 import org.junit.Before;
 
@@ -75,7 +77,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for the Security template and the Machine Learning templates to be created by the {@link MetaDataUpgrader}
+     * Waits for Machine Learning and Transform templates to be created by the {@link MetaDataUpgrader}
      */
     private void waitForTemplates() throws Exception {
         if (installTemplates()) {
@@ -86,7 +88,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     MlMetaIndex.INDEX_NAME,
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                    AnomalyDetectorsIndex.configIndexName()));
+                    AnomalyDetectorsIndex.configIndexName(),
+                    TransformInternalIndexConstants.AUDIT_INDEX,
+                    TransformInternalIndexConstants.LATEST_INDEX_NAME
+                ));
 
             for (String template : templates) {
                 awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),

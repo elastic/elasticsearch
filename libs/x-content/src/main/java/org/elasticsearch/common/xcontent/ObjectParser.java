@@ -395,6 +395,28 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
+    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                       ParseField field) {
+
+        BiFunction<XContentParser, Context, T> objectParser = (XContentParser p, Context c) -> {
+            try {
+                XContentParser.Token token = p.nextToken();
+                assert token == XContentParser.Token.FIELD_NAME;
+                String name = p.currentName();
+                try {
+                    return namedObjectParser.parse(p, c, name);
+                } catch (Exception e) {
+                    throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
+                }
+            } catch (IOException e) {
+                throw new XContentParseException(p.getTokenLocation(), "[" + field + "] error while parsing named object", e);
+            }
+        };
+
+        declareField((XContentParser p, Value v, Context c) -> consumer.accept(v, objectParser.apply(p, c)), field, ValueType.OBJECT);
+    }
+
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField field) {
         // This creates and parses the named object
@@ -403,7 +425,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 throw new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
                         + "fields or an array where each entry is an object with a single field");
             }
-            // This messy exception nesting has the nice side effect of telling the use which field failed to parse
+            // This messy exception nesting has the nice side effect of telling the user which field failed to parse
             try {
                 String name = p.currentName();
                 try {

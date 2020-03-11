@@ -71,7 +71,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, nowSupplier);
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
@@ -104,7 +105,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             final BytesRef missing = docValueFormat.parseBytesRef(rawMissing.toString());
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
                 return MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) valuesSource, missing);
@@ -135,7 +137,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             // TODO: also support the structured formats of geo points
             final GeoPoint missing = new GeoPoint(rawMissing.toString());
             return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
@@ -169,7 +172,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
@@ -197,7 +201,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
@@ -218,7 +223,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
         }
 
@@ -244,7 +250,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
         }
 
@@ -275,7 +282,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowSupplier) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
         }
 

@@ -34,7 +34,7 @@ public class SearchShard implements Comparable<SearchShard> {
     private final String clusterAlias;
     private final ShardId shardId;
 
-    SearchShard(@Nullable String clusterAlias, ShardId shardId) {
+    public SearchShard(@Nullable String clusterAlias, ShardId shardId) {
         this.clusterAlias = clusterAlias;
         this.shardId = shardId;
     }

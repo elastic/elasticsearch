@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -69,7 +70,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         this.progressListener = task.getProgressListener();
         final SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
-            sourceBuilder == null || sourceBuilder.size() != 0);
+            progressListener.searchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
@@ -80,8 +81,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     @Override
-    protected void onShardGroupFailure(int shardIndex, Exception exc) {
-        progressListener.notifyQueryFailure(shardIndex, exc);
+    protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }
 
     @Override

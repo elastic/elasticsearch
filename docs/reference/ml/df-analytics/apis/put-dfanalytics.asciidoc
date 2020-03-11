@@ -124,9 +124,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
-`analysis`.`classification`.`maximum_number_trees`::::
+`analysis`.`classification`.`max_trees`::::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `analysis`.`classification`.`gamma`::::
 (Optional, double) 
@@ -218,9 +218,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 (Optional, double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
-`analysis`.`regression`.`maximum_number_trees`::::
+`analysis`.`regression`.`max_trees`::::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `analysis`.`regression`.`gamma`::::
 (Optional, double) 

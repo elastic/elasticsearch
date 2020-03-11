@@ -57,7 +57,6 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String principalAttribute = randomAlphaOfLengthBetween(6, 36);
         final String rolesAttribute = randomAlphaOfLengthBetween(6, 36);
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
-        final String spLoginAction = "action:" + randomAlphaOfLengthBetween(6, 12);
         final Map<String, String> rolePrivileges = Map.of(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
 
         final DocumentVersion docVersion = new DocumentVersion(
@@ -67,7 +66,6 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         document.setAuthenticationExpiry(null);
         document.setAcs(acs.toString());
         document.privileges.setResource(resource);
-        document.privileges.setLoginAction(spLoginAction);
         document.privileges.setRoleActions(rolePrivileges);
         document.attributeNames.setPrincipal(principalAttribute);
         document.attributeNames.setRoles(rolesAttribute);
@@ -92,7 +90,6 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getPrivileges(), notNullValue());
         assertThat(serviceProvider.getPrivileges().getApplicationName(), equalTo(serviceProviderDefaults.applicationName));
         assertThat(serviceProvider.getPrivileges().getResource(), equalTo(resource));
-        assertThat(serviceProvider.getPrivileges().getLoginAction(), equalTo(spLoginAction));
         assertThat(serviceProvider.getPrivileges().getRoleActions(), equalTo(rolePrivileges));
     }
 
@@ -150,10 +147,9 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     private SamlIdentityProvider.ServiceProviderDefaults configureIdentityProviderDefaults() {
         final String defaultNameId = NameID.TRANSIENT;
         final String defaultApplication = randomAlphaOfLengthBetween(4, 12);
-        final String defaultLoginAction = "action:" + randomAlphaOfLengthBetween(4, 8);
         final Duration defaultExpiry = Duration.standardMinutes(12);
         final SamlIdentityProvider.ServiceProviderDefaults defaults = new SamlIdentityProvider.ServiceProviderDefaults(
-            defaultApplication, defaultLoginAction, defaultNameId, defaultExpiry);
+            defaultApplication, defaultNameId, defaultExpiry);
         when(identityProvider.getServiceProviderDefaults()).thenReturn(defaults);
         return defaults;
     }

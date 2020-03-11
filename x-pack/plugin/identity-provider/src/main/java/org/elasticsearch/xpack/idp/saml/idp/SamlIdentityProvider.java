@@ -200,16 +200,13 @@ public class SamlIdentityProvider {
 
     public static final class ServiceProviderDefaults {
         public final String applicationName;
-        public final String loginAction;
         public final String nameIdFormat;
         public final ReadableDuration authenticationExpiry;
 
         public ServiceProviderDefaults(String applicationName,
-                                       String loginAction,
                                        String nameIdFormat,
                                        ReadableDuration authenticationExpiry) {
             this.applicationName = applicationName;
-            this.loginAction = loginAction;
             this.nameIdFormat = nameIdFormat;
             this.authenticationExpiry = authenticationExpiry;
         }

@@ -88,6 +88,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
         final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext);
 
+
         final ServiceProviderDefaults serviceProviderDefaults = ServiceProviderDefaults.forSettings(settings);
         final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)

@@ -197,5 +197,4 @@ public class SamlIdentityProvider {
             return Objects.hash(organizationName, displayName, url);
         }
     }
-
 }

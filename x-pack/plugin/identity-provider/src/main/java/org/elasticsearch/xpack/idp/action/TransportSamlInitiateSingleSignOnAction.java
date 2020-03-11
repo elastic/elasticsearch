@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -77,11 +78,15 @@ public class TransportSamlInitiateSingleSignOnAction
                             }
                             final SuccessfulAuthenticationResponseMessageBuilder builder =
                                 new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider);
-                            final Response response = builder.build(user, null);
-                            listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                                user.getServiceProvider().getAssertionConsumerService().toString(),
-                                samlFactory.getXmlContent(response),
-                                user.getServiceProvider().getEntityId()));
+                            try {
+                                final Response response = builder.build(user, null);
+                                listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                                    user.getServiceProvider().getAssertionConsumerService().toString(),
+                                    samlFactory.getXmlContent(response),
+                                    user.getServiceProvider().getEntityId()));
+                            } catch (ElasticsearchException e) {
+                                listener.onFailure(e);
+                            }
                         },
                         listener::onFailure
                     ));

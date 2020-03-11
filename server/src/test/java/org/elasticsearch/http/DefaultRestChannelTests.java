@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.CompatibleHandlers;
+import org.elasticsearch.rest.CompatibleConstants;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -214,12 +214,13 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
     }
 
-    public void testCompatibleParamIsSet(){
+    public void testCompatibleParamIsSet() {
+        final byte version = randomByte();
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        httpRequest.getHeaders().put(HttpHeaders.ACCEPT, List.of("application/vnd.elasticsearch+json;compatible-with=7"));
+        httpRequest.getHeaders().put(HttpHeaders.ACCEPT, List.of("application/vnd.elasticsearch+json;compatible-with=" + version));
         final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
 
-        assertEquals("7", request.param(CompatibleHandlers.COMPATIBLE_PARAMS_KEY));
+        assertEquals("" + version, request.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY));
     }
 
     public void testCookiesSet() {
@@ -414,7 +415,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         return responseCaptor.getValue();
     }
 
-    private static class TestRequest implements HttpRequest {
+    public static class TestRequest implements HttpRequest {
 
         private final Supplier<HttpVersion> version;
         private final RestRequest.Method method;

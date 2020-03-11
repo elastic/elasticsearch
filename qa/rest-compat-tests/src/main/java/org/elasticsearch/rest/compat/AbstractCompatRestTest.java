@@ -22,7 +22,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.rest.CompatibleHandlers;
+import org.elasticsearch.rest.CompatibleConstants;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -80,12 +80,12 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
 
             String compatibleHeader = createCompatibleHeader();
             doSection.getApiCallSection()
-                     .addHeaders(Collections.singletonMap(CompatibleHandlers.COMPATIBLE_HEADER, compatibleHeader));
+                     .addHeaders(Collections.singletonMap(CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader));
         });
     }
 
     private static String createCompatibleHeader() {
-        return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleHandlers.COMPATIBLE_VERSION;
+        return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleConstants.COMPATIBLE_VERSION;
     }
 
 

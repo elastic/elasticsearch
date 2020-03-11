@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.rest.CompatibleHandlers;
+import org.elasticsearch.rest.CompatibleConstants;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestGetAction;
 
@@ -31,8 +31,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 

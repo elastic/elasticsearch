@@ -116,6 +116,10 @@ public enum XContentType {
         }
     };
 
+    private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
+        "application/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
+        Pattern.CASE_INSENSITIVE);
+
     /**
      * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
      * parameters and attempts to match the value to an {@link XContentType}. The comparisons are done in lower case format and this method
@@ -161,13 +165,11 @@ public enum XContentType {
         return null;
     }
 
-    static Pattern pattern = Pattern.compile("application/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?");
-
     public static String parseMediaType(String mediaType) {
         if (mediaType != null) {
-            Matcher matcher = pattern.matcher(mediaType);
+            Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find()) {
-                return "application/"+matcher.group(2);
+                return "application/" + matcher.group(2).toLowerCase();
             }
         }
 
@@ -176,7 +178,7 @@ public enum XContentType {
 
     public static String parseVersion(String mediaType){
         if(mediaType != null){
-            Matcher matcher = pattern.matcher(mediaType);
+            Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find() && "vnd.elasticsearch+".equals(matcher.group(1))) {
 
                 return matcher.group(4);

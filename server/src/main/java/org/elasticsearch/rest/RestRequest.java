@@ -139,20 +139,20 @@ public class RestRequest implements ToXContent.Params {
 
     private void addCompatibleParameter() {
         if (isRequestCompatible()) {
-            String compatibleVersion = XContentType.parseVersion(header(CompatibleHandlers.COMPATIBLE_HEADER));
-            params().put(CompatibleHandlers.COMPATIBLE_PARAMS_KEY, compatibleVersion);
+            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_HEADER));
+            params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
             //use it so it won't fail request validation with unused parameter
-            param(CompatibleHandlers.COMPATIBLE_PARAMS_KEY);
+            param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
         }
     }
 
     private boolean isRequestCompatible() {
-        return isHeaderCompatible(header(CompatibleHandlers.COMPATIBLE_HEADER));
+        return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_HEADER));
     }
 
     private boolean isHeaderCompatible(String headerValue) {
         String version = XContentType.parseVersion(headerValue);
-        return CompatibleHandlers.COMPATIBLE_VERSION.equals(version);
+        return CompatibleConstants.COMPATIBLE_VERSION.equals(version);
     }
 
 

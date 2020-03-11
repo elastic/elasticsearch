@@ -34,6 +34,7 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
@@ -55,6 +56,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
+import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_PARAMS_KEY;
+import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_VERSION;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
@@ -330,7 +333,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     if(handler.compatibilityRequired() == false //regular (not removed) handlers are always dispatched
                         //handlers that were registered compatible, require request to be compatible
-                        || CompatibleHandlers.isV7Compatible(request)) {
+                        || isV7Compatible(request)) {
                         dispatchRequest(request, channel, handler);
                     } else {
                         handleCompatibleNotAllowed(rawPath, channel);
@@ -344,6 +347,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
+    }
+
+    public static boolean isV7Compatible(ToXContent.Params params) {
+        String param = params.param(COMPATIBLE_PARAMS_KEY);
+        return COMPATIBLE_VERSION.equals(param);
     }
 
     private void handleCompatibleNotAllowed(String rawPath, RestChannel channel) throws IOException {

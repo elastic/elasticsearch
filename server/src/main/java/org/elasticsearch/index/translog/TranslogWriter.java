@@ -385,7 +385,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 ensureOpen();
                 if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
-                    writeUpTo(Long.MAX_VALUE, true);
+                    final LongArrayList flushedSequenceNumbers = nonFsyncedSequenceNumbers;
+                    try (ReleasableLock toRelease = writeLock.acquire()) {
+                        writeUpTo(Long.MAX_VALUE, true);
+                        nonFsyncedSequenceNumbers = new LongArrayList(64);
+                    }
 
                     final Checkpoint checkpointToSync = lastWrittenCheckpoint;
                     final LongArrayList flushedSequenceNumbers = nonFsyncedSequenceNumbers;

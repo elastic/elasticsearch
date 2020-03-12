@@ -47,17 +47,17 @@ public class TransportEstimateModelMemoryAction
         Map<String, Long> overallCardinality = request.getOverallCardinality();
         Map<String, Long> maxBucketCardinality = request.getMaxBucketCardinality();
 
-        long answer = BASIC_REQUIREMENT.getBytes()
-            + calculateDetectorsRequirementBytes(analysisConfig, overallCardinality)
-            + calculateInfluencerRequirementBytes(analysisConfig, maxBucketCardinality)
-            + calculateCategorizationRequirementBytes(analysisConfig);
+        long answer = BASIC_REQUIREMENT.getBytes();
+        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateDetectorsRequirementBytes(analysisConfig, overallCardinality));
+        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateInfluencerRequirementBytes(analysisConfig, maxBucketCardinality));
+        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateCategorizationRequirementBytes(analysisConfig));
 
         listener.onResponse(new EstimateModelMemoryAction.Response(roundUpToNextMb(answer)));
     }
 
     static long calculateDetectorsRequirementBytes(AnalysisConfig analysisConfig, Map<String, Long> overallCardinality) {
         return analysisConfig.getDetectors().stream().map(detector -> calculateDetectorRequirementBytes(detector, overallCardinality))
-            .reduce(0L, Long::sum);
+            .reduce(0L, TransportEstimateModelMemoryAction::addNonNegativeLongsWithMaxValueCap);
     }
 
     static long calculateDetectorRequirementBytes(Detector detector, Map<String, Long> overallCardinality) {
@@ -130,19 +130,28 @@ public class TransportEstimateModelMemoryAction
 
         String byFieldName = detector.getByFieldName();
         if (byFieldName != null) {
-            answer *= cardinalityEstimate(Detector.BY_FIELD_NAME_FIELD.getPreferredName(), byFieldName, overallCardinality, true);
+            long multiplier = cardinalityEstimate(Detector.BY_FIELD_NAME_FIELD.getPreferredName(), byFieldName, overallCardinality, true);
+            if (Long.MAX_VALUE / answer < multiplier) {
+                return Long.MAX_VALUE;
+            }
+            answer *= multiplier;
         }
 
         String overFieldName = detector.getOverFieldName();
         if (overFieldName != null) {
-            cardinalityEstimate(Detector.OVER_FIELD_NAME_FIELD.getPreferredName(), overFieldName, overallCardinality, true);
+            long multiplier =
+                cardinalityEstimate(Detector.OVER_FIELD_NAME_FIELD.getPreferredName(), overFieldName, overallCardinality, true);
             // TODO - how should "over" field cardinality affect estimate?
         }
 
         String partitionFieldName = detector.getPartitionFieldName();
         if (partitionFieldName != null) {
-            answer *=
+            long multiplier =
                 cardinalityEstimate(Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true);
+            if (Long.MAX_VALUE / answer < multiplier) {
+                return Long.MAX_VALUE;
+            }
+            answer *= multiplier;
         }
 
         return answer;
@@ -156,10 +165,13 @@ public class TransportEstimateModelMemoryAction
             pureInfluencers.removeAll(detector.extractAnalysisFields());
         }
 
-        return pureInfluencers.stream()
-            .map(influencer -> cardinalityEstimate(AnalysisConfig.INFLUENCERS.getPreferredName(), influencer, maxBucketCardinality, false)
-                * BYTES_PER_INFLUENCER_VALUE)
-            .reduce(0L, Long::sum);
+        long totalInfluencerCardinality = pureInfluencers.stream()
+            .map(influencer -> cardinalityEstimate(AnalysisConfig.INFLUENCERS.getPreferredName(), influencer, maxBucketCardinality, false))
+            .reduce(0L, TransportEstimateModelMemoryAction::addNonNegativeLongsWithMaxValueCap);
+        if (Long.MAX_VALUE / BYTES_PER_INFLUENCER_VALUE < totalInfluencerCardinality) {
+            return Long.MAX_VALUE;
+        }
+        return BYTES_PER_INFLUENCER_VALUE * totalInfluencerCardinality;
     }
 
     static long calculateCategorizationRequirementBytes(AnalysisConfig analysisConfig) {
@@ -187,7 +199,16 @@ public class TransportEstimateModelMemoryAction
     }
 
     static ByteSizeValue roundUpToNextMb(long bytes) {
-        assert bytes >= 0;
-        return new ByteSizeValue((BYTES_IN_MB - 1 + bytes) / BYTES_IN_MB, ByteSizeUnit.MB);
+        assert bytes >= 0 : "negative bytes " + bytes;
+        return new ByteSizeValue((BYTES_IN_MB - 1 + Math.min(Long.MAX_VALUE - BYTES_IN_MB + 1, bytes)) / BYTES_IN_MB, ByteSizeUnit.MB);
+    }
+
+    private static long addNonNegativeLongsWithMaxValueCap(long a, long b) {
+        assert a >= 0;
+        assert b >= 0;
+        if (Long.MAX_VALUE - a - b < 0) {
+            return Long.MAX_VALUE;
+        }
+        return a + b;
     }
 }

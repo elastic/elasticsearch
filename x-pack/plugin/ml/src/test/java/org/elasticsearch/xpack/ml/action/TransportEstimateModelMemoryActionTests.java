@@ -98,6 +98,10 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
             equalTo(new ByteSizeValue(2, ByteSizeUnit.MB)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(2 * 1024 * 1024),
             equalTo(new ByteSizeValue(2, ByteSizeUnit.MB)));
+        // We don't round up at the extremes, to ensure that the resulting value can be represented as bytes in a long
+        // (At such extreme scale it won't be possible to actually run the analysis, so ease of use trumps precision)
+        assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(Long.MAX_VALUE - randomIntBetween(0, 1000000)),
+            equalTo(new ByteSizeValue(Long.MAX_VALUE / new ByteSizeValue(1, ByteSizeUnit.MB).getBytes() , ByteSizeUnit.MB)));
     }
 
     public static Detector createDetector(String function, String fieldName, String byFieldName,

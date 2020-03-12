@@ -1,0 +1,74 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-estimate-model-memory]]
+=== Estimate {anomaly-jobs} Model Memory API
+++++
+<titleabbrev>Estimate Model Memory</titleabbrev>
+++++
+
+Estimates the model memory an analysis config is likely to need given
+cardinality estimates for the fields it references.
+
+[[ml-estimate-model-memory-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/_estimate_model_memory`
+
+[[ml-estimate-model-memory-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-estimate-model-memory-desc]]
+==== {api-description-title}
+
+This API enables you to estimate the model memory and {anomaly-job}
+configuration will require before you create the job.
+
+[[ml-estimate-model-memory-request-body]]
+==== {api-request-body-title}
+
+For a list of the properties that you can specify in the `analysis_config`
+component of the body of this API, see <<put-analysisconfig>>.
+
+[[ml-estimate-model-memory-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/_estimate_model_memory
+{
+    "analysis_config": {
+        "bucket_span": "5m",
+        "detectors": [
+          {
+            "function": "sum",
+            "field_name": "bytes",
+            "by_field_name": "status",
+            "partition_field_name": "app"
+          }
+        ],
+        "influencers": [ "source_ip", "dest_ip" ]
+    },
+    "overall_cardinality": {
+       "status": 10,
+       "app": 50
+    },
+    "max_bucket_cardinality": {
+       "source_ip": 300,
+       "dest_ip": 30
+    }
+}
+--------------------------------------------------
+// TEST[skip:needs-licence]
+
+The estimate returns the following result:
+
+[source,console-result]
+----
+{
+  "model_memory_estimate": "123mb"
+}
+----

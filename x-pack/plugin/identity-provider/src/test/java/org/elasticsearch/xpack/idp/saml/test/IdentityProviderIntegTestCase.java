@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.saml.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
@@ -32,12 +33,14 @@ import org.junit.ClassRule;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -60,6 +63,9 @@ import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.I
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_NAME;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ORGANIZATION_URL;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
+import static org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults.APPLICATION_NAME_SETTING;
+import static org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults.NAMEID_FORMAT_SETTING;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
@@ -135,6 +141,10 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
             .put(IDP_CONTACT_GIVEN_NAME.getKey(), "Tony")
             .put(IDP_CONTACT_SURNAME.getKey(), "Stark")
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
+            .put(APPLICATION_NAME_SETTING.getKey(), "application")
+            .put(NAMEID_FORMAT_SETTING.getKey(), TRANSIENT)
+            .put("xpack.idp.signing.key", resolveResourcePath("/keypair/keypair_RSA_2048.key"))
+            .put("xpack.idp.signing.certificate", resolveResourcePath("/keypair/keypair_RSA_2048.crt"))
             .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
             .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -242,5 +252,17 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     private static String writeFile(Path folder, String name, String content) {
         return writeFile(folder, name, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Path resolveResourcePath(String resourcePathToFile) {
+        try {
+            Path path = createTempFile();
+            try (InputStream resourceInput = IdentityProviderIntegTestCase.class.getResourceAsStream(resourcePathToFile)) {
+                Files.copy(resourceInput, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return path;
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to resolve resource (Path=[{}])", e, resourcePathToFile);
+        }
     }
 }

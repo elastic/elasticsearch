@@ -72,6 +72,10 @@ public class CopySettingsStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
+        if(settingsKeys == null || settingsKeys.length == 0) {
+            return clusterState;
+        }
+
         Settings.Builder settings = Settings.builder().put(targetIndexMetadata.getSettings());
         for (String key : settingsKeys) {
             String value = sourceIndexMetadata.getSettings().get(key);
@@ -80,6 +84,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
 
         MetaData.Builder newMetaData = MetaData.builder(clusterState.getMetaData())
             .put(IndexMetaData.builder(targetIndexMetadata)
+                .settingsVersion(targetIndexMetadata.getSettingsVersion() + 1)
                 .settings(settings));
         return ClusterState.builder(clusterState).metaData(newMetaData).build();
     }

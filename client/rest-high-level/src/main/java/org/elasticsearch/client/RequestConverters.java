@@ -403,7 +403,7 @@ final class RequestConverters {
         return request;
     }
 
-    private static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
+    static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());

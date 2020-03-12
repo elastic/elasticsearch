@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.core.KeywordTokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -167,7 +164,6 @@ public class WildcardFieldMapper extends FieldMapper {
      public static final char TOKEN_START_OR_END_CHAR = 0;    
     
      public static final class WildcardFieldType extends MappedFieldType {
-//        private int numChars;
 
         public WildcardFieldType() {            
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -316,48 +312,46 @@ public class WildcardFieldMapper extends FieldMapper {
                     // End-of-string anchored (is not a trailing wildcard)
                     fragment = fragment + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
                 }
-                
-                if (fragment.length() <= NGRAM_SIZE) {
+                if (fragment.codePointCount(0, fragment.length()) <= NGRAM_SIZE) {
                     tokens.add(fragment);
-                } else if (fragment.length() > NGRAM_SIZE) {
+                } else {
                     // Break fragment into multiple Ngrams                
-                    KeywordTokenizer kt = new KeywordTokenizer(256);
-                    kt.setReader(new StringReader(fragment));
-                    TokenFilter filter = new NGramTokenFilter(kt, NGRAM_SIZE, NGRAM_SIZE, false);
-                    CharTermAttribute termAtt = filter.addAttribute(CharTermAttribute.class);
+                    NGramTokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
+                    tokenizer.setReader(new StringReader(fragment));
+                    CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                     String lastUnusedToken = null;
                     try {
-                        filter.reset();
-                        int nextRequiredCoverage = 0;
-                        int charPos = 0;
+                        tokenizer.reset();
+                        boolean takeThis = true;
                         // minimise number of terms searched - eg for "12345" and 3grams we only need terms
-                        // `123` and `345` - no need to search for 234
-                        while (filter.incrementToken()) {
-                            if (charPos == nextRequiredCoverage) {
-                                tokens.add(termAtt.toString());
-                                nextRequiredCoverage = charPos + termAtt.length() - 1;
+                        // `123` and `345` - no need to search for 234. We take every other ngram.
+                        while (tokenizer.incrementToken()) {
+                            String tokenValue = termAtt.toString();
+                            if (takeThis) {
+                                tokens.add(tokenValue);
                             } else {
-                                lastUnusedToken = termAtt.toString();
+                                lastUnusedToken = tokenValue;                                
                             }
-                            charPos++;
+                            // alternate
+                            takeThis = !takeThis;
                         }
                         if (lastUnusedToken != null) {
                             // given `cake` and 3 grams the loop above would output only `cak` and we need to add trailing
                             // `ake` to complete the logic.
                             tokens.add(lastUnusedToken);
                         }
-                        kt.end();
-                        kt.close();
+                        tokenizer.end();
+                        tokenizer.close();
                     } catch (IOException ioe) {
                         throw new ElasticsearchParseException("Error parsing wildcard query pattern fragment [" + fragment + "]");
                     }
                 }
             }
 
-            BooleanQuery approximation = createApproximationQuery(tokens);
             if (patternStructure.isMatchAll()) {
                 return new MatchAllDocsQuery();
             } 
+            BooleanQuery approximation = createApproximationQuery(tokens);
             if (approximation.clauses().size() > 1 || patternStructure.needsVerification()) {
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
@@ -381,12 +375,16 @@ public class WildcardFieldMapper extends FieldMapper {
             for (int i = 0; i < MAX_CLAUSES_IN_APPROXIMATION_QUERY; i++) {
                 addClause(tokens.get(Math.round(step * i)), bqBuilder); // add each element of a position which is a multiple of step
             }
+            // TODO we can be smarter about pruning here. e.g.
+            // * Avoid wildcard queries if there are sufficient numbers of other terms that are full 3grams that are cheaper term queries
+            // * We can select terms on their scarcity rather than even spreads across the search string.
+            
             return bqBuilder.build();
         }
 
         private void addClause(String token, BooleanQuery.Builder bqBuilder) {
-            assert token.length() <= NGRAM_SIZE;
-            if (token.length() == NGRAM_SIZE) {
+            assert token.codePointCount(0, token.length()) <= NGRAM_SIZE;
+            if (token.codePointCount(0, token.length()) == NGRAM_SIZE) {
                 TermQuery tq = new TermQuery(new Term(name(), token));
                 bqBuilder.add(new BooleanClause(tq, Occur.MUST));
             } else {

@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -201,6 +202,13 @@ public interface DocValueFormat extends NamedWriteable {
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                /* when upgrading from 7.7+ ES will send out a flag indicating if a pattern is of joda style
+                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
+                   All indices in 8 should use java style pattern. Hence we can ignore this flag.
+                */
+                in.readBoolean();
+            }
         }
 
         @Override

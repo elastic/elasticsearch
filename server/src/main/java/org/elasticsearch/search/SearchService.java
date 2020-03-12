@@ -1205,12 +1205,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a builder for {@link InternalAggregation.ReduceContext} that
-     * is built from but doesn't retain a reference to the provided
-     * {@link SearchRequest}.
+     * Returns a builder for {@link InternalAggregation.ReduceContext}. This
+     * builder retains a reference to the provided {@link SearchRequest}.
      */
     public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
-        PipelineTree pipelineTree = requestToPipelineTree(request);
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
@@ -1219,6 +1217,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             @Override
             public ReduceContext forFinalReduction() {
+                PipelineTree pipelineTree = requestToPipelineTree(request);
                 return InternalAggregation.ReduceContext.forFinalReduction(
                         bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
             }

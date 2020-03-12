@@ -61,10 +61,12 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
     private void cancelTaskAndDeleteResult(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> listener) throws IOException {
         AsyncSearchTask task = store.getTask(taskManager, searchId);
         if (task != null) {
-            task.cancelTask(() -> store.deleteResponse(searchId, listener));
+            // the task is not running anymore so we throw a not found exception if
+            // the search id is also not present in the index (already deleted).
+            task.cancelTask(() -> store.deleteResponse(searchId, true, listener));
         } else {
             // check if the response can be retrieved by the user (handle security) and then delete.
-            store.getResponse(searchId, ActionListener.wrap(res -> store.deleteResponse(searchId, listener), listener::onFailure));
+            store.getResponse(searchId, ActionListener.wrap(res -> store.deleteResponse(searchId, false, listener), listener::onFailure));
         }
     }
 }

@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.ql.util.DateUtils.*;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 
 public class DateTrunc extends BinaryDateTimeFunction {
@@ -252,7 +253,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isType(right(), SqlDataTypes::isInterval, sourceText(),Expressions.ParamOrdinal.SECOND,"interval");
+        resolution = isDateOrInterval(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

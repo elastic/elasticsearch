@@ -254,6 +254,10 @@ public class SqlDataTypes {
         return isDateBased(type) || isTimeBased(type);
     }
 
+    public static boolean isDateOrIntervalBased(DataType type) {
+        return isDateBased(type) || isInterval(type);
+    }
+
     public static boolean isGeo(DataType type) {
         return type == GEO_POINT || type == GEO_SHAPE || type == SHAPE;
     }
@@ -261,7 +265,7 @@ public class SqlDataTypes {
     public static String format(DataType type) {
         return isDateOrTimeBased(type) ? "epoch_millis" : null;
     }
-    
+
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense

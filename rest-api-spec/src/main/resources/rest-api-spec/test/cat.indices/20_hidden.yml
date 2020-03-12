@@ -21,7 +21,7 @@
 
   - do:
       cat.indices:
-        expand_wildcards: ["all", "hidden"]
+        expand_wildcards: ["all"]
   - match:
       $body: |
         /^(green  \s+
@@ -102,7 +102,7 @@
 
   - do:
       cat.indices:
-        expand_wildcards: ["all", "hidden"]
+        expand_wildcards: ["open", "hidden"]
   - match:
       $body: |
         /^(green  \s+
@@ -162,7 +162,7 @@
 
   - do:
       cat.indices:
-        expand_wildcards: ["all", "hidden"]
+        expand_wildcards: ["all"]
   - match:
       $body: |
         /^(green  \s+

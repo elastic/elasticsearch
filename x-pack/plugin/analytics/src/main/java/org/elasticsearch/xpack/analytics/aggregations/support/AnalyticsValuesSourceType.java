@@ -10,7 +10,6 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -49,17 +48,6 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         }
     };
 
-
-    @Override
-    public boolean isCastableTo(ValuesSourceType valuesSourceType) {
-        // TODO right now only have to care about Histo, but in future we may
-        // have types that are castable to CoreValuesSourceTypes
-        if (valuesSourceType instanceof CoreValuesSourceType) {
-            return false;
-        }
-        AnalyticsValuesSourceType other = (AnalyticsValuesSourceType) valuesSourceType;
-        return other.value().equals(AnalyticsValuesSourceType.HISTOGRAM.value());
-    }
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

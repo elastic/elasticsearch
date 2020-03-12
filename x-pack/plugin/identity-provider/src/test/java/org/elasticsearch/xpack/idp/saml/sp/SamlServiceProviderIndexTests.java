@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -215,8 +216,9 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private DeleteResponse deleteDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.readDocument(doc.docId,
-            ActionListener.wrap(info -> serviceProviderIndex.deleteDocument(info.version, future), future::onFailure));
+        serviceProviderIndex.readDocument(doc.docId, ActionListener.wrap(
+            info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
+            future::onFailure));
         return future.actionGet();
     }
 

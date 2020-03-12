@@ -21,6 +21,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -216,13 +217,14 @@ public class SamlServiceProviderIndex implements Closeable {
         return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
-    public void deleteDocument(DocumentVersion version, ActionListener<DeleteResponse> listener) {
+    public void deleteDocument(DocumentVersion version, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DeleteResponse> listener) {
         final DeleteRequest request = new DeleteRequest(aliasExists ? ALIAS_NAME : INDEX_NAME)
             .id(version.id)
             .setIfSeqNo(version.seqNo)
-            .setIfPrimaryTerm(version.primaryTerm);
+            .setIfPrimaryTerm(version.primaryTerm)
+            .setRefreshPolicy(refreshPolicy);
         client.delete(request, ActionListener.wrap(response -> {
-            logger.debug("Deleteed service provider document [{}] ({})", version.id, response.getResult());
+            logger.debug("Deleted service provider document [{}] ({})", version.id, response.getResult());
             listener.onResponse(response);
         }, listener::onFailure));
     }

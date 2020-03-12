@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,22 +24,30 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteSamlServiceProviderRequest extends ActionRequest {
 
     private final String entityId;
+    private final WriteRequest.RefreshPolicy refreshPolicy;
 
-    public DeleteSamlServiceProviderRequest(String entityId) {
+    public DeleteSamlServiceProviderRequest(String entityId, WriteRequest.RefreshPolicy refreshPolicy) {
         this.entityId = entityId;
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "Refresh policy may not be null");
     }
 
     public DeleteSamlServiceProviderRequest(StreamInput in) throws IOException {
         this.entityId = in.readString();
+        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(entityId);
+        refreshPolicy.writeTo(out);
     }
 
     public String getEntityId() {
         return entityId;
+    }
+
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     @Override
@@ -60,11 +69,11 @@ public class DeleteSamlServiceProviderRequest extends ActionRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(entityId);
+        return Objects.hash(entityId, refreshPolicy);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" + entityId + "}";
+        return getClass().getSimpleName() + "{" + entityId + "," + refreshPolicy + "}";
     }
 }

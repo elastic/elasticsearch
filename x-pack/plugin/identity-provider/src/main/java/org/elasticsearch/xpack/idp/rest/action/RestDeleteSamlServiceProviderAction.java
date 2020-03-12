@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.idp.rest.action;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,7 +41,9 @@ public class RestDeleteSamlServiceProviderAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String entityId = restRequest.param("sp_entity_id");
-        final DeleteSamlServiceProviderRequest request = new DeleteSamlServiceProviderRequest(entityId);
+        final WriteRequest.RefreshPolicy refresh = restRequest.hasParam("refresh")
+            ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : WriteRequest.RefreshPolicy.IMMEDIATE;
+        final DeleteSamlServiceProviderRequest request = new DeleteSamlServiceProviderRequest(entityId, refresh);
         return channel -> client.execute(DeleteSamlServiceProviderAction.INSTANCE, request,
             new RestBuilderListener<>(channel) {
                 @Override

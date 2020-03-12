@@ -48,7 +48,7 @@ public class TransportDeleteSamlServiceProviderAction
                 assert existingDoc.docId != null : "Loaded document with no doc id";
                 assert existingDoc.entityId.equals(entityId) : "Loaded document with non-matching entity-id";
                 logger.info("Deleting Service Provider [{}]", existingDoc);
-                index.deleteDocument(docInfo.version, ActionListener.wrap(
+                index.deleteDocument(docInfo.version, request.getRefreshPolicy(), ActionListener.wrap(
                     deleteResponse -> listener.onResponse(new DeleteSamlServiceProviderResponse(deleteResponse, entityId)),
                     listener::onFailure
                 ));

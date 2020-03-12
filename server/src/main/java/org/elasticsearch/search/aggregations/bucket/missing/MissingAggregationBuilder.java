@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -45,6 +46,10 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
             ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);
     static {
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        MissingAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     public MissingAggregationBuilder(String name) {

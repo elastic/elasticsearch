@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -129,7 +130,8 @@ public class SamlAuthnRequestValidator {
         logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}", parameters));
         final String samlRequest = parameters.get("SAMLRequest");
         if (null == samlRequest) {
-            throw new ElasticsearchSecurityException("Query string [{}] does not contain a SAMLRequest parameter", queryString);
+            throw new ElasticsearchSecurityException("Query string [{}] does not contain a SAMLRequest parameter",
+                RestStatus.BAD_REQUEST, queryString);
         }
         return new ParsedQueryString(
             queryString,
@@ -223,14 +225,15 @@ public class SamlAuthnRequestValidator {
 
     private void getSpFromIssuer(Issuer issuer, ActionListener<SamlServiceProvider> listener) {
         if (issuer == null || issuer.getValue() == null) {
-            throw new ElasticsearchSecurityException("SAML authentication request has no issuer");
+            throw new ElasticsearchSecurityException("SAML authentication request has no issuer", RestStatus.BAD_REQUEST);
         }
         final String issuerString = issuer.getValue();
-        idp.getRegisteredServiceProvider(issuerString, ActionListener.wrap(
+        idp.getRegisteredServiceProvider(issuerString, false, ActionListener.wrap(
             serviceProvider -> {
                 if (null == serviceProvider) {
                     throw new ElasticsearchSecurityException(
-                        "Service Provider with Entity ID [{}] is not registered with this Identity Provider", issuerString);
+                        "Service Provider with Entity ID [{}] is not registered with this Identity Provider", RestStatus.BAD_REQUEST,
+                        issuerString);
                 }
                 listener.onResponse(serviceProvider);
             },
@@ -243,7 +246,7 @@ public class SamlAuthnRequestValidator {
         if (url.equals(request.getDestination()) == false) {
             throw new ElasticsearchSecurityException(
                 "SAML authentication request [{}] is for destination [{}] but the SSO endpoint of this Identity Provider is [{}]",
-                request.getID(), request.getDestination(), url);
+                RestStatus.BAD_REQUEST, request.getID(), request.getDestination(), url);
         }
     }
 
@@ -254,11 +257,11 @@ public class SamlAuthnRequestValidator {
                 "SAML authentication does not contain an AssertionConsumerService URL" :
                 "SAML authentication does not contain an AssertionConsumerService URL. It contains an Assertion Consumer Service Index " +
                     "but this IDP doesn't support multiple AssertionConsumerService URLs.";
-            throw new ElasticsearchSecurityException(message);
+            throw new ElasticsearchSecurityException(message, RestStatus.BAD_REQUEST);
         }
         if (acs.equals(sp.getAssertionConsumerService().toString()) == false) {
             throw new ElasticsearchSecurityException("The registered ACS URL for this Service Provider is [{}] but the authentication " +
-                "request contained [{}]", sp.getAssertionConsumerService(), acs);
+                "request contained [{}]", RestStatus.BAD_REQUEST, sp.getAssertionConsumerService(), acs);
         }
         authnState.put(SamlAuthenticationState.Fields.ACS_URL.getPreferredName(), acs);
     }
@@ -273,7 +276,7 @@ public class SamlAuthnRequestValidator {
                 logger.trace("Received SAML Message: {} \n", samlFactory.toString(root, true));
             }
         } catch (SAXException | IOException e) {
-            throw new ElasticsearchSecurityException("Failed to parse SAML message", e);
+            throw new ElasticsearchSecurityException("Failed to parse SAML message", RestStatus.BAD_REQUEST, e);
         }
         return root;
     }
@@ -283,7 +286,7 @@ public class SamlAuthnRequestValidator {
             return Base64.getDecoder().decode(content.replaceAll("\\s+", ""));
         } catch (IllegalArgumentException e) {
             logger.info("Failed to decode base64 string [{}] - {}", content, e);
-            throw new ElasticsearchSecurityException("SAML message cannot be Base64 decoded", e);
+            throw new ElasticsearchSecurityException("SAML message cannot be Base64 decoded", RestStatus.BAD_REQUEST, e);
         }
     }
 
@@ -295,7 +298,7 @@ public class SamlAuthnRequestValidator {
             Streams.copy(inflate, out);
             return out.toByteArray();
         } catch (IOException e) {
-            throw new ElasticsearchSecurityException("SAML message cannot be inflated", e);
+            throw new ElasticsearchSecurityException("SAML message cannot be inflated", RestStatus.BAD_REQUEST, e);
         }
     }
 

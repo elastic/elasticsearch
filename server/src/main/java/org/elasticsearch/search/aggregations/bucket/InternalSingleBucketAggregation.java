@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * A base class for all the single bucket aggregations.
@@ -167,6 +168,15 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     @Override
     public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         return aggregations.sortValue(head, tail);
+    }
+
+    @Override
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        InternalAggregations rewritten = rewriter.apply(aggregations);
+        if (rewritten == null) {
+            return this;
+        }
+        return create(rewritten);
     }
 
     @Override

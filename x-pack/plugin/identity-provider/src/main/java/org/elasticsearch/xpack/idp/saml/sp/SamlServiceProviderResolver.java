@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
-import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentSupplier;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 import org.joda.time.ReadableDuration;
@@ -40,15 +39,15 @@ public class SamlServiceProviderResolver {
 
     private final Cache<String, CachedServiceProvider> cache;
     private final SamlServiceProviderIndex index;
-    private final SamlIdentityProvider identityProvider;
+    private final ServiceProviderDefaults defaults;
 
-    public SamlServiceProviderResolver(Settings settings, SamlServiceProviderIndex index, SamlIdentityProvider identityProvider) {
+    public SamlServiceProviderResolver(Settings settings, SamlServiceProviderIndex index, ServiceProviderDefaults defaults) {
         this.cache = CacheBuilder.<String, CachedServiceProvider>builder()
             .setMaximumWeight(CACHE_SIZE.get(settings))
             .setExpireAfterAccess(CACHE_TTL.get(settings))
             .build();
         this.index = index;
-        this.identityProvider = identityProvider;
+        this.defaults = defaults;
     }
 
     /**
@@ -66,7 +65,7 @@ public class SamlServiceProviderResolver {
                 }
                 if (documentSuppliers.size() > 1) {
                     listener.onFailure(new IllegalStateException(
-                        "Found multiple service providers with entity-id [" + entityId
+                        "Found multiple service providers with entity ID [" + entityId
                             + "] - document ids ["
                             + documentSuppliers.stream().map(s -> s.version.id).collect(Collectors.joining(","))
                             + "] in index [" + index + "]"));
@@ -106,27 +105,23 @@ public class SamlServiceProviderResolver {
         final URL acs = parseUrl(document);
         String nameIdFormat = document.nameIdFormat;
         if (nameIdFormat == null) {
-            nameIdFormat = identityProvider.getServiceProviderDefaults().nameIdFormat;
+            nameIdFormat = defaults.nameIdFormat;
         }
 
         final ReadableDuration authnExpiry = Optional.ofNullable(document.getAuthenticationExpiry())
-            .orElse(identityProvider.getServiceProviderDefaults().authenticationExpiry);
+            .orElse(defaults.authenticationExpiry);
 
         final boolean signAuthnRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_AUTHN);
         final boolean signLogoutRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_LOGOUT);
 
-        return new CloudServiceProvider(document.entityId, acs, nameIdFormat, authnExpiry, privileges,
-            attributes, credentials, signAuthnRequests, signLogoutRequests);
+        return new CloudServiceProvider(document.entityId, document.name, document.enabled, acs, nameIdFormat, authnExpiry,
+            privileges, attributes, credentials, signAuthnRequests, signLogoutRequests);
     }
 
     private ServiceProviderPrivileges buildPrivileges(SamlServiceProviderDocument.Privileges configuredPrivileges) {
-        final String applicationName = Optional.ofNullable(configuredPrivileges.application)
-            .orElse(identityProvider.getServiceProviderDefaults().applicationName);
         final String resource = configuredPrivileges.resource;
-        final String loginAction = Optional.ofNullable(configuredPrivileges.loginAction)
-            .orElse(identityProvider.getServiceProviderDefaults().loginAction);
         final Map<String, String> roles = Optional.ofNullable(configuredPrivileges.roleActions).orElse(Map.of());
-        return new ServiceProviderPrivileges(applicationName, resource, loginAction, roles);
+        return new ServiceProviderPrivileges(defaults.applicationName, resource, roles);
     }
 
     private URL parseUrl(SamlServiceProviderDocument document) {

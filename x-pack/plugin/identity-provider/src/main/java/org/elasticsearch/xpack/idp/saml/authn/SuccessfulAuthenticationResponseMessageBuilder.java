@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.opensaml.core.xml.schema.XSString;
@@ -83,8 +84,12 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
             assertion.getAttributeStatements().add(attributes);
         }
         response.getAssertions().add(assertion);
+        return sign(response);
+    }
 
-        return response;
+    private Response sign(Response response) {
+        final SamlObjectSigner signer = new SamlObjectSigner(samlFactory, idp);
+        return samlFactory.buildXmlObject(signer.sign(response), Response.class);
     }
 
     private Conditions buildConditions(DateTime now, SamlServiceProvider serviceProvider) {

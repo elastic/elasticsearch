@@ -10,20 +10,17 @@ import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
-import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.Response;
-import org.w3c.dom.Element;
 
 import java.net.URL;
 import java.time.Clock;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
@@ -48,20 +45,9 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
                 "elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5)));
     }
 
-    public void testUnsignedResponseIsValidAgainstXmlSchema() throws Exception {
-        final Response response = buildResponse();
-
-        final String xml = super.toString(response);
-        assertThat(xml, not(containsString("SignedInfo>")));
-        validator.validate(xml);
-    }
-
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {
-        final SamlObjectSigner signer = new SamlObjectSigner(samlFactory, idp);
         final Response response = buildResponse();
-
-        final Element signed = signer.sign(response);
-        final String xml = super.toString(signed);
+        final String xml = super.toString(response);
         assertThat(xml, containsString("SignedInfo>"));
         validator.validate(xml);
     }

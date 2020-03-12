@@ -200,7 +200,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         auditTrail = mock(AuditTrail.class);
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuditingAllowed()).thenReturn(true);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         threadContext = new ThreadContext(settings);
         threadPool = mock(ThreadPool.class);

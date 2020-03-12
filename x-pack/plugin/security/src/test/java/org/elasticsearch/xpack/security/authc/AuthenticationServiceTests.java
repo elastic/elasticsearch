@@ -262,7 +262,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         authenticator.extractToken((result) -> {
             assertThat(result, notNullValue());
             assertThat(result, is(token));
-            verifyZeroInteractions(auditTrailService);
+            verifyZeroInteractions(auditTrail);
         });
     }
 
@@ -278,7 +278,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
         assertThat(e.getMessage(), containsString("missing authentication credentials"));
         verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testAuthenticateBothSupportSecondSucceeds() throws Exception {
@@ -359,7 +359,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm).authenticate(eq(token), any(ActionListener.class));
         verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
-        verifyNoMoreInteractions(auditTrailService, firstRealm, secondRealm);
+        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
 
         // Now assume some change in the backend system so that 2nd realm no longer has the user, but the 1st realm does.
         mockAuthenticate(secondRealm, token, null);
@@ -468,7 +468,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
         verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
-        verifyNoMoreInteractions(auditTrailService, firstRealm, secondRealm);
+        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
     }
 
     public void testAuthenticateFirstNotSupportingSecondSucceeds() throws Exception {
@@ -488,7 +488,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
         verify(auditTrail).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
         assertTrue(completed.get());
     }
@@ -502,7 +502,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result, is(authentication));
         assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-        verifyZeroInteractions(auditTrailService);
+        verifyZeroInteractions(auditTrail);
         verifyZeroInteractions(firstRealm);
         verifyZeroInteractions(secondRealm);
     }
@@ -599,7 +599,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
         verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
 
@@ -613,7 +613,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking(restRequest));
         String reqId = expectAuditRequestId();
         verify(auditTrail).authenticationFailed(reqId, token, restRequest);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
 
@@ -640,7 +640,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
 
         verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user, "_action", message);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
 
@@ -660,7 +660,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         String reqId = expectAuditRequestId();
         verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user1, restRequest);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
 
@@ -755,7 +755,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         } catch (Exception e) {
             //expected
             verify(auditTrail).tamperedRequest(reqId, "_action", message);
-            verifyNoMoreInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
@@ -777,7 +777,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
             verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
-            verifyNoMoreInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrail);
             assertAuthenticationException(e);
         }
     }
@@ -807,7 +807,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
             verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
-            verifyNoMoreInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrail);
             assertAuthenticationException(e);
         }
     }
@@ -834,7 +834,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThreadContextContainsAuthentication(result);
         String reqId = expectAuditRequestId();
         verify(auditTrail).authenticationSuccess(reqId, "__anonymous", new AnonymousUser(settings), request);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testAuthenticateRestRequestDisallowAnonymous() throws Exception {
@@ -862,7 +862,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY), nullValue());
         String reqId = expectAuditRequestId();
         verify(auditTrail).anonymousAccessDenied(reqId, request);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testAnonymousUserTransportNoDefaultUser() throws Exception {
@@ -994,7 +994,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         verify(auditTrail).authenticationFailed(reqId, secondRealm.name(), token, "_action", message);
         verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testRealmAuthenticateThrowingException() throws Exception {
@@ -1175,7 +1175,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         } catch (ElasticsearchException e) {
             String reqId = expectAuditRequestId();
             verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq(restRequest), eq(EmptyAuthorizationInfo.INSTANCE));
-            verifyNoMoreInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
@@ -1195,7 +1195,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         } catch (ElasticsearchException e) {
             verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq("_action"), eq(message),
                 eq(EmptyAuthorizationInfo.INSTANCE));
-            verifyNoMoreInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
@@ -1218,7 +1218,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
         verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
 
@@ -1241,7 +1241,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking(restRequest));
         String reqId = expectAuditRequestId();
         verify(auditTrail).authenticationFailed(reqId, token, restRequest);
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
 
@@ -1274,7 +1274,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         assertTrue(completed.get());
         verify(auditTrail).authenticationSuccess(anyString(), eq("realm"), eq(user), eq("_action"), same(message));
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testInvalidToken() throws Exception {
@@ -1326,7 +1326,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             final String realmName = firstRealm.name();
             verify(auditTrail).authenticationSuccess(anyString(), eq(realmName), eq(user), eq("_action"), same(message));
         }
-        verifyNoMoreInteractions(auditTrailService);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testExpiredToken() throws Exception {

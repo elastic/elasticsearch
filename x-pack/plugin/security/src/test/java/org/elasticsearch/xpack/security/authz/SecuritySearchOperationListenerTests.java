@@ -107,7 +107,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
             verify(licenseState).isAuthAllowed();
-            verifyZeroInteractions(auditTrailService);
+            verifyZeroInteractions(auditTrail);
         }
 
         try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -117,7 +117,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
             verify(licenseState, times(2)).isAuthAllowed();
-            verifyZeroInteractions(auditTrailService);
+            verifyZeroInteractions(auditTrail);
         }
 
         try (StoredContext ignore = threadContext.newStoredContext(false)) {

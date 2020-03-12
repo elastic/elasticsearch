@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
@@ -41,8 +42,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
         when(idp.getServiceProviderDefaults())
-            .thenReturn(new SamlIdentityProvider.ServiceProviderDefaults(
-                "elastic-cloud", "action:login", TRANSIENT, Duration.standardMinutes(5)));
+            .thenReturn(new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.standardMinutes(5)));
     }
 
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {

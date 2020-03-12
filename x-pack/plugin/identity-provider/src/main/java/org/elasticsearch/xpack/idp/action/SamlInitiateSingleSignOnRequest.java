@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
@@ -35,6 +36,14 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(spEntityId)) {
             validationException = addValidationError("entity_id is missing", validationException);
+        }
+        if (samlAuthenticationState != null) {
+            final ValidationException authnStateException = samlAuthenticationState.validate();
+            if (validationException != null) {
+                ActionRequestValidationException actionRequestValidationException = new ActionRequestValidationException();
+                actionRequestValidationException.addValidationErrors(authnStateException.validationErrors());
+                validationException = addValidationError("entity_id is missing", actionRequestValidationException);
+            }
         }
         return validationException;
     }

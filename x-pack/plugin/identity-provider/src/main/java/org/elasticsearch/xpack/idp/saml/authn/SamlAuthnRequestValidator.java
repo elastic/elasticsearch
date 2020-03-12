@@ -53,7 +53,7 @@ import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
 /**
- * Processes a SAML AuthnRequest, validates it,  extracts necessary information and returns a {@link SamlValidateAuthnRequestResponse}
+ * Processes a SAML AuthnRequest, validates it, extracts necessary information and returns a {@link SamlValidateAuthnRequestResponse}
  */
 public class SamlAuthnRequestValidator {
 
@@ -153,8 +153,8 @@ public class SamlAuthnRequestValidator {
                 }
                 final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                 if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
-                    logAndRespond("Unable to validate signature of authentication request, " +
-                        "Service Provider hasn't registered signing credentials", listener);
+                    logAndRespond(new ParameterizedMessage("Unable to validate signature of authentication request, " +
+                        "Service Provider [{}] hasn't registered signing credentials", sp.getEntityId()), listener);
                     return;
                 }
                 if (validateSignature(parsedQueryString, spSigningCredentials) == false) {
@@ -168,7 +168,10 @@ public class SamlAuthnRequestValidator {
                     parsedQueryString.queryString), listener);
                 return;
             } else {
-                logAndRespond("The Service Provider must sign authentication requests but no signature was found", listener);
+                logAndRespond(
+                    new ParameterizedMessage(
+                        "The Service Provider [{}] must sign authentication requests but no signature was found", sp.getEntityId()),
+                    listener);
                 return;
             }
         }

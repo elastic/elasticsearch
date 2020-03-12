@@ -25,8 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
-
 /**
  * SAML 2.0 configuration information about this IdP
  */

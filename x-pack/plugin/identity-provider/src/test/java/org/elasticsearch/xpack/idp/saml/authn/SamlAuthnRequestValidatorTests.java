@@ -138,7 +138,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
             future::actionGet);
-        assertThat(e.getMessage(), containsString("The Service Provider must sign authentication requests but no signature was found"));
+        assertThat(e.getMessage(), containsString("must sign authentication requests but no signature was found"));
     }
 
     public void testSignedAuthnRequestWithWrongKey() throws Exception {

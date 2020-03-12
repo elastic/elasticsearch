@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -58,48 +57,32 @@ public class TransportSamlInitiateSingleSignOnAction
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
         final SamlAuthenticationState authenticationState = request.getSamlAuthenticationState();
-        if (authenticationState != null) {
-            final ValidationException validationException = authenticationState.validate();
-            if (validationException != null) {
-                listener.onFailure(validationException);
-                return;
-            }
-        }
         identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), false, ActionListener.wrap(
             sp -> {
                 if (null == sp) {
                     final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
                         + "] is not registered with this Identity Provider";
                     logger.debug(message);
-                    listener.onFailure(new IllegalArgumentException(message));
+                    possiblyReplyWithSamlResponse(authenticationState, StatusCode.RESPONDER, new IllegalArgumentException(message),
+                        listener);
                     return;
                 }
                 final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
                 if (secondaryAuthentication == null) {
-                    if (authenticationState != null) {
-                        final FailedAuthenticationResponseMessageBuilder builder =
-                            new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
-                                .setInResponseTo(authenticationState.getAuthnRequestId())
-                                .setAcsUrl(authenticationState.getRequestedAcsUrl())
-                                .setPrimaryStatusCode(StatusCode.REQUESTER)
-                                .setSecondaryStatusCode(StatusCode.AUTHN_FAILED);
-                        final Response response = builder.build();
-                        listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                            authenticationState.getRequestedAcsUrl(),
-                            samlFactory.getXmlContent(response),
-                            authenticationState.getEntityId()));
-                        return;
-                    } else {
-                        listener.onFailure(new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN));
-                        return;
-                    }
+                    possiblyReplyWithSamlResponse(authenticationState,
+                        StatusCode.REQUESTER,
+                        new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN),
+                        listener);
+                    return;
                 }
                 buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(
                     user -> {
                         if (user == null) {
-                            // TODO return SAML failure instead?
-                            listener.onFailure(new ElasticsearchSecurityException("User [{}] is not permitted to access service [{}]",
-                                secondaryAuthentication.getUser(), sp));
+                            possiblyReplyWithSamlResponse(authenticationState,
+                                StatusCode.REQUESTER,
+                                new ElasticsearchSecurityException("User [{}] is not permitted to access service [{}]",
+                                    RestStatus.FORBIDDEN, secondaryAuthentication.getUser(), sp),
+                                listener);
                             return;
                         }
                         final SuccessfulAuthenticationResponseMessageBuilder builder =
@@ -114,25 +97,10 @@ public class TransportSamlInitiateSingleSignOnAction
                             listener.onFailure(e);
                         }
                     },
-                    listener::onFailure
+                    e -> possiblyReplyWithSamlResponse(authenticationState, StatusCode.RESPONDER, e, listener)
                 ));
             },
-            e -> {
-                if (authenticationState != null) {
-                    final FailedAuthenticationResponseMessageBuilder builder =
-                        new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
-                            .setInResponseTo(authenticationState.getAuthnRequestId())
-                            .setAcsUrl(authenticationState.getRequestedAcsUrl())
-                            .setPrimaryStatusCode(StatusCode.RESPONDER);
-                    final Response response = builder.build();
-                    listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                        authenticationState.getRequestedAcsUrl(),
-                        samlFactory.getXmlContent(response),
-                        authenticationState.getEntityId()));
-                } else {
-                    listener.onFailure(e);
-                }
-            }
+            e -> possiblyReplyWithSamlResponse(authenticationState, StatusCode.RESPONDER, e, listener)
         ));
     }
 
@@ -154,5 +122,24 @@ public class TransportSamlInitiateSingleSignOnAction
                 return null;
             }
         );
+    }
+
+    private void possiblyReplyWithSamlResponse(SamlAuthenticationState authenticationState, String statusCode, Exception e,
+                                               ActionListener<SamlInitiateSingleSignOnResponse> listener) {
+        if (authenticationState != null) {
+            final FailedAuthenticationResponseMessageBuilder builder =
+                new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
+                    .setInResponseTo(authenticationState.getAuthnRequestId())
+                    .setAcsUrl(authenticationState.getRequestedAcsUrl())
+                    .setPrimaryStatusCode(statusCode);
+            final Response response = builder.build();
+            //TODO: Indicate SAML Response status is failure in the response
+            listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                authenticationState.getRequestedAcsUrl(),
+                samlFactory.getXmlContent(response),
+                authenticationState.getEntityId()));
+        } else {
+            listener.onFailure(e);
+        }
     }
 }

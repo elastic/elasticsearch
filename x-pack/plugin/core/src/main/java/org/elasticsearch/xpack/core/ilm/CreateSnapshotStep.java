@@ -16,6 +16,10 @@ import org.elasticsearch.snapshots.SnapshotException;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
+/**
+ * Creates a snapshot of the managed index into the configured repository and snapshot name. The repository and snapshot names are expected
+ * to be present in the lifecycle execution state (usually generated and stored by a different ILM step)
+ */
 public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "create-snapshot";
 

@@ -585,15 +585,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     " not be allowed in the next major version by default. You can change the  [" +
                     MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting to use a greater default value or lower the number of" +
                     " scrolls that you need to run in parallel.");
-            } else if (openScrollContexts.get() >= maxOpenScrollContext) {
+            }
+            if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
+                openScrollContexts.decrementAndGet();
                 throw new ElasticsearchException(
                     "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                         maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
                         + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
             }
         }
-
-        SearchContext context = createContext(request);
+        SearchContext context = null;
+        try {
+            context = createContext(request);
+            context.addReleasable(openScrollContexts::decrementAndGet, Lifetime.CONTEXT);
+        } finally {
+            if (context == null) {
+                openScrollContexts.decrementAndGet();
+            }
+        }
         onNewContext(context);
         boolean success = false;
         try {
@@ -611,7 +620,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean success = false;
         try {
             if (context.scrollContext() != null) {
-                openScrollContexts.incrementAndGet();
                 context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
@@ -724,7 +732,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert activeContexts.containsKey(context.id()) == false;
         context.indexShard().getSearchOperationListener().onFreeContext(context);
         if (context.scrollContext() != null) {
-            openScrollContexts.decrementAndGet();
             context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
         }
     }

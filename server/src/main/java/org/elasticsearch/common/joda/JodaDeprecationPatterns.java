@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class JodaDeprecationPatterns {
-    public static final String USE_NEW_FORMAT_SPECIFIERS = "Use new java.time date format specifiiers.";
+    public static final String USE_NEW_FORMAT_SPECIFIERS = "Use new java.time date format specifiers.";
     private static Map<String, String> JODA_PATTERNS_DEPRECATIONS = new LinkedHashMap<>();
 
     static {

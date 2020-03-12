@@ -38,6 +38,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -237,7 +238,13 @@ public final class DateFieldMapper extends FieldMapper {
 
             boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
             if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
-                fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
+                DateFormatter formatter;
+                if (Joda.isJodaPattern(context.indexCreatedVersion(), pattern)) {
+                    formatter = Joda.forPattern(pattern).withLocale(locale);
+                } else {
+                    formatter = DateFormatter.forPattern(pattern).withLocale(locale);
+                }
+                fieldType().setDateTimeFormatter(formatter);
             }
 
             fieldType().setResolution(resolution);

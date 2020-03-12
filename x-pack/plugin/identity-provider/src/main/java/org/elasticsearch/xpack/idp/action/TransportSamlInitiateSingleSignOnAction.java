@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -64,7 +66,8 @@ public class TransportSamlInitiateSingleSignOnAction
                     }
                     final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
                     if (secondaryAuthentication == null) {
-                        listener.onFailure(new IllegalStateException("Request is missing secondary authentication"));
+                        listener.onFailure(
+                            new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN));
                         return;
                     }
                     buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(
@@ -77,11 +80,15 @@ public class TransportSamlInitiateSingleSignOnAction
                             }
                             final SuccessfulAuthenticationResponseMessageBuilder builder =
                                 new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider);
-                            final Response response = builder.build(user, null);
-                            listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                                user.getServiceProvider().getAssertionConsumerService().toString(),
-                                samlFactory.getXmlContent(response),
-                                user.getServiceProvider().getEntityId()));
+                            try {
+                                final Response response = builder.build(user, null);
+                                listener.onResponse(new SamlInitiateSingleSignOnResponse(
+                                    user.getServiceProvider().getAssertionConsumerService().toString(),
+                                    samlFactory.getXmlContent(response),
+                                    user.getServiceProvider().getEntityId()));
+                            } catch (ElasticsearchException e) {
+                                listener.onFailure(e);
+                            }
                         },
                         listener::onFailure
                     ));

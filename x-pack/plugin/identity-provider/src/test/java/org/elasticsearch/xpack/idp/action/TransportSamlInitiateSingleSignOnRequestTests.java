@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
 import org.mockito.Mockito;
+import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
 import java.util.Collections;
@@ -134,14 +135,20 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
         mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
             "elastic-cloud", TRANSIENT, Duration.standardMinutes(15));
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build();
+        final X509Credential signingCredential = readCredentials("RSA", randomFrom(1024, 2048, 4096));
+        final SamlIdentityProvider idp = SamlIdentityProvider
+            .builder(resolver)
+            .fromSettings(env)
+            .signingCredential(signingCredential)
+            .serviceProviderDefaults(defaults)
+            .build();
         final SamlFactory factory = new SamlFactory();
         final UserPrivilegeResolver privilegeResolver = Mockito.mock(UserPrivilegeResolver.class);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, arrayWithSize(2));
             ActionListener<UserPrivilegeResolver.UserPrivileges> listener
-                = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length-1];
+                = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length - 1];
             final UserPrivilegeResolver.UserPrivileges privileges = new UserPrivilegeResolver.UserPrivileges(
                 "saml_enduser", true, Set.of(generateRandomStringArray(5, 8, false, true))
             );

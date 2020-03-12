@@ -345,9 +345,9 @@ public class Realms implements Iterable<Realm> {
         if (licenseState.areAllRealmsAllowed()) {
             return true;
         } else if (licenseState.areStandardRealmsAllowed()) {
-            return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
-        } else {
             return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
+        } else {
+            return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
         }
     }
 

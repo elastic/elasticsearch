@@ -11,12 +11,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -94,6 +96,25 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
             details
         );
+    }
+
+    static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.queue_size", settings);
+    }
+
+    static DeprecationIssue checkThreadPoolListenerSize(final Settings settings) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.size", settings);
+    }
+
+    private static DeprecationIssue checkThreadPoolListenerSetting(final String name, final Settings settings) {
+        final FixedExecutorBuilder builder = new FixedExecutorBuilder(settings, "listener", 1, -1, "thread_pool.listener", true);
+        final List<Setting<?>> listenerSettings = builder.getRegisteredSettings();
+        final Optional<Setting<?>> setting = listenerSettings.stream().filter(s -> s.getKey().equals(name)).findFirst();
+        assert setting.isPresent();
+        return checkRemovedSetting(
+            settings,
+            setting.get(),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool");
     }
 
     private static DeprecationIssue checkDeprecatedSetting(

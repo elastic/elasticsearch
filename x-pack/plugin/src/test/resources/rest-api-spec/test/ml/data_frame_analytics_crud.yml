@@ -1898,6 +1898,7 @@ setup:
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
       "randomize_seed": 24,
+      "class_assignment_objective": "maximize_minimum_recall",
       "num_top_classes": 2
     }
   }}

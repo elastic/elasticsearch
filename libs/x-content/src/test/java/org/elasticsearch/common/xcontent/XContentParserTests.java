@@ -78,15 +78,7 @@ public class XContentParserTests extends ESTestCase {
 
             assertEquals(value, number.floatValue(), 0.0f);
 
-            if (xContentType == XContentType.CBOR) {
-                // CBOR parses back a float
-                assertTrue(number instanceof Float);
-            } else {
-                // JSON, YAML and SMILE parses back the float value as a double
-                // This will change for SMILE in Jackson 2.9 where all binary based
-                // formats will return a float
-                assertTrue(number instanceof Double);
-            }
+            assertTrue(number instanceof Float);
         }
     }
 

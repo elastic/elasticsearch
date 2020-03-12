@@ -500,10 +500,12 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {\"foo\" : 11} }}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+                "{\"named\": { \"a\": {\"foo\" : 11} }, \"bar\": \"baz\"}");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
         assertEquals("a", h.named.name);
         assertEquals(11, h.named.foo);
+        assertEquals("baz", h.bar);
     }
 
     public void testParseNamedObjectUnexpectedArray() throws IOException {
@@ -726,7 +728,7 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("parser for [noop] did not end on END_ARRAY", e.getMessage());
     }
 
-    public void testNoopDeclareObjectArray() throws IOException {
+    public void testNoopDeclareObjectArray() {
         ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
         parser.declareObjectArray((a,b) -> {}, (p, c) -> null, new ParseField("noop"));
@@ -747,12 +749,18 @@ public class ObjectParserTests extends ESTestCase {
                 NamedObjectHolder::new);
         static {
             PARSER.declareNamedObject(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
+            PARSER.declareString(NamedObjectHolder::setBar, new ParseField("bar"));
         }
 
         private NamedObject named;
+        private String bar;
 
         public void setNamed(NamedObject named) {
             this.named = named;
+        }
+
+        public void setBar(String bar) {
+            this.bar = bar;
         }
     }
 

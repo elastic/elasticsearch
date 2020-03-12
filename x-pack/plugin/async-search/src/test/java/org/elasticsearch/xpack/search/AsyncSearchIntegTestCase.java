@@ -171,7 +171,6 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
-            private int lastVersion = initial.getVersion();
             private int shardIndex = 0;
             private boolean isFirst = true;
 
@@ -203,15 +202,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     }
                     shardLatchArray[shardIndex++].countDown();
                 }
-                assertBusy(() -> {
-                    AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
-                        new GetAsyncSearchAction.Request(response.getId())
-                            .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
-                    atomic.set(newResp);
-                    assertNotEquals(lastVersion, newResp.getVersion());
-                });
-                AsyncSearchResponse newResponse = atomic.get();
-                lastVersion = newResponse.getVersion();
+                AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
+                    new GetAsyncSearchAction.Request(response.getId())
+                        .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
 
                 if (newResponse.isRunning()) {
                     assertThat(newResponse.status(),  equalTo(RestStatus.OK));

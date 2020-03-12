@@ -79,16 +79,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 setupRootJdkDownload(project.getRootProject(), jdk);
             }
         });
-
-        // all other repos should ignore the special jdk artifacts
-        project.getRootProject().getRepositories().all(repo -> {
-            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
-                repo.content(content -> {
-                    content.excludeGroup("adoptopenjdk");
-                    content.excludeGroup("openjdk");
-                });
-            }
-        });
     }
 
     @SuppressWarnings("unchecked")
@@ -145,13 +135,16 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             }
 
             // Define the repository if we haven't already
-            if (rootProject.getRepositories().findByName(repoName) == null) {
-                repositories.ivy(ivyRepo -> {
-                    ivyRepo.setName(repoName);
-                    ivyRepo.setUrl(repoUrl);
-                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                    ivyRepo.patternLayout(layout -> layout.artifact(artifactPattern));
-                    ivyRepo.content(content -> content.includeGroup(jdk.getVendor()));
+            if (repositories.findByName(repoName) == null) {
+                IvyArtifactRepository ivyRepo = repositories.ivy(repo -> {
+                    repo.setName(repoName);
+                    repo.setUrl(repoUrl);
+                    repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                    repo.patternLayout(layout -> layout.artifact(artifactPattern));
+                });
+                repositories.exclusiveContent(exclusiveContentRepository -> {
+                    exclusiveContentRepository.filter(config -> config.includeGroup(jdk.getVendor()));
+                    exclusiveContentRepository.forRepositories(ivyRepo);
                 });
             }
 

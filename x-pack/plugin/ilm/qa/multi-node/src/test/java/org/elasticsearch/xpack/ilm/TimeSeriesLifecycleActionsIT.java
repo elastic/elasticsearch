@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
@@ -1569,7 +1570,57 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
     }
 
-    public void testDeleteActionDoenstDeleteGeneratedSnapshot() throws Exception {
+    public void testDeleteActionDeletesGeneratedSnapshot() throws Exception {
+        String snapshotRepo = createSnapshotRepo();
+
+        // create policy with cold and delete phases
+        Map<String, LifecycleAction> coldActions =
+            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction(true))));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setEntity(entity);
+        assertOK(client().performRequest(createPolicyRequest));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        String[] snapshotName = new String[1];
+        assertTrue(waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndex = explainIndex(restoredIndexName);
+                String action = (String) explainIndex.get("action");
+                snapshotName[0] = (String) explainIndex.get("snapshot_name");
+                return DeleteAction.NAME.equals(action);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 60, TimeUnit.SECONDS));
+
+        assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
+            try {
+                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/" + snapshotName[0]);
+                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+                return EntityUtils.toString(getSnapshotsResponse.getEntity()).contains("snapshot_missing_exception");
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+    }
+
+    public void testDeleteActionDoesntDeleteGeneratedSnapshot() throws Exception {
         String snapshotRepo = createSnapshotRepo();
 
         // create policy with cold and delete phases

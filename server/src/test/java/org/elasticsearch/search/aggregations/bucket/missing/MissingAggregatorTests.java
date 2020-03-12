@@ -451,7 +451,10 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.HISTOGRAM
+            CoreValuesSourceType.HISTOGRAM,
+            CoreValuesSourceType.IP,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE
         );
     }
 

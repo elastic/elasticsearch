@@ -1,3 +1,5 @@
+# These tests are not part of the ml-with-security tests
+# These are more like ingest processor tests than actual ML focused tests.
 setup:
   - skip:
       features: headers

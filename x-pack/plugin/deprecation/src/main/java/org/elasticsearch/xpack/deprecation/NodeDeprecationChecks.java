@@ -98,19 +98,15 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings, final PluginsAndModules pluginsAndModules) {
-        return checkThreadPoolListenerSetting("thread_pool.listener.queue_size", settings, pluginsAndModules);
+    static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.queue_size", settings);
     }
 
-    static DeprecationIssue checkThreadPoolListenerSize(final Settings settings, final PluginsAndModules pluginsAndModules) {
-        return checkThreadPoolListenerSetting("thread_pool.listener.size", settings, pluginsAndModules);
+    static DeprecationIssue checkThreadPoolListenerSize(final Settings settings) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.size", settings);
     }
 
-    private static DeprecationIssue checkThreadPoolListenerSetting(
-        final String name,
-        final Settings settings,
-        final PluginsAndModules pluginsAndModules
-    ) {
+    private static DeprecationIssue checkThreadPoolListenerSetting(final String name, final Settings settings) {
         final FixedExecutorBuilder builder = new FixedExecutorBuilder(settings, "listener", 1, -1, "thread_pool.listener", true);
         final List<Setting<?>> listenerSettings = builder.getRegisteredSettings();
         final Optional<Setting<?>> setting = listenerSettings.stream().filter(s -> s.getKey().equals(name)).findFirst();

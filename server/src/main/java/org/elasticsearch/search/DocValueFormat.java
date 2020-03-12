@@ -211,8 +211,8 @@ public interface DocValueFormat extends NamedWriteable {
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
             final boolean isJoda;
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                //if stream is from 7.7 Node it will have a flag indicating if format is joda
+            if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().major == 7) {
+                //if stream is from 7.7 Node it will have a flag indicating if format is joda. Do not read this from 8 as it won't be present.
                 isJoda = in.readBoolean();
             } else {
                 /*
@@ -245,9 +245,9 @@ public interface DocValueFormat extends NamedWriteable {
                 out.writeString(timeZone.getId());
                 out.writeVInt(resolution.ordinal());
             }
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().major == 7) {  //Do not read this from 8 as it won't be present.
                 //in order not to loose information if the formatter is a joda we send a flag
-                out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
+                out.writeBoolean(formatter instanceof JodaDateFormatter);
             }
         }
 

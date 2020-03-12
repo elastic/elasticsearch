@@ -32,7 +32,7 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
-    private static final ParseField FIELD_MAPPINGS = new ParseField("field_mappings");
+    private static final ParseField FIELD_MAP = new ParseField("field_map");
     private static final ParseField TARGET_FIELD = new ParseField("target_field");
 
     private static final String DEFAULT_TARGET_FIELD = "ml";
@@ -48,7 +48,7 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
         PARSER.declareString(constructorArg(), MODEL_ID);
         PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
         PARSER.declareString(optionalConstructorArg(), TARGET_FIELD);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAPPINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAP, ObjectParser.ValueType.OBJECT);
     }
 
     public static InferenceSearchExtBuilder fromXContent(XContentParser parser) {
@@ -128,7 +128,7 @@ public class InferenceSearchExtBuilder extends SearchExtBuilder {
             builder.endObject();
         }
         if (fieldMap != null) {
-            builder.field(FIELD_MAPPINGS.getPreferredName(), fieldMap);
+            builder.field(FIELD_MAP.getPreferredName(), fieldMap);
         }
 
         return builder;

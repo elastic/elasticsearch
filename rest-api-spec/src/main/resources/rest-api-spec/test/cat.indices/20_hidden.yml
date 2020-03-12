@@ -95,7 +95,11 @@
           aliases:
             alias1: {}
   - do:
-      cat.indices: {}
+      cat.indices:
+        index: "i*"
+        # Can't use a bare wildcard here because Security replaces wildcards
+        # it with all matching authorized indices/aliases, including the visible
+        # alias
   - match:
       $body: |
         /^$/
@@ -156,6 +160,7 @@
               is_hidden: true
   - do:
       cat.indices: {}
+
   - match:
       $body: |
         /^$/

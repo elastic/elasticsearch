@@ -458,6 +458,9 @@ public class SearchModule {
         registerAggregation((new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new,
                 CompositeAggregationBuilder.PARSER).addResultReader(InternalComposite::new)));
         registerFromPlugin(plugins, SearchPlugin::getAggregations, this::registerAggregation);
+
+        // after aggs have been registered, see if there are any new VSTypes that need to be linked to core fields
+        registerFromPlugin(plugins, SearchPlugin::getBareAggregatorRegistrar, this::registerBareAggregatorRegistrar);
     }
 
     private void registerAggregation(AggregationSpec spec) {
@@ -475,6 +478,12 @@ public class SearchModule {
         Consumer<ValuesSourceRegistry> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(this.valuesSourceRegistry);
+        }
+    }
+
+    private void registerBareAggregatorRegistrar(Consumer<ValuesSourceRegistry> registrar) {
+        if (registrar != null) {
+            registrar.accept(this.valuesSourceRegistry);
         }
     }
 

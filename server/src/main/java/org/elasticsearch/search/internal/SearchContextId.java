@@ -39,7 +39,7 @@ public final class SearchContextId implements Writeable {
 
     public SearchContextId(StreamInput in) throws IOException {
         this.id = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.readerId = in.readString();
         } else {
             this.readerId = "";
@@ -49,7 +49,7 @@ public final class SearchContextId implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(readerId);
         }
     }

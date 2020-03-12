@@ -82,11 +82,7 @@ public class XPackSettings {
 
     /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
-            Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling Beats extensions. Defaults to true. */
-    public static final Setting<Boolean> BEATS_ENABLED = Setting.boolSetting("xpack.beats.enabled", true,
-        Setting.Property.NodeScope);
+            Setting.Property.NodeScope, Property.Deprecated);
 
     /**
      * Setting for enabling or disabling the index lifecycle extension. Defaults to true.

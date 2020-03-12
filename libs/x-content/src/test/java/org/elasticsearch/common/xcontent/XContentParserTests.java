@@ -78,7 +78,7 @@ public class XContentParserTests extends ESTestCase {
 
             assertEquals(value, number.floatValue(), 0.0f);
 
-            assertTrue(number instanceof Float);
+            assertThat(number, instanceOf(Float.class));
         }
     }
 

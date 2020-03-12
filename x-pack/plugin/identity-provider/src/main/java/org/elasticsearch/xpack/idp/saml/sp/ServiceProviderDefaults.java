@@ -22,34 +22,28 @@ public final class ServiceProviderDefaults {
 
     public static final Setting<String> APPLICATION_NAME_SETTING
         = Setting.simpleString("xpack.idp.privileges.application", Setting.Property.NodeScope);
-    public static final Setting<String> LOGIN_ACTION_SETTING
-        = Setting.simpleString("xpack.idp.privileges.login", Setting.Property.NodeScope);
     public static final Setting<String> NAMEID_FORMAT_SETTING
         = Setting.simpleString("xpack.idp.defaults.nameid_format", NameID.TRANSIENT, Setting.Property.NodeScope);
     public static final Setting<TimeValue> AUTHN_EXPIRY_SETTING
         = Setting.timeSetting("xpack.idp.defaults.authn_expiry", TimeValue.timeValueMinutes(5), Setting.Property.NodeScope);
 
     public final String applicationName;
-    public final String loginAction;
     public final String nameIdFormat;
     public final ReadableDuration authenticationExpiry;
 
     public ServiceProviderDefaults(String applicationName,
-                                   String loginAction,
                                    String nameIdFormat,
                                    ReadableDuration authenticationExpiry) {
         this.applicationName = applicationName;
-        this.loginAction = loginAction;
         this.nameIdFormat = nameIdFormat;
         this.authenticationExpiry = authenticationExpiry;
     }
 
     public static ServiceProviderDefaults forSettings(Settings settings) {
         final String appplication = require(settings, APPLICATION_NAME_SETTING);
-        final String login = require(settings, LOGIN_ACTION_SETTING);
         final String nameId = require(settings, NAMEID_FORMAT_SETTING);
         final TimeValue expiry = require(settings, AUTHN_EXPIRY_SETTING);
-        return new ServiceProviderDefaults(appplication, login, nameId, Duration.millis(expiry.millis()));
+        return new ServiceProviderDefaults(appplication, nameId, Duration.millis(expiry.millis()));
     }
 
     private static <T> T require(Settings settings, Setting<T> setting) {
@@ -61,6 +55,6 @@ public final class ServiceProviderDefaults {
     }
 
     public static List<Setting<?>> getSettings() {
-        return List.of(APPLICATION_NAME_SETTING, LOGIN_ACTION_SETTING, NAMEID_FORMAT_SETTING, AUTHN_EXPIRY_SETTING);
+        return List.of(APPLICATION_NAME_SETTING, NAMEID_FORMAT_SETTING, AUTHN_EXPIRY_SETTING);
     }
 }

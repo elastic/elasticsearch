@@ -62,7 +62,6 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_SURNAME.getKey(), "Stark")
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .put(ServiceProviderDefaults.APPLICATION_NAME_SETTING.getKey(), "my_super_idp")
-            .put(ServiceProviderDefaults.LOGIN_ACTION_SETTING.getKey(), "action:login")
             .put(ServiceProviderDefaults.NAMEID_FORMAT_SETTING.getKey(), NameID.PERSISTENT)
             .put(ServiceProviderDefaults.AUTHN_EXPIRY_SETTING.getKey(), "2m")
             .build();
@@ -78,7 +77,6 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         assertThat(idp.getOrganization(), equalTo(new SamlIdentityProvider.OrganizationInfo("organization_name",
             "organization_display_name", "https://idp.org")));
         assertThat(idp.getServiceProviderDefaults().applicationName, equalTo("my_super_idp"));
-        assertThat(idp.getServiceProviderDefaults().loginAction, equalTo("action:login"));
         assertThat(idp.getServiceProviderDefaults().nameIdFormat, equalTo(NameID.PERSISTENT));
         assertThat(idp.getServiceProviderDefaults().authenticationExpiry, equalTo(Duration.standardMinutes(2)));
     }

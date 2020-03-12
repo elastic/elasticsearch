@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
-import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentSupplier;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 import org.joda.time.ReadableDuration;

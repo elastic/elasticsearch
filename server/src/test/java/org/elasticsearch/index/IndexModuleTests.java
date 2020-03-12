@@ -62,6 +62,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -94,6 +95,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -130,6 +132,7 @@ public class IndexModuleTests extends ESTestCase {
     private BigArrays bigArrays;
     private ScriptService scriptService;
     private ClusterService clusterService;
+    private Map<ShardId, IndexShard> indicesShards = new ConcurrentHashMap<>();
 
     @Override
     public void setUp() throws Exception {
@@ -162,7 +165,7 @@ public class IndexModuleTests extends ESTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
                 threadPool, scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
-                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false);
+                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false, indicesShards);
     }
 
     public void testWrapperIsBound() throws IOException {

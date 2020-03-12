@@ -19,6 +19,21 @@
 
 package org.elasticsearch.index;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -51,8 +66,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -62,21 +79,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -403,7 +405,8 @@ public final class IndexModule {
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier idFieldDataEnabled)
+            BooleanSupplier idFieldDataEnabled,
+            Map<ShardId, IndexShard> indicesShards)
         throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
@@ -427,11 +430,35 @@ public final class IndexModule {
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
             }
-            final IndexService indexService = new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
-                new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
-                engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
-                directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
-                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver);
+            final IndexService indexService = new IndexService(
+                indexSettings,
+                indexCreationContext,
+                environment,
+                xContentRegistry,
+                new SimilarityService(indexSettings, scriptService, similarities),
+                shardStoreDeleter,
+                indexAnalyzers,
+                engineFactory,
+                circuitBreakerService,
+                bigArrays,
+                threadPool,
+                scriptService,
+                clusterService,
+                client,
+                queryCache,
+                directoryFactory,
+                eventListener,
+                readerWrapperFactory,
+                mapperRegistry,
+                indicesFieldDataCache,
+                searchOperationListeners,
+                indexOperationListeners,
+                namedWriteableRegistry,
+                idFieldDataEnabled,
+                allowExpensiveQueries,
+                expressionResolver,
+                indicesShards
+            );
             success = true;
             return indexService;
         } finally {

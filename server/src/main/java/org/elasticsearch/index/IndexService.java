@@ -145,6 +145,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
     private Supplier<Sort> indexSortSupplier;
+    private final Map<ShardId, IndexShard> indicesShards;
 
     public IndexService(
             IndexSettings indexSettings,
@@ -171,7 +172,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier idFieldDataEnabled,
             BooleanSupplier allowExpensiveQueries,
-            IndexNameExpressionResolver expressionResolver) {
+            IndexNameExpressionResolver expressionResolver,
+            Map<ShardId, IndexShard> indicesShards) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -230,6 +232,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         updateFsyncTaskIfNecessary();
+        this.indicesShards = indicesShards;
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
@@ -418,7 +421,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // that's being relocated/replicated we know how large it will become once it's done copying:
                 // Count up how many shards are currently on each data path:
                 Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
+                for (IndexShard shard : indicesShards.values()) {
                     Path dataPath = shard.shardPath().getRootStatePath();
                     Integer curCount = dataPathToShardCount.get(dataPath);
                     if (curCount == null) {
@@ -475,6 +478,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
+            indicesShards.put(shardId, indexShard);
             return indexShard;
         } catch (ShardLockObtainFailedException e) {
             throw new IOException("failed to obtain in-memory shard lock", e);
@@ -501,6 +505,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         shards = unmodifiableMap(newShards);
         closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
+        indicesShards.remove(sId);
     }
 
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {

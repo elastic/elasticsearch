@@ -147,6 +147,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -227,7 +228,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
-
+    private final Map<ShardId, IndexShard> indicesShards = new ConcurrentHashMap<>();
 
     @Override
     protected void doStart() {
@@ -615,7 +616,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 mapperRegistry,
                 indicesFieldDataCache,
                 namedWriteableRegistry,
-                this::isIdFieldDataEnabled
+                this::isIdFieldDataEnabled,
+                indicesShards
         );
     }
 

@@ -728,6 +728,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
 
+    /**
+     * @param maxArraySize The maximum number of elements in the random array
+     * @param stringSize The length of each String in the array
+     * @param allowNull Whether the returned array may be null
+     * @param allowEmpty Whether the returned array may be empty (have zero elements)
+     */
     public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull, boolean allowEmpty) {
         if (allowNull && random().nextBoolean()) {
             return null;

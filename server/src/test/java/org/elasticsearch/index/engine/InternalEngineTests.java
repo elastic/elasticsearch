@@ -4828,6 +4828,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53505")
     public void testKeepTranslogAfterGlobalCheckpoint() throws Exception {
         IOUtils.close(engine, store);
         final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),

@@ -1,8 +1,9 @@
 ---
 "Test cat aliases output with a hidden index with a hidden alias":
   - skip:
-      version: "- 7.6.99"
+      version: "- 7.99.99"
       reason: "hidden indices and aliases were added in 7.7.0"
+      # TODO: Update this in/after backport of https://github.com/elastic/elasticsearch/pull/53248
 
   - do:
       indices.create:
@@ -58,8 +59,9 @@
 ---
 "Test cat aliases output with a hidden index with a visible alias":
   - skip:
-      version: "- 7.6.99"
+      version: "- 7.99.99"
       reason: "hidden indices and aliases were added in 7.7.0"
+      # TODO: Update this in/after backport of https://github.com/elastic/elasticsearch/pull/53248
 
   - do:
       indices.create:
@@ -104,8 +106,9 @@
 ---
 "Test cat aliases output with a visible index with a hidden alias":
   - skip:
-      version: "- 7.6.99"
+      version: "- 7.99.99"
       reason: "hidden indices and aliases were added in 7.7.0"
+      # TODO: Update this in/after backport of https://github.com/elastic/elasticsearch/pull/53248
 
   - do:
       indices.create:

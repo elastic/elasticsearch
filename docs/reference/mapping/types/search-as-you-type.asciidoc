@@ -172,7 +172,7 @@ Largest shingle size to create. Valid values are `2` (inclusive) to `4`
 A subfield is created for each integer between `2` and this value. For example,
 a value of `3` creates two subfields: `my_field._2gram` and `my_field._3gram`
 
-More subfields enable more specific queries but increase index size.
+More subfields enables more specific queries but increases index size.
 --
 
 [[general-params]]

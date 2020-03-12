@@ -208,7 +208,7 @@ class AsyncSearchIndexService {
             ActionListener.wrap(v -> client.delete(request,
                 ActionListener.wrap(
                     resp -> {
-                        if (resp.status() == RestStatus.NOT_FOUND && failIfNotFound == false) {
+                        if (resp.status() == RestStatus.NOT_FOUND && failIfNotFound) {
                             listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                         } else {
                             listener.onResponse(new AcknowledgedResponse(true));

@@ -430,7 +430,9 @@ public class SearchModule {
                 HistogramAggregationBuilder::parse).addResultReader(InternalHistogram::new)
             .setAggregatorRegistrar(HistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
-                DateHistogramAggregationBuilder::parse).addResultReader(InternalDateHistogram::new));
+                DateHistogramAggregationBuilder::parse)
+                    .addResultReader(InternalDateHistogram::new)
+                    .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
                 AutoDateHistogramAggregationBuilder::parse).addResultReader(InternalAutoDateHistogram::new));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,

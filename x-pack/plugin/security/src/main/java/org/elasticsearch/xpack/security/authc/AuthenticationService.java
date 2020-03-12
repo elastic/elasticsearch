@@ -274,7 +274,8 @@ public class AuthenticationService {
         private AuthenticationResult authenticationResult = null;
 
         Authenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request), null, fallbackToAnonymous, listener);
+            this(new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
+                 null, fallbackToAnonymous, listener);
         }
 
         Authenticator(String action, TransportMessage message, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {

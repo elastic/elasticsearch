@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -362,8 +364,13 @@ public class ModelLoadingService implements ClusterStateListener {
             ActionListener.wrap(
                 r -> this.loadModel(modelId, r),
                 e -> {
-                    logger.error("[{}] failed to get previous model stats", modelId);
-                    this.loadModel(modelId, InferenceStats.emptyStats(modelId, localNode));
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ResourceNotFoundException) {
+                        this.loadModel(modelId, InferenceStats.emptyStats(modelId, localNode));
+                        return;
+                    }
+                    logger.warn(new ParameterizedMessage("[{}] failed to get previous model stats", modelId), unwrapped);
+                    handleLoadFailure(modelId, (Exception)unwrapped);
                 }));
     }
 

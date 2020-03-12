@@ -48,16 +48,21 @@ public class InferencePhase implements FetchSubPhase {
         InferenceSearchExtBuilder infBuilder = (InferenceSearchExtBuilder)inferenceBuilder;
 
         SetOnce<Model> model = new SetOnce<>();
+        SetOnce<Exception> error = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Model> listener = new LatchedActionListener<>(
-                ActionListener.wrap(model::set, e -> { throw new RuntimeException();}), latch);
+                ActionListener.wrap(model::set, error::set), latch);
 
-        modelLoadingService.get().getModelForPipeline(infBuilder.getModelId(), listener);
+        modelLoadingService.get().getModelAndCache(infBuilder.getModelId(), listener);
         try {
             // Eeek blocking on a latch we can't be doing that
             latch.await();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
+        }
+
+        if (error.get() != null) {
+            throw new RuntimeException(error.get());
         }
 
         Map<String, String> fieldMap = infBuilder.getFieldMap();

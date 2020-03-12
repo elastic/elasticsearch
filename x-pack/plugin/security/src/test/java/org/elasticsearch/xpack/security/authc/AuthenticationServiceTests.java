@@ -241,7 +241,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService, threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
-        service = new AuthenticationService(settings, realms, auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService);
     }
 
@@ -820,7 +821,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         Settings settings = builder.build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
         RestRequest request = new FakeRestRequest();
 
@@ -845,7 +847,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         Settings settings = builder.build();
 
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
         RestRequest request = new FakeRestRequest();
 
@@ -867,7 +870,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
         InternalMessage message = new InternalMessage();
 
@@ -883,7 +887,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .putList(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
 
         InternalMessage message = new InternalMessage();

@@ -642,7 +642,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean success = false;
         try {
             if (context.scrollContext() != null) {
-                openScrollContexts.incrementAndGet();
                 context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
@@ -661,14 +660,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final SearchContext createContext(SearchRewriteContext rewriteContext) throws IOException {
         final DefaultSearchContext context = createSearchContext(rewriteContext, defaultSearchTimeout);
         try {
-            if (rewriteContext.request != null && openScrollContexts.get() >= maxOpenScrollContext) {
-                throw new ElasticsearchException(
-                    "Trying to create too many scroll contexts. Must be less than or equal to: [" +
-                        maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
-                        + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
-            }
             final ShardSearchRequest request = rewriteContext.request;
             if (request.scroll() != null) {
+                context.addReleasable(openScrollContexts::decrementAndGet, Lifetime.CONTEXT);
+                if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
+                    throw new ElasticsearchException(
+                        "Trying to create too many scroll contexts. Must be less than or equal to: [" +
+                            maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
+                            + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+                }
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
             }
@@ -768,7 +768,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert activeContexts.containsKey(context.id().getId()) == false;
         context.indexShard().getSearchOperationListener().onFreeContext(context);
         if (context.scrollContext() != null) {
-            openScrollContexts.decrementAndGet();
             context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
         }
     }

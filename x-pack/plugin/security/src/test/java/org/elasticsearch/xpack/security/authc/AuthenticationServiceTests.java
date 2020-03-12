@@ -186,7 +186,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
+        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);

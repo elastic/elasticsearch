@@ -656,11 +656,11 @@ class BuildPlugin implements Plugin<Project> {
                         'jna.nosys': 'true'
 
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
-                if (System.getProperty('ignore.tests.seed') != null) {
-                    nonInputProperties.systemProperty('tests.seed', BuildParams.testSeed)
-                } else {
+                //if (System.getProperty('ignore.tests.seed') != null) {
+                //    nonInputProperties.systemProperty('tests.seed', BuildParams.testSeed)
+                //} else {
                     test.systemProperty('tests.seed', BuildParams.testSeed)
-                }
+                //}
 
                 // don't track these as inputs since they contain absolute paths and break cache relocatability
                 nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)

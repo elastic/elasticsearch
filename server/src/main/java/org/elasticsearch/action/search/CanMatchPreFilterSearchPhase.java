@@ -130,7 +130,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         for (MinAndMax<?> minAndMax : minAndMaxes) {
             if (clazz == null) {
                 clazz = minAndMax == null ? null : minAndMax.getMin().getClass();
-            } else if (minAndMax != null && clazz != minAndMax.getMax().getClass()) {
+            } else if (minAndMax != null && clazz != minAndMax.getMin().getClass()) {
                 // we don't support sort values that mix different types (e.g.: long/double, numeric/keyword).
                 // TODO: we could fail the request because there is a high probability
                 //  that the merging of topdocs will fail later for the same reason ?

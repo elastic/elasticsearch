@@ -325,13 +325,6 @@ public final class IndexSettings {
     public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
         = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
 
-    /**
-     * A badly named setting indicating that for some specific shards we skip the files recovery and assume that the
-     * files are available.
-     */
-    public static final Setting<Boolean> SKIP_FILES_RECOVERY_SETTING =
-        Setting.boolSetting("index.recovery.skip_files", false, Setting.Property.IndexScope, Property.PrivateIndex);
-
     private final Index index;
     private final Version version;
     private final Logger logger;

@@ -41,7 +41,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -399,11 +398,7 @@ final class StoreRecovery {
                 writeEmptyRetentionLeasesFile(indexShard);
             } else if (indexShouldExists) {
                 if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
-                    if (IndexSettings.SKIP_FILES_RECOVERY_SETTING.get(indexShard.indexSettings().getSettings())) {
-                        associateTranslogWithIndex(indexShard, store);
-                    } else {
-                        store.bootstrapNewHistory();
-                    }
+                    store.bootstrapNewHistory();
                     writeEmptyRetentionLeasesFile(indexShard);
                 }
                 // since we recover from local, just fill the files and size
@@ -465,14 +460,7 @@ final class StoreRecovery {
         final ActionListener<Void> restoreListener = ActionListener.wrap(
             v -> {
                 final Store store = indexShard.store();
-                if (IndexSettings.SKIP_FILES_RECOVERY_SETTING.get(indexShard.indexSettings().getSettings())) {
-                    // shard is restored from a snapshot and we expect the store to already contains the files,
-                    // hence we can skip bootstraping a new history uuid with a new translog, and simply
-                    // associate an empty translog with the existing lucene commit.
-                    associateTranslogWithIndex(indexShard, store);
-                } else {
-                    bootstrap(indexShard, store);
-                }
+                bootstrap(indexShard, store);
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.openEngineAndRecoverFromTranslog();
@@ -503,18 +491,9 @@ final class StoreRecovery {
                 indexIdListener.onResponse(indexId);
             }
             assert indexShard.getEngineOrNull() == null;
-            indexIdListener.whenComplete(
-                idx -> {
-                    if (IndexSettings.SKIP_FILES_RECOVERY_SETTING.get(indexShard.indexSettings().getSettings())) {
-                        logger.debug("[{}] skipping full restore from [{}] [{}]",
-                            shardId, restoreSource.snapshot().getRepository(), restoreSource.snapshot().getSnapshotId());
-                        restoreListener.onResponse(null);
-                    } else {
-                        repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
-                            idx, snapshotShardId, indexShard.recoveryState(), restoreListener);
-                    }
-                }, restoreListener::onFailure);
-            } catch (Exception e) {
+            indexIdListener.whenComplete(idx -> repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
+                idx, snapshotShardId, indexShard.recoveryState(), restoreListener), restoreListener::onFailure);
+        } catch (Exception e) {
             restoreListener.onFailure(e);
         }
     }
@@ -526,14 +505,5 @@ final class StoreRecovery {
         final String translogUUID = Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
         store.associateIndexWithNewTranslog(translogUUID);
-    }
-
-    private void associateTranslogWithIndex(final IndexShard indexShard, final Store store) throws IOException {
-        assert IndexSettings.SKIP_FILES_RECOVERY_SETTING.get(indexShard.indexSettings().getSettings());
-        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final String translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
-        Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), shardId, localCheckpoint, primaryTerm, translogUUID, null);
     }
 }

@@ -166,7 +166,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.FINAL_PIPELINE,
             MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
             IndexSettings.ON_HEAP_ID_TERMS_INDEX,
-            IndexSettings.SKIP_FILES_RECOVERY_SETTING,
             ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
 
             // validate that built-in similarities don't get redefined

@@ -22,7 +22,6 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
@@ -43,10 +42,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -67,7 +64,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -178,19 +174,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
-                final IndexShard indexShard = recoveryTarget.indexShard();
-                indexShard.prepareForIndexRecovery();
-                if (IndexSettings.SKIP_FILES_RECOVERY_SETTING.get(indexShard.indexSettings().getSettings())) {
-                    // associate a new empty translog with the last lucene commit, this way the next StartRecoveryRequest
-                    // will see shard files as if they were already on disk
-                    final SegmentInfos segmentInfos = indexShard.store().readLastCommittedSegmentsInfo();
-                    final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    final long primaryTerm = indexShard.getPendingPrimaryTerm();
-                    final String translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
-                    final Path location = indexShard.shardPath().resolveTranslog();
-                    Translog.createEmptyTranslog(location, indexShard.shardId(), localCheckpoint, primaryTerm, translogUUID, null);
-                }
-                final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                recoveryTarget.indexShard().prepareForIndexRecovery();
+                final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
                 assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG :
                     "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                 request = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);

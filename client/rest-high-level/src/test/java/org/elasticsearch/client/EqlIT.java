@@ -71,7 +71,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
                     .startObject("event")
                     .field("category", "process")
                     .endObject()
-                    .field("event_type", "process")
+                    .field("event_type", "foo")
                     .field("event_type_full", "process_event")
                     .field("opcode", ((i % DIVIDER) == 0) ? 1 : 0)
                     .field("pid", ((i % DIVIDER) == 0) ? 100 : 0)
@@ -112,7 +112,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         EqlClient eql = highLevelClient().eql();
 
         // test simple conditional
-        EqlSearchRequest request = new EqlSearchRequest("index", "process where pid > 0");
+        EqlSearchRequest request = new EqlSearchRequest("index", "foo where pid > 0");
 
         // test with non-default event.category mapping
         request.eventCategoryField("event_type");
@@ -126,7 +126,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
 
             final Map<String, Object> event = (Map<String, Object>) source.get("event");
             assertThat(event.get("category"), equalTo("process"));
-            assertThat(source.get("event_type"), equalTo("process"));
+            assertThat(source.get("event_type"), equalTo("foo"));
             assertThat(source.get("event_type_full"), equalTo("process_event"));
             assertThat(source.get("opcode"), equalTo(1));
             assertThat(source.get("pid"), equalTo(100));

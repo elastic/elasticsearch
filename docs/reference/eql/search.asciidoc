@@ -29,6 +29,15 @@ PUT sec_logs/_bulk?refresh
 ----
 // TESTSETUP
 
+[TIP]
+====
+You also can set up {beats-ref}/getting-started.html[{beats}], such as
+{auditbeat-ref}/auditbeat-getting-started.html[{auditbeat}] or
+{winlogbeat-ref}/winlogbeat-getting-started.html[{winlogbeat}], to automatically
+send and index your event data in {es}. See
+{beats-ref}/getting-started.html[Getting started with {beats}].
+====
+
 You can now use the EQL search API to search this index using an EQL query.
 
 The following request searches the `sec_logs` index using the EQL query

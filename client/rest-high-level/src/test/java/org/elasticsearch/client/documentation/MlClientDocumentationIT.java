@@ -2974,7 +2974,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setLambda(1.0) // <2>
                 .setGamma(5.5) // <3>
                 .setEta(5.5) // <4>
-                .setMaximumNumberTrees(50) // <5>
+                .setMaxTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
                 .setNumTopFeatureImportanceValues(3) // <7>
                 .setPredictionFieldName("my_prediction_field_name") // <8>
@@ -2990,7 +2990,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setLambda(1.0) // <2>
                 .setGamma(5.5) // <3>
                 .setEta(5.5) // <4>
-                .setMaximumNumberTrees(50) // <5>
+                .setMaxTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
                 .setNumTopFeatureImportanceValues(3) // <7>
                 .setPredictionFieldName("my_prediction_field_name") // <8>

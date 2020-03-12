@@ -65,7 +65,7 @@ public class ModelLoadingService implements ClusterStateListener {
     /**
      * How long should a model stay in the cache since its last access
      *
-     * If nothing references a model via getModelForPipeline for this configured timeValue, it will be evicted.
+     * If nothing references a model via getModelForPipeline or getModelAndCache for this configured timeValue, it will be evicted.
      *
      * Specifically, in the ingest scenario, a processor will call getModelForPipeline whenever it needs to run inference.
      * So, if a processor is not executed for an extended period of time, the model will be evicted and will have to be
@@ -153,7 +153,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     /**
-     * Gets the model referenced by `modelId` caches it an responds on the listener. As opposed to
+     * Gets the model referenced by `modelId` caches it and responds on the listener. As opposed to
      * {@link #getModelForPipeline(String, ActionListener)} this method will always cache the retrieved
      * model if it is not currently cached.
       *

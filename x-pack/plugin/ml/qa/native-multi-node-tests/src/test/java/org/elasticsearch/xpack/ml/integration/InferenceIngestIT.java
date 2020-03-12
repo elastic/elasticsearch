@@ -157,7 +157,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
             "          \"model_id\": \"test_classification\",\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +
@@ -170,7 +170,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "          \"target_field\": \"ml.regression\",\n" +
             "          \"model_id\": \"test_regression\",\n" +
             "          \"inference_config\": {\"regression\":{}},\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +
@@ -203,7 +203,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"model_id\": \"test_classification_missing\",\n" +
             "          \"inference_config\": {\"classification\":{}},\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +
@@ -241,7 +241,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
             "          \"model_id\": \"test_classification\",\n" +
-            "          \"field_mappings\": {}\n" +
+            "          \"field_map\": {}\n" +
             "        }\n" +
             "      }\n"+
             "    ]\n" +
@@ -270,7 +270,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"inference_config\": {\"classification\":{}},\n" +
             "          \"model_id\": \"lang_ident_model_1\",\n" +
-            "          \"field_mappings\": {}\n" +
+            "          \"field_map\": {}\n" +
             "        }\n" +
             "      }\n" +
             "    ]\n" +
@@ -607,7 +607,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "          \"model_id\": \"test_classification\",\n" +
         "          \"tag\": \"classification\",\n" +
         "          \"inference_config\": {\"classification\": {}},\n" +
-        "          \"field_mappings\": {\n" +
+        "          \"field_map\": {\n" +
         "            \"col1\": \"col1\",\n" +
         "            \"col2\": \"col2\",\n" +
         "            \"col3\": \"col3\",\n" +
@@ -623,7 +623,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "          \"model_id\": \"test_regression\",\n" +
         "          \"tag\": \"regression\",\n" +
         "          \"inference_config\": {\"regression\": {}},\n" +
-        "          \"field_mappings\": {\n" +
+        "          \"field_map\": {\n" +
         "            \"col1\": \"col1\",\n" +
         "            \"col2\": \"col2\",\n" +
         "            \"col3\": \"col3\",\n" +

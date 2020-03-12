@@ -267,7 +267,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     new HashMap<String, Object>() {{
                         put(InferenceProcessor.MODEL_ID, modelId);
                         put("inference_config", Collections.singletonMap("regression", Collections.emptyMap()));
-                        put("field_mappings", Collections.emptyMap());
+                        put("field_map", Collections.emptyMap());
                         put("target_field", randomAlphaOfLength(10));
                     }}))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId + num,

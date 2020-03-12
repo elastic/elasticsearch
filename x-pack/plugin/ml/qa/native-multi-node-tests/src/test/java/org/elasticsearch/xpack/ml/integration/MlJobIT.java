@@ -822,7 +822,7 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private String getAliases() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_aliases?expand_wildcards=all"));
+        Response response = client().performRequest(new Request("GET", "/_aliases"));
         return EntityUtils.toString(response.getEntity());
     }
 

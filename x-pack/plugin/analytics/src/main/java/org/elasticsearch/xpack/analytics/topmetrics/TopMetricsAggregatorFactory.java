@@ -58,15 +58,15 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                     + "]. This limit can be set by changing the [" + MAX_BUCKET_SIZE.getKey()
                     + "] index level setting.");
         }
-        List<String> metricNames = metricFields.stream().map(MultiValuesSourceFieldConfig::getFieldName).collect(toList());
-        List<ValuesSource.Numeric> metricValuesSources = metricFields.stream().map(config -> {
+        List<TopMetricsAggregator.MetricSource> metricSources = metricFields.stream().map(config -> {
                     ValuesSourceConfig resolved = ValuesSourceConfig.resolve(
                             searchContext.getQueryShardContext(), ValueType.NUMERIC,
                             config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
                         CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
-                    return (ValuesSource.Numeric) resolved.toValuesSource();
+                    return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
+                        (ValuesSource.Numeric) resolved.toValuesSource());
                 }).collect(toList());
         return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, size,
-                sortBuilders.get(0), metricNames, metricValuesSources);
+                sortBuilders.get(0), metricSources);
     }
 }

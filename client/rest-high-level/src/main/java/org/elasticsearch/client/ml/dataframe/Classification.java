@@ -44,7 +44,7 @@ public class Classification implements DataFrameAnalysis {
     static final ParseField LAMBDA = new ParseField("lambda");
     static final ParseField GAMMA = new ParseField("gamma");
     static final ParseField ETA = new ParseField("eta");
-    static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
+    static final ParseField MAX_TREES = new ParseField("max_trees");
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
@@ -74,7 +74,7 @@ public class Classification implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LAMBDA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), GAMMA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_TREES);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -87,7 +87,7 @@ public class Classification implements DataFrameAnalysis {
     private final Double lambda;
     private final Double gamma;
     private final Double eta;
-    private final Integer maximumNumberTrees;
+    private final Integer maxTrees;
     private final Double featureBagFraction;
     private final Integer numTopFeatureImportanceValues;
     private final String predictionFieldName;
@@ -96,14 +96,14 @@ public class Classification implements DataFrameAnalysis {
     private final Long randomizeSeed;
 
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                           @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction,
+                           @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
                            @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
                            @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
         this.eta = eta;
-        this.maximumNumberTrees = maximumNumberTrees;
+        this.maxTrees = maxTrees;
         this.featureBagFraction = featureBagFraction;
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
         this.predictionFieldName = predictionFieldName;
@@ -133,8 +133,8 @@ public class Classification implements DataFrameAnalysis {
         return eta;
     }
 
-    public Integer getMaximumNumberTrees() {
-        return maximumNumberTrees;
+    public Integer getMaxTrees() {
+        return maxTrees;
     }
 
     public Double getFeatureBagFraction() {
@@ -174,8 +174,8 @@ public class Classification implements DataFrameAnalysis {
         if (eta != null) {
             builder.field(ETA.getPreferredName(), eta);
         }
-        if (maximumNumberTrees != null) {
-            builder.field(MAXIMUM_NUMBER_TREES.getPreferredName(), maximumNumberTrees);
+        if (maxTrees != null) {
+            builder.field(MAX_TREES.getPreferredName(), maxTrees);
         }
         if (featureBagFraction != null) {
             builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
@@ -201,7 +201,7 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues,
+        return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
             predictionFieldName, trainingPercent, randomizeSeed, numTopClasses);
     }
 
@@ -214,7 +214,7 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(lambda, that.lambda)
             && Objects.equals(gamma, that.gamma)
             && Objects.equals(eta, that.eta)
-            && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
+            && Objects.equals(maxTrees, that.maxTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
@@ -233,7 +233,7 @@ public class Classification implements DataFrameAnalysis {
         private Double lambda;
         private Double gamma;
         private Double eta;
-        private Integer maximumNumberTrees;
+        private Integer maxTrees;
         private Double featureBagFraction;
         private Integer numTopFeatureImportanceValues;
         private String predictionFieldName;
@@ -260,8 +260,8 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setMaximumNumberTrees(Integer maximumNumberTrees) {
-            this.maximumNumberTrees = maximumNumberTrees;
+        public Builder setMaxTrees(Integer maxTrees) {
+            this.maxTrees = maxTrees;
             return this;
         }
 
@@ -296,7 +296,7 @@ public class Classification implements DataFrameAnalysis {
         }
 
         public Classification build() {
-            return new Classification(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
+            return new Classification(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
                 numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed);
         }
     }

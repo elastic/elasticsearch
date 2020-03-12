@@ -17,7 +17,7 @@ integTest.enabled = false
 // tests based on ESIntegTestCase
 task internalClusterTest(type: Test) {
   description = 'Java fantasy integration tests'
-  mustRunAfter test
+  //mustRunAfter test
 
   include '**/*IT.class'
 }

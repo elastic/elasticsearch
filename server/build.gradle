@@ -330,7 +330,7 @@ dependencyLicenses {
 
 task integTest(type: Test) {
   description = 'Multi-node tests'
-  mustRunAfter test
+  //mustRunAfter test
 
   include '**/*IT.class'
 }

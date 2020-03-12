@@ -29,7 +29,7 @@ task internalClusterTestNoSecurityManager(type: Test) {
 task internalClusterTest(type: Test) {
   description = 'Java fantasy integration tests'
   dependsOn internalClusterTestNoSecurityManager
-  mustRunAfter test
+  //mustRunAfter test
 
   include '**/*IT.class'
   exclude noSecurityManagerITClasses

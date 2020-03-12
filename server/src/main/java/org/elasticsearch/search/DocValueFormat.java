@@ -203,7 +203,7 @@ public interface DocValueFormat extends NamedWriteable {
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
-                /* when upgrading from 7.7+ ES will send out a flag indicating if a pattern is of joda style
+                /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence we can ignore this flag.
                 */
@@ -221,6 +221,13 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
+            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
+                /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
+                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
+                   All indices in 8 should use java style pattern. Hence this flag is always true.
+                */
+                out.writeBoolean(true);
+            }
         }
 
         @Override

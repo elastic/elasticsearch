@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -81,6 +81,8 @@ public class UserPrivilegeResolver {
         final String username = securityContext.requireUser().principal();
         request.username(username);
         request.applicationPrivileges(buildResourcePrivilege(service));
+        request.applicationPrivileges(buildResourcePrivilege(service));
+        request.clusterPrivileges(Strings.EMPTY_ARRAY);
         client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
             response -> {
                 logger.debug("Checking access for user [{}] to application [{}] resource [{}]",
@@ -98,14 +100,11 @@ public class UserPrivilegeResolver {
         if (appPrivileges == null || appPrivileges.isEmpty()) {
             return UserPrivileges.noAccess(response.getUsername());
         }
-        final boolean hasAccess = checkAccess(appPrivileges, service.getLoginAction(), service.getResource());
-        if (hasAccess == false) {
-            return UserPrivileges.noAccess(response.getUsername());
-        }
         final Set<String> roles = service.getRoleActions().entrySet().stream()
             .filter(entry -> checkAccess(appPrivileges, entry.getValue(), service.getResource()))
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableSet());
+        final boolean hasAccess = roles.isEmpty() == false;
         return new UserPrivileges(response.getUsername(), hasAccess, roles);
     }
 
@@ -122,10 +121,7 @@ public class UserPrivilegeResolver {
         final RoleDescriptor.ApplicationResourcePrivileges.Builder builder = RoleDescriptor.ApplicationResourcePrivileges.builder();
         builder.application(service.getApplicationName());
         builder.resources(service.getResource());
-        Set<String> actions = new HashSet<>(1 + service.getRoleActions().size());
-        actions.add(service.getLoginAction());
-        actions.addAll(service.getRoleActions().values());
-        builder.privileges(actions);
+        builder.privileges(service.getRoleActions().values());
         return builder.build();
     }
 }

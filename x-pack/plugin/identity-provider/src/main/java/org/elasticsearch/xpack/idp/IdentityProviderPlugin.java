@@ -45,15 +45,13 @@ import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
-import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider.ServiceProviderDefaults;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
-import org.joda.time.Duration;
-import org.opensaml.saml.saml2.core.NameID;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -90,9 +88,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
         final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext);
 
-        // TODO
-        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login",
-            NameID.TRANSIENT, Duration.standardMinutes(5));
+
+        final ServiceProviderDefaults serviceProviderDefaults = ServiceProviderDefaults.forSettings(settings);
         final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
             .fromSettings(environment)
@@ -143,6 +140,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(ENABLED_SETTING);
         settings.addAll(SamlIdentityProviderBuilder.getSettings());
+        settings.addAll(ServiceProviderDefaults.getSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);

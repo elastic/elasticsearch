@@ -1,15 +1,16 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-concepts]]
-== Index lifecycle management concepts
+== {ilm-init} concepts
 
 ++++
 <titleabbrev>Concepts</titleabbrev>
 ++++
 
-* <<ilm-phases>>
-* <<ilm-actions>>
+* <<ilm-index-lifecycle>>
+* <<index-rollover>>
+* <<update-lifecycle-policy>>
 
-include::ilm-phases.asciidoc[]
-
-include::ilm-actions.asciidoc[]
+include::ilm-index-lifecycle.asciidoc[]
+include::index-rollover.asciidoc[]
+include::update-lifecycle-policy.asciidoc[]

@@ -1,0 +1,32 @@
+[[ilm-delete]]
+=== Delete
+
+Phases allowed: delete.
+
+The Delete action does just that, it deletes the index.
+
+[[ilm-delete-action-options]]
+.Delete
+[options="header"]
+|======
+| Name                         | Required  | Default             | Description
+| `delete_searchable_snapshot` | no        | true                | Deletes the searchable snapshot created in the cold phase, if a
+                                                                   snapshot was created (ie. if the <<ilm-searchable-snapshot-action,
+                                                                   Searchable Snapshot Action>> was used in the cold phase)
+|======
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "delete": {
+        "actions": {
+          "delete" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

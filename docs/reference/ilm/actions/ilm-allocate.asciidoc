@@ -1,0 +1,118 @@
+[[ilm-allocate]]
+=== Allocate
+
+Phases allowed: warm, cold.
+
+The Allocate action allows you to specify which nodes are allowed to host the
+shards of the index and set the number of replicas.
+Behind the scenes, it is modifying the index settings
+for shard filtering and/or replica counts. When updating the number of replicas,
+configuring allocation rules is optional. When configuring allocation rules,
+setting number of replicas is optional. Although this action can be treated as
+two separate index settings updates, both can be configured at once.
+
+For more information about how {es} uses replicas for scaling, see
+<<scalability>>. See <<shard-allocation-filtering>> for more information about
+controlling where Elasticsearch allocates shards of a particular index.
+
+--
+NOTE: As allocate action is not allowed in `hot` phase, the initial allocation for the index should be done manually or via index templates, as ILM won't take care of index allocation during `hot` phase.
+--
+
+[[ilm-allocate-options]]
+.Allocate Options
+[options="header"]
+|======
+| Name                 | Required  | Default     | Description
+| `number_of_replicas` | no        | -           | The number of replicas to
+                                                   assign to the index
+| `include`            | no        | -           | assigns an index to nodes
+                                                   having at least _one_ of the attributes
+| `exclude`            | no        | -           | assigns an index to nodes having
+                                                   _none_ of the attributes
+| `require`            | no        | -           | assigns an index to nodes having
+                                                   _all_ of the attributes
+|======
+
+If `number_of_replicas` is not configured, then at least one of `include`,
+`exclude`, and `require` is required. An empty Allocate Action with no configuration
+is invalid.
+
+[float]
+==== Examples
+
+[float]
+===== Change number of replicas
+
+In this example, the index's number of replicas is changed to `2`, while allocation
+rules are unchanged.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "allocate" : {
+            "number_of_replicas" : 2
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[float]
+===== Assign index to node with specific "box_type" attribute
+
+This example assigns the index to nodes with `box_type` attribute of "hot" or "warm".
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "allocate" : {
+            "include" : {
+              "box_type": "hot,warm"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[float]
+===== Assign index to a specific node and update replica settings
+
+This example updates the index to have one replica per shard and be allocated
+to nodes with a `box_type` attribute of "cold".
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "allocate" : {
+            "number_of_replicas": 1,
+            "require" : {
+              "box_type": "cold"
+            }
+        }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

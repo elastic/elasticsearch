@@ -1,16 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-index-lifecycle]]
-<<<<<<< HEAD
 === Index lifecycle
-=======
-== Understanding the index lifecycle
->>>>>>> Removed example from concepts.
 ++++
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
 
-[[ilm-policy-definition]]{ilm-init} splits the index lifecycle into four _phases_: 
+{ilm-init} splits the index lifecycle into four _phases_: 
 
 * Hot--the index is actively being updated and queried.
 * Warm--the index is no longer being updated, but is still being queried.
@@ -22,19 +18,11 @@ slower.
 An index's _lifecycle policy_ specifies which phases 
 are applicable, what actions are performed in each phase,
 and when it transitions between phases. 
-<<<<<<< HEAD
 
 To automatically apply a lifecycle policy to new time-series indices when they roll over, 
 you associate the policy with the index template. 
 To manage indices that don't roll over, you can manually apply a lifecycle policy when creating the index.
 
-=======
-
-To automatically apply a lifecycle policy to new time-series indices when they roll over, 
-you associate the policy with the index template. 
-To manage indices that don't roll over, you can manually apply a lifecycle policy when creating the index.
-
->>>>>>> Removed example from concepts.
 [float]
 [[ilm-phase-transitions]]
 === Phase transitions
@@ -66,22 +54,23 @@ If they cannot, phase execution continues using the cached definition.
 {ilm-init} supports the following actions in each phase.
 
 * Hot
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-rollover-action,Rollover>>
+  - <<ilm-set-priority,Set Priority>>
+  - <<ilm-unfollow,Unfollow>>
+  - <<ilm-rollover,Rollover>>
 * Warm
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-readonly-action,Read-Only>>
-  - <<ilm-allocate-action,Allocate>>
-  - <<ilm-shrink-action,Shrink>>
-  - <<ilm-forcemerge-action,Force Merge>>
+  - <<ilm-set-priority,Set Priority>>
+  - <<ilm-unfollow,Unfollow>>
+  - <<ilm-readonly,Read-Only>>
+  - <<ilm-allocate,Allocate>>
+  - <<ilm-shrink,Shrink>>
+  - <<ilm-forcemerge,Force Merge>>
 * Cold
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-unfollow-action,Unfollow>>
-  - <<ilm-allocate-action,Allocate>>
-  - <<ilm-freeze-action,Freeze>>
-  - <<ilm-searchable-snapshot-action, Searchable Snapshot>>
+  - <<ilm-allocate,Allocate>>
+  - <<ilm-freeze,Freeze>>
+  - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
-  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
-  - <<ilm-delete-action,Delete>>
+  - <<ilm-delete,Wait For Snapshot>>
+  - <<ilm-delete,Delete>>
+  

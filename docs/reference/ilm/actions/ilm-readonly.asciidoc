@@ -1,0 +1,25 @@
+[[ilm-readonly]]
+=== Read-Only
+
+Phases allowed: warm.
+
+This action will set the index to be read-only
+(see: <<dynamic-index-settings,index.blocks.write>>)
+
+This action does not have any options associated with it.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "readonly" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

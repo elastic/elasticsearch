@@ -1,0 +1,51 @@
+[[ilm-shrink]]
+==== Shrink
+
+NOTE: Index will be be made read-only when this action is run
+(see: <<dynamic-index-settings,index.blocks.write>>)
+[IMPORTANT]
+If a policy using the Shrink action is used on a <<ccr-put-follow,follower
+index>>, policy execution will wait until the leader index rolls over (or has
+<<skipping-rollover, otherwise been marked as complete>>), then convert the
+follower index into a regular index as if <<ilm-unfollow-action,the Unfollow
+action>> had been used before shrink is applied, as shrink cannot be safely
+applied to follower indices.
+
+This action shrinks an existing index into a new index with fewer primary
+shards. It calls the <<indices-shrink-index,Shrink API>> to shrink the index.
+Since allocating all the primary shards of the index to one node is a
+prerequisite, this action will first allocate the primary shards to a valid
+node. After shrinking, it will swap aliases pointing to the original index
+into the new shrunken index. The new index will also have a new name:
+"shrink-<origin-index-name>". So if the original index was called "logs",
+then the new index will be named "shrink-logs".
+
+[[ilm-shrink-options]]
+.Shrink Options
+[options="header"]
+|======
+| Name               | Required  | Default             | Description
+| `number_of_shards` | yes       | -                   | The number of shards
+                                                         to shrink to. must be
+                                                         a factor of the number
+                                                         of shards in the
+                                                         source index.
+|======
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "shrink" : {
+            "number_of_shards": 1
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

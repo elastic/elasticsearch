@@ -92,8 +92,7 @@ all new documents should be directed to {ilm-init}-managed indices - if you are
 using Beats or Logstash data shippers, upgrading all of those shippers to
 version 7.0.0 or higher will take care of that part for you. If you are not
 using Beats or Logstash, you may need to set up ILM for new indices yourself as
-demonstrated in the <<getting-started-index-lifecycle-management,getting started
-guide>>.
+demonstrated in the <<getting-started-index-lifecycle-management,{ilm-init} tutorial>>.
 
 NOTE: If you are using Beats through Logstash, you may need to change your
 Logstash output configuration and invoke the Beats setup to use ILM for new

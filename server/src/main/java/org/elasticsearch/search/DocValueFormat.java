@@ -224,9 +224,9 @@ public interface DocValueFormat extends NamedWriteable {
             if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
                 /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
-                   All indices in 8 should use java style pattern. Hence this flag is always true.
+                   All indices in 8 should use java style pattern. Hence this flag is always false.
                 */
-                out.writeBoolean(true);
+                out.writeBoolean(false);
             }
         }
 

@@ -453,17 +453,21 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                         currentBytesConsumed += nBytesToWrite;
                                         if (ioBuffer.hasRemaining() == false) {
                                             ioBuffer.flip();
+                                            final int bytesToWrite = ioBuffer.remaining();
                                             writeToFile(ioBuffer);
+                                            writtenOffset.getAndAdd(bytesToWrite);
                                             ioBuffer.clear();
                                         }
                                     }
                                 }
-                                expectedLocation = writtenOffset.addAndGet(operation.data.length());
+                                expectedLocation += operation.data.length();
                             }
                         }
 
                         ioBuffer.flip();
+                        final int bytesToWrite = ioBuffer.remaining();
                         writeToFile(ioBuffer);
+                        writtenOffset.getAndAdd(bytesToWrite);
                         lastWrittenCheckpoint = new Checkpoint(writtenOffset.get(), numOps, generation, minSeqNo, maxSeqNo,
                             globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
                             SequenceNumbers.UNASSIGNED_SEQ_NO);

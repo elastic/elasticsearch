@@ -42,7 +42,7 @@ public class RestDeleteSamlServiceProviderAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String entityId = restRequest.param("sp_entity_id");
         final WriteRequest.RefreshPolicy refresh = restRequest.hasParam("refresh")
-            ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : WriteRequest.RefreshPolicy.IMMEDIATE;
+            ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : WriteRequest.RefreshPolicy.NONE;
         final DeleteSamlServiceProviderRequest request = new DeleteSamlServiceProviderRequest(entityId, refresh);
         return channel -> client.execute(DeleteSamlServiceProviderAction.INSTANCE, request,
             new RestBuilderListener<>(channel) {

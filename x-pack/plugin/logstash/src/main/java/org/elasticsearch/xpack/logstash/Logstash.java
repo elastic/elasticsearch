@@ -15,7 +15,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.ArrayList;
@@ -36,21 +35,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_VARIABLE = "logstash.template.version";
 
-    private final boolean enabled;
-    private final boolean transportClientMode;
-
-    public Logstash(Settings settings) {
-        this.enabled = XPackSettings.LOGSTASH_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-    }
-
-    boolean isEnabled() {
-        return enabled;
-    }
-
-    boolean isTransportClient() {
-        return transportClientMode;
-    }
+    public Logstash() {}
 
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();

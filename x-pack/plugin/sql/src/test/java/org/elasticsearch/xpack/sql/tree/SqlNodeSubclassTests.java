@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.tree;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.LiteralTests;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
@@ -20,9 +19,15 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 /**
  * Looks for all subclasses of {@link Node} and verifies that they
@@ -48,12 +53,11 @@ import java.util.List;
  * node of that type is called for.
  * </ul>
  */
-@AwaitsFix(bugUrl = "classpath inside tests is different")
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = CollectionUtils.combine(
-            NodeSubclassTests.CLASSES_WITH_MIN_TWO_CHILDREN, Arrays.asList(Percentile.class, Percentiles.class, PercentileRanks.class));
-
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(Percentile.class, Percentiles.class, PercentileRanks.class,
+            Iif.class, IfConditional.class, IfNull.class, In.class, InPipe.class,
+            org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In.class);
 
     public SqlNodeSubclassTests(Class<T> subclass) {
         super(subclass);
@@ -82,7 +86,7 @@ public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSu
             }
         } else if (toBuildClass == CurrentDateTime.class) {
             if (argClass == Expression.class) {
-                return Literal.of(SourceTests.randomSource(), randomInt(9));
+                return new Literal(SourceTests.randomSource(), randomInt(9), INTEGER);
             }
         }
 

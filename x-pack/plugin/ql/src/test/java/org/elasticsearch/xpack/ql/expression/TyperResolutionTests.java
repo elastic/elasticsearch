@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.type.DataType;
-
-import java.time.Period;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
@@ -23,26 +20,7 @@ public class TyperResolutionTests extends ESTestCase {
         assertEquals(TypeResolution.TYPE_RESOLVED, m.typeResolved());
     }
 
-    public void testMulIntervalAndNumber() {
-        Mul m = new Mul(EMPTY, L(1), randomYearInterval());
-        assertEquals(TypeResolution.TYPE_RESOLVED, m.typeResolved());
-    }
-
-    public void testMulNumberAndInterval() {
-        Mul m = new Mul(EMPTY, randomYearInterval(), L(1));
-        assertEquals(TypeResolution.TYPE_RESOLVED, m.typeResolved());
-    }
-
-    public void testMulTypeResolution() throws Exception {
-        Mul mul = new Mul(EMPTY, randomYearInterval(), randomYearInterval());
-        assertTrue(mul.typeResolved().unresolved());
-    }
-
-    private static Literal randomYearInterval() {
-        return Literal.of(EMPTY, new IntervalYearMonth(Period.ofMonths(randomInt(123)), DataType.INTERVAL_YEAR_TO_MONTH));
-    }
-
     private static Literal L(Object value) {
-        return Literal.of(EMPTY, value);
+        return TestUtils.of(EMPTY, value);
     }
 }

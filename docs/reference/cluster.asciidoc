@@ -99,6 +99,8 @@ include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
+include::cluster/nodes-reload-secure-settings.asciidoc[]
+
 include::cluster/nodes-stats.asciidoc[]
 
 include::cluster/pending.asciidoc[]

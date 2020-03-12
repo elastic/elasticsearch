@@ -31,6 +31,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -473,20 +474,24 @@ final class StoreRecovery {
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
             final ShardId snapshotShardId;
-            final String indexName = restoreSource.index();
-            if (!shardId.getIndexName().equals(indexName)) {
-                snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
-            } else {
+            final IndexId indexId = restoreSource.index();
+            if (shardId.getIndexName().equals(indexId.getName())) {
                 snapshotShardId = shardId;
+            } else {
+                snapshotShardId = new ShardId(indexId.getName(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            repository.getRepositoryData(ActionListener.wrap(
-                repositoryData -> {
-                    final IndexId indexId = repositoryData.resolveIndexId(indexName);
-                    assert indexShard.getEngineOrNull() == null;
-                    repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
-                        indexShard.recoveryState(), restoreListener);
-                }, restoreListener::onFailure
-            ));
+            final StepListener<IndexId> indexIdListener = new StepListener<>();
+            // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
+            if (indexId.getId().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
+                // BwC path, running against an old version master that did not add the IndexId to the recovery source
+                repository.getRepositoryData(ActionListener.map(
+                    indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+            } else {
+                indexIdListener.onResponse(indexId);
+            }
+            assert indexShard.getEngineOrNull() == null;
+            indexIdListener.whenComplete(idx -> repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
+                idx, snapshotShardId, indexShard.recoveryState(), restoreListener), restoreListener::onFailure);
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

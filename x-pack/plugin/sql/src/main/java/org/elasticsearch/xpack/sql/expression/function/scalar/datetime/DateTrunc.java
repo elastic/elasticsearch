@@ -9,12 +9,13 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
@@ -26,9 +27,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
-
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDateOrInterval;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.ql.util.DateUtils.*;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 
 public class DateTrunc extends BinaryDateTimeFunction {
 
@@ -239,10 +240,10 @@ public class DateTrunc extends BinaryDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        if (right().dataType().isInterval()) {
+        if (isInterval(right().dataType())) {
             return right().dataType();
         }
-        return DataType.DATETIME;
+        return DataTypes.DATETIME;
     }
 
     @Override
@@ -251,7 +252,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isDateOrInterval(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isType(right(), SqlDataTypes::isInterval, sourceText(),Expressions.ParamOrdinal.SECOND,"interval");
         if (resolution.unresolved()) {
             return resolution;
         }

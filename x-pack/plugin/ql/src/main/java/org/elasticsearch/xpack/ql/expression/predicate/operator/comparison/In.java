@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -26,7 +28,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.ql.type.DataTypes.areTypesCompatible;
 import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
 
 public class In extends ScalarFunction {
@@ -42,7 +43,7 @@ public class In extends ScalarFunction {
 
     @Override
     protected NodeInfo<In> info() {
-        return NodeInfo.create(this, In::new, value, list);
+        return NodeInfo.create(this, In::new, value(), list());
     }
 
     @Override
@@ -63,7 +64,7 @@ public class In extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -74,17 +75,16 @@ public class In extends ScalarFunction {
     @Override
     public boolean foldable() {
         return Expressions.foldable(children()) ||
-            (Expressions.foldable(list) && list().stream().allMatch(e -> e.dataType() == DataType.NULL));
+                (Expressions.foldable(list) && list().stream().allMatch(Expressions::isNull));
     }
 
     @Override
     public Boolean fold() {
         // Optimization for early return and Query folding to LocalExec
-        if (value.dataType() == DataType.NULL ||
-            list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+        if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;
         }
-        return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
+        return InProcessor.apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
     }
 
     @Override
@@ -92,7 +92,7 @@ public class In extends ScalarFunction {
         ScriptTemplate leftScript = asScript(value);
 
         // fold & remove duplicates
-        List<Object> values = new ArrayList<>(new LinkedHashSet<>(Foldables.valuesOf(list, value.dataType())));
+        List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldAndConvertListOfValues(list, value.dataType())));
 
         return new ScriptTemplate(
             formatTemplate(format("{sql}.","in({}, {})", leftScript.template())),
@@ -101,6 +101,18 @@ public class In extends ScalarFunction {
                 .variable(values)
                 .build(),
             dataType());
+    }
+
+    protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
+        List<Object> values = new ArrayList<>(list.size());
+        for (Expression e : list) {
+            values.add(DataTypeConverter.convert(Foldables.valueOf(e), dataType));
+        }
+        return values;
+    }
+
+    protected boolean areCompatible(DataType left, DataType right) {
+        return DataTypes.areCompatible(left, right);
     }
 
     @Override
@@ -126,7 +138,7 @@ public class In extends ScalarFunction {
         DataType dt = value.dataType();
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
-            if (areTypesCompatible(dt, listValue.dataType()) == false) {
+            if (areCompatible(dt, listValue.dataType()) == false) {
                 return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                     ordinal(i + 1),
                     sourceText(),

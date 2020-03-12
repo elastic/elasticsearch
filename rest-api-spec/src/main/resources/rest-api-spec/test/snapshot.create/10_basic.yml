@@ -41,8 +41,8 @@ setup:
 ---
 "Create a snapshot and clean up repository":
   - skip:
-      version: " - 7.99.99"
-      reason:  cleanup introduced in 8.0
+      version: " - 7.3.99"
+      reason:  cleanup introduced in 7.4
 
   - do:
       snapshot.cleanup_repository:

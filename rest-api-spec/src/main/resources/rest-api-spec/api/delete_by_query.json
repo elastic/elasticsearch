@@ -146,7 +146,7 @@
       },
       "refresh":{
         "type":"boolean",
-        "description":"Should the effected indexes be refreshed?"
+        "description":"Should the affected indexes be refreshed?"
       },
       "timeout":{
         "type":"time",
@@ -173,9 +173,9 @@
         "description":"The throttle for this request in sub-requests per second. -1 means no throttle."
       },
       "slices":{
-        "type":"number",
+        "type":"number|string",
         "default":1,
-        "description":"The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks."
+        "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       }
     },
     "body":{

@@ -515,7 +515,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             FieldMapper fieldMapper = (FieldMapper) disabledMapper.mappers().getMapper("field");
             fieldMapper.fieldType().fielddataBuilder("test");
         });
-        assertThat(e.getMessage(), containsString("Fielddata is disabled"));
+        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -735,7 +735,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("object.field");
+            MappedFieldType textField = indexService.mapperService().fieldType("object.field");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
@@ -761,7 +761,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("body.with_prefix");
+            MappedFieldType textField = indexService.mapperService().fieldType("body.with_prefix");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();

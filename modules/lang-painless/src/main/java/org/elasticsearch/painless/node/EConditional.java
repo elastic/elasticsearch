@@ -20,17 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConditionalNode;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a conditional expression.
@@ -50,21 +47,10 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        left.extractVariables(variables);
-        right.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
-
-        if (condition.constant != null) {
-            throw createError(new IllegalArgumentException("Extraneous conditional statement."));
-        }
+        condition.analyze(scriptRoot, scope);
+        condition.cast();
 
         left.expected = expected;
         left.explicit = explicit;
@@ -74,36 +60,39 @@ public final class EConditional extends AExpression {
         right.internal = internal;
         actual = expected;
 
-        left.analyze(scriptRoot, locals);
-        right.analyze(scriptRoot, locals);
+        left.analyze(scriptRoot, scope);
+        right.analyze(scriptRoot, scope);
 
         if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
+            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual);
+
+            if (promote == null) {
+                throw createError(new ClassCastException("cannot apply a conditional operator [?:] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]"));
+            }
 
             left.expected = promote;
             right.expected = promote;
             actual = promote;
         }
 
-        left = left.cast(scriptRoot, locals);
-        right = right.cast(scriptRoot, locals);
+        left.cast();
+        right.cast();
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    ConditionalNode write(ClassNode classNode) {
+        ConditionalNode conditionalNode = new ConditionalNode();
 
-        Label fals = new Label();
-        Label end = new Label();
+        conditionalNode.setLeftNode(left.cast(left.write(classNode)));
+        conditionalNode.setRightNode(right.cast(right.write(classNode)));
+        conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
 
-        condition.write(classWriter, methodWriter, globals);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
+        conditionalNode.setLocation(location);
+        conditionalNode.setExpressionType(actual);
 
-        left.write(classWriter, methodWriter, globals);
-        methodWriter.goTo(end);
-        methodWriter.mark(fals);
-        right.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
+        return conditionalNode;
     }
 
     @Override

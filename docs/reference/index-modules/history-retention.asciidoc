@@ -49,13 +49,6 @@ index since it can no longer simply replay the missing history. The expiry time
 of a retention lease defaults to `12h` which should be long enough for most
 reasonable recovery scenarios.
 
-Soft deletes are enabled by default on indices created in recent versions, but
-they can be explicitly enabled or disabled at index creation time. If soft
-deletes are disabled then peer recoveries can still sometimes take place by
-copying just the missing operations from the translog
-<<index-modules-translog-retention,as long as those operations are retained
-there>>. {ccr-cap} will not function if soft deletes are disabled.
-
 [float]
 === History retention settings
 

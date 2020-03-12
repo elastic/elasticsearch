@@ -48,17 +48,20 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
-        request.patterns(Collections.singletonList("test_shards*"));
+        request.patterns(singletonList("test_shards*"));
 
         request.settings(builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0")
@@ -76,7 +79,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
-        request.patterns(Collections.singletonList("_test_shards*"));
+        request.patterns(singletonList("_test_shards*"));
         request.settings(builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0").build());
 
         List<Throwable> throwables = putTemplate(xContentRegistry(), request);
@@ -101,8 +104,8 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
-        request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        request.patterns(singletonList("te*"));
+        request.mappings(Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                         .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
                         .endObject().endObject().endObject()));
 
@@ -114,20 +117,20 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
-        request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", "abcde");
+        request.patterns(singletonList("te*"));
+        request.mappings("abcde");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping "));
+        assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping"));
     }
 
     public void testAliasInvalidFilterInvalidJson() throws Exception {
         //invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
-        request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", "{}");
+        request.patterns(singletonList("te*"));
+        request.mappings("{}");
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
         request.aliases(aliases);
@@ -140,15 +143,63 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testFindTemplates() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
-        putTemplateDetail(new PutRequest("test", "foo-1").patterns(Arrays.asList("foo-*")).order(1));
-        putTemplateDetail(new PutRequest("test", "foo-2").patterns(Arrays.asList("foo-*")).order(2));
-        putTemplateDetail(new PutRequest("test", "bar").patterns(Arrays.asList("bar-*")).order(between(0, 100)));
+        putTemplateDetail(new PutRequest("test", "foo-1").patterns(singletonList("foo-*")).order(1));
+        putTemplateDetail(new PutRequest("test", "foo-2").patterns(singletonList("foo-*")).order(2));
+        putTemplateDetail(new PutRequest("test", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234").stream()
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", randomBoolean()).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1"));
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz").stream()
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", randomBoolean()).stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar"));
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz"), empty());
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", randomBoolean()), empty());
+    }
+
+    public void testFindTemplatesWithHiddenIndices() throws Exception {
+        client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "foo-1").patterns(singletonList("foo-*")).order(1));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "foo-2").patterns(singletonList("foo-*")).order(2));
+        putTemplateDetail(
+            new PutRequest("testFindTemplatesWithHiddenIndices", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "global").patterns(singletonList("*")));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "sneaky-hidden")
+            .patterns(singletonList("sneaky*")).settings(Settings.builder().put("index.hidden", true).build()));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        // hidden
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", true).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("foo-2", "foo-1"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", true).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", true), empty());
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "sneaky1", true).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("sneaky-hidden"));
+
+        // not hidden
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", false).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("foo-2", "foo-1", "global"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", false).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("bar", "global"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", false).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("global"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "sneaky1", false).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("global", "sneaky-hidden"));
+
+        // unknown
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234", null).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("foo-2", "foo-1", "global"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz", null).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), containsInAnyOrder("bar", "global"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz", null).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("global"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "sneaky1", null).stream()
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("sneaky-hidden"));
+    }
+
+    public void testPutGlobalTemplateWithIndexHiddenSetting() throws Exception {
+        List<Throwable> errors = putTemplateDetail(new PutRequest("testPutGlobalTemplateWithIndexHiddenSetting", "sneaky-hidden")
+            .patterns(singletonList("*")).settings(Settings.builder().put("index.hidden", true).build()));
+        assertThat(errors.size(), is(1));
+        assertThat(errors.get(0).getMessage(), containsString("global templates may not specify the setting index.hidden"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
@@ -162,6 +213,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
+                Collections.emptyList(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(null, createIndexService,
                 new AliasValidator(), null,
@@ -192,9 +244,10 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-                null,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry(),
+                Collections.emptyList(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
                 clusterService, createIndexService, new AliasValidator(), indicesService,

@@ -70,6 +70,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
         when(discoveryNodes.spliterator()).thenReturn(Arrays.asList(mockNode).spliterator());
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);
         when(state.getNodes()).thenReturn(discoveryNodes); // it is really ridiculous we have nodes() and getNodes()...
         when(clusterService.state()).thenReturn(state);

@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.ql.expression.literal.Literals;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.sql.expression.literal.Literals;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 
 import java.io.IOException;
@@ -81,14 +81,6 @@ public final class Cursors {
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
         }
-    }
-
-
-    /**
-     * Read a {@linkplain Cursor} from a string.
-     */
-    public static Cursor decodeFromString(String base64) {
-        return decodeFromStringWithZone(base64).v1();
     }
 
     /**

@@ -74,7 +74,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
-                MappedFieldType fieldType = context.getMapperService().fullName(fieldName);
+                MappedFieldType fieldType = context.getMapperService().fieldType(fieldName);
                 if (fieldType == null) {
                     continue;
                 }

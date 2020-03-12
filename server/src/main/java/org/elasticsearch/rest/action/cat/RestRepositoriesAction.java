@@ -24,10 +24,11 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
+
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -36,8 +37,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestRepositoriesAction extends AbstractCatAction {
 
-    public RestRepositoriesAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/repositories", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/repositories"));
     }
 
     @Override

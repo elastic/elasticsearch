@@ -53,6 +53,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -70,12 +72,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -84,6 +86,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
@@ -98,17 +101,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class QueryPhaseTests extends IndexShardTestCase {
 
     private IndexShard indexShard;
-
-    @Override
-    public Settings threadPoolSettings() {
-        return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.search.min_queue_size", 10).build();
-    }
 
     @Override
     public void setUp() throws Exception {
@@ -640,8 +638,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(mapperService.fullName(fieldNameDate)).thenReturn(fieldTypeDate);
+        when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
 
         final int numDocs = 7000;
         Directory dir = newDirectory();
@@ -831,15 +829,63 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         reader.close();
         dir.close();
-
     }
 
-    private static ContextIndexSearcher newContextSearcher(IndexReader reader) {
+    public void testCancellationDuringPreprocess() throws IOException {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+
+            for (int i = 0; i < 10; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("foo", "a".repeat(i), Store.NO));
+                w.addDocument(doc);
+            }
+            w.flush();
+            w.close();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(
+                        null, indexShard, newContextSearcher(reader));
+                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
+                prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+                context.parsedQuery(new ParsedQuery(prefixQuery));
+                SearchShardTask task = mock(SearchShardTask.class);
+                when(task.isCancelled()).thenReturn(true);
+                context.setTask(task);
+                expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
+            }
+        }
+    }
+
+    private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {
+
+        private TestSearchContextWithRewriteAndCancellation(QueryShardContext queryShardContext,
+                                                            IndexShard indexShard,
+                                                            ContextIndexSearcher searcher) {
+            super(queryShardContext, indexShard, searcher);
+        }
+
+        @Override
+        public void preProcess(boolean rewrite) {
+            try {
+                searcher().rewrite(query());
+            } catch (IOException e) {
+                fail("IOException shouldn't be thrown");
+            }
+        }
+
+        @Override
+        public boolean lowLevelCancellation() {
+            return true;
+        }
+    }
+
+    private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
     }
 
-    private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size) {
+    private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 
@@ -852,7 +898,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType) {
+    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 

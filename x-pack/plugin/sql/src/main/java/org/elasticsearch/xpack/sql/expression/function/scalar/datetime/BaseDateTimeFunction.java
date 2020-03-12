@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.time.ZoneId;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 

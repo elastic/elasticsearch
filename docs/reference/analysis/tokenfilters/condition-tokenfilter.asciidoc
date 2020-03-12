@@ -8,7 +8,7 @@ Applies a set of token filters to tokens that match conditions in a provided
 predicate script.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/ConditionalTokenFilter.html[ConditionalTokenFilter].
+{lucene-analysis-docs}/miscellaneous/ConditionalTokenFilter.html[ConditionalTokenFilter].
 
 [[analysis-condition-analyze-ex]]
 ==== Example

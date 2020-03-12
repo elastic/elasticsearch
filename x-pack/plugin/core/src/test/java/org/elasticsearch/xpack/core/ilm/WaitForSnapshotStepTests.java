@@ -41,7 +41,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
                 nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                policy = randomAlphaOfLengthBetween(1, 10);
+                policy = randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(1, 10));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

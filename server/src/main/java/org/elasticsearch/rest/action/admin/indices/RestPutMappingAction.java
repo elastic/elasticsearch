@@ -26,11 +26,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -39,13 +39,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
 
-    public RestPutMappingAction(RestController controller) {
-        controller.registerHandler(PUT, "/{index}/_mapping/", this);
-        controller.registerHandler(POST, "/{index}/_mapping/", this);
-
-        //register the same paths, but with plural form _mappings
-        controller.registerHandler(PUT, "/{index}/_mappings/", this);
-        controller.registerHandler(POST, "/{index}/_mappings/", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/{index}/_mapping/"),
+            new Route(PUT, "/{index}/_mapping/"),
+            new Route(POST, "/{index}/_mappings/"),
+            new Route(PUT, "/{index}/_mappings/"));
     }
 
     @Override

@@ -9,7 +9,7 @@ Latin Unicode block (first 127 ASCII characters) to their ASCII equivalent, if
 one exists. For example, the filter changes `à` to `a`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/ASCIIFoldingFilter.html[ASCIIFoldingFilter].
+{lucene-analysis-docs}/miscellaneous/ASCIIFoldingFilter.html[ASCIIFoldingFilter].
 
 [[analysis-asciifolding-tokenfilter-analyze-ex]]
 ==== Example

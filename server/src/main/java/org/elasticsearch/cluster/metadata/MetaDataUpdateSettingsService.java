@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -214,6 +215,12 @@ public class MetaDataUpdateSettingsService {
                     }
                 }
 
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
+                    IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
+                    for (String index : actualIndices) {
+                        MetaDataCreateIndexService.validateTranslogRetentionSettings(metaDataBuilder.get(index).getSettings());
+                    }
+                }
                 // increment settings versions
                 for (final String index : actualIndices) {
                     if (same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings()) == false) {

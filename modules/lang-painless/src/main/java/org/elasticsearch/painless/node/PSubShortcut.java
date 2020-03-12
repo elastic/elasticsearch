@@ -19,15 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotSubShortcutNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-
-import java.util.Set;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a field load/store shortcut.  (Internal only.)
@@ -49,12 +46,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
@@ -77,19 +69,15 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    DotSubShortcutNode write(ClassNode classNode) {
+        DotSubShortcutNode dotSubShortcutNode = new DotSubShortcutNode();
 
-        methodWriter.invokeMethodCall(getter);
+        dotSubShortcutNode.setLocation(location);
+        dotSubShortcutNode.setExpressionType(actual);
+        dotSubShortcutNode.setGetter(getter);
+        dotSubShortcutNode.setSetter(setter);
 
-        if (!getter.returnType.equals(getter.javaMethod.getReturnType())) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    int accessElementCount() {
-        return 1;
+        return dotSubShortcutNode;
     }
 
     @Override
@@ -100,31 +88,6 @@ final class PSubShortcut extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(getter);
-
-        if (getter.returnType != getter.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.invokeMethodCall(setter);
-
-        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 
     @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 public class DatabaseFunctionTests extends ESTestCase {
@@ -28,7 +28,7 @@ public class DatabaseFunctionTests extends ESTestCase {
     public void testDatabaseFunctionOutput() {
         String clusterName = randomAlphaOfLengthBetween(1, 15);
         SqlParser parser = new SqlParser();
-        EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
+        EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
         Analyzer analyzer = new Analyzer(
                 new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
                                   Protocol.PAGE_TIMEOUT, null,

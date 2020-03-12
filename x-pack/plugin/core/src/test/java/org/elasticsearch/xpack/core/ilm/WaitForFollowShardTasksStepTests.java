@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -31,7 +30,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     protected WaitForFollowShardTasksStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        return new WaitForFollowShardTasksStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new WaitForFollowShardTasksStep(stepKey, nextStepKey, client);
     }
 
     @Override
@@ -60,18 +59,16 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        Client client = Mockito.mock(Client.class);
         List<FollowStatsAction.StatsResponse> statsResponses = Arrays.asList(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, 9, 9)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, 3, 3))
         );
-        mockFollowStatsCall(client, indexMetadata.getIndex().getName(), statsResponses);
+        mockFollowStatsCall(indexMetadata.getIndex().getName(), statsResponses);
 
-        WaitForFollowShardTasksStep step = new WaitForFollowShardTasksStep(randomStepKey(), randomStepKey(), client);
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        createRandomInstance().evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder[0] = conditionMet;
@@ -82,7 +79,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             public void onFailure(Exception e) {
                 exceptionHolder[0] = e;
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -96,18 +93,16 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        Client client = Mockito.mock(Client.class);
         List<FollowStatsAction.StatsResponse> statsResponses = Arrays.asList(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, 9, 9)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, 8, 3))
         );
-        mockFollowStatsCall(client, indexMetadata.getIndex().getName(), statsResponses);
+        mockFollowStatsCall(indexMetadata.getIndex().getName(), statsResponses);
 
-        WaitForFollowShardTasksStep step = new WaitForFollowShardTasksStep(randomStepKey(), randomStepKey(), client);
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        createRandomInstance().evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder[0] = conditionMet;
@@ -118,7 +113,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             public void onFailure(Exception e) {
                 exceptionHolder[0] = e;
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
@@ -136,13 +131,11 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        Client client = Mockito.mock(Client.class);
 
-        WaitForFollowShardTasksStep step = new WaitForFollowShardTasksStep(randomStepKey(), randomStepKey(), client);
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        createRandomInstance().evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder[0] = conditionMet;
@@ -153,7 +146,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             public void onFailure(Exception e) {
                 exceptionHolder[0] = e;
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -195,7 +188,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         );
     }
 
-    private void mockFollowStatsCall(Client client, String expectedIndexName, List<FollowStatsAction.StatsResponse> statsResponses) {
+    private void mockFollowStatsCall(String expectedIndexName, List<FollowStatsAction.StatsResponse> statsResponses) {
         Mockito.doAnswer(invocationOnMock -> {
             FollowStatsAction.StatsRequest request = (FollowStatsAction.StatsRequest) invocationOnMock.getArguments()[1];
             assertThat(request.indices().length, equalTo(1));

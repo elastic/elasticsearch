@@ -1294,6 +1294,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
                 .setRandomizeSeed(42L)
+                .setLambda(1.0)
+                .setGamma(1.0)
+                .setEta(1.0)
+                .setMaximumNumberTrees(10)
+                .setFeatureBagFraction(0.5)
+                .setNumTopFeatureImportanceValues(3)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1331,6 +1337,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setTrainingPercent(80.0)
                 .setRandomizeSeed(42L)
                 .setNumTopClasses(1)
+                .setLambda(1.0)
+                .setGamma(1.0)
+                .setEta(1.0)
+                .setMaximumNumberTrees(10)
+                .setFeatureBagFraction(0.5)
+                .setNumTopFeatureImportanceValues(3)
                 .build())
             .setDescription("this is a classification")
             .build();
@@ -1494,6 +1506,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
         assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
+        assertThat(stats.getMemoryUsage(), is(nullValue()));
     }
 
     public void testStartDataFrameAnalyticsConfig() throws Exception {

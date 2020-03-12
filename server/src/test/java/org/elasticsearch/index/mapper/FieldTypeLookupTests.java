@@ -49,7 +49,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testAddNewField() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         MockFieldMapper f = new MockFieldMapper("foo");
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type", newList(f), emptyList());
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f), emptyList());
         assertNull(lookup.get("foo"));
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup2.get("foo"));
@@ -61,8 +61,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f = new MockFieldMapper("foo");
         MockFieldMapper f2 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f), emptyList());
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), emptyList());
+        lookup = lookup.copyAndAddAll(newList(f), emptyList());
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f2), emptyList());
 
         assertEquals(1, size(lookup2.iterator()));
         assertSame(f.fieldType(), lookup2.get("foo"));
@@ -74,7 +74,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "foo");
 
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(field), newList(alias));
+        lookup = lookup.copyAndAddAll(newList(field), newList(alias));
 
         MappedFieldType aliasType = lookup.get("alias");
         assertEquals(field.fieldType(), aliasType);
@@ -87,7 +87,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
 
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(field1), newList(alias1));
+        lookup = lookup.copyAndAddAll(newList(field1), newList(alias1));
 
         // Check that the alias refers to 'foo'.
         MappedFieldType aliasType1 = lookup.get("alias");
@@ -99,7 +99,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper field2 = new MockFieldMapper("bar", fieldType2);
 
         FieldAliasMapper alias2 = new FieldAliasMapper("alias", "alias", "bar");
-        lookup = lookup.copyAndAddAll("type", newList(field2), newList(alias2));
+        lookup = lookup.copyAndAddAll(newList(field2), newList(alias2));
 
         // Check that the alias now refers to 'bar'.
         MappedFieldType aliasType2 = lookup.get("alias");
@@ -114,7 +114,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper field1 = new MockFieldMapper("foo", fieldType1);
 
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(field1), newList(alias1));
+        lookup = lookup.copyAndAddAll(newList(field1), newList(alias1));
 
         // Check that the alias maps to this field type.
         MappedFieldType aliasType1 = lookup.get("alias");
@@ -124,7 +124,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType();
         fieldType2.setBoost(2.0f);
         MockFieldMapper field2 = new MockFieldMapper("foo", fieldType2);
-        lookup = lookup.copyAndAddAll("type", newList(field2), emptyList());
+        lookup = lookup.copyAndAddAll(newList(field2), emptyList());
 
         // Check that the alias maps to the new field type.
         MappedFieldType aliasType2 = lookup.get("alias");
@@ -139,9 +139,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type",
-            newList(field1, field2),
-            newList(alias1, alias2));
+        lookup = lookup.copyAndAddAll(newList(field1, field2), newList(alias1, alias2));
 
         Collection<String> names = lookup.simpleMatchToFullName("b*");
 
@@ -155,7 +153,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testIteratorImmutable() {
         MockFieldMapper f1 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), emptyList());
+        lookup = lookup.copyAndAddAll(newList(f1), emptyList());
 
         try {
             Iterator<MappedFieldType> itr = lookup.iterator();

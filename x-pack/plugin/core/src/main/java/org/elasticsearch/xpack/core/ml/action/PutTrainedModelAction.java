@@ -25,7 +25,7 @@ import java.util.Objects;
 public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Response> {
 
     public static final PutTrainedModelAction INSTANCE = new PutTrainedModelAction();
-    public static final String NAME = "cluster:monitor/xpack/ml/inference/put";
+    public static final String NAME = "cluster:admin/xpack/ml/inference/put";
     private PutTrainedModelAction() {
         super(NAME, Response::new);
     }

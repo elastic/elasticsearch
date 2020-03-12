@@ -31,13 +31,21 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
     }
 
     public static TransformIndexerStats randomStats() {
-        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+        return new TransformIndexerStats(
+            randomLongBetween(10L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null);
+            randomBoolean() ? randomDouble() : null
+        );
     }
 
     public void testExpAvgIncrement() {

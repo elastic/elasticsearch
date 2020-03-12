@@ -20,21 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BinaryMathNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -60,47 +55,41 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         originallyExplicit = explicit;
 
         if (operation == Operation.MUL) {
-            analyzeMul(scriptRoot, locals);
+            analyzeMul(scriptRoot, scope);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(scriptRoot, locals);
+            analyzeDiv(scriptRoot, scope);
         } else if (operation == Operation.REM) {
-            analyzeRem(scriptRoot, locals);
+            analyzeRem(scriptRoot, scope);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(scriptRoot, locals);
+            analyzeAdd(scriptRoot, scope);
         } else if (operation == Operation.SUB) {
-            analyzeSub(scriptRoot, locals);
+            analyzeSub(scriptRoot, scope);
         } else if (operation == Operation.FIND) {
-            analyzeRegexOp(scriptRoot, locals);
+            analyzeRegexOp(scriptRoot, scope);
         } else if (operation == Operation.MATCH) {
-            analyzeRegexOp(scriptRoot, locals);
+            analyzeRegexOp(scriptRoot, scope);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(scriptRoot, locals);
+            analyzeLSH(scriptRoot, scope);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(scriptRoot, locals);
+            analyzeRSH(scriptRoot, scope);
         } else if (operation == Operation.USH) {
-            analyzeUSH(scriptRoot, locals);
+            analyzeUSH(scriptRoot, scope);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(scriptRoot, locals);
+            analyzeBWAnd(scriptRoot, scope);
         } else if (operation == Operation.XOR) {
-            analyzeXor(scriptRoot, locals);
+            analyzeXor(scriptRoot, scope);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(scriptRoot, locals);
+            analyzeBWOr(scriptRoot, scope);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeMul(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -125,25 +114,11 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant * (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant * (long)right.constant;
-            } else if (promote == float.class) {
-                constant = (float)left.constant * (float)right.constant;
-            } else if (promote == double.class) {
-                constant = (double)left.constant * (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeDiv(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeDiv(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -169,29 +144,11 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            try {
-                if (promote == int.class) {
-                    constant = (int)left.constant / (int)right.constant;
-                } else if (promote == long.class) {
-                    constant = (long)left.constant / (long)right.constant;
-                } else if (promote == float.class) {
-                    constant = (float)left.constant / (float)right.constant;
-                } else if (promote == double.class) {
-                    constant = (double)left.constant / (double)right.constant;
-                } else {
-                    throw createError(new IllegalStateException("Illegal tree structure."));
-                }
-            } catch (ArithmeticException exception) {
-                throw createError(exception);
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeRem(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeRem(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -217,29 +174,11 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            try {
-                if (promote == int.class) {
-                    constant = (int)left.constant % (int)right.constant;
-                } else if (promote == long.class) {
-                    constant = (long)left.constant % (long)right.constant;
-                } else if (promote == float.class) {
-                    constant = (float)left.constant % (float)right.constant;
-                } else if (promote == double.class) {
-                    constant = (double)left.constant % (double)right.constant;
-                } else {
-                    throw createError(new IllegalStateException("Illegal tree structure."));
-                }
-            } catch (ArithmeticException exception) {
-                throw createError(exception);
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeAdd(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeAdd(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -277,28 +216,11 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant + (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant + (long)right.constant;
-            } else if (promote == float.class) {
-                constant = (float)left.constant + (float)right.constant;
-            } else if (promote == double.class) {
-                constant = (double)left.constant + (double)right.constant;
-            } else if (promote == String.class) {
-                constant = left.constant.toString() + right.constant.toString();
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeSub(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeSub(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -324,39 +246,25 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant - (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant - (long)right.constant;
-            } else if (promote == float.class) {
-                constant = (float)left.constant - (float)right.constant;
-            } else if (promote == double.class) {
-                constant = (double)left.constant - (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeRegexOp(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeRegexOp(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
         left.expected = String.class;
         right.expected = Pattern.class;
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+        left.cast();
+        right.cast();
 
         promote = boolean.class;
         actual = boolean.class;
     }
 
-    private void analyzeLSH(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeLSH(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -390,21 +298,11 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant << (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant << (int)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeRSH(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeRSH(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -438,21 +336,11 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant >> (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant >> (int)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeUSH(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeUSH(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -486,21 +374,11 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant >>> (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant >>> (int)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeBWAnd(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeBWAnd(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -526,21 +404,11 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant & (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant & (long)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeXor(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeXor(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -565,23 +433,11 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == boolean.class) {
-                constant = (boolean)left.constant ^ (boolean)right.constant;
-            } else if (promote == int.class) {
-                constant = (int)left.constant ^ (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant ^ (long)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
-    private void analyzeBWOr(ScriptRoot scriptRoot, Locals variables) {
+    private void analyzeBWOr(ScriptRoot scriptRoot, Scope variables) {
         left.analyze(scriptRoot, variables);
         right.analyze(scriptRoot, variables);
 
@@ -606,72 +462,26 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant | (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant | (long)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        left.cast();
+        right.cast();
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+    BinaryMathNode write(ClassNode classNode) {
+        BinaryMathNode binaryMathNode = new BinaryMathNode();
 
-        if (promote == String.class && operation == Operation.ADD) {
-            if (!cat) {
-                methodWriter.writeNewStrings();
-            }
+        binaryMathNode.setLeftNode(left.cast(left.write(classNode)));
+        binaryMathNode.setRightNode(right.cast(right.write(classNode)));
 
-            left.write(classWriter, methodWriter, globals);
+        binaryMathNode.setLocation(location);
+        binaryMathNode.setExpressionType(actual);
+        binaryMathNode.setBinaryType(promote);
+        binaryMathNode.setShiftType(shiftDistance);
+        binaryMathNode.setOperation(operation);
+        binaryMathNode.setCat(cat);
+        binaryMathNode.setOriginallExplicit(originallyExplicit);
 
-            if (!(left instanceof EBinary) || !((EBinary)left).cat) {
-                methodWriter.writeAppendStrings(left.actual);
-            }
-
-            right.write(classWriter, methodWriter, globals);
-
-            if (!(right instanceof EBinary) || !((EBinary)right).cat) {
-                methodWriter.writeAppendStrings(right.actual);
-            }
-
-            if (!cat) {
-                methodWriter.writeToStrings();
-            }
-        } else if (operation == Operation.FIND || operation == Operation.MATCH) {
-            right.write(classWriter, methodWriter, globals);
-            left.write(classWriter, methodWriter, globals);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
-
-            if (operation == Operation.FIND) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);
-            } else if (operation == Operation.MATCH) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
-            } else {
-                throw new IllegalStateException("Illegal tree structure.");
-            }
-        } else {
-            left.write(classWriter, methodWriter, globals);
-            right.write(classWriter, methodWriter, globals);
-
-            if (promote == def.class || (shiftDistance != null && shiftDistance == def.class)) {
-                // def calls adopt the wanted return value. if there was a narrowing cast,
-                // we need to flag that so that its done at runtime.
-                int flags = 0;
-                if (originallyExplicit) {
-                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
-                }
-                methodWriter.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
-            } else {
-                methodWriter.writeBinaryInstruction(location, actual, operation);
-            }
-        }
+        return binaryMathNode;
     }
 
     @Override

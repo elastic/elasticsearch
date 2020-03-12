@@ -98,7 +98,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (pointConverter != null) {
             Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
             if (segMax != null) {
-                /**
+                /*
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */

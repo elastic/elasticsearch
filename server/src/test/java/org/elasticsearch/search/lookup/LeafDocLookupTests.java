@@ -45,8 +45,8 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
 
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
+        when(mapperService.fieldType("field")).thenReturn(fieldType);
+        when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);

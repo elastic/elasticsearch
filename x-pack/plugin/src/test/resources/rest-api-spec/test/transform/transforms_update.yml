@@ -67,7 +67,7 @@ setup:
 ---
 "Test put transform with invalid source index":
   - do:
-      catch: /.*reason=Validation Failed.* no such index \[missing-index\]/
+      catch: /.*Validation Failed.* no such index \[missing-index\]/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -255,7 +255,7 @@ setup:
         name: source2-index
 
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[created-destination-index\]/
+      catch: /.*Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[created-destination-index\]/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -280,7 +280,7 @@ setup:
         index: created-destination-index
         name: dest2-index
   - do:
-      catch: /.*reason=Validation Failed.* no write index is defined for alias [dest2-index].*/
+      catch: /.*Validation Failed.* no write index is defined for alias [dest2-index].*/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -290,7 +290,7 @@ setup:
 ---
 "Test invalid destination index name":
   - do:
-      catch: /.*reason=Validation Failed.* Destination index \[DeStInAtIoN\] must be lowercase/
+      catch: /.*Validation Failed.* Destination index \[DeStInAtIoN\] must be lowercase/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -298,7 +298,7 @@ setup:
             "dest": { "index": "DeStInAtIoN" }
           }
   - do:
-      catch: /.*reason=Validation Failed.* Invalid index name \[destination#dest\], must not contain \'#\'/
+      catch: /.*Validation Failed.* Invalid index name \[destination#dest\], must not contain \'#\'/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >

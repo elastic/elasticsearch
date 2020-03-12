@@ -20,11 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -68,12 +70,14 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     @Override
     protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(PrefixQuery.class));
-        PrefixQuery prefixQuery = (PrefixQuery) query;
+        assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class)));
+        if (context.fieldMapper(queryBuilder.fieldName()) != null) { // The field is mapped
+            PrefixQuery prefixQuery = (PrefixQuery) query;
 
-        String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-        assertThat(prefixQuery.getPrefix().field(), equalTo(expectedFieldName));
-        assertThat(prefixQuery.getPrefix().text(), equalTo(queryBuilder.value()));
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertThat(prefixQuery.getPrefix().field(), equalTo(expectedFieldName));
+            assertThat(prefixQuery.getPrefix().text(), equalTo(queryBuilder.value()));
+        }
     }
 
     public void testIllegalArguments() {
@@ -88,10 +92,10 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testBlendedRewriteMethod() throws IOException {
         String rewrite = "top_terms_blended_freqs_10";
-        Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite)).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(prefixQuery(STRING_FIELD_NAME, "val").rewrite(rewrite)).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
-        assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
+        assertThat(prefixQuery.getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "val")));
         assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
     }
 
@@ -153,7 +157,16 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         PrefixQueryBuilder query = prefixQuery("_index", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(PrefixQueryBuilder.class));
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        PrefixQueryBuilder queryBuilder = new PrefixQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
 }

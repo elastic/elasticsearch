@@ -6,8 +6,6 @@
 <titleabbrev>Examples</titleabbrev>
 ++++
 
-beta[]
-
 These examples demonstrate how to use {transforms} to derive useful 
 insights from your data. All the examples use one of the 
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 

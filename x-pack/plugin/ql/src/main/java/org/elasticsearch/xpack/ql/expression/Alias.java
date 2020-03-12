@@ -88,7 +88,7 @@ public class Alias extends NamedExpression {
     @Override
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
-            lazyAttribute = resolved() == true ?
+            lazyAttribute = resolved() ?
                 new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic()) :
                 new UnresolvedAttribute(source(), name(), qualifier);
         }

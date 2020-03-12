@@ -9,6 +9,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.unit.TimeValue;
+
+import java.util.Objects;
 
 /**
  * Performs an action which must be performed asynchronously because it may take time to complete.
@@ -24,6 +27,11 @@ public abstract class AsyncActionStep extends Step {
 
     protected Client getClient() {
         return client;
+    }
+
+    public static TimeValue getMasterTimeout(ClusterState clusterState){
+        Objects.requireNonNull(clusterState, "cannot determine master timeout when cluster state is null");
+        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterState.metaData().settings());
     }
 
     public boolean indexSurvives() {

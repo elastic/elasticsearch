@@ -195,7 +195,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public synchronized MockIndexService createIndex(
                 IndexMetaData indexMetaData,
-                List<IndexEventListener> buildInIndexListener) throws IOException {
+                List<IndexEventListener> buildInIndexListener,
+                boolean writeDanglingIndices) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
             indices = Maps.copyMapWithAddedEntry(indices, indexMetaData.getIndexUUID(), indexService);
             return indexService;

@@ -84,6 +84,7 @@ be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further d
 Default is `memory`.
 |=======================================================================
 
+[[query-dsl-geo-bounding-box-query-accepted-formats]]
 [float]
 ==== Accepted Formats
 

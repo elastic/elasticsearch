@@ -68,6 +68,11 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
         this.bottomRight = input.readGeoPoint();
     }
 
+    public boolean isUnbounded() {
+        return Double.isNaN(topLeft.lon()) || Double.isNaN(topLeft.lat())
+            || Double.isNaN(bottomRight.lon()) || Double.isNaN(bottomRight.lat());
+    }
+
     public GeoPoint topLeft() {
         return topLeft;
     }
@@ -118,6 +123,26 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
             builder.array(BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.lon(), bottomRight.lat());
         }
         return builder;
+    }
+
+    /**
+     * If the bounding box crosses the date-line (left greater-than right) then the
+     * longitude of the point need only to be higher than the left or lower
+     * than the right. Otherwise, it must be both.
+     *
+     * @param lon the longitude of the point
+     * @param lat the latitude of the point
+     * @return whether the point (lon, lat) is in the specified bounding box
+     */
+    public boolean pointInBounds(double lon, double lat) {
+        if (lat >= bottom() && lat <= top()) {
+            if (left() <= right()) {
+                return lon >= left() && lon <= right();
+            } else {
+                return lon >= left() || lon <= right();
+            }
+        }
+        return false;
     }
 
     @Override

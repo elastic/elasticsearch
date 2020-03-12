@@ -6,14 +6,17 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -70,8 +74,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -82,6 +84,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.elasticsearch.mock.orig.Mockito.doReturn;
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
@@ -158,10 +163,21 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        MetaData metaData = mock(MetaData.class);
-        SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
-        aliasOrIndexSortedMap.put(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), mock(AliasOrIndex.Alias.class));
-        when(metaData.getAliasAndIndexLookup()).thenReturn(aliasOrIndexSortedMap);
+        MetaData metaData = MetaData.builder()
+            .indices(ImmutableOpenMap.<String, IndexMetaData>builder()
+                .fPut(
+                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
+                    IndexMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build())
+                        .putAlias(AliasMetaData.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .build())
+                .build())
+            .build();
         clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterState.metaData()).thenReturn(metaData);

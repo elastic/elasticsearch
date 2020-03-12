@@ -269,7 +269,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53188")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
@@ -282,7 +281,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setGamma(1.0)
             .setEta(1.0)
             .setFeatureBagFraction(1.0)
-            .setMaximumNumberTrees(1)
+            .setMaxTrees(1)
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,

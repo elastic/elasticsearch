@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,25 +16,21 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.action.admin.indices.datastream;
 
-integTest.runner {
-  /*
-   * There are two unique things going on here:
-   * 1. These tests can be run against an external cluster with
-   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
-   * 2. *One* of these tests is incompatible with that and should be skipped
-   *    when running against an external cluster.
-   */
-  if (System.getProperty("tests.rest.cluster") == null) {
-    nonInputProperties.systemProperty 'tests.logfile',
-      "${-> testClusters.integTest.singleNode().getServerLog()}"
-  } else {
-    systemProperty 'tests.logfile', '--external--'
-  }
-}
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-testClusters.integTest {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.datastreams_feature_flag_registered', 'true'
-  }
+public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {
+
+    @Override
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
+    }
+
+    @Override
+    protected Request createTestInstance() {
+        return new Request(generateRandomStringArray(8, 8, false));
+    }
 }

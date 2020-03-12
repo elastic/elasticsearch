@@ -21,12 +21,16 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -243,9 +247,11 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetDataStreamsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -258,6 +264,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -360,6 +367,24 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
+
+    private static final boolean DATASTREAMS_FEATURE_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.datastreams_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.datastreams_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
+            DATASTREAMS_FEATURE_FLAG_REGISTERED = true;
+        } else if ("false".equals(property) || property == null) {
+            DATASTREAMS_FEATURE_FLAG_REGISTERED = false;
+        } else {
+            throw new IllegalArgumentException(
+                "expected es.datastreams_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
+            );
+        }
+    }
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -533,6 +558,13 @@ public class ActionModule extends AbstractModule {
 
         actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
 
+        // Data streams:
+        if (DATASTREAMS_FEATURE_FLAG_REGISTERED) {
+            actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
+            actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
+            actions.register(GetDataStreamsAction.INSTANCE, GetDataStreamsAction.TransportAction.class);
+        }
+
         // Persistent tasks:
         actions.register(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class);
         actions.register(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class);
@@ -679,6 +711,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetPipelineAction());
         registerHandler.accept(new RestDeletePipelineAction());
         registerHandler.accept(new RestSimulatePipelineAction());
+
+        // Data Stream API
+        if (DATASTREAMS_FEATURE_FLAG_REGISTERED) {
+            registerHandler.accept(new RestCreateDataStreamAction());
+            registerHandler.accept(new RestDeleteDataStreamAction());
+            registerHandler.accept(new RestGetDataStreamsAction());
+        }
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());

@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -313,12 +314,31 @@ public class TermVectorsService  {
             else {
                 seenFields.add(field.name());
             }
-            String[] values = doc.getValues(field.name());
+            String[] values = getValues(doc.getFields(field.name()));
             documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(indexShard,
             XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(), documentFields,
                 request.offsets(), request.perFieldAnalyzer(), seenFields);
+    }
+
+    /**
+     * Returns an array of values of the field specified as the method parameter.
+     * This method returns an empty array when there are no
+     * matching fields.  It never returns null.
+     * @param fields The <code>IndexableField</code> to get the values from
+     * @return a <code>String[]</code> of field values
+     */
+    public static String[] getValues(IndexableField[] fields) {
+        List<String> result = new ArrayList<>();
+        for (IndexableField field : fields) {
+            if (field.stringValue() != null) {
+                result.add(field.stringValue());
+            } else if (field.binaryValue() != null) { // KeywordFieldType
+                result.add(field.binaryValue().utf8ToString());
+            }
+        }
+        return result.toArray(new String[0]);
     }
 
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,

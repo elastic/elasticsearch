@@ -64,6 +64,9 @@
         },
         "total_definition_length": {
           "type": "long"
+        },
+        "default_field_map": {
+          "enabled": false
         }
       }
     }

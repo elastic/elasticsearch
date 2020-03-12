@@ -22,7 +22,6 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -88,10 +87,6 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
             assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(rejections));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
-        }
-
-        if (Names.LISTENER.equals(threadPoolName)) {
-            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size", "thread_pool.listener.size"});
         }
     }
 

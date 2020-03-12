@@ -5,18 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.junit.After;
 import org.junit.Before;
 
@@ -27,6 +30,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
@@ -48,6 +53,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     @After
     public void cleanup() {
         cleanUp();
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull("search.max_buckets"))
+            .get();
     }
 
     public void testEvaluate_DefaultMetrics() {
@@ -206,7 +215,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
     }
 
-    public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {
+    private void evaluateWithMulticlassConfusionMatrix() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
@@ -267,6 +276,23 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                         new MulticlassConfusionMatrix.PredictedClass("mouse", 1L)),
                     0))));
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
+    }
+
+    public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {
+        evaluateWithMulticlassConfusionMatrix();
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 20)).get();
+        evaluateWithMulticlassConfusionMatrix();
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 7)).get();
+        evaluateWithMulticlassConfusionMatrix();
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 6)).get();
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, this::evaluateWithMulticlassConfusionMatrix);
+
+        assertThat(e.getCause(), is(instanceOf(TooManyBucketsException.class)));
+        TooManyBucketsException tmbe = (TooManyBucketsException) e.getCause();
+        assertThat(tmbe.getMaxBuckets(), equalTo(6));
     }
 
     public void testEvaluate_ConfusionMatrixMetricWithUserProvidedSize() {

@@ -35,7 +35,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -122,11 +120,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         protected boolean matches(String pattern, QueryShardContext context) {
-            if (pattern.contains("?") == false) {
-                return Regex.simpleMatch(pattern, context.getMapperService().documentMapper().type());
-            }
-            boolean matches = Pattern.matches(pattern.replace("?", "."), MapperService.SINGLE_MAPPING_NAME);
-            return matches;
+            return pattern.equals(MapperService.SINGLE_MAPPING_NAME);
         }
     }
 

@@ -304,6 +304,27 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), eq(true), any());
     }
 
+    public void testGetModelAndCache() throws Exception {
+        String model = "test-get-model-and-cache";
+        withTrainedModel(model, 1L);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+                auditor,
+                threadPool,
+                clusterService,
+                NamedXContentRegistry.EMPTY,
+                Settings.EMPTY);
+
+        for(int i = 0; i < 3; i++) {
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            modelLoadingService.getModelAndCache(model, future);
+            assertThat(future.get(), is(not(nullValue())));
+        }
+
+        // provider will be called once, subsequent responses come from the cache
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model), eq(true), any());
+    }
+
     @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) throws IOException {
         TrainedModelDefinition definition = mock(TrainedModelDefinition.class);

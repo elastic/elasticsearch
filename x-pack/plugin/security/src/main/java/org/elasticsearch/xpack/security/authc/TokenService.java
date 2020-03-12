@@ -89,6 +89,8 @@ import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.Cipher;
@@ -392,6 +394,35 @@ public final class TokenService {
         } else {
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * Decodes the provided token, and validates it (for format, expiry and invalidation).
+     * If valid, the token's {@link Authentication} (see {@link UserToken#getAuthentication()} is provided to the listener.
+     * If the token is invalid (expired etc), then {@link ActionListener#onFailure(Exception)} will be called.
+     * If tokens are not enabled, or the token does not exist, {@link ActionListener#onResponse} will be called with a
+     * {@code null} authentication object.
+     */
+    public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
+        ensureEnabled();
+        decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
+            if (userToken != null) {
+                checkIfTokenIsValid(userToken, ActionListener.wrap(
+                    token -> {
+                        if (token == null) {
+                            // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
+                            // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
+                            listener.onFailure(new IllegalArgumentException("Cannot validate access token"));
+                        } else {
+                            listener.onResponse(token.getAuthentication());
+                        }
+                    },
+                    listener::onFailure
+                ));
+            } else {
+                listener.onFailure(new IllegalArgumentException("Cannot decode access token"));
+            }
+        }, listener::onFailure));
     }
 
     /**
@@ -1457,7 +1488,7 @@ public final class TokenService {
             throw LicenseUtils.newComplianceException("security tokens");
         }
         if (enabled == false) {
-            throw new IllegalStateException("security tokens are not enabled");
+            throw new FeatureNotEnabledException(Feature.TOKEN_SERVICE, "security tokens are not enabled");
         }
     }
 

@@ -53,26 +53,25 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         MapperService mapperService = Mockito.mock(MapperService.class);
         Mockito.when(mapperService.documentMapper()).thenReturn(null);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(mapper.type()).thenReturn("_doc");
+        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
         ft.setName(TypeFieldMapper.NAME);
-        Query query = ft.termQuery("my_type", context);
+
+        Query query = ft.termQuery("_doc", context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        query = ft.termQuery("other_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
 
-        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("my_type");
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
-        query = ft.termQuery("my_type", context);
+        Mockito.when(mapper.type()).thenReturn("other_type");
+        query = ft.termQuery("other_type", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
         Mockito.when(mapperService.hasNested()).thenReturn(true);
-        query = ft.termQuery("my_type", context);
+        query = ft.termQuery("other_type", context);
         assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
-
-        mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("other_type");
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
-        query = ft.termQuery("my_type", context);
-        assertEquals(new MatchNoDocsQuery(), query);
     }
 }

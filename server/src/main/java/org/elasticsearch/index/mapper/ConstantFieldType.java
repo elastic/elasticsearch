@@ -79,6 +79,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query termQuery(Object value, QueryShardContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, context)) {
+            if (context != null && context.getMapperService().hasNested()) {
+                // type filters are expected not to match nested docs
+                return Queries.newNonNestedFilter(context.indexVersionCreated());
+            }
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();

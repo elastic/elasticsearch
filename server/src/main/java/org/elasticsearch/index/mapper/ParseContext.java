@@ -131,8 +131,12 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public final String[] getValues(String name) {
             List<String> result = new ArrayList<>();
             for (IndexableField field : fields) {
-                if (field.name().equals(name) && field.stringValue() != null) {
-                    result.add(field.stringValue());
+                if (field.name().equals(name)) {
+                    if (field.stringValue() != null) {
+                        result.add(field.stringValue());
+                    } else if (field.binaryValue() != null) { // KeywordFieldType
+                        result.add(field.binaryValue().utf8ToString());
+                    }
                 }
             }
             return result.toArray(new String[result.size()]);

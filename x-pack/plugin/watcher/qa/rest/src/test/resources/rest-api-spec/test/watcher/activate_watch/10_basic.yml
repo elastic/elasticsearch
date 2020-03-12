@@ -1,5 +1,10 @@
 ---
 "Test activate watch api":
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/53177"
+
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -92,6 +97,11 @@
 
 ---
 "Non existent watch returns 404":
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/53177"
+
   - do:
       cluster.health:
           wait_for_status: yellow

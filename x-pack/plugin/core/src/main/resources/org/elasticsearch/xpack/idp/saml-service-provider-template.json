@@ -53,13 +53,7 @@
         "privileges": {
           "type": "object",
           "properties": {
-            "application": {
-              "type": "keyword"
-            },
             "resource": {
-              "type": "keyword"
-            },
-            "login": {
               "type": "keyword"
             },
             "roles": {

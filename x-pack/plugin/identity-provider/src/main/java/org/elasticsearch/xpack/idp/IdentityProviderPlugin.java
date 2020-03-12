@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderAction;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.privileges.UserPrivilegeResolver;
 import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.rest.action.RestDeleteSamlServiceProviderAction;
@@ -88,10 +90,12 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         SamlInit.initialize();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
+        final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext);
 
         // TODO
-        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud", "action:login",
-            NameID.TRANSIENT, Duration.standardMinutes(5));
+        final ServiceProviderDefaults serviceProviderDefaults = new ServiceProviderDefaults("elastic-cloud",
+                NameID.TRANSIENT, Duration.standardMinutes(5));
         final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
             .fromSettings(environment)
@@ -103,7 +107,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         return List.of(
             index,
             idp,
-            factory
+            factory,
+            userPrivilegeResolver
         );
     }
 

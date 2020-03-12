@@ -477,6 +477,9 @@ public class TrainedModelProvider {
                         "mismatch between search response size and models requested";
                     for (MultiSearchResponse.Item response : responses.getResponses()) {
                         if (response.isFailure()) {
+                            if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
+                                continue;
+                            }
                             logger.error(new ParameterizedMessage("search failed for models [{}]",
                                     Strings.arrayToCommaDelimitedString(modelIds)),
                                 response.getFailure());
@@ -497,7 +500,14 @@ public class TrainedModelProvider {
                     }
                     listener.onResponse(allStats);
                 },
-                listener::onFailure
+                e -> {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ResourceNotFoundException) {
+                        listener.onResponse(Collections.emptyList());
+                        return;
+                    }
+                    listener.onFailure((Exception)unwrapped);
+                }
             ),
             client::multiSearch);
     }

@@ -227,7 +227,8 @@ public class SamlServiceProviderIndex implements Closeable {
             _writeDocument(document, opType, refreshPolicy, listener);
 
         } else {
-            installIndexTemplate(ActionListener.wrap(installed -> _writeDocument(document, opType, refreshPolicy, listener), listener::onFailure));
+            installIndexTemplate(ActionListener.wrap(installed ->
+                _writeDocument(document, opType, refreshPolicy, listener), listener::onFailure));
         }
     }
 

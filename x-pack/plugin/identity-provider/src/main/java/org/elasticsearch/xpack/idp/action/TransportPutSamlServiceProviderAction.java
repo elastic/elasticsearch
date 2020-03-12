@@ -69,7 +69,7 @@ public class TransportPutSamlServiceProviderAction
                 assert existingDoc.entityId.equals(document.entityId) : "Loaded document with non-matching entity-id";
                 document.setDocId(existingDoc.docId);
                 document.setCreated(existingDoc.created);
-                writeDocument(document, DocWriteRequest.OpType.CREATE, request.getRefreshPolicy(), listener);
+                writeDocument(document, DocWriteRequest.OpType.INDEX, request.getRefreshPolicy(), listener);
             } else {
                 logger.warn("Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
                     index, document.entityId, matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(",")));

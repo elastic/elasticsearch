@@ -200,34 +200,34 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
             toString((IntervalYearMonth) new DateTrunc(Source.EMPTY, l("nanoseconds"), yearToMonth, null)
                 .makePipe().asProcessor().process(null)));
 
-        assertEquals("+0 00:00:00.0",
+        assertEquals("+0 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("millennia"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+0 00:00:00.0",
+        assertEquals("+0 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("CENTURY"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+0 00:00:00.0",
+        assertEquals("+0 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("decades"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+0 00:00:00.0",
+        assertEquals("+0 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("years"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+0 00:00:00.0",
+        assertEquals("+0 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("quarters"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+0 00:00:00.0",
+        assertEquals("+0 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("month"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+105 00:00:00.0",
+        assertEquals("+105 00:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("days"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+105 02:00:00.0",
+        assertEquals("+105 02:00:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("hh"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+105 02:45:00.0",
+        assertEquals("+105 02:45:00",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("mi"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
-        assertEquals("+105 02:45:55.0",
+        assertEquals("+105 02:45:55",
             toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("second"), dayToSecond, null)
                 .makePipe().asProcessor().process(null)));
         assertEquals("+105 02:45:55.123",
@@ -277,22 +277,22 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
         Literal dayToSecond = intervalLiteral(Duration.ofDays(-435).minusHours(23).minusMinutes(45).minusSeconds(55).minusNanos(123000000),
             INTERVAL_DAY_TO_SECOND);
-        assertEquals("-435 00:00:00.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("days"), dayToSecond, null)
+        assertEquals("-435 00:00:00", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("days"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
         dayToSecond = intervalLiteral(Duration.ofDays(-4231).minusHours(23).minusMinutes(45).minusSeconds(55).minusNanos(234000000),
             INTERVAL_DAY_TO_SECOND);
-        assertEquals("-4231 23:00:00.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("hh"), dayToSecond, null)
+        assertEquals("-4231 23:00:00", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("hh"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
         dayToSecond = intervalLiteral(Duration.ofDays(-124).minusHours(0).minusMinutes(59).minusSeconds(11).minusNanos(564000000),
             INTERVAL_DAY_TO_SECOND);
-        assertEquals("-124 00:59:00.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("mi"), dayToSecond, null)
+        assertEquals("-124 00:59:00", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("mi"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
         dayToSecond = intervalLiteral(Duration.ofDays(-534).minusHours(23).minusMinutes(59).minusSeconds(59).minusNanos(245000000),
             INTERVAL_DAY_TO_SECOND);
-        assertEquals("-534 23:59:59.0", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("seconds"), dayToSecond, null)
+        assertEquals("-534 23:59:59", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("seconds"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
 
         dayToSecond = intervalLiteral(Duration.ofDays(-127).minusHours(17).minusMinutes(59).minusSeconds(0).minusNanos(998000000),

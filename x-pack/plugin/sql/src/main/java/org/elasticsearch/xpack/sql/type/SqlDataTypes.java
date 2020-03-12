@@ -266,7 +266,6 @@ public class SqlDataTypes {
         return isDateOrTimeBased(type) ? "epoch_millis" : null;
     }
 
-
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
                 || dataType == DATE         // because of date formats

@@ -26,7 +26,7 @@ public final class SqlTypeResolutions {
     }
 
     public static TypeResolution isDateOrInterval(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, SqlDataTypes::isDateOrIntervalBased, operationName, paramOrd, "date", "datetime", "interval");
+        return isType(e, SqlDataTypes::isDateOrIntervalBased, operationName, paramOrd, "date", "datetime", "an interval data type");
     }
 
     public static TypeResolution isNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {

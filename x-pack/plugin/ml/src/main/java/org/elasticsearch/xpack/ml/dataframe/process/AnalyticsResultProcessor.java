@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.MultiField;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -42,10 +44,12 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 
@@ -71,7 +75,7 @@ public class AnalyticsResultProcessor {
     private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
     private final ResultsPersisterService resultsPersisterService;
-    private final List<String> fieldNames;
+    private final List<ExtractedField> fieldNames;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
     private volatile boolean isCancelled;
@@ -79,7 +83,7 @@ public class AnalyticsResultProcessor {
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
                                     DataFrameAnalyticsAuditor auditor, ResultsPersisterService resultsPersisterService,
-                                    List<String> fieldNames) {
+                                    List<ExtractedField> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.statsHolder = Objects.requireNonNull(statsHolder);
@@ -193,8 +197,12 @@ public class AnalyticsResultProcessor {
         TrainedModelDefinition definition = inferenceModel.build();
         String dependentVariable = getDependentVariable();
         List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
+            .map(ExtractedField::getName)
             .filter(f -> f.equals(dependentVariable) == false)
             .collect(toList());
+        Map<String, String> defaultFieldMapping = fieldNames.stream()
+            .filter(ef -> ef instanceof MultiField && (ef.getName().equals(dependentVariable) == false))
+            .collect(Collectors.toMap(ExtractedField::getParentField, ExtractedField::getName));
         return TrainedModelConfig.builder()
             .setModelId(modelId)
             .setCreatedBy(XPackUser.NAME)
@@ -210,6 +218,7 @@ public class AnalyticsResultProcessor {
             .setParsedDefinition(inferenceModel)
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
+            .setDefaultFieldMap(defaultFieldMapping)
             .build();
     }
 

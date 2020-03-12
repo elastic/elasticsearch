@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunc
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
@@ -309,8 +310,11 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2) , ZoneId.of(tzId));
     }
 
-    public static Object dateTrunc(String truncateTo, Object dateTime, String tzId) {
-        return DateTruncProcessor.process(truncateTo, asDateTime(dateTime, true), ZoneId.of(tzId));
+    public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
+        if(dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
+           return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
+        }
+        return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
 
     public static Integer datePart(String dateField, Object dateTime, String tzId) {

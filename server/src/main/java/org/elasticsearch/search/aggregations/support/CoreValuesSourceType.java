@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -177,35 +176,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
-    HISTOGRAM(EquivalenceType.HISTOGRAM) {
-        @Override
-        public ValuesSource getEmpty() {
-            // TODO: Is this the correct exception type here?
-            throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + this.value());
-        }
-
-        @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
-        }
-
-        @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
-
-            if (!(indexFieldData instanceof IndexHistogramFieldData)) {
-                throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
-            }
-            return new ValuesSource.Histogram.Fielddata((IndexHistogramFieldData) indexFieldData);
-        }
-
-        @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                           LongSupplier nowSupplier) {
-            throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
-        }
-    },
     IP(EquivalenceType.STRING) {
         @Override
         public ValuesSource getEmpty() {
@@ -295,7 +265,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     ;
 
     enum EquivalenceType {
-        STRING, NUMBER, GEO, RANGE, HISTOGRAM;
+        STRING, NUMBER, GEO, RANGE;
     }
 
     EquivalenceType equivalenceType;

@@ -115,6 +115,13 @@ public interface SearchPlugin {
         return emptyList();
     }
     /**
+     * Allows plugins to register new aggregations using aggregation names that are already defined
+     * in Core, as long as the new aggregations target different ValuesSourceTypes
+     */
+    default List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+        return emptyList();
+    }
+    /**
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {

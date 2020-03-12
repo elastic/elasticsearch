@@ -572,13 +572,13 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final I missing;
+                final I result;
                 if (reduced) {
-                    missing = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
+                    result = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
                 } else {
-                    missing = search(indexSearcher, query, builder, fieldTypesArray);
+                    result = search(indexSearcher, query, builder, fieldTypesArray);
                 }
-                verify.accept(missing);
+                verify.accept(result);
             }
         }
     }

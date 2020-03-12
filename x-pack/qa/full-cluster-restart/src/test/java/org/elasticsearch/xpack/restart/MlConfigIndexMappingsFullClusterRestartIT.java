@@ -79,8 +79,18 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         } else {
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
+
             // assert that the mappings are updated
-            assertThat(getDataFrameAnalysisMappings(), equalTo(loadDataFrameAnalysisMappings()));
+            Map<String, Object> dataFrameAnalysisMappings = getDataFrameAnalysisMappings();
+
+            // Remove renamed fields
+            if (getOldClusterVersion().before(Version.V_7_7_0)) {
+                dataFrameAnalysisMappings = XContentMapValues.filter(dataFrameAnalysisMappings, null, new String[] {
+                    "*.properties.maximum_number_trees" // This was renamed to max_trees
+                });
+            }
+
+            assertThat(dataFrameAnalysisMappings, equalTo(loadDataFrameAnalysisMappings()));
         }
     }
 

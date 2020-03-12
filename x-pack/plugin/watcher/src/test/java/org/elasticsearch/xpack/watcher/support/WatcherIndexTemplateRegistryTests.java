@@ -264,6 +264,34 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
         verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
+        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
+    }
+
+    public void testThatTemplatesWithHiddenAreAppliedOnNewerNodes() {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.V_6_0_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("master").masterNodeId("master").add(node).add(masterNode).build();
+
+        Map<String, Integer> existingTemplates = new HashMap<>();
+        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
+        existingTemplates.put(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
+        existingTemplates.put(".watch-history-6", 6);
+        ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
+        registry.clusterChanged(event);
+
+        ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
+        verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
+        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10));
+
+        existingTemplates.remove(".watch-history-6");
+        existingTemplates.put(".watch-history-10", 10);
+        masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        nodes = DiscoveryNodes.builder().localNodeId("master").masterNodeId("master").add(masterNode).add(node).build();
+        event = createClusterChangedEvent(existingTemplates, nodes);
+        registry.clusterChanged(event);
+
+        argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
+        verify(client.admin().indices(), times(2)).putTemplate(argumentCaptor.capture(), anyObject());
         assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME));
     }
 
@@ -342,7 +370,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             ClusterState.builder(new ClusterName("test")).build());
         ClusterChangedEvent event = spy(realEvent);
         when(event.localNodeMaster()).thenReturn(nodes.isLocalNodeElectedMaster());
-
+        when(clusterService.state()).thenReturn(cs);
         return event;
     }
 

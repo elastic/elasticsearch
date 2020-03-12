@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
-
 import java.util.Map;
 
 public class LogstashFeatureSet implements XPackFeatureSet {
@@ -46,7 +45,7 @@ public class LogstashFeatureSet implements XPackFeatureSet {
 
     @Override
     public Map<String, Object> nativeCodeInfo() {
-      return null;
+        return null;
     }
 
     @Override

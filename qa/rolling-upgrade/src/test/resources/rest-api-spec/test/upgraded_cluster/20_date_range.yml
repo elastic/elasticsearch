@@ -1,0 +1,41 @@
+---
+"Verify that we can find results with joda style pattern":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "joda_for_range"}}'
+          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-01T00:00+01:00"}}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: joda_for_range
+        body:
+          query:
+            range:
+              time_frame:
+                gte: "2019-02-01T00:00+01:00"
+                lte: "2019-02-01T00:00+01:00"
+
+
+---
+"Verify that we can find results with java style pattern":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "java_for_range"}}'
+          - '{"time_frame": {"gte": "2019-01-01T00:00+01:00", "lte" : "2019-03-01T00:00+01:00"}}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: java_for_range
+        body:
+          query:
+            range:
+              time_frame:
+                gte: "2019-02-01T00:00+01:00"
+                lte: "2019-02-01T00:00+01:00"
+

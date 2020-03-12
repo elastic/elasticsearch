@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,10 +37,20 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         "/watch-history.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
+    public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_10 = new IndexTemplateConfig(
+        WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10,
+        "/watch-history-10.json",
+        10,
+        WATCHER_TEMPLATE_VERSION_VARIABLE);
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
         "/watch-history-no-ilm.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
+        WATCHER_TEMPLATE_VERSION_VARIABLE);
+    public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10 = new IndexTemplateConfig(
+        WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10,
+        "/watch-history-no-ilm-10.json",
+        10,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCHES = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME,
@@ -50,22 +61,29 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
         "/watch-history-ilm-policy.json");
 
-    private final List<IndexTemplateConfig> templatesToUse;
+    private final boolean ilmEnabled;
 
     public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                         NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        boolean ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
-        templatesToUse = Arrays.asList(
-            ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
-            TEMPLATE_CONFIG_TRIGGERED_WATCHES,
-            TEMPLATE_CONFIG_WATCHES
-        );
+        this.ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
     }
 
     @Override
     protected List<IndexTemplateConfig> getTemplateConfigs() {
-        return templatesToUse;
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
+            return Arrays.asList(
+                ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
+                TEMPLATE_CONFIG_TRIGGERED_WATCHES,
+                TEMPLATE_CONFIG_WATCHES
+            );
+        } else {
+            return Arrays.asList(
+                ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
+                TEMPLATE_CONFIG_TRIGGERED_WATCHES,
+                TEMPLATE_CONFIG_WATCHES
+            );
+        }
     }
 
     @Override
@@ -79,10 +97,17 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return (state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-            state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
-            state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
-            state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
+        if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
+            return (state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
+                state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
+                state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
+                state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
+        } else {
+            return (state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10) ||
+                state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10)) &&
+                state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
+                state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
+        }
     }
 
 }

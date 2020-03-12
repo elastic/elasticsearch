@@ -38,6 +38,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -94,6 +95,11 @@ public final class DateFieldMapper extends FieldMapper {
             public Instant clampToValidRange(Instant instant) {
                 return instant;
             }
+
+            @Override
+            public long parsePointAsMillis(byte[] value) {
+                return LongPoint.decodeDimension(value, 0);
+            }
         },
         NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
             @Override
@@ -109,6 +115,11 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public Instant clampToValidRange(Instant instant) {
                 return DateUtils.clampToNanosRange(instant);
+            }
+
+            @Override
+            public long parsePointAsMillis(byte[] value) {
+                return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
             }
         };
 
@@ -138,7 +149,16 @@ public final class DateFieldMapper extends FieldMapper {
          */
         public abstract Instant toInstant(long value);
 
+        /**
+         * Return the instant that this range can represent that is closest to
+         * the provided instant.
+         */
         public abstract Instant clampToValidRange(Instant instant);
+
+        /**
+         * Decode the points representation of this field as milliseconds.
+         */
+        public abstract long parsePointAsMillis(byte[] value);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -218,7 +238,13 @@ public final class DateFieldMapper extends FieldMapper {
 
             boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
             if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
-                fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
+                DateFormatter formatter;
+                if (Joda.isJodaPattern(context.indexCreatedVersion(), pattern)) {
+                    formatter = Joda.forPattern(pattern).withLocale(locale);
+                } else {
+                    formatter = DateFormatter.forPattern(pattern).withLocale(locale);
+                }
+                fieldType().setDateTimeFormatter(formatter);
             }
 
             fieldType().setResolution(resolution);

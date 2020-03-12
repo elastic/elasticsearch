@@ -115,7 +115,8 @@ subprojects {
       ':distribution:tools:plugin-cli',
       ':qa:os',
       ':x-pack:plugin:autoscaling',
-      ':x-pack:plugin:enrich'
+      ':x-pack:plugin:enrich',
+      ':x-pack:plugin:logstash'
     ]
 
     if (projectPathsToFormat.contains(project.path)) {

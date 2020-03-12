@@ -29,7 +29,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
-import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeStep;
@@ -1367,10 +1366,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
-        String index = "success-index";
-
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity("{" +
@@ -1384,10 +1380,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(createIndexTemplate);
 
-        createIndexWithSettings(index + "-1",
-            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
-            true);
+        createIndexWithSettings(index + "-1", Settings.builder(), true);
 
         // Index a document
         index(client(), index + "-1", "1", "foo", "bar");
@@ -1405,69 +1398,35 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-yellow-step"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "attempt-rollover"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "update-rollover-lifecycle-date"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "set-indexing-complete"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "completed"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "complete"), 30, TimeUnit.SECONDS);
 
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithFailure() throws Exception {
-        String index = "failure-index";
-
+        createIndexWithSettings(index + "-1", Settings.builder(), false);
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
-        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("{" +
-            "\"index_patterns\": [\""+ index + "-*\"], \n" +
-            "  \"settings\": {\n" +
-            "    \"number_of_shards\": 1,\n" +
-            "    \"number_of_replicas\": 0,\n" +
-            "    \"index.lifecycle.name\": \"" + policy+ "\"\n" +
-            "  }\n" +
-            "}");
-        client().performRequest(createIndexTemplate);
-
-        createIndexWithSettings(index + "-1",
-            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0),
-            false);
+        updatePolicy(index + "-1", policy);
 
         // Index a document
         index(client(), index + "-1", "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "-1/_refresh");
         client().performRequest(refreshIndex);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(index + "-1").getName(), equalTo(ErrorStep.NAME)));
+        // Check that we've had error and auto retried
+        assertBusy(() -> assertThat((Integer) explainIndex(index + "-1").get("failed_step_retry_count"), greaterThanOrEqualTo(1)));
 
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", false, "ERROR"), 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithDeletion() throws Exception {
-        String index = "delete-index";
-
-        createNewSingletonPolicy("delete", new DeleteAction());
-        Request createIndexTemplate = new Request("PUT", "_template/delete_indexes");
-        createIndexTemplate.setJsonEntity("{" +
-            "\"index_patterns\": [\""+ index + "\"], \n" +
-            "  \"settings\": {\n" +
-            "    \"number_of_shards\": 1,\n" +
-            "    \"number_of_replicas\": 0,\n" +
-            "    \"index.lifecycle.name\": \"" + policy+ "\"\n" +
-            "  }\n" +
-            "}");
-        client().performRequest(createIndexTemplate);
-
         // Index should be created and then deleted by ILM
         createIndexWithSettings(index, Settings.builder(), false);
+        createNewSingletonPolicy("delete", new DeleteAction());
+        updatePolicy(index, policy);
 
-        assertBusy(() -> {
-            logger.info("--> checking for index deletion...");
-            Request existCheck = new Request("HEAD", "/" + index);
-            Response resp = client().performRequest(existCheck);
-            assertThat(resp.getStatusLine().getStatusCode(), equalTo(404));
-        });
+        assertBusy(() -> assertFalse(indexExists(index)));
 
         assertBusy(() -> {
             assertHistoryIsPresent(policy, index, true, "delete", "delete", "wait-for-shard-history-leases");
@@ -1604,7 +1563,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                                         @Nullable String phase, @Nullable String action, String stepName) throws IOException {
         logger.info("--> checking for history item [{}], [{}], success: [{}], phase: [{}], action: [{}], step: [{}]",
             policyName, indexName, success, phase, action, stepName);
-        final Request historySearchRequest = new Request("GET", "ilm-history*/_search");
+        final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
         historySearchRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
             "    \"bool\": {\n" +
@@ -1681,7 +1640,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-1-000001");
+        Step.StepKey stepKey = getStepKeyForIndex("ilm-history-2-000001");
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());

@@ -120,7 +120,6 @@ public class MetaDataCreateIndexService {
      * These index patterns will be converted to hidden indices, at which point they should be removed from this list.
      */
     private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
-        ".watch-history-*",
         ".data-frame-notifications-*",
         ".transform-notifications-*"
     ));
@@ -588,7 +587,8 @@ public class MetaDataCreateIndexService {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
             }
             AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
+                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
+                .isHidden(alias.isHidden()).build();
             resolvedAliases.add(aliasMetaData);
         }
 

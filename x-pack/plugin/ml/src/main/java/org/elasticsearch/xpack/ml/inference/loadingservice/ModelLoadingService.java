@@ -65,10 +65,11 @@ public class ModelLoadingService implements ClusterStateListener {
     /**
      * How long should a model stay in the cache since its last access
      *
-     * If nothing references a model via getModel for this configured timeValue, it will be evicted.
+     * If nothing references a model via getModelForPipeline for this configured timeValue, it will be evicted.
      *
-     * Specifically, in the ingest scenario, a processor will call getModel whenever it needs to run inference. So, if a processor is not
-     * executed for an extended period of time, the model will be evicted and will have to be loaded again when getModel is called.
+     * Specifically, in the ingest scenario, a processor will call getModelForPipeline whenever it needs to run inference.
+     * So, if a processor is not executed for an extended period of time, the model will be evicted and will have to be
+     * loaded again when getModelForPipeline is called.
      *
      */
     public static final Setting<TimeValue> INFERENCE_MODEL_CACHE_TTL =
@@ -110,7 +111,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     /**
-     * Gets the model referenced by `modelId` and responds to the listener.
+     * Gets the model by `modelId` and adds it to the cache if the model is referenced by an ingest pipeline.
      *
      * This method first checks the local LRU cache for the model. If it is present, it is returned from cache.
      *
@@ -126,7 +127,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
-    public void getModel(String modelId, ActionListener<Model> modelActionListener) {
+    public void getModelForPipeline(String modelId, ActionListener<Model> modelActionListener) {
         LocalModel cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             modelActionListener.onResponse(cachedModel);
@@ -149,6 +150,28 @@ public class ModelLoadingService implements ClusterStateListener {
         } else {
             logger.trace("[{}] is loading or loaded, added new listener to queue", modelId);
         }
+    }
+
+    /**
+     * Gets the model referenced by `modelId` caches it an responds on the listener. As opposed to
+     * {@link #getModelForPipeline(String, ActionListener)} this method will always cache the retrieved
+     * model if it is not currently cached.
+      *
+     * This method first checks the local LRU cache for the model. If it is present, it is returned from cache.
+     *
+     * If it is not present the model is loaded and added to the cache.
+     *
+     * @param modelId the model to get
+     * @param modelActionListener the listener to alert when the model has been retrieved.
+     */
+    public void getModelAndCache(String modelId, ActionListener<Model> modelActionListener) {
+        LocalModel cachedModel = localModelCache.get(modelId);
+        if (cachedModel != null) {
+            modelActionListener.onResponse(cachedModel);
+            logger.trace("[{}] loaded from cache", modelId);
+            return;
+        }
+        loadModelAndCache(modelId, modelActionListener);
     }
 
     /**
@@ -181,6 +204,24 @@ public class ModelLoadingService implements ClusterStateListener {
             return loadingListeners.computeIfPresent(modelId,
                 (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) != null;
         } // synchronized (loadingListeners)
+    }
+
+    private void loadModelAndCache(String modelId, ActionListener<Model> modelActionListener) {
+        synchronized (loadingListeners) {
+            Model cachedModel = localModelCache.get(modelId);
+            if (cachedModel != null) {
+                modelActionListener.onResponse(cachedModel);
+                return;
+            }
+
+            if (loadingListeners.computeIfPresent(
+                    modelId,
+                    (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) == null) {
+                logger.trace("[{}] attempting to load and cache", modelId);
+                loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
+                loadModel(modelId);
+            }
+        }
     }
 
     private void loadModel(String modelId) {

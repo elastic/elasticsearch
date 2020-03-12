@@ -52,7 +52,7 @@ public class InferencePhase implements FetchSubPhase {
         ActionListener<Model> listener = new LatchedActionListener<>(
                 ActionListener.wrap(model::set, e -> { throw new RuntimeException();}), latch);
 
-        modelLoadingService.get().getModel(infBuilder.getModelId(), listener);
+        modelLoadingService.get().getModelForPipeline(infBuilder.getModelId(), listener);
         try {
             // Eeek blocking on a latch we can't be doing that
             latch.await();

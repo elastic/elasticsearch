@@ -326,7 +326,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public static List<EsIndex> separate(EsIndex... indices) {
-        return separateMappings("*", null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
+        return separateMappings(null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
                 fromMappings(indices));
     }
 
@@ -435,8 +435,8 @@ public class IndexResolverTests extends ESTestCase {
         return IndexResolver.mergedMappings(SqlDataTypeRegistry.INSTANCE, indexPattern, indexNames, fieldCaps);
     }
     
-    private static List<EsIndex> separateMappings(String indexPattern, String javaRegex, String[] indexNames,
+    private static List<EsIndex> separateMappings(String javaRegex, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
-        return IndexResolver.separateMappings(SqlDataTypeRegistry.INSTANCE, indexPattern, javaRegex, indexNames, fieldCaps);
+        return IndexResolver.separateMappings(SqlDataTypeRegistry.INSTANCE, javaRegex, indexNames, fieldCaps, null);
     }
 }

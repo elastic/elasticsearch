@@ -539,6 +539,47 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             ex.getMessage());
     }
 
+    public void testOpenScrollContextsConcurrently() throws Exception {
+        createIndex("index");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexShard indexShard = indicesService.indexServiceSafe(resolveIndex("index")).getShard(0);
+
+        final int maxScrollContexts = SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY);
+        final SearchService searchService = getInstanceFromNode(SearchService.class);
+        Thread[] threads = new Thread[randomIntBetween(2, 8)];
+        CountDownLatch latch = new CountDownLatch(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                latch.countDown();
+                try {
+                    latch.await();
+                    for (; ; ) {
+                        SearchService.SearchRewriteContext rewriteContext =
+                            searchService.acquireSearcherAndRewrite(new ShardScrollRequestTest(indexShard.shardId()), indexShard);
+                        try {
+                            searchService.createAndPutContext(rewriteContext);
+                        } catch (ElasticsearchException e) {
+                            assertThat(e.getMessage(), equalTo(
+                                "Trying to create too many scroll contexts. Must be less than or equal to: " +
+                                    "[" + maxScrollContexts + "]. " +
+                                    "This limit can be set by changing the [search.max_open_scroll_context] setting."));
+                            return;
+                        }
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].setName("elasticsearch[node_s_0][search]");
+            threads[i].start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertThat(searchService.getActiveContexts(), equalTo(maxScrollContexts));
+        searchService.freeAllScrollContexts();
+    }
+
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {

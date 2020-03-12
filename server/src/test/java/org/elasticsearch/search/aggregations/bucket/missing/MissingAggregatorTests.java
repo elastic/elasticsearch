@@ -104,9 +104,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
                 }
             },
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(0, internalMissing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(0, missing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(missing));
             },
             singleton(fieldType)
         );
@@ -131,9 +131,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
                 }
             },
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(numDocs, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(numDocs, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -165,9 +165,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(finalDocsMissingAggField, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -204,9 +204,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(finalDocsMissingAggField, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -249,7 +249,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (Consumer<InternalMissing>) internalMissing -> {
+            (InternalMissing internalMissing) -> {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
 
@@ -284,7 +284,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(histoAggFieldType.name(), 0)));
                 writer.addDocument(singleton(new SortedNumericDocValuesField(histoAggFieldType.name(), 2)));
             },
-            (Consumer<InternalHistogram>) histogram -> {
+            (InternalHistogram histogram) -> {
                 assertThat(histogram.getBuckets(), hasSize(3));
 
                 {
@@ -327,9 +327,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
                 }
             },
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(numDocs, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(numDocs, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             singleton(aggFieldType)
         );
@@ -352,9 +352,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
                 }
             },
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(0, internalMissing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(0, missing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(missing));
             },
             singleton(aggFieldType)
         );
@@ -410,9 +410,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
                 }
             },
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(0, internalMissing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(0, missing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(missing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -448,9 +448,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(finalDocsMissingAggField, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -491,9 +491,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(finalDocsMissingField, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(finalDocsMissingField, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -537,9 +537,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (Consumer<InternalMissing>) internalMissing -> {
-                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            (InternalMissing missing) -> {
+                assertEquals(finalDocsBelowThreshold, missing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(missing));
             },
             singleton(aggFieldType)
         );

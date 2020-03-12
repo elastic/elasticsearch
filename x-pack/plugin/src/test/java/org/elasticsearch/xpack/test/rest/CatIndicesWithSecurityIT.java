@@ -6,7 +6,7 @@
  *
  */
 
-package org.elasticsearch.xpack.security;
+package org.elasticsearch.xpack.test.rest;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 public class CatIndicesWithSecurityIT extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        String token = basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

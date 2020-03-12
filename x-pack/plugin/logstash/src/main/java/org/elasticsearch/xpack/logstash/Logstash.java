@@ -47,14 +47,21 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class));
+            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class)
+        );
     }
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
-            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
-                    Version.CURRENT.toString(), TEMPLATE_VERSION_VARIABLE, LogManager.getLogger(Logstash.class));
+            TemplateUtils.loadTemplateIntoMap(
+                "/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json",
+                templates,
+                LOGSTASH_INDEX_TEMPLATE_NAME,
+                Version.CURRENT.toString(),
+                TEMPLATE_VERSION_VARIABLE,
+                LogManager.getLogger(Logstash.class)
+            );
             assert templates.get(LOGSTASH_INDEX_TEMPLATE_NAME).mappings() != null;
             return templates;
         };
@@ -62,7 +69,8 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME,
-            "Contains data for Logstash Central Management"));
+        return Collections.singletonList(
+            new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management")
+        );
     }
 }

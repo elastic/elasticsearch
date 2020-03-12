@@ -83,7 +83,6 @@ class MutableSearchResponse {
             throw new IllegalStateException("received partial response out of order: "
                 + newSections.getNumReducePhases() + " < " + sections.getNumReducePhases());
         }
-        failIfFrozen();
         ++ version;
         this.successfulShards = successfulShards;
         this.sections = newSections;

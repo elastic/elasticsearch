@@ -437,8 +437,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         followerGlobalCheckpoint.getAsLong(),
                                         remoteClient(params),
                                         wrappedListener);
-                                } catch (NoSuchRemoteClusterException ignored) {
+                                } catch (NoSuchRemoteClusterException rce) {
                                     // we will attempt to renew again after another renew interval has passed
+                                    logRetentionLeaseFailure(retentionLeaseId, rce);
                                 }
                             } else {
                                  // if something else happened, we will attempt to renew again after another renew interval has passed

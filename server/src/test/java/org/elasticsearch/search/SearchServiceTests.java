@@ -85,9 +85,11 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -330,7 +332,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), listener);
                         listener.get();
                         if (useScroll) {
-                            service.freeContext(searchPhaseResult.getContextId());
+                            service.freeReaderContext(searchPhaseResult.getContextId());
                         }
                     } catch (ExecutionException ex) {
                         assertThat(ex.getCause(), instanceOf(RuntimeException.class));
@@ -547,7 +549,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         SearchService.SearchRewriteContext rewriteContext =
                             searchService.acquireSearcherAndRewrite(new ShardScrollRequestTest(indexShard.shardId()), indexShard);
                         try {
-                            searchService.createAndPutContext(rewriteContext);
+                            searchService.createAndPutReaderContext(rewriteContext, false);
                         } catch (ElasticsearchException e) {
                             assertThat(e.getMessage(), equalTo(
                                 "Trying to create too many scroll contexts. Must be less than or equal to: " +
@@ -969,34 +971,44 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         IndexShard indexShard = indexService.getShard(0);
-        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-            OriginalIndices.NONE, new SearchRequest().allowPartialSearchResults(true),
-            indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
         List<SearchContextId> contextIds = new ArrayList<>();
         int numContexts = randomIntBetween(1, 10);
-        for (int i = 0; i < numContexts; i++) {
-            SearchService.SearchRewriteContext rewriteContext = searchService.acquireSearcherAndRewrite(shardSearchRequest, indexShard);
-            final SearchContext searchContext = searchService.createContext(rewriteContext);
-            assertThat(searchContext.id().getId(), equalTo((long) (i + 1)));
-            searchService.putContext(searchContext);
-            contextIds.add(searchContext.id());
-        }
-        assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-        while (contextIds.isEmpty() == false) {
-            final SearchContextId contextId = randomFrom(contextIds);
-            assertFalse(searchService.freeContext(new SearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
-            assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-            if (randomBoolean()) {
-                assertTrue(searchService.freeContext(contextId));
-            } else {
-                assertTrue(searchService.freeContext((new SearchContextId("", contextId.getId()))));
+        CountDownLatch latch = new CountDownLatch(1);
+        indexShard.getThreadPool().executor(ThreadPool.Names.SEARCH).execute(() -> {
+            try {
+                for (int i = 0; i < numContexts; i++) {
+                    ShardSearchRequest request = new ShardSearchRequest(
+                        OriginalIndices.NONE, new SearchRequest().allowPartialSearchResults(true),
+                        indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
+                    SearchService.SearchRewriteContext rewriteContext = null;
+                    rewriteContext = searchService.acquireSearcherAndRewrite(request, indexShard);
+                    final ReaderContext reader = searchService.createAndPutReaderContext(rewriteContext, randomBoolean());
+                    assertThat(reader.id().getId(), equalTo((long) (i + 1)));
+                    contextIds.add(reader.id());
+                }
+                assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
+                while (contextIds.isEmpty() == false) {
+                    final SearchContextId contextId = randomFrom(contextIds);
+                    assertFalse(searchService.freeReaderContext(new SearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
+                    assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
+                    if (randomBoolean()) {
+                        assertTrue(searchService.freeReaderContext(contextId));
+                    } else {
+                        assertTrue(searchService.freeReaderContext((new SearchContextId("", contextId.getId()))));
+                    }
+                    contextIds.remove(contextId);
+                    assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
+                    assertFalse(searchService.freeReaderContext(new SearchContextId("", contextId.getId())));
+                    assertFalse(searchService.freeReaderContext(contextId));
+                    assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                latch.countDown();
             }
-            contextIds.remove(contextId);
-            assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-            assertFalse(searchService.freeContext(new SearchContextId("", contextId.getId())));
-            assertFalse(searchService.freeContext(contextId));
-            assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-        }
+        });
+        latch.await();
     }
 
     private ReaderContext createReaderContext(IndexShard shard) {

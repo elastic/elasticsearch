@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
@@ -61,8 +63,8 @@ public class QuerySearchResultTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shardId, 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null, null);
-        QuerySearchResult result = new QuerySearchResult(
-            randomLong(), new SearchShardTarget("node", shardId, null, OriginalIndices.NONE), shardSearchRequest);
+        QuerySearchResult result = new QuerySearchResult(new SearchContextId(UUIDs.base64UUID(), randomLong()),
+            new SearchShardTarget("node", shardId, null, OriginalIndices.NONE), shardSearchRequest);
         if (randomBoolean()) {
             result.terminatedEarly(randomBoolean());
         }
@@ -83,7 +85,7 @@ public class QuerySearchResultTests extends ESTestCase {
         QuerySearchResult querySearchResult = createTestInstance();
         Version version = VersionUtils.randomVersion(random());
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
-        assertEquals(querySearchResult.getRequestId(), deserialized.getRequestId());
+        assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
         assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);

@@ -33,11 +33,11 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -123,7 +123,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -596,29 +595,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final SearchOperationListener searchOperationListener = rewriteContext.shard.getSearchOperationListener();
         Engine.Searcher engineSearcher = rewriteContext.searcher;
         ReaderContext readerContext = null;
+        Releasable decreaseScrollContexts = null;
         try {
-            if (request.scroll() != null && openScrollContexts.get() >= maxOpenScrollContext) {
-                throw new ElasticsearchException(
-                    "Trying to create too many scroll contexts. Must be less than or equal to: [" +
-                        maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
-                        + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+            if (request.scroll() != null) {
+                decreaseScrollContexts = openScrollContexts::decrementAndGet;
+                if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
+                    throw new ElasticsearchException(
+                        "Trying to create too many scroll contexts. Must be less than or equal to: [" +
+                            maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
+                            + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+                }
             }
             if (keepStatesInContext || request.scroll() != null) {
                 readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), rewriteContext.shard, engineSearcher, request);
             } else {
                 readerContext = new ReaderContext(idGenerator.incrementAndGet(), rewriteContext.shard, engineSearcher);
             }
+            if (request.scroll() != null) {
+                readerContext.addOnClose(decreaseScrollContexts);
+                decreaseScrollContexts = null;
+            }
             engineSearcher = null;
             final ReaderContext finalReaderContext = readerContext;
             searchOperationListener.onNewReaderContext(finalReaderContext);
             if (finalReaderContext.scrollContext() != null) {
                 searchOperationListener.onNewScrollContext(finalReaderContext.scrollContext());
-                openScrollContexts.incrementAndGet();
             }
             readerContext.addOnClose(() -> {
                 try {
                     if (finalReaderContext.scrollContext() != null) {
-                        openScrollContexts.decrementAndGet();
                         searchOperationListener.onFreeScrollContext(finalReaderContext.scrollContext());
                     }
                 } finally {
@@ -629,7 +634,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             readerContext = null;
             return finalReaderContext;
         } finally {
-            Releasables.close(engineSearcher, readerContext);
+            Releasables.close(engineSearcher, readerContext, decreaseScrollContexts);
         }
     }
 

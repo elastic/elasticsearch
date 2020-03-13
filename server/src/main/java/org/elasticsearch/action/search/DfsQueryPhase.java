@@ -40,7 +40,6 @@ import java.util.function.Function;
  */
 final class DfsQueryPhase extends SearchPhase {
     private final ArraySearchPhaseResults<SearchPhaseResult> queryResult;
-    private final SearchPhaseController searchPhaseController;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
@@ -56,7 +55,6 @@ final class DfsQueryPhase extends SearchPhase {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = searchPhaseController.newSearchPhaseResults(progressListener, context.getRequest(), context.getNumShards());
-        this.searchPhaseController = searchPhaseController;
         this.searchResults = searchResults;
         this.dfs = dfs;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -71,8 +69,6 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult::consumeResult,
             searchResults.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
-        final SearchSourceBuilder sourceBuilder = context.getRequest().source();
-        progressListener.notifyListShards(progressListener.searchShards(searchResults), sourceBuilder == null || sourceBuilder.size() != 0);
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());

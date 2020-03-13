@@ -175,9 +175,9 @@ final class FetchSearchPhase extends SearchPhase {
         }
     }
 
-    protected ShardFetchSearchRequest createFetchRequest(SearchContextId contextId, int index, IntArrayList entry, ScoreDoc[] lastEmittedDocPerShard,
-                                                         OriginalIndices originalIndices, ShardSearchRequest shardSearchRequest,
-                                                         RescoreDocIds rescoreDocIds) {
+    protected ShardFetchSearchRequest createFetchRequest(SearchContextId contextId, int index, IntArrayList entry,
+                                                         ScoreDoc[] lastEmittedDocPerShard, OriginalIndices originalIndices,
+                                                         ShardSearchRequest shardSearchRequest, RescoreDocIds rescoreDocIds) {
         final ScoreDoc lastEmittedDoc = (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[index] : null;
         return new ShardFetchSearchRequest(originalIndices, contextId, shardSearchRequest, entry, lastEmittedDoc,
             rescoreDocIds, aggregatedDfs);

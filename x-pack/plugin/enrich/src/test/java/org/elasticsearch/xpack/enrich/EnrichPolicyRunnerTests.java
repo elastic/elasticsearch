@@ -38,6 +38,7 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.spatial.SpatialExtrasPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -70,7 +71,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(ReindexPlugin.class, IngestCommonPlugin.class);
+        return List.of(
+            ReindexPlugin.class,
+            IngestCommonPlugin.class,
+            SpatialExtrasPlugin.class
+        );
     }
 
     private static ThreadPool testThreadPool;

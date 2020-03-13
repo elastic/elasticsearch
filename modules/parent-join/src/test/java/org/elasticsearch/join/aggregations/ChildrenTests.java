@@ -24,14 +24,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
 public class ChildrenTests extends BaseAggregationTestCase<ChildrenAggregationBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

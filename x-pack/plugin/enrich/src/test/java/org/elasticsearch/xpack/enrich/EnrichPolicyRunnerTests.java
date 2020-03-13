@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -71,7 +72,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(ReindexPlugin.class, IngestCommonPlugin.class, SpatialExtrasPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, SpatialExtrasPlugin.class);
     }
 
     private static ThreadPool testThreadPool;

@@ -89,7 +89,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

@@ -72,7 +72,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(CustomScriptPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

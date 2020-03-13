@@ -19,8 +19,8 @@
 
 package org.elasticsearch.join.aggregations;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,7 +31,7 @@ public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

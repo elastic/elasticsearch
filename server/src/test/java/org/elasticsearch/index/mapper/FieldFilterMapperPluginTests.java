@@ -54,7 +54,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(FieldFilterPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(FieldFilterPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Before

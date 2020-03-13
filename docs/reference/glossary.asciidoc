@@ -27,7 +27,7 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 [[glossary-auto-follow-pattern]] auto-follow pattern ::
 // tag::auto-follow-pattern-def[]
 An index pattern that automatically configures new indices as 
-<<glossary-follower-index, follower indices>> for <<glossary-ccr,{ccr}>>.
+<<glossary-follower-index,follower indices>> for <<glossary-ccr,{ccr}>>.
 // end::auto-follow-pattern-def[]
 
 [[glossary-cluster]] cluster ::
@@ -40,7 +40,7 @@ chosen automatically by the cluster and can be replaced if it fails.
 [[glossary-cold-phase]] cold phase ::
 // tag::cold-phase-def[]
 The third possible phase in the lifecycle of an index. 
-In the cold phase, an index is no longer being updated and is seldom queried. 
+In the cold phase, an index is no longer updated and seldom queried. 
 The information still needs to be searchable, but it’s okay if those queries are slower.
 // end::cold-phase-def[]
 
@@ -150,14 +150,14 @@ See the {ref}/freeze-index-api.html[freeze API].
 [[glossary-frozen-index]] frozen index ::  
 // tag::frozen-index-def[]
 An index reduced to a low overhead state that still enables occasional searches.
-Frozen indices use a memory efficient shard implementation and throttle searches to conserve resources.
+Frozen indices use a memory-efficient shard implementation and throttle searches to conserve resources.
 Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
 // end::frozen-index-def[]
 
 [[glossary-hot-phase]] hot phase ::
 // tag::hot-phase-def[]
 The first possible phase in the lifecycle of an index. 
-In the hot phase, an index is actively being updated and queried. 
+In the hot phase, an index is actively updated and queried. 
 // end::hot-phase-def[]
 
 [[glossary-id]] id ::
@@ -172,12 +172,11 @@ then it will be auto-generated. (also see <<glossary-routing,routing>>)
 --
 // tag::index-def[]
 // tag::index-def-short[]
-An optimized collection of documents where each document is a collection of fields, 
-which are the key-value pairs that contain your data. 
+An optimized collection of JSON documents. Each document is a collection of fields, 
+the key-value pairs that contain your data. 
 // end::index-def-short[]
 
-An index is like a _table_ in a relational database. 
-It is a logical namespace that maps to one or more
+An index is a logical namespace that maps to one or more
 <<glossary-primary-shard,primary shards>> and can have zero or more
 <<glossary-replica-shard,replica shards>>.
 // end::index-def[]
@@ -200,7 +199,7 @@ See {ref}/indices-add-alias.html[Add index alias].
 [[glossary-index-lifecycle]] index lifecycle ::
 // tag::index-lifecycle-def[]
 The four phases an index can move through as it ages: <<glossary-hot-phase>>, <<glossary-warm-phase>>, 
-<<glossary-cold-phase, cold phase>>, <<glossary-delete-phase>>.
+<<glossary-cold-phase>>, and <<glossary-delete-phase>>.
 // end::index-lifecycle-def[]
 
 [[glossary-index-lifecycle-policy]] index lifecycle policy ::
@@ -231,7 +230,7 @@ on a remote cluster and is replicated to
 
 [[glossary-local-cluster]] local cluster ::
 // tag::local-cluster-def[]
-The cluster that pulls data from a <<glossary-remote-cluster>> in cross cluster search or replication.
+The cluster that pulls data from a <<glossary-remote-cluster,remote cluster>> in {ccs} or {ccr}.
 // end::local-cluster-def[]
 
 [[glossary-mapping]] mapping ::
@@ -317,14 +316,14 @@ during the following processes:
 
 // tag::reindex-def[]
 To cycle through some or all documents in one or more indices, re-writing them into the same 
-or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade Elasticsearch between two incompatible index versions.
+or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade {es} between two incompatible index versions.
 // end::reindex-def[]
 
 [[glossary-remote-cluster]] remote cluster ::
 
 // tag::remote-cluster-def[]
 A separate cluster, often in a different data center or locale, that contains indices that 
-can be replicated or searched by the <<glossary-local-cluster>>. 
+can be replicated or searched by the <<glossary-local-cluster,local cluster>>. 
 The connection to a remote cluster is unidirectional.
 // end::remote-cluster-def[]
 
@@ -439,7 +438,7 @@ You can take snapshots of individual indices or of the entire cluster.
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::
 // tag::snapshot-lifecycle-policy-def[]
-Specifies how frequently to perform automatic back ups of a cluster and 
+Specifies how frequently to perform automatic backups of a cluster and 
 how long to retain the resulting snapshots. 
 // end::snapshot-lifecycle-policy-def[]
 

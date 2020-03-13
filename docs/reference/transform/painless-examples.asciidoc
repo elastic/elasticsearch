@@ -13,6 +13,7 @@ https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.ht
 * <<painless-top-hits>>
 * <<painless-time-features>>
 * <<painless-group-by>>
+* <<painless-bucket-script>>
 
 
 [discrete]
@@ -244,4 +245,52 @@ them. The table below shows how normalization modifies the output of the
 | "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
 | "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
 |===
+
+
+[discrete]
+[[painless-bucket-script]]
+==== Getting duration by using bucket script
+
+
+
+[source,console]
+--------------------------------------------------
+PUT _data_frame/transforms/data_log
+{
+  "source": {
+    "index": "kibana_sample_data_logs"
+  },
+  "dest": {
+    "index": "data-logs-by-client"
+  },
+  "pivot": {
+    "group_by": {
+      "machine.os": {"terms": {"field": "machine.os.keyword"}},
+      "machine.ip": {"terms": {"field": "clientip"}}
+    },
+    "aggregations": {
+      "time_frame.lte": {
+        "max": {
+          "field": "timestamp"
+        }
+      },
+      "time_frame.gte": {
+        "min": {
+          "field": "timestamp"
+        }
+      },
+      "time_length": {
+        "bucket_script": {
+          "buckets_path": {
+            "min": "time_frame.gte.value",
+            "max": "time_frame.lte.value"
+          },
+          "script": "params.max - params.min"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
 

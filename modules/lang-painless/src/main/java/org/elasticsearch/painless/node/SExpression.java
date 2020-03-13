@@ -46,7 +46,6 @@ public final class SExpression extends AStatement {
     @Override
     Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
         this.input = input;
-        output = new Output();
 
         Class<?> rtnType = scope.getReturnType();
         boolean isVoid = rtnType == void.class;
@@ -65,6 +64,7 @@ public final class SExpression extends AStatement {
         expression.input.internal = rtn;
         expression.cast();
 
+        output = new Output();
         output.methodEscape = rtn;
         output.loopEscape = rtn;
         output.allEscape = rtn;

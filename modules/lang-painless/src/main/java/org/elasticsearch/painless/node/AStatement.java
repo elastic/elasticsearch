@@ -98,6 +98,7 @@ public abstract class AStatement extends ANode {
     }
 
     // TODO: remove placeholders once analysis and write are combined into build
+    // TODO: https://github.com/elastic/elasticsearch/issues/53561
     Input input;
     Output output;
 

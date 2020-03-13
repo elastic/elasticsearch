@@ -54,7 +54,6 @@ public final class SFor extends AStatement {
     @Override
     Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
         this.input = input;
-        output = new Output();
 
         scope = scope.newLocalScope();
 
@@ -112,6 +111,8 @@ public final class SFor extends AStatement {
             afterthought.input.expected = afterthoughtOutput.actual;
             afterthought.cast();
         }
+
+        output = new Output();
 
         if (block != null) {
             Input blockInput = new Input();

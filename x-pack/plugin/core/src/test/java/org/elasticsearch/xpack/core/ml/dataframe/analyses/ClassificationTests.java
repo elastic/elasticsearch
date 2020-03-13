@@ -67,7 +67,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         return new Classification(instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
             instance.getPredictionFieldName(),
-            version.onOrAfter(Version.V_8_0_0) ? instance.getClassAssignmentObjective() : null,
+            version.onOrAfter(Version.V_7_7_0) ? instance.getClassAssignmentObjective() : null,
             instance.getNumTopClasses(),
             instance.getTrainingPercent(),
             instance.getRandomizeSeed());

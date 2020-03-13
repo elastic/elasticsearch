@@ -392,7 +392,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     }
 
                     final Checkpoint checkpointToSync = lastWrittenCheckpoint;
-                    final LongArrayList flushedSequenceNumbers = nonFsyncedSequenceNumbers;
                     nonFsyncedSequenceNumbers = new LongArrayList(64);
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.

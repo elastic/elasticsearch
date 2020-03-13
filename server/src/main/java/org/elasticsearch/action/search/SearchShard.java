@@ -29,7 +29,7 @@ import java.util.Objects;
  * A class that encapsulates the {@link ShardId} and the cluster alias
  * of a shard used during the search action.
  */
-public class SearchShard implements Comparable<SearchShard> {
+public final class SearchShard implements Comparable<SearchShard> {
     @Nullable
     private final String clusterAlias;
     private final ShardId shardId;
@@ -40,8 +40,7 @@ public class SearchShard implements Comparable<SearchShard> {
     }
 
     /**
-     * Return the cluster alias if the shard is on a remote cluster and <code>null</code>
-     * otherwise (local).
+     * Return the cluster alias if we are executing a cross cluster search request, <code>null</code> otherwise.
      */
     @Nullable
     public String getClusterAlias() {
@@ -51,7 +50,6 @@ public class SearchShard implements Comparable<SearchShard> {
     /**
      * Return the {@link ShardId} of this shard.
      */
-    @Nullable
     public ShardId getShardId() {
         return shardId;
     }

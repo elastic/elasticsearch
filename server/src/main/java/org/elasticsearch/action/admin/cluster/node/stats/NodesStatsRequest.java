@@ -166,99 +166,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Should the node OS be returned.
-     */
-    public NodesStatsRequest os(boolean os) {
-        addOrRemoveMetric(os, Metric.OS.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node Process be returned.
-     */
-    public NodesStatsRequest process(boolean process) {
-        addOrRemoveMetric(process, Metric.PROCESS.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node JVM be returned.
-     */
-    public NodesStatsRequest jvm(boolean jvm) {
-        addOrRemoveMetric(jvm, Metric.JVM.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node Thread Pool be returned.
-     */
-    public NodesStatsRequest threadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, Metric.THREAD_POOL.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node file system stats be returned.
-     */
-    public NodesStatsRequest fs(boolean fs) {
-        addOrRemoveMetric(fs, Metric.FS.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node Transport be returned.
-     */
-    public NodesStatsRequest transport(boolean transport) {
-        addOrRemoveMetric(transport, Metric.TRANSPORT.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node HTTP be returned.
-     */
-    public NodesStatsRequest http(boolean http) {
-        addOrRemoveMetric(http, Metric.HTTP.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node's circuit breaker stats be returned.
-     */
-    public NodesStatsRequest breaker(boolean breaker) {
-        addOrRemoveMetric(breaker, Metric.BREAKER.metricName());
-        return this;
-    }
-
-    public NodesStatsRequest script(boolean script) {
-        addOrRemoveMetric(script, Metric.SCRIPT.metricName());
-        return this;
-    }
-
-    /**
-     * Should the node's discovery stats be returned.
-     */
-    public NodesStatsRequest discovery(boolean discovery) {
-        addOrRemoveMetric(discovery, Metric.DISCOVERY.metricName());
-        return this;
-    }
-
-    /**
-     * Should ingest statistics be returned.
-     */
-    public NodesStatsRequest ingest(boolean ingest) {
-        addOrRemoveMetric(ingest, Metric.INGEST.metricName());
-        return this;
-    }
-
-    /**
-     * Should adaptiveSelection statistics be returned.
-     */
-    public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
-        addOrRemoveMetric(adaptiveSelection, Metric.ADAPTIVE_SELECTION.metricName());
-        return this;
-    }
-
-    /**
      * Helper method for adding and removing metrics.
      * @param includeMetric Whether or not to include a metric.
      * @param metricName Name of the metric to include or remove.
@@ -309,7 +216,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SCRIPT("script"),
         DISCOVERY("discovery"),
         INGEST("ingest"),
-        ADAPTIVE_SELECTION("adaptiveSelection");
+        ADAPTIVE_SELECTION("adaptiveSelection"); // TODO: Should this be removed?
 
         private String metricName;
 

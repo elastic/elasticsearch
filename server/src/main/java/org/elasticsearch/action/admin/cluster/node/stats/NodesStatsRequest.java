@@ -155,14 +155,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Add String array of metrics
-     */
-    public NodesStatsRequest addMetrics(String... metrics) {
-        addMetrics(Arrays.stream(metrics).collect(Collectors.toSet()));
-        return this;
-    }
-
-    /**
      * Remove metric
      */
     public NodesStatsRequest removeMetric(String metric) {

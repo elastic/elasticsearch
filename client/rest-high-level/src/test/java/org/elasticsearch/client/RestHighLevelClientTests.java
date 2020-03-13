@@ -120,6 +120,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -359,7 +360,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     private static byte[] compress(String content) throws IOException {
-        return compress(content.getBytes());
+        return compress(content.getBytes(StandardCharsets.ISO_8859_1));
     }
 
     private static byte[] compress(byte[] content) throws IOException {

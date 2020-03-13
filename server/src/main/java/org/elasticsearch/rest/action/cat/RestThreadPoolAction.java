@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -80,9 +82,10 @@ public class RestThreadPoolAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().addMetrics(
-                    NodesInfoRequest.Metric.PROCESS.metricName(),
-                    NodesInfoRequest.Metric.THREAD_POOL.metricName());
+                nodesInfoRequest.clear().addMetrics(Stream.of(
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.THREAD_POOL.metricName()
+                    ).collect(Collectors.toSet()));
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {

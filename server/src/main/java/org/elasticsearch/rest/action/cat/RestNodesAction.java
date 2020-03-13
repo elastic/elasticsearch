@@ -64,6 +64,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -97,11 +98,12 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().addMetrics(
-                    NodesInfoRequest.Metric.JVM.metricName(),
-                    NodesInfoRequest.Metric.OS.metricName(),
-                    NodesInfoRequest.Metric.PROCESS.metricName(),
-                    NodesInfoRequest.Metric.HTTP.metricName());
+                nodesInfoRequest.clear().addMetrics(Stream.of(
+                        NodesInfoRequest.Metric.JVM.metricName(),
+                        NodesInfoRequest.Metric.OS.metricName(),
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.HTTP.metricName()
+                    ).collect(Collectors.toSet()));
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {

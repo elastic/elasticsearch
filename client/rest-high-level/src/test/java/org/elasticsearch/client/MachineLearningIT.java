@@ -2265,7 +2265,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "          \"target_field\": \"regression_value\",\n" +
             "          \"model_id\": \"" + modelIdPrefix + 0 + "\",\n" +
             "          \"inference_config\": {\"regression\": {}},\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +

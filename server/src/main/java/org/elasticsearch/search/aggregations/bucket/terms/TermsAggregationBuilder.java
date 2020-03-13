@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -67,7 +66,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     public static final ObjectParser<TermsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, TermsAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
         PARSER.declareBoolean(TermsAggregationBuilder::showTermDocCountError,
                 TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);

@@ -28,8 +28,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     private static final ObjectParser<RangeAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(RangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {

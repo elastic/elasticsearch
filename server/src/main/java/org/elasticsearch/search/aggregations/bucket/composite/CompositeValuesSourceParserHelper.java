@@ -26,9 +26,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -37,6 +37,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class CompositeValuesSourceParserHelper {
+
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser,
                                                                                            ValueType expectedValueType) {
         objectParser.declareField(VB::field, XContentParser::text,
@@ -44,7 +45,7 @@ public class CompositeValuesSourceParserHelper {
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
         objectParser.declareField(VB::valueType, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
+            ValueType valueType = ValueType.lenientParse(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["

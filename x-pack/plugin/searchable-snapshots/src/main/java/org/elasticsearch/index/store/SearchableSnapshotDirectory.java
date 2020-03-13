@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
@@ -16,13 +13,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -35,8 +29,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -172,26 +164,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             directory = new CacheDirectory(directory, cache, cacheDir, snapshotId, indexId, shardPath.getShardId(),
                 currentTimeNanosSupplier);
         }
-        directory = new InMemoryNoOpCommitDirectory(directory);
-
-        final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null)
-            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(NoMergePolicy.INSTANCE);
-
-        try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-            final Map<String, String> userData = new HashMap<>();
-            indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
-
-            final String translogUUID = Translog.createEmptyTranslog(shardPath.resolveTranslog(),
-                Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-                shardPath.getShardId(), 0L);
-
-            userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            indexWriter.setLiveCommitData(userData.entrySet());
-            indexWriter.commit();
-        }
-
-        return directory;
+        return new InMemoryNoOpCommitDirectory(directory);
     }
-
 }

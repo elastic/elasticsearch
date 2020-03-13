@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -40,8 +41,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
@@ -126,6 +127,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     }
 
     @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (isSearchableSnapshotStore(indexModule.getSettings())) {
+            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
+        }
+    }
+
+    @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
@@ -138,7 +146,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))
+        if (isSearchableSnapshotStore(indexSettings.getSettings())
                 && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
         }
@@ -168,6 +176,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
         return Collections.singletonMap(SearchableSnapshotAllocator.ALLOCATOR_NAME, new SearchableSnapshotAllocator());
+    }
+
+    static boolean isSearchableSnapshotStore(Settings indexSettings) {
+        return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
     }
 }
 

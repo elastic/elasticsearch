@@ -332,10 +332,10 @@ public class TermVectorsService  {
     public static String[] getValues(IndexableField[] fields) {
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
-            if (field.stringValue() != null) {
-                result.add(field.stringValue());
-            } else if (field.binaryValue() != null) { // KeywordFieldType
+            if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
                 result.add(field.binaryValue().utf8ToString());
+            } else if (field.fieldType() instanceof StringFieldType) {
+                result.add(field.stringValue());
             }
         }
         return result.toArray(new String[0]);

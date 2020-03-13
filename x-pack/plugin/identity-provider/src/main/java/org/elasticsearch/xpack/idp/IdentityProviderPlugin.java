@@ -43,18 +43,18 @@ import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnActio
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.privileges.UserPrivilegeResolver;
-import org.elasticsearch.xpack.idp.rest.RestSamlMetadataAction;
-import org.elasticsearch.xpack.idp.rest.RestSamlValidateAuthenticationRequestAction;
-import org.elasticsearch.xpack.idp.rest.action.RestDeleteSamlServiceProviderAction;
-import org.elasticsearch.xpack.idp.rest.action.RestSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestDeleteSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
-import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
-import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 
 import java.util.ArrayList;
 import java.util.Collection;

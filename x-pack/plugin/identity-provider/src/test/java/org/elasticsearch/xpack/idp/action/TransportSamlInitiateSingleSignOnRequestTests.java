@@ -57,9 +57,8 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
         action.doExecute(mock(Task.class), request, future);
 
         final SamlInitiateSingleSignOnResponse response = future.get();
-        assertThat(response.getSpEntityId(), equalTo("https://sp.some.org"));
-        assertThat(response.getRedirectUrl(), equalTo("https://sp.some.org/api/security/v1/saml"));
-        assertThat(response.getResponseBody(), containsString("saml_enduser"));
+        assertThat(response.getEntityId(), equalTo("https://sp.some.org"));
+        assertThat(response.getPostUrl(), equalTo("https://sp.some.org/api/security/v1/saml"));
     }
 
     public void testGetResponseWithoutSecondaryAuthentication() throws Exception {
@@ -122,7 +121,7 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             "test sp",
             true,
             new URL("https://sp.some.org/api/security/v1/saml"),
-            Set.of(TRANSIENT),
+            TRANSIENT,
             Duration.standardMinutes(5),
             null,
             new SamlServiceProvider.AttributeNames(

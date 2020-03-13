@@ -24,7 +24,7 @@ public interface SamlServiceProvider {
 
     String getEntityId();
 
-    Set<String> getAllowedNameIdFormats();
+    String getAllowedNameIdFormat();
 
     URL getAssertionConsumerService();
 

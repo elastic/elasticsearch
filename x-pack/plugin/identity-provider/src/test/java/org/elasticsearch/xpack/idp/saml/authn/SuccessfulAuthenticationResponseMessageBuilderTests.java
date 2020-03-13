@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
@@ -23,6 +24,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSamlTestCase {
 
@@ -39,6 +41,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getServiceProviderDefaults())
+            .thenReturn(new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.standardMinutes(5)));
     }
 
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {

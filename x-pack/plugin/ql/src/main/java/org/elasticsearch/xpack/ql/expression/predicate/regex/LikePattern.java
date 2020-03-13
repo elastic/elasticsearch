@@ -17,7 +17,7 @@ import java.util.Objects;
  *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern implements Pattern {
+public class LikePattern implements StringPattern {
 
     private final String pattern;
     private final char escape;

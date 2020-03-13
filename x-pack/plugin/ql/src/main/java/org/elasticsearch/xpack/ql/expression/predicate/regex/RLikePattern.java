@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
-public class RLikePattern implements Pattern {
+public class RLikePattern implements StringPattern {
 
     private final String regexpPattern;
 

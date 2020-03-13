@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
-interface Pattern {
+interface StringPattern {
     /**
      * Returns the pattern in (Java) regex format.
      */

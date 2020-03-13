@@ -22,7 +22,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
-public abstract class RegexMatch<T extends Pattern> extends UnaryScalarFunction {
+public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFunction {
 
     private final T pattern;
     

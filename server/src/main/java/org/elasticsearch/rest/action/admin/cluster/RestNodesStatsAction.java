@@ -55,19 +55,19 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(
-            entry("os", r -> r.os(true)),
-            entry("jvm", r -> r.jvm(true)),
-            entry("thread_pool", r -> r.threadPool(true)),
-            entry("fs", r -> r.fs(true)),
-            entry("transport", r -> r.transport(true)),
-            entry("http", r -> r.http(true)),
+            entry("os", r -> r.addMetric(NodesStatsRequest.Metric.OS.metricName())),
+            entry("jvm", r -> r.addMetric(NodesStatsRequest.Metric.JVM.metricName())),
+            entry("thread_pool", r -> r.addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName())),
+            entry("fs", r -> r.addMetric(NodesStatsRequest.Metric.FS.metricName())),
+            entry("transport", r -> r.addMetric(NodesStatsRequest.Metric.TRANSPORT.metricName())),
+            entry("http", r -> r.addMetric(NodesStatsRequest.Metric.HTTP.metricName())),
             entry("indices", r -> r.indices(true)),
-            entry("process", r -> r.process(true)),
-            entry("breaker", r -> r.breaker(true)),
-            entry("script", r -> r.script(true)),
-            entry("discovery", r -> r.discovery(true)),
-            entry("ingest", r -> r.ingest(true)),
-            entry("adaptive_selection", r -> r.adaptiveSelection(true)));
+            entry("process", r -> r.addMetric(NodesStatsRequest.Metric.PROCESS.metricName())),
+            entry("breaker", r -> r.addMetric(NodesStatsRequest.Metric.BREAKER.metricName())),
+            entry("script", r -> r.addMetric(NodesStatsRequest.Metric.SCRIPT.metricName())),
+            entry("discovery", r -> r.addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())),
+            entry("ingest", r -> r.addMetric(NodesStatsRequest.Metric.INGEST.metricName())),
+            entry("adaptive_selection", r -> r.addMetric(NodesStatsRequest.Metric.ADAPTIVE_SELECTION.metricName())));
 
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 

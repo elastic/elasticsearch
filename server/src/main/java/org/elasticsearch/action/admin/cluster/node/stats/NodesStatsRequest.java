@@ -395,7 +395,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             this.metricName = name;
         }
 
-        String metricName() {
+        public String metricName() {
             return this.metricName;
         }
 

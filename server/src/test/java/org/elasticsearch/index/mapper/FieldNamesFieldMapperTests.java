@@ -20,16 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -49,8 +52,14 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     void assertFieldNames(Set<String> expected, ParsedDocument doc) {
-        String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
-        assertEquals(expected, set(got));
+        IndexableField[] fields = doc.rootDoc().getFields("_field_names");
+        List<String> result = new ArrayList<>();
+        for (IndexableField field : fields) {
+            if (field.fieldType() instanceof FieldNamesFieldType) {
+                result.add(field.stringValue());
+            }
+        }
+        assertEquals(expected, set(result.toArray(new String[0])));
     }
 
     public void testExtractFieldNames() {

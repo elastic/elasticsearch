@@ -311,7 +311,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
-        if(dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
+        if (dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
            return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
         }
         return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));

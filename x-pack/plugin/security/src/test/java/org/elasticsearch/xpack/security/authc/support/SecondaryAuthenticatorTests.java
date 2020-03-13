@@ -57,8 +57,7 @@ import org.mockito.Mockito;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
-import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -94,11 +93,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         realm = new DummyUsernamePasswordRealm(new RealmConfig(new RealmIdentifier("dummy", "test_realm"), settings, env, threadContext));
-        when(realms.asList()).thenReturn(List.of(realm));
-        when(realms.getUnlicensedRealms()).thenReturn(List.of());
+        when(realms.asList()).thenReturn(Collections.singletonList(realm));
+        when(realms.getUnlicensedRealms()).thenReturn(Collections.emptyList());
 
         final AuditTrailService auditTrail = mock(AuditTrailService.class);
-        final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
+        final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 
         final SecurityIndexManager securityIndex = SecurityMocks.mockSecurityIndexManager(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
@@ -274,7 +273,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         });
 
         final PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createOAuth2Tokens(auth, auth, Map.of(), false, tokenFuture);
+        tokenService.createOAuth2Tokens(auth, auth, Collections.emptyMap(), false, tokenFuture);
         final String token = tokenFuture.actionGet().v1();
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);

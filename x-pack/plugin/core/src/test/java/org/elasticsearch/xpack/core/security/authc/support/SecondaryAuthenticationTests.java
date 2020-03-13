@@ -59,7 +59,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
         final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
 
         assertThat(securityContext.getUser().principal(), equalTo("u1"));
-        var result = secondaryAuth.execute(original -> {
+        String result = secondaryAuth.execute(original -> {
             assertThat(securityContext.getUser().principal(), equalTo("u2"));
             assertThat(securityContext.getAuthentication(), sameInstance(authentication2));
             return "xyzzy";

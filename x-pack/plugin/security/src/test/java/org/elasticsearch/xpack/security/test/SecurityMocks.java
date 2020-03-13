@@ -113,11 +113,30 @@ public final class SecurityMocks {
 
     public static void mockIndexRequest(Client client, String indexAliasName, Consumer<IndexRequest> consumer) {
         doAnswer(inv -> {
-            Assert.assertThat(inv.getArguments(), arrayWithSize(1));
-            final Object requestIndex = inv.getArguments()[0];
+            final Object[] args = inv.getArguments();
+            Assert.assertThat(args, arrayWithSize(2));
+            final Object requestIndex = args[0];
+            final Object requestType = args[1];
             Assert.assertThat(requestIndex, instanceOf(String.class));
-            return new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex((String) requestIndex);
-        }).when(client).prepareIndex(anyString());
+            Assert.assertThat(requestType, equalTo(SINGLE_MAPPING_NAME));
+            return new IndexRequestBuilder(client, IndexAction.INSTANCE)
+                .setIndex((String) requestIndex)
+                .setType((String) requestType);
+        }).when(client).prepareIndex(anyString(), anyString());
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            Assert.assertThat(args, arrayWithSize(3));
+            final Object requestIndex = args[0];
+            final Object requestType = args[1];
+            final Object requestId = args[2];
+            Assert.assertThat(requestIndex, instanceOf(String.class));
+            Assert.assertThat(requestType, equalTo(SINGLE_MAPPING_NAME));
+            Assert.assertThat(requestId, instanceOf(String.class));
+            return new IndexRequestBuilder(client, IndexAction.INSTANCE)
+                .setIndex((String) requestIndex)
+                .setType((String) requestType)
+                .setId((String) requestId);
+        }).when(client).prepareIndex(anyString(), anyString(), anyString());
         doAnswer(inv -> {
             Assert.assertThat(inv.getArguments(), arrayWithSize(3));
             Assert.assertThat(inv.getArguments()[0], instanceOf(ActionType.class));
@@ -128,7 +147,7 @@ public final class SecurityMocks {
             Assert.assertThat(inv.getArguments()[2], instanceOf(ActionListener.class));
             final ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) inv.getArguments()[2];
             final ShardId shardId = new ShardId(request.index(), ESTestCase.randomAlphaOfLength(12), 0);
-            listener.onResponse(new IndexResponse(shardId, request.id(), 1, 1, 1, true));
+            listener.onResponse(new IndexResponse(shardId, request.type(), request.id(), 1, 1, 1, true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
     }

@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 public class SamlServiceProviderResolverTests extends ESTestCase {
 
     private SamlServiceProviderIndex index;
-    private SamlIdentityProvider.ServiceProviderDefaults serviceProviderDefaults;
+    private ServiceProviderDefaults serviceProviderDefaults;
     private SamlIdentityProvider identityProvider;
     private SamlServiceProviderResolver resolver;
 
@@ -144,11 +144,11 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         return serviceProvider;
     }
 
-    private SamlIdentityProvider.ServiceProviderDefaults configureIdentityProviderDefaults() {
+    private ServiceProviderDefaults configureIdentityProviderDefaults() {
         final String defaultNameId = NameID.TRANSIENT;
         final String defaultApplication = randomAlphaOfLengthBetween(4, 12);
         final Duration defaultExpiry = Duration.standardMinutes(12);
-        final SamlIdentityProvider.ServiceProviderDefaults defaults = new SamlIdentityProvider.ServiceProviderDefaults(
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
             defaultApplication, defaultNameId, defaultExpiry);
         when(identityProvider.getServiceProviderDefaults()).thenReturn(defaults);
         return defaults;

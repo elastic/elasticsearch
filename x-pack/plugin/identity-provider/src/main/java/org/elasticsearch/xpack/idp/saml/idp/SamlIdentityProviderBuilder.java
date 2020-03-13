@@ -15,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
@@ -80,7 +81,7 @@ public class SamlIdentityProviderBuilder {
     private X509Credential metadataSigningCredential;
     private SamlIdentityProvider.ContactInfo technicalContact;
     private SamlIdentityProvider.OrganizationInfo organization;
-    private SamlIdentityProvider.ServiceProviderDefaults serviceProviderDefaults;
+    private ServiceProviderDefaults serviceProviderDefaults;
 
     SamlIdentityProviderBuilder(SamlServiceProviderResolver serviceProviderResolver) {
         this.serviceProviderResolver = serviceProviderResolver;
@@ -174,7 +175,7 @@ public class SamlIdentityProviderBuilder {
             IDP_CONTACT_EMAIL);
     }
 
-    public SamlIdentityProviderBuilder serviceProviderDefaults(SamlIdentityProvider.ServiceProviderDefaults serviceProviderDefaults) {
+    public SamlIdentityProviderBuilder serviceProviderDefaults(ServiceProviderDefaults serviceProviderDefaults) {
         this.serviceProviderDefaults = serviceProviderDefaults;
         return this;
     }

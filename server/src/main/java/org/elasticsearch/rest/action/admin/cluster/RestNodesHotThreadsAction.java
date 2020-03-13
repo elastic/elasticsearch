@@ -40,29 +40,29 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
-    static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. Please use [/nodes/hot_threads] instead.";
-    static final String formatDeprecatedMessageWithNodeID = "[%s] is a deprecated endpoint. Please use [/nodes/{nodeId}/hot_threads] instead.";
-    static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS = String.format(Locale.ROOT, 
+    private static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. Please use [/nodes/hot_threads] instead.";
+    private static final String formatDeprecatedMessageWithNodeID = "[%s] is a deprecated endpoint. Please use [/nodes/{nodeId}/hot_threads] instead.";
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithoutNodeID, 
         "/_cluster/nodes/hot_threads"
     ); 
-    static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS = String.format(Locale.ROOT, 
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithNodeID, 
         "/_cluster/nodes/{nodeId}/hot_threads"
     );
-    static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS = String.format(Locale.ROOT, 
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithoutNodeID, 
         "/_cluster/nodes/hotthreads"
     ); 
-    static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS = String.format(Locale.ROOT, 
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithNodeID, 
         "/_cluster/nodes/{nodeId}/hotthreads"
     ); 
-    static final String DEPRECATED_MESSAGE_NODES_HOTTHREADS = String.format(Locale.ROOT, 
+    private static final String DEPRECATED_MESSAGE_NODES_HOTTHREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithoutNodeID, 
         "/_nodes/hotthreads"
     ); 
-    static final String DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS = String.format(Locale.ROOT, 
+    private static final String DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithNodeID, 
         "/_nodes/{nodeId}/hotthreads"
     );

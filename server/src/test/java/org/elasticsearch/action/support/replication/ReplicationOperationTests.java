@@ -517,7 +517,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
             @Override
             public void primaryCoordinationComplete() {
-                
+
             }
 
             public ShardInfo getShardInfo() {

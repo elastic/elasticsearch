@@ -61,6 +61,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -104,6 +105,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final BulkIndexingBreaker indexingBreaker;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
 
     @Inject
@@ -129,6 +131,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.indexingBreaker = new BulkIndexingBreaker();
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -151,7 +154,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> responseListener) {
+        final long actionSizeInBytes = DocWriteRequest.writeSizeInBytes(bulkRequest.requests.stream());
+        try {
+            indexingBreaker.markCoordinatingOperationStarted(actionSizeInBytes);
+        } catch (EsRejectedExecutionException e) {
+            responseListener.onFailure(e);
+            return;
+        }
+
+        final ActionListener<BulkResponse> listener = ActionListener.runAfter(responseListener,
+            () -> indexingBreaker.markCoordinatingOperationFinished(actionSizeInBytes));
+
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 

@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 
 /**
  * Performs shard-level bulk (index, delete or update) operations
@@ -272,23 +273,6 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
     }
 
     private static long operationSizeInBytes(BulkItemRequest[] items) {
-        long totalSizeInBytes = 0;
-        for (BulkItemRequest item : items) {
-            DocWriteRequest<?> request = item.request();
-            if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    totalSizeInBytes += ((IndexRequest) request).source().length();
-                }
-            } else if (request instanceof UpdateRequest) {
-                IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
-                }
-            }
-        }
-
-        // TODO: Add constant sizes for DELETE, etc
-
-        return totalSizeInBytes;
+        return DocWriteRequest.writeSizeInBytes(Stream.of(items).map(BulkItemRequest::request));
     }
 }

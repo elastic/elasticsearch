@@ -32,6 +32,23 @@ public class BulkIndexingBreaker {
 
     private final AtomicLong pendingBytes = new AtomicLong(0);
 
+    public void markCoordinatingOperationStarted(long bytes) {
+        long pendingWithOperation = pendingBytes.addAndGet(bytes);
+
+        if (pendingWithOperation > SIXTY_PER_HEAP_SIZE) {
+            decrementPendingBytes(bytes);
+            long pendingPreOperation = pendingWithOperation - bytes;
+            throw new EsRejectedExecutionException("rejected execution of coordinating indexing operation [" +
+                "pending_bytes=" + pendingPreOperation + ", " +
+                "operation_bytes=" + bytes + "," +
+                "max_pending_bytes=" + SIXTY_PER_HEAP_SIZE + "]", false);
+        }
+    }
+
+    public void markCoordinatingOperationFinished(long bytes) {
+        decrementPendingBytes(bytes);
+    }
+
     public void markPrimaryOperationStarted(long bytes) {
         long pendingWithOperation = pendingBytes.addAndGet(bytes);
 

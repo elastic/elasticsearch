@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -46,7 +45,7 @@ public class GeoCentroidAggregationBuilder
     private static final ObjectParser<GeoCentroidAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoCentroidAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

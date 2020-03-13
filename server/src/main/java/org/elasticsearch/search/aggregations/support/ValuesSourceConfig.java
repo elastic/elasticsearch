@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -200,8 +199,6 @@ public class ValuesSourceConfig {
             return CoreValuesSourceType.GEOPOINT;
         } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
             return CoreValuesSourceType.RANGE;
-        } else if (indexFieldData instanceof IndexHistogramFieldData) {
-            return CoreValuesSourceType.HISTOGRAM;
         } else {
             if (userValueTypeHint == null) {
                 return defaultValuesSourceType;

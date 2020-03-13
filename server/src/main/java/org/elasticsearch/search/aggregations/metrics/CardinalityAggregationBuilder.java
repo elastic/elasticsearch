@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -52,7 +51,7 @@ public final class CardinalityAggregationBuilder
     public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, CardinalityAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }

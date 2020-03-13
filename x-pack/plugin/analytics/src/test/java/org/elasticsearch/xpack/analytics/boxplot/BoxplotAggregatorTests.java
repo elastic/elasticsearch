@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -70,8 +71,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.HISTOGRAM);
+        return List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM);
     }
 
     @Override

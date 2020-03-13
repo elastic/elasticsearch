@@ -19,9 +19,13 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -31,11 +35,48 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>>
         extends AbstractAggregationBuilder<AB> {
+
+    public static <T> void declareFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
+        boolean scriptable, boolean formattable, boolean timezoneAware) {
+
+
+        objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
+            ParseField.CommonFields.FIELD, ObjectParser.ValueType.STRING);
+
+        objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
+            ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
+
+        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> ValueType.lenientParse(p.text()),
+            ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
+
+        if (formattable) {
+            objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,
+                ParseField.CommonFields.FORMAT, ObjectParser.ValueType.STRING);
+        }
+
+        if (scriptable) {
+            objectParser.declareField(ValuesSourceAggregationBuilder::script,
+                    (parser, context) -> Script.parse(parser),
+                    Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        }
+
+        if (timezoneAware) {
+            objectParser.declareField(ValuesSourceAggregationBuilder::timeZone, p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return ZoneId.of(p.text());
+                } else {
+                    return ZoneOffset.ofHours(p.intValue());
+                }
+            }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
+        }
+    }
 
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
             extends ValuesSourceAggregationBuilder<AB> {

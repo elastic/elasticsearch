@@ -47,7 +47,6 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
                 CoreValuesSourceType.BYTES,
                 CoreValuesSourceType.GEOPOINT,
                 CoreValuesSourceType.RANGE,
-                CoreValuesSourceType.HISTOGRAM,
                 CoreValuesSourceType.IP,
                 CoreValuesSourceType.BOOLEAN,
                 CoreValuesSourceType.DATE

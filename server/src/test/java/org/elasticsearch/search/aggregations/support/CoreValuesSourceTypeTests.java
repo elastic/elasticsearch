@@ -30,7 +30,6 @@ public class CoreValuesSourceTypeTests extends ESTestCase {
         assertThat(CoreValuesSourceType.fromString("bytes"), equalTo(CoreValuesSourceType.BYTES));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));
-        assertThat(CoreValuesSourceType.fromString("histogram"), equalTo(CoreValuesSourceType.HISTOGRAM));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> CoreValuesSourceType.fromString("does_not_exist"));
         assertThat(e.getMessage(),

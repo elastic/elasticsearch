@@ -1395,6 +1395,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-000002", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50353")
     public void testHistoryIsWrittenWithFailure() throws Exception {
         createIndexWithSettings(index + "-1", Settings.builder(), false);
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));

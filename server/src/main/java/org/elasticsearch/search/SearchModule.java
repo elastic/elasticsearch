@@ -381,7 +381,9 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
                 GlobalAggregationBuilder::parse).addResultReader(InternalGlobal::new));
         registerAggregation(new AggregationSpec(MissingAggregationBuilder.NAME, MissingAggregationBuilder::new,
-                MissingAggregationBuilder.PARSER).addResultReader(InternalMissing::new));
+                MissingAggregationBuilder.PARSER)
+                    .addResultReader(InternalMissing::new)
+                    .setAggregatorRegistrar(MissingAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(FilterAggregationBuilder.NAME, FilterAggregationBuilder::new,
                 FilterAggregationBuilder::parse).addResultReader(InternalFilter::new));
         registerAggregation(new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new,

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
@@ -397,16 +398,8 @@ public class CacheDirectory extends FilterDirectory {
         return true;
     }
 
-    private static String getExtension(String name) {
-        int i = name.lastIndexOf('.');
-        if (i == -1) {
-            return "";
-        }
-        return name.substring(i + 1);
-    }
-
     private boolean isBlackListedFromCache(String name) {
-        String ext = getExtension(name);
-        return blacklistedFileExtensions.contains(ext);
+        final String ext = IndexFileNames.getExtension(name);
+        return ext != null && blacklistedFileExtensions.contains(ext);
     }
 }

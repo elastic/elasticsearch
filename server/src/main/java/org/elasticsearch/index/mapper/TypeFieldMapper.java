@@ -35,10 +35,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -46,7 +44,6 @@ import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -91,7 +88,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class TypeFieldType extends ConstantFieldType {
+    public static final class TypeFieldType extends StringFieldType {
 
         TypeFieldType() {
         }
@@ -117,26 +114,55 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, QueryShardContext context) {
-            String type = context.getMapperService().documentMapper().type();
-            return pattern.equals(type);
+        public boolean isSearchable() {
+            return true;
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            return termsQuery(Arrays.asList(value), context);
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            DocumentMapper mapper = context.getMapperService().documentMapper();
+            if (mapper == null) {
+                return new MatchNoDocsQuery("No types");
+            }
+            BytesRef indexType = indexedValueForSearch(mapper.type());
+            if (values.stream()
+                    .map(this::indexedValueForSearch)
+                    .anyMatch(indexType::equals)) {
+                if (context.getMapperService().hasNested()) {
+                    // type filters are expected not to match nested docs
+                    return Queries.newNonNestedFilter(context.indexVersionCreated());
+                } else {
+                    return new MatchAllDocsQuery();
+                }
+            } else {
+                return new MatchNoDocsQuery("Type list does not contain the index type");
+            }
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             Query result = new MatchAllDocsQuery();
             String type = context.getMapperService().documentMapper().type();
             if (type != null) {
                 BytesRef typeBytes = new BytesRef(type);
                 if (lowerTerm != null) {
-                    int comp = BytesRefs.toBytesRef(lowerTerm).compareTo(typeBytes);
+                    int comp = indexedValueForSearch(lowerTerm).compareTo(typeBytes);
                     if (comp > 0 || (comp == 0 && includeLower == false)) {
                         result = new MatchNoDocsQuery("[_type] was lexicographically smaller than lower bound of range");
                     }
                 }
                 if (upperTerm != null) {
-                    int comp = BytesRefs.toBytesRef(upperTerm).compareTo(typeBytes);
+                    int comp = indexedValueForSearch(upperTerm).compareTo(typeBytes);
                     if (comp < 0 || (comp == 0 && includeUpper == false)) {
                         result = new MatchNoDocsQuery("[_type] was lexicographically greater than upper bound of range");
                     }

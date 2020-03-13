@@ -187,6 +187,18 @@ public class ExpressionTests extends ESTestCase {
         );
     }
 
+    public void testInSetDuplicates() {
+        assertEquals(
+            expr("name in (1, 1)"),
+            new In(null, expr("name"), exprs("1", "1"))
+        );
+
+        assertEquals(
+            expr("name in ('net.exe', 'net.exe')"),
+            new In(null, expr("name"), exprs("'net.exe'", "'net.exe'"))
+        );
+    }
+
     public void testNotInSet() {
         assertEquals(
             expr("name not in ('net.exe', 'whoami.exe', 'hostname.exe')"),

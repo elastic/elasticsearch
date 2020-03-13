@@ -103,7 +103,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         final UncheckedIOException e = expectThrows(UncheckedIOException.class,
             () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
-            + " was expecting ('true', 'false' or 'null')\\n"
+            + " was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\\n"
             + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(JsonParseException.class));

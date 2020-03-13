@@ -176,23 +176,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Should the node OS be returned.
      */
-    public boolean os() {
-        return Metric.OS.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node OS be returned.
-     */
     public NodesStatsRequest os(boolean os) {
         addOrRemoveMetric(os, Metric.OS.metricName());
         return this;
-    }
-
-    /**
-     * Should the node Process be returned.
-     */
-    public boolean process() {
-        return Metric.PROCESS.containedIn(requestedMetrics);
     }
 
     /**
@@ -206,23 +192,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Should the node JVM be returned.
      */
-    public boolean jvm() {
-        return Metric.JVM.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node JVM be returned.
-     */
     public NodesStatsRequest jvm(boolean jvm) {
         addOrRemoveMetric(jvm, Metric.JVM.metricName());
         return this;
-    }
-
-    /**
-     * Should the node Thread Pool be returned.
-     */
-    public boolean threadPool() {
-        return Metric.THREAD_POOL.containedIn(requestedMetrics);
     }
 
     /**
@@ -236,23 +208,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Should the node file system stats be returned.
      */
-    public boolean fs() {
-        return Metric.FS.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node file system stats be returned.
-     */
     public NodesStatsRequest fs(boolean fs) {
         addOrRemoveMetric(fs, Metric.FS.metricName());
         return this;
-    }
-
-    /**
-     * Should the node Transport be returned.
-     */
-    public boolean transport() {
-        return Metric.TRANSPORT.containedIn(requestedMetrics);
     }
 
     /**
@@ -266,20 +224,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Should the node HTTP be returned.
      */
-    public boolean http() {
-        return Metric.HTTP.containedIn(requestedMetrics);
-    }
-
-    /**
-     * Should the node HTTP be returned.
-     */
     public NodesStatsRequest http(boolean http) {
         addOrRemoveMetric(http, Metric.HTTP.metricName());
         return this;
-    }
-
-    public boolean breaker() {
-        return Metric.BREAKER.containedIn(requestedMetrics);
     }
 
     /**
@@ -290,18 +237,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    public boolean script() {
-        return Metric.SCRIPT.containedIn(requestedMetrics);
-    }
-
     public NodesStatsRequest script(boolean script) {
         addOrRemoveMetric(script, Metric.SCRIPT.metricName());
         return this;
-    }
-
-
-    public boolean discovery() {
-        return Metric.DISCOVERY.containedIn(requestedMetrics);
     }
 
     /**
@@ -312,20 +250,12 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    public boolean ingest() {
-        return Metric.INGEST.containedIn(requestedMetrics);
-    }
-
     /**
      * Should ingest statistics be returned.
      */
     public NodesStatsRequest ingest(boolean ingest) {
         addOrRemoveMetric(ingest, Metric.INGEST.metricName());
         return this;
-    }
-
-    public boolean adaptiveSelection() {
-        return Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics);
     }
 
     /**

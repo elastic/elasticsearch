@@ -26,8 +26,9 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 
 [[glossary-auto-follow-pattern]] auto-follow pattern ::
 // tag::auto-follow-pattern-def[]
-An index pattern that automatically configures new indices as 
+An <<glossary-index-pattern,index pattern>> that automatically configures new indices as 
 <<glossary-follower-index,follower indices>> for <<glossary-ccr,{ccr}>>.
+For more information, see {ref}/ccr-auto-follow.html#_managing_auto_follow_patterns[Managing auto follow patterns].
 // end::auto-follow-pattern-def[]
 
 [[glossary-cluster]] cluster ::
@@ -39,7 +40,7 @@ chosen automatically by the cluster and can be replaced if it fails.
 
 [[glossary-cold-phase]] cold phase ::
 // tag::cold-phase-def[]
-The third possible phase in the lifecycle of an index. 
+The third possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
 In the cold phase, an index is no longer updated and seldom queried. 
 The information still needs to be searchable, but it’s okay if those queries are slower.
 // end::cold-phase-def[]
@@ -60,7 +61,7 @@ See {ref}/modules-cross-cluster-search.html[Search across clusters].
 
 [[glossary-delete-phase]] delete phase ::
 // tag::delete-phase-def[]
-The last possible phase in the lifecycle of an index. 
+The last possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
 In the delete phase, an index is no longer needed and can safely be deleted.
 // end::delete-phase-def[]
 
@@ -113,8 +114,14 @@ In most cases, the goal of filtering is to reduce the number of documents that h
 
 [[glossary-flush]] flush ::
 // tag::flush-def[]
-Make sure that all data in the transaction log is permanently written to the Lucene index. 
-{es} automatically triggers flushes as needed,
+Peform a Lucene commit to write index updates in the transaction log (translog) to disk. 
+Because a Lucene commit is a relatively expensive operation, 
+{es} records index and delete operations in the translog and 
+automatically flushes changes to disk in batches.
+To recover from a crash, operations that have been acknowledged but not yet committed 
+can be replayed from the translog.
+Before upgrading, you can explicitly call the {ref}/ndices-flush.html[Flush] API
+to ensure that all changes are committed to disk.
 // end::flush-def[]
 
 [[glossary-follower-index]] follower index ::  
@@ -131,7 +138,7 @@ and free up the space used by deleted documents.
 // end::force-merge-def-short[]
 You should not force merge indices that are actively being written to.
 Merging is normally performed automatically, but you can use force merge after 
-<<glossary-rollover, rollover>> to reduce the shards in the old index to a single segment. 
+<<glossary-rollover,rollover>> to reduce the shards in the old index to a single segment. 
 See the {ref}/indices-forcemerge.html[force merge API].
 // end::force-merge-def[]
 
@@ -156,7 +163,7 @@ Searching a frozen index is lower overhead than re-opening a closed index to ena
 
 [[glossary-hot-phase]] hot phase ::
 // tag::hot-phase-def[]
-The first possible phase in the lifecycle of an index. 
+The first possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
 In the hot phase, an index is actively updated and queried. 
 // end::hot-phase-def[]
 
@@ -198,8 +205,10 @@ See {ref}/indices-add-alias.html[Add index alias].
 
 [[glossary-index-lifecycle]] index lifecycle ::
 // tag::index-lifecycle-def[]
-The four phases an index can move through as it ages: <<glossary-hot-phase>>, <<glossary-warm-phase>>, 
-<<glossary-cold-phase>>, and <<glossary-delete-phase>>.
+The four phases an index can transition through: 
+<<glossary-hot-phase,hot>>, <<glossary-warm-phase,warm>>,
+<<glossary-cold-phase,cold>>, and <<glossary-delete-phase,delete>>.
+For more information, see {ref}/ilm-policy-definition.html[Index lifecycle].
 // end::index-lifecycle-def[]
 
 [[glossary-index-lifecycle-policy]] index lifecycle policy ::
@@ -207,6 +216,15 @@ The four phases an index can move through as it ages: <<glossary-hot-phase>>, <<
 Specifies how an index moves between phases in the index lifecycle and 
 what actions to perform during each phase. 
 // end::index-lifecycle-policy-def[]
+
+[[glossary-index-pattern]] index pattern ::
+// tag::index-pattern-def[]
+A string that can contain the `*` wildcard to match multiple index names.
+In most cases, the index parameter in an {es} request can be the name of a specific index, 
+a list of index names, or an index pattern.
+For example, if you have the indices `datastream-000001`, `datastream-000002`, and `datastream-000003`,
+to search across all three you could use the `datastream-*` index pattern.  
+// end::index-pattern-def[]
 
 [[glossary-index-template]] index template ::
 +
@@ -217,7 +235,7 @@ Defines settings and mappings to apply to new indexes that match a simple naming
 // end::index-template-def-short[]
 
 An index template can also attach a lifecycle policy to the new index.
-Index templates are used to automatically configure indices created during <<glossary-rollover, rollover>>. 
+Index templates are used to automatically configure indices created during <<glossary-rollover,rollover>>. 
 // end::index-template-def[]
 --
 
@@ -351,10 +369,11 @@ shard will never be started on the same node as its primary shard.
 --
 // tag::rollover-def[]
 // tag::rollover-def-short[]
-Redirect an index alias to begin writing to a new index when the existing index reaches a certain age, number of docs, or size. 
+Redirect an index alias to begin writing to a new index when the existing index reaches 
+a certain size, number of docs, or age. 
 // end::rollover-def-short[]
 
-The new index is automatically configured according to any matching <<glossary-index-template, index templates>>. 
+The new index is automatically configured according to any matching <<glossary-index-template,index templates>>. 
 For example, if you're indexing log data, you might use rollover to create daily or weekly indices. 
 See the {ref}/indices-rollover-index.html[rollover index API].
 // end::rollover-def[]
@@ -369,7 +388,7 @@ maintain access to historical data in a cost-effective way.
 [[glossary-rollup-index]] rollup index ::
 // tag::rollup-index-def[]
 A special type of index for storing historical data at reduced granularity. 
-Documents are summarized and indexed into a rollup index by a <glossary-rollup-job>>.
+Documents are summarized and indexed into a rollup index by a <<glossary-rollup-job,rollup job>>.
 // end::rollup-index-def[]
 
 [[glossary-rollup-job]] rollup job ::
@@ -501,6 +520,6 @@ See {ref}/removal-of-types.html[Removal of mapping types].
 
 [[glossary-warm-phase]] warm phase ::
 // tag::warm-phase-def[]
-The second possible phase in the lifecycle of an index. 
-In the warm phase, an index is no longer being updated, but is still being queried.
+The second possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
+In the warm phase, an index is generally optimized for search and no longer updated.
 // end::warm-phase-def[]

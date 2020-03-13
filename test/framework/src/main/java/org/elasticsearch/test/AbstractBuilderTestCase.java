@@ -148,7 +148,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.emptyList();
+        return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
     }
 
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {

@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public void testFieldDisabled() throws Exception {

@@ -25,8 +25,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.locationtech.jts.geom.Coordinate;
+
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -37,6 +42,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class GeoQueryTests extends ESSingleNodeTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
+    }
 
     protected abstract XContentBuilder createDefaultMapping() throws Exception;
 

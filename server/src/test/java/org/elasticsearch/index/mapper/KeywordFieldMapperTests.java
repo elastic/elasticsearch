@@ -131,7 +131,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
         // used by TermVectorsService
-        assertArrayEquals(new String[] { "1234", "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
+        assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
     }
 
     public void testIgnoreAbove() throws IOException {

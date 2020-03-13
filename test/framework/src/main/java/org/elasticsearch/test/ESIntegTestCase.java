@@ -1795,6 +1795,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
+        mocks.add(TestGeoShapeFieldMapperPlugin.class);
         return Collections.unmodifiableList(mocks);
     }
 

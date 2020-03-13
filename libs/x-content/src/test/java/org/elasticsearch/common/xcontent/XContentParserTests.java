@@ -90,8 +90,6 @@ public class XContentParserTests extends ESTestCase {
                 default:
                     throw new AssertionError("unexpected x-content type [" + xContentType + "]");
             }
-
-            assertThat(number, instanceOf(Float.class));
         }
     }
 

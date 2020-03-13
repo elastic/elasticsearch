@@ -94,12 +94,12 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("weeks"), yearToMonth, null).makePipe().asProcessor().process(null));
-        assertEquals("Interval units weeks not supported because months usually have fractional weeks",
+        assertEquals("Truncating intervals is not supported for weeks units",
             siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("week"), dayToSecond, null).makePipe().asProcessor().process(null));
-        assertEquals("Interval units week not supported because months usually have fractional weeks",
+        assertEquals("Truncating intervals is not supported for week units",
             siae.getMessage());
     }
 

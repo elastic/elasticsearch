@@ -67,7 +67,7 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             throw new SqlIllegalArgumentException("A date/datetime/interval is required; received [{}]", timestamp);
         }
         if (truncateDateField == Part.WEEK && (timestamp instanceof IntervalDayTime || timestamp instanceof IntervalYearMonth)) {
-            throw new SqlIllegalArgumentException("Interval units {} not supported because months usually have fractional weeks",
+            throw new SqlIllegalArgumentException("Truncating intervals is not supported for {} units",
                 truncateTo);
         }
 

@@ -251,10 +251,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         // Handle all updatable per-context settings at once for each context.
         for (String context: contexts.keySet()) {
             clusterSettings.addSettingsUpdateConsumer(
-                (settings) -> cacheHolder.get().updateContextSettings(context, settings),
+                (settings) -> cacheHolder.get().updateContextSettings(settings, context),
                 List.of(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context),
                         SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context),
-                        SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context)
+                        SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context),
+                        SCRIPT_GENERAL_CACHE_EXPIRE_SETTING, // general settings used for fallbacks
+                        SCRIPT_GENERAL_CACHE_SIZE_SETTING
                 )
             );
         }
@@ -615,13 +617,17 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE)) {
                 if (general != null) {
                     // Flipping to context specific
+                    logger.debug("Switching to context cache from general cache");
                     return new CacheHolder(settings, contexts, compilationLimitsEnabled);
                 }
             } else if (general == null) {
                 // Flipping to general
+                logger.debug("Switching from context cache to general cache");
                 return new CacheHolder(settings, contexts, compilationLimitsEnabled);
             } else if (general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false) {
                 // General compilation rate changed, that setting is the only dynamically updated general setting
+                logger.debug("General compilation rate changed from [" + general.rate + "] to [" +
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) + "], creating new general cache");
                 return new CacheHolder(settings, contexts, compilationLimitsEnabled);
             }
 
@@ -654,13 +660,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         /**
          * Update settings for the context cache, if we're in the context cache mode otherwise no-op.
          */
-        void updateContextSettings(String context, Settings settings) {
+        void updateContextSettings(Settings settings, String context) {
             if (general != null) {
                 return;
             }
             AtomicReference<ScriptCache> ref = contextCache.get(context);
             assert ref != null : "expected script cache to exist for context [" + context + "]";
+            ScriptCache cache = ref.get();
+            assert cache != null : "expected script cache to be non-null for context [" + context + "]";
             ref.set(contextFromSettings(settings, context, compilationLimitsEnabled));
+            logger.debug("Replaced context [" + context + "] with new settings");
         }
     }
 }

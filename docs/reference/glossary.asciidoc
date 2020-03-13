@@ -24,6 +24,14 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 // end::analysis-def[]
 --
 
+[[glossary-api-key]] API key ::
+// tag::api-key-def[]
+A unique identifier that you can use for authentication when submitting {es} requests. 
+When TLS is enabled, all requests must be authenticated using either basic authentication 
+(user name and password) or an API key.
+// end::api-key-def[]
+
+
 [[glossary-auto-follow-pattern]] auto-follow pattern ::
 // tag::auto-follow-pattern-def[]
 An <<glossary-index-pattern,index pattern>> that automatically configures new indices as 

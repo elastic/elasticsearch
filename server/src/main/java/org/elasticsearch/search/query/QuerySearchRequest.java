@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -39,13 +40,14 @@ import java.util.Map;
 
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
-    private final long id;
+    private final SearchContextId contextId;
     private final AggregatedDfs dfs;
     private final OriginalIndices originalIndices;
     private final ShardSearchRequest shardSearchRequest;
 
-    public QuerySearchRequest(OriginalIndices originalIndices, long id, ShardSearchRequest shardSearchRequest, AggregatedDfs dfs) {
-        this.id = id;
+    public QuerySearchRequest(OriginalIndices originalIndices, SearchContextId contextId,
+                              ShardSearchRequest shardSearchRequest, AggregatedDfs dfs) {
+        this.contextId = contextId;
         this.dfs = dfs;
         this.shardSearchRequest = shardSearchRequest;
         this.originalIndices = originalIndices;
@@ -53,7 +55,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     public QuerySearchRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readLong();
+        contextId = new SearchContextId(in);
         dfs = new AggregatedDfs(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
@@ -66,7 +68,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        contextId.writeTo(out);
         dfs.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
@@ -74,8 +76,8 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         }
     }
 
-    public long id() {
-        return id;
+    public SearchContextId contextId() {
+        return contextId;
     }
 
     public AggregatedDfs dfs() {
@@ -105,7 +107,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public String getDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("id[");
-        sb.append(id);
+        sb.append(contextId);
         sb.append("], ");
         sb.append("indices[");
         Strings.arrayToDelimitedString(originalIndices.indices(), ",", sb);

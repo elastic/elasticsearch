@@ -605,49 +605,6 @@ setup:
             "version": "7.3.0"
           }
 ---
-"Test force deleting a running transform":
-  - do:
-      transform.put_transform:
-        transform_id: "airline-transform-start-delete"
-        body: >
-          {
-            "source": { "index": "airline-data" },
-            "dest": { "index": "airline-data-by-airline-start-delete" },
-            "pivot": {
-              "group_by": { "airline": {"terms": {"field": "airline"}}},
-              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
-            },
-            "sync": {
-              "time": {
-                "field": "time",
-                "delay": "90m"
-              }
-            }
-          }
-  - match: { acknowledged: true }
-  - do:
-      transform.start_transform:
-        transform_id: "airline-transform-start-delete"
-  - match: { acknowledged: true }
-
-  - do:
-      transform.get_transform_stats:
-        transform_id: "airline-transform-start-delete"
-  - match: { count: 1 }
-  - match: { transforms.0.id: "airline-transform-start-delete" }
-  - match: { transforms.0.state: "/started|indexing/" }
-
-  - do:
-      catch: /Cannot delete transform \[airline-transform-start-delete\] as the task is running/
-      transform.delete_transform:
-        transform_id: "airline-transform-start-delete"
-
-  - do:
-      transform.delete_transform:
-        transform_id: "airline-transform-start-delete"
-        force: true
-  - match: { acknowledged: true }
----
 "Test put transform with missing pipeline":
   - do:
       catch: /Pipeline with id \[missing-transform-pipeline\] could not be found/

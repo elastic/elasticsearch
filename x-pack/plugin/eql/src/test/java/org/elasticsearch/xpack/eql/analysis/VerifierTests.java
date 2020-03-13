@@ -204,10 +204,10 @@ public class VerifierTests extends ESTestCase {
         accept("file where serial_event_id % 40 == 2");
     }
 
-    // Test mapping that doesn't have property event_type defined
-    public void testMissingEventType() {
-        final IndexResolution idxr = loadIndexResolution("mapping-missing-event-type.json");
-        assertEquals("1:1: Unknown column [event_type]", error(idxr, "foo where true"));
+    // Test mapping that doesn't have property event.category defined
+    public void testMissingEventCategory() {
+        final IndexResolution idxr = loadIndexResolution("mapping-missing-event-category.json");
+        assertEquals("1:1: Unknown column [event.category]", error(idxr, "foo where true"));
     }
 
     public void testAliasErrors() {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.TransportResponse;
@@ -41,7 +42,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
-    protected long requestId;
+    protected SearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
 
@@ -54,10 +55,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     /**
-     * Returns the results request ID that is used to reference the search context on the executing node
+     * Returns the search context ID that is used to reference the search context on the executing node
      */
-    public long getRequestId() {
-        return requestId;
+    public SearchContextId getContextId() {
+        return contextId;
     }
 
     /**

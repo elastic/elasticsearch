@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -42,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * For reference why we use RefCounted here see https://github.com/elastic/elasticsearch/pull/20095.
  */
 public class ReaderContext extends AbstractRefCounted implements Releasable {
-    private final long id;
+    private final SearchContextId id;
     private final IndexShard indexShard;
     private final Engine.Searcher engineSearcher;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -54,7 +55,7 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher) {
         super("reader_context");
-        this.id = id;
+        this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
         this.engineSearcher = engineSearcher;
     }
@@ -77,7 +78,7 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
         onCloses.add(releasable);
     }
 
-    public long id() {
+    public SearchContextId id() {
         return id;
     }
 

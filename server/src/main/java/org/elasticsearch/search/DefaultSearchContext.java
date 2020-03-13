@@ -62,6 +62,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -148,7 +149,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget shardTarget,
                          ClusterService clusterService, IndexService indexService, IndexShard indexShard, BigArrays bigArrays,
-                         LongSupplier relativeTimeSupplier, TimeValue timeout, FetchPhase fetchPhase) {
+                         LongSupplier relativeTimeSupplier, TimeValue timeout, FetchPhase fetchPhase) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -288,7 +289,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long id() {
+    public SearchContextId id() {
         return readerContext.id();
     }
 

@@ -88,7 +88,7 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
-    
+
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class, InPipe.class);
 
     private final Class<T> subclass;

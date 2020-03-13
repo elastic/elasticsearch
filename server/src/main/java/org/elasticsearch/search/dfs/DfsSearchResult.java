@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class DfsSearchResult extends SearchPhaseResult {
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
-        requestId = in.readLong();
+        contextId = new SearchContextId(in);
         int termsSize = in.readVInt();
         if (termsSize == 0) {
             terms = EMPTY_TERMS;
@@ -65,9 +66,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public DfsSearchResult(long id, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
+    public DfsSearchResult(SearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
-        this.requestId = id;
+        this.contextId = contextId;
         setShardSearchRequest(shardSearchRequest);
     }
 
@@ -105,7 +106,7 @@ public class DfsSearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(requestId);
+        contextId.writeTo(out);
         out.writeVInt(terms.length);
         for (Term term : terms) {
             out.writeString(term.field());

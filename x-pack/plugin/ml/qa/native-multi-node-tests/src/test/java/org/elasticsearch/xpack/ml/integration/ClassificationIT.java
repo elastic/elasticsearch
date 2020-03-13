@@ -88,6 +88,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 null,
                 null,
                 null,
+                null,
                 null));
         registerAnalytics(config);
         putAnalytics(config);
@@ -189,7 +190,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, numTopClasses, 50.0, null));
+                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, null, numTopClasses, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -438,7 +439,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, null));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null));
         registerAnalytics(firstJob);
         putAnalytics(firstJob);
 
@@ -447,7 +448,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Classification) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, randomizeSeed));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed));
 
         registerAnalytics(secondJob);
         putAnalytics(secondJob);

@@ -73,6 +73,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -661,6 +662,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return this.templates;
     }
 
+    public Map<String, ComponentTemplate> componentTemplates() {
+        return Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
+            .map(ComponentTemplateMetadata::componentTemplates)
+            .orElse(Collections.emptyMap());
+    }
+
     public ImmutableOpenMap<String, Custom> customs() {
         return this.customs;
     }
@@ -1049,6 +1056,34 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder templates(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
             this.templates.putAll(templates);
+            return this;
+        }
+
+        public Builder put(String name, ComponentTemplate componentTemplate) {
+            Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, ComponentTemplate> existingTemplates =
+                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
+                    .map(ctm -> new HashMap<>(ctm.componentTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.put(name, componentTemplate);
+            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
+            return this;
+        }
+
+        public Builder removeComponentTemplate(String name) {
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, ComponentTemplate> existingTemplates =
+                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
+                    .map(ctm -> new HashMap<>(ctm.componentTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.remove(name);
+            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
+            return this;
+        }
+
+        public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
+            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(componentTemplates));
             return this;
         }
 

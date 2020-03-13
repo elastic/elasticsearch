@@ -85,7 +85,7 @@ public class XContentParserTests extends ESTestCase {
                     break;
                 case JSON:
                 case YAML:
-                    assertThat(number, instanceOf(Float.class));
+                    assertThat(number, instanceOf(Double.class));
                     break;
                 default:
                     throw new AssertionError("unexpected x-content type [" + xContentType + "]");

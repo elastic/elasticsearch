@@ -20,13 +20,10 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.set.Sets;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;

@@ -16,25 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.lease.Releasable;
+
+import java.io.IOException;
 
 /**
- * The thread safe {@link org.apache.lucene.index.LeafReader} level cache of the data.
+ * {@link LeafFieldData} specialization for histogram data.
  */
-public interface AtomicFieldData extends Accountable, Releasable {
+public interface LeafHistogramFieldData extends LeafFieldData {
 
     /**
-     * Returns field values for use in scripting.
+     * Return Histogram values.
      */
-    ScriptDocValues<?> getScriptValues();
-
-    /**
-     * Return a String representation of the values.
-     */
-    SortedBinaryDocValues getBytesValues();
+    HistogramValues getHistogramValues() throws IOException;
 
 }

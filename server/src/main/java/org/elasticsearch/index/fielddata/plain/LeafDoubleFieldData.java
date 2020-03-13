@@ -16,51 +16,70 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldData {
+
+/**
+ * Specialization of {@link LeafNumericFieldData} for floating-point numerics.
+ */
+abstract class LeafDoubleFieldData implements LeafNumericFieldData {
+
+    private final long ramBytesUsed;
+
+    LeafDoubleFieldData(long ramBytesUsed) {
+        this.ramBytesUsed = ramBytesUsed;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesUsed;
+    }
+
+    @Override
+    public final ScriptDocValues<Double> getScriptValues() {
+        return new ScriptDocValues.Doubles(getDoubleValues());
+    }
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {
-        return FieldData.toString(getGeoPointValues());
+        return FieldData.toString(getDoubleValues());
     }
 
     @Override
-    public final ScriptDocValues.GeoPoints getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoPointValues());
+    public final SortedNumericDocValues getLongValues() {
+        return FieldData.castToLong(getDoubleValues());
     }
 
-    public static AtomicGeoPointFieldData empty(final int maxDoc) {
-        return new AbstractAtomicGeoPointFieldData() {
+    public static LeafNumericFieldData empty(final int maxDoc) {
+        return new LeafDoubleFieldData(0) {
 
             @Override
-            public long ramBytesUsed() {
-                return 0;
+            public SortedNumericDoubleValues getDoubleValues() {
+                return FieldData.emptySortedNumericDoubles();
             }
-            
+
             @Override
             public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
 
-            @Override
-            public void close() {
-            }
-
-            @Override
-            public MultiGeoPointValues getGeoPointValues() {
-                return FieldData.emptyMultiGeoPoints();
-            }
         };
     }
+
+    @Override
+    public void close() {
+    }
+
 }

@@ -362,6 +362,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(BOOLEAN, commonType(BOOLEAN, BOOLEAN));
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
+        assertEquals(DOUBLE, commonType(DOUBLE, CONSTANT_KEYWORD));
         assertEquals(LONG, commonType(TEXT, LONG));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));

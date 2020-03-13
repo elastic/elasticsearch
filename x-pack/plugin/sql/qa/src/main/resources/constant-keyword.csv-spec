@@ -7,20 +7,19 @@
 // filtering
 
 filterEquals
-SELECT extra_gender g FROM "test_emp_copy" WHERE g = 'M' LIMIT 5;
+SELECT extra_gender g FROM "test_emp_copy" WHERE g = 'Female' LIMIT 5;
 
     g     
 ---------------
-M              
-M              
-M              
-M              
-M   
-
+Female              
+Female              
+Female             
+Female         
+Female
 ;
 
 filterNotEquals
-SELECT COUNT(*) AS c FROM "test_emp_copy" WHERE extra_gender <> 'M';
+SELECT COUNT(*) AS c FROM "test_emp_copy" WHERE extra_gender <> 'Female';
 
     c:l     
 ---------------
@@ -35,12 +34,21 @@ SELECT COUNT(*) count FROM test_emp_copy WHERE extra_gender IS NOT NULL;
 100
 ;
 
+// Awaits for https://github.com/elastic/elasticsearch/issues/53545
+aggWithNullFilter-Ignore
+SELECT COUNT(*) count FROM test_emp_copy WHERE null_constant IS NULL;
+
+     count:l     
+---------------
+100
+;
+
 functionOverAlias
 SELECT BIT_LENGTH(extra_gender) bit FROM test_emp_copy ORDER BY extra_gender LIMIT 1;
 
       bit      
 ---------------
-8
+48
 ;
 
 
@@ -48,7 +56,7 @@ singlePercentileWithoutComma
 SELECT extra_gender AS gender, PERCENTILE(emp_no, 97) p1 FROM test_emp_copy GROUP BY extra_gender;
 
 gender:s             | p1:d
-M                    |10097.5        
+Female               |10097.5        
 ;
 
 percentileRank
@@ -56,7 +64,7 @@ SELECT extra_gender AS gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp
 
 gender:s       | rank:d
 ---------------+---------------
-M              |24.5           
+Female         |24.5           
 ;
 
 aggSumWithAliasWithColumnRepeatedWithOrderDesc
@@ -64,7 +72,7 @@ SELECT extra_gender AS g, extra_gender, SUM(salary) AS s3, SUM(salary), SUM(sala
 
        g:s     | extra_gender:s |      s3:i     | SUM(salary):i |      s5:i       
 ---------------+----------------+---------------+---------------+---------------
-M              |M               |4824855        |4824855        |4824855      
+Female         |Female          |4824855        |4824855        |4824855      
 ;
 
 topHitsAsMinAndMaxAndGroupBy
@@ -73,7 +81,7 @@ SELECT extra_gender, MIN(first_name) as min, MAX(first_name) as max, FIRST(first
 
  extra_gender  |      min      |      max      |     first     |     last      
 ---------------+---------------+---------------+---------------+---------------
-M              |Alejandro      |Zvonko         |Alejandro      |Zvonko         
+Female         |Alejandro      |Zvonko         |Alejandro      |Zvonko         
 ;
 
 medianAbsoluteDeviationOnTwoFields
@@ -82,7 +90,7 @@ SELECT extra_gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD
 
  extra_gender  |      avg    |     mad_s   |     mad_l     
 ---------------+-------------+-------------+---------------
-M              |48248        |10096        |1            
+Female         |48248        |10096        |1            
 ;
 
 caseGroupByAndHaving
@@ -93,11 +101,11 @@ ORDER BY 1, 3;
 
      count     | extra_gender  |   languages   
 ---------------+---------------+---------------
-15             |M              |1              
-17             |M              |3              
-18             |M              |4              
-19             |M              |2              
-21             |M              |5              
+15             |Female         |1              
+17             |Female         |3              
+18             |Female         |4              
+19             |Female         |2              
+21             |Female         |5              
 ;
 
 whereFieldWithRLikeAndGroupByOrderBy
@@ -105,11 +113,11 @@ SELECT last_name l, extra_gender g, COUNT(*) c, MAX(salary) AS sal FROM test_emp
 
       l:s      |      g:s      |      c:l      |     sal:i      
 ---------------+---------------+---------------+---------------
-Berztiss       |M              |1              |28336        
-Brender        |M              |1              |36051        
-Bridgland      |M              |1              |48942        
-Bouloucos      |M              |1              |58715        
-Bamford        |M              |1              |61805        
+Berztiss       |Female         |1              |28336        
+Brender        |Female         |1              |36051        
+Bridgland      |Female         |1              |48942        
+Bouloucos      |Female         |1              |58715        
+Bamford        |Female         |1              |61805        
 ;
 
 multipleGroupingsAndOrderingByGroupsWithFunctions_2
@@ -117,9 +125,9 @@ SELECT first_name f, last_name l, LCASE(extra_gender) g, CONCAT(UCASE(first_name
 
       f:s      |      l:s      |      g:s      |       c:s       
 ---------------+---------------+---------------+---------------
-null           |Swan           |m              |swan           
-null           |Reistad        |m              |reistad        
-null           |Portugali      |m              |portugali      
+null           |Swan           |female         |swan           
+null           |Reistad        |female         |reistad        
+null           |Portugali      |female         |portugali      
 ;
 
 isNotNullWithCount
@@ -128,4 +136,28 @@ SELECT extra_gender IS NOT NULL AS bool, COUNT(*) FROM test_emp_copy GROUP BY ex
           bool:b        |   COUNT(*):l    
 ------------------------+---------------
 true                    |100            
+;
+
+likeWithCount1
+SELECT COUNT(*) FROM test_emp_copy WHERE extra_gender LIKE 'F%';
+
+   COUNT(*):l    
+---------------
+100            
+;
+
+likeWithCount2
+SELECT COUNT(*) FROM test_emp_copy WHERE extra_gender LIKE '%m%';
+
+   COUNT(*):l    
+---------------
+100            
+;
+
+likeWithCount3
+SELECT COUNT(*) FROM test_emp_copy WHERE extra_gender NOT LIKE '%m%';
+
+   COUNT(*):l    
+---------------
+0         
 ;

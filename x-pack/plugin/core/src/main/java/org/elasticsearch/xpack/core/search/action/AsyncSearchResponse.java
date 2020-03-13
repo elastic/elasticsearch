@@ -100,7 +100,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
+        return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
     }
 
     /**

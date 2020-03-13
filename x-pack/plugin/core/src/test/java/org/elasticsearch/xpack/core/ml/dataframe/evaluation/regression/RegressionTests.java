@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
@@ -27,6 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -85,7 +88,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
         Regression evaluation = new Regression("act", "pred", Arrays.asList(new MeanSquaredError()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }

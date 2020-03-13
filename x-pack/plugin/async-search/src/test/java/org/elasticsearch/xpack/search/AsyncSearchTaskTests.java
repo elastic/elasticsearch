@@ -60,7 +60,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
             skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
         }
 
-        List<Thread> threads = new ArrayList<>();
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
@@ -79,11 +78,10 @@ public class AsyncSearchTaskTests extends ESTestCase {
 
                 }
             }, TimeValue.timeValueMillis(1)));
-            threads.add(thread);
             thread.start();
         }
         assertFalse(latch.await(numThreads*2, TimeUnit.MILLISECONDS));
-        task.getProgressListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
+        task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
         latch.await();
     }
 
@@ -91,18 +89,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
-        int numShards = randomIntBetween(0, 10);
-        List<SearchShard> shards = new ArrayList<>();
-        for (int i = 0; i < numShards; i++) {
-            shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-        }
-        List<SearchShard> skippedShards = new ArrayList<>();
-        int numSkippedShards = randomIntBetween(0, 10);
-        for (int i = 0; i < numSkippedShards; i++) {
-            skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-        }
-
-        List<Thread> threads = new ArrayList<>();
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
@@ -120,11 +106,10 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
             }, TimeValue.timeValueMillis(1)));
-            threads.add(thread);
             thread.start();
         }
         assertFalse(latch.await(numThreads*2, TimeUnit.MILLISECONDS));
-        task.getProgressListener().onFailure(new Exception("boom"));
+        task.getSearchProgressActionListener().onFailure(new Exception("boom"));
         latch.await();
     }
 
@@ -144,22 +129,23 @@ public class AsyncSearchTaskTests extends ESTestCase {
         }
 
         int numShardFailures = 0;
-        task.getProgressListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
+        task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
         for (int i = 0; i < numShards; i++) {
-            task.getProgressListener().onPartialReduce(shards.subList(i, i+1),
+            task.getSearchProgressActionListener().onPartialReduce(shards.subList(i, i+1),
                 new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
             assertCompletionListeners(task, numShards+numSkippedShards, numSkippedShards, numShardFailures, true);
         }
-        task.getProgressListener().onReduce(shards,
+        task.getSearchProgressActionListener().onFinalReduce(shards,
             new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
         assertCompletionListeners(task, numShards+numSkippedShards, numSkippedShards, numShardFailures, true);
-        task.getProgressListener().onResponse(newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards));
+        ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
+            newSearchResponse(numShards+numSkippedShards, numShards, numSkippedShards));
         assertCompletionListeners(task, numShards+numSkippedShards,
             numSkippedShards, numShardFailures, false);
         threadPool.shutdownNow();
     }
 
-    private SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards) {
+    private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards) {
         InternalSearchResponse response = new InternalSearchResponse(SearchHits.empty(),
             InternalAggregations.EMPTY, null, null, false, null, 1);
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards,
@@ -171,7 +157,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
                                            int expectedSkippedShards,
                                            int expectedShardFailures,
                                            boolean isPartial) throws InterruptedException {
-        List<Thread> threads = new ArrayList<>();
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
@@ -190,7 +175,6 @@ public class AsyncSearchTaskTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
             }, TimeValue.timeValueMillis(1)));
-            threads.add(thread);
             thread.start();
         }
         latch.await();

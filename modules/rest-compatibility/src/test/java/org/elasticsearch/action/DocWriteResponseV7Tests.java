@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
-public class DocWriteResponseTests extends ESTestCase {
+public class DocWriteResponseV7Tests extends ESTestCase {
 
     public void testTypeWhenCompatible() throws IOException {
         DocWriteResponse response =

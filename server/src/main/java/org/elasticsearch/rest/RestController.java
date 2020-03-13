@@ -336,7 +336,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         || isV7Compatible(request)) {
                         dispatchRequest(request, channel, handler);
                     } else {
-                        handleCompatibleNotAllowed(rawPath, channel);
+                        handleBadRequest(uri, requestMethod, channel);
                     }
                     return;
                 }
@@ -352,13 +352,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public static boolean isV7Compatible(ToXContent.Params params) {
         String param = params.param(COMPATIBLE_PARAMS_KEY);
         return COMPATIBLE_VERSION.equals(param);
-    }
-
-    private void handleCompatibleNotAllowed(String rawPath, RestChannel channel) throws IOException {
-        String msg = "Compatible api can be only accessed with Compatible Header. Path used: " + rawPath;
-        BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_FOUND, msg);
-
-        channel.sendResponse(bytesRestResponse);
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {

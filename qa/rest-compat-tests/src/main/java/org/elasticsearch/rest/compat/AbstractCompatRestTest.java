@@ -28,9 +28,9 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
+import java.net.http.HttpHeaders;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,8 +79,12 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             doSection.setIgnoreWarnings(true);
 
             String compatibleHeader = createCompatibleHeader();
+            //TODO decide which one to use - Accept or Content-Type
             doSection.getApiCallSection()
-                     .addHeaders(Collections.singletonMap(CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader));
+                     .addHeaders(Map.of(
+                         CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader,
+                         "Content-Type", compatibleHeader
+                         ));
         });
     }
 

@@ -1843,6 +1843,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory);
     }
 
+    /**
+     * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
+     * {@code primaryTerm} and {@code translogUUID}.
+     *
+     * This method should be used directly under specific circumstances like for shards that will see no indexing. Specifying a non-unique
+     * translog UUID could cause a lot of issues and that's why in all (but one) cases the method
+     * {@link #createEmptyTranslog(Path, long, ShardId, long)} should be used instead.
+     *
+     * @param location                a {@link Path} to the directory that will contains the translog files (translog + translog checkpoint)
+     * @param shardId                 the {@link ShardId}
+     * @param initialGlobalCheckpoint the global checkpoint to initialize the translog with
+     * @param primaryTerm             the shard's primary term to initialize the translog with
+     * @param translogUUID            the unique identifier to initialize the translog with
+     * @param factory                 a {@link ChannelFactory} used to open translog files
+     * @return the translog's unique identifier
+     * @throws IOException if something went wrong during translog creation
+     */
     public static String createEmptyTranslog(final Path location,
                                              final ShardId shardId,
                                              final long initialGlobalCheckpoint,

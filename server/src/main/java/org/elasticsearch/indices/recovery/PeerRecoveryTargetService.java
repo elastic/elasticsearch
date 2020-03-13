@@ -171,8 +171,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             final RecoveryTarget recoveryTarget = recoveryRef.target();
             timer = recoveryTarget.state().getTimer();
             cancellableThreads = recoveryTarget.cancellableThreads();
-            final IndexShard indexShard = recoveryTarget.indexShard();
             try {
+                final IndexShard indexShard = recoveryTarget.indexShard();
                 indexShard.preRecovery();
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());

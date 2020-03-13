@@ -1314,9 +1314,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void preRecovery() {
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
+        assert state == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + state;
         indexEventListener.beforeIndexShardRecovery(this, indexSettings);
     }
 

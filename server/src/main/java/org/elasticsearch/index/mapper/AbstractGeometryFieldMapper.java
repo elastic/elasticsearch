@@ -282,6 +282,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected AbstractSearchableGeometryFieldType(AbstractSearchableGeometryFieldType ref) {
             super(ref);
         }
+        
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
             this.geometryQueryBuilder = geometryQueryBuilder;
         }
@@ -357,14 +358,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         protected Parser<Parsed> geometryParser() {
             return geometryParser;
-        }
-
-        public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
-            this.geometryQueryBuilder = geometryQueryBuilder;
-        }
-
-        public QueryProcessor geometryQueryBuilder() {
-            return geometryQueryBuilder;
         }
     }
 

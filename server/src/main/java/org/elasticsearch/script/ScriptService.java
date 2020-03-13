@@ -287,7 +287,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             keys.addAll(getConcreteSettingKeys(affix, settings));
         }
         if (useContext == false && keys.isEmpty() == false) {
-            throw new IllegalArgumentException("Context cache settings [" + String.join(", ", keys) + "] require [" +
+            throw new IllegalArgumentException("Context cache settings [" + String.join(", ", keys) + "] requires [" +
                 SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to be [" + USE_CONTEXT_RATE_KEY + "]");
         }
     }

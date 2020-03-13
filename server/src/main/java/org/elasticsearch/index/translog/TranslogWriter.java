@@ -369,8 +369,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 } catch (IOException e) {
                     throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                 }
-                final Checkpoint checkpoint = this.lastSyncedCheckpoint;
-                return new TranslogSnapshot(generation, channel, path, header, checkpoint, getFirstOperationOffset());
+                return new TranslogSnapshot(generation, channel, path, header, lastSyncedCheckpoint, getFirstOperationOffset());
             }
         }
     }
@@ -425,13 +424,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 }
             }
 
-            long minSeqNo = lastWrittenCheckpoint.minSeqNo;
-            long maxSeqNo = lastWrittenCheckpoint.maxSeqNo;
-            int numOps = lastWrittenCheckpoint.numOps;
-
             try (ReleasableLock toRelease = lock) {
                 if (writtenOffset.get() < offset) {
                     ensureOpen();
+
+                    long minSeqNo = lastWrittenCheckpoint.minSeqNo;
+                    long maxSeqNo = lastWrittenCheckpoint.maxSeqNo;
+                    int numOps = lastWrittenCheckpoint.numOps;
 
                     try {
                         ByteBuffer ioBuffer = DirectPool.getIoBuffer();
@@ -474,8 +473,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         lastWrittenCheckpoint = new Checkpoint(writtenOffset.get(), numOps, generation, minSeqNo, maxSeqNo,
                             globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
                             SequenceNumbers.UNASSIGNED_SEQ_NO);
-                        // TODO: Optimize
-                        buffer.addAll(operationSorter);
+
+                        drainSorterToBuffer();
                     } finally {
                         Releasables.closeWhileHandlingException(operationSorter);
                         operationSorter.clear();
@@ -483,6 +482,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 }
             }
         }
+    }
+
+    private void drainSorterToBuffer() {
+        buffer.addAll(operationSorter);
+        operationSorter.clear();
     }
 
     private Operation nextOperation(long expectedLocation) {

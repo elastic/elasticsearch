@@ -26,7 +26,7 @@ Also see <<glossary-text,text>> and <<glossary-term,term>>.
 
 [[glossary-auto-follow-pattern]] auto-follow pattern ::
 // tag::auto-follow-pattern-def[]
-An index pattern pattern used to automatically configure new indices as 
+An index pattern that automatically configures new indices as 
 <<glossary-follower-index, follower indices>> for <<glossary-ccr,{ccr}>>.
 // end::auto-follow-pattern-def[]
 

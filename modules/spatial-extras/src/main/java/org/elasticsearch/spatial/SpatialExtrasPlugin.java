@@ -26,15 +26,12 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class SpatialExtrasPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new AbstractGeometryFieldMapper.TypeParser());
-        return Collections.unmodifiableMap(mappers);
+        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new AbstractGeometryFieldMapper.TypeParser());
     }
 }

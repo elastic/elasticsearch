@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -93,7 +95,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < count; i++) {
             final SamlServiceProviderDocument doc = randomDocument(i);
-            writeDocument(serviceProviderIndex, doc);
+            writeDocument(doc);
             documents.add(doc);
         }
 
@@ -103,19 +105,29 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetaData.getAliases().size(), equalTo(1));
         assertThat(indexMetaData.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
-        refresh(serviceProviderIndex);
+        refresh();
 
-        final Set<SamlServiceProviderDocument> allDocs = getAllDocs(serviceProviderIndex);
+        final Set<SamlServiceProviderDocument> allDocs = getAllDocs();
         assertThat(allDocs, iterableWithSize(count));
         for (SamlServiceProviderDocument doc : documents) {
             assertThat(allDocs, hasItem(Matchers.equalTo(doc)));
         }
 
         final SamlServiceProviderDocument readDoc = randomFrom(documents);
-        assertThat(readDocument(serviceProviderIndex, readDoc.docId), equalTo(readDoc));
+        assertThat(readDocument(readDoc.docId), equalTo(readDoc));
 
         final SamlServiceProviderDocument findDoc = randomFrom(documents);
-        assertThat(findByEntityId(serviceProviderIndex, findDoc.entityId), equalTo(findDoc));
+        assertThat(findByEntityId(findDoc.entityId), equalTo(findDoc));
+
+        final SamlServiceProviderDocument deleteDoc = randomFrom(documents);
+        final DeleteResponse deleteResponse = deleteDocument(deleteDoc);
+        assertThat(deleteResponse.getId(), equalTo(deleteDoc.docId));
+        assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+
+        refresh();
+
+        assertThat(readDocument(deleteDoc.docId), nullValue());
+        assertThat(findAllByEntityId(deleteDoc.entityId), emptyIterable());
     }
 
     public void testWritesViaAliasIfItExists() {
@@ -134,18 +146,18 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetaData.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         SamlServiceProviderDocument document = randomDocument(1);
-        writeDocument(serviceProviderIndex, document);
+        writeDocument(document);
 
         // Index should not exist because we created an alternate index, and the alias points to that.
         assertThat(clusterService.state().metaData().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
-        refresh(serviceProviderIndex);
+        refresh();
 
-        final Set<SamlServiceProviderDocument> allDocs = getAllDocs(serviceProviderIndex);
+        final Set<SamlServiceProviderDocument> allDocs = getAllDocs();
         assertThat(allDocs, iterableWithSize(1));
         assertThat(allDocs, hasItem(Matchers.equalTo(document)));
 
-        assertThat(readDocument(serviceProviderIndex, document.docId), equalTo(document));
+        assertThat(readDocument(document.docId), equalTo(document));
     }
 
     public void testInstallTemplateAutomaticallyOnClusterChange() {
@@ -162,9 +174,9 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     public void testInstallTemplateAutomaticallyOnDocumentWrite() {
         final SamlServiceProviderDocument doc = randomDocument(1);
-        writeDocument(serviceProviderIndex, doc);
+        writeDocument(doc);
 
-        assertThat(readDocument(serviceProviderIndex, doc.docId), equalTo(doc));
+        assertThat(readDocument(doc.docId), equalTo(doc));
 
         IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
         assertNotNull(templateMeta);
@@ -180,42 +192,54 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         return installTemplate.actionGet();
     }
 
-    private Set<SamlServiceProviderDocument> getAllDocs(SamlServiceProviderIndex index) {
+    private Set<SamlServiceProviderDocument> getAllDocs() {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        index.findAll(ActionListener.wrap(
+        serviceProviderIndex.findAll(ActionListener.wrap(
             set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
             future::onFailure
         ));
         return future.actionGet();
     }
 
-    private SamlServiceProviderDocument readDocument(SamlServiceProviderIndex index, String docId) {
-        final PlainActionFuture<SamlServiceProviderDocument> future = new PlainActionFuture<>();
-        index.readDocument(docId, future);
-        return future.actionGet();
+    private SamlServiceProviderDocument readDocument(String docId) {
+        final PlainActionFuture<SamlServiceProviderIndex.DocumentSupplier> future = new PlainActionFuture<>();
+        serviceProviderIndex.readDocument(docId, future);
+        final SamlServiceProviderIndex.DocumentSupplier supplier = future.actionGet();
+        return supplier == null ? null : supplier.getDocument();
     }
 
-    private void writeDocument(SamlServiceProviderIndex index, SamlServiceProviderDocument doc) {
+    private void writeDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        index.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL, future);
+        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL, future);
         doc.setDocId(future.actionGet().getId());
     }
 
+    private DeleteResponse deleteDocument(SamlServiceProviderDocument doc) {
+        final PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
+        serviceProviderIndex.readDocument(doc.docId, ActionListener.wrap(
+            info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
+            future::onFailure));
+        return future.actionGet();
+    }
 
-    private SamlServiceProviderDocument findByEntityId(SamlServiceProviderIndex index, String entityId) {
-        final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        index.findByEntityId(entityId, ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-            future::onFailure
-        ));
-        final Set<SamlServiceProviderDocument> docs = future.actionGet();
+    private SamlServiceProviderDocument findByEntityId(String entityId) {
+        final Set<SamlServiceProviderDocument> docs = findAllByEntityId(entityId);
         assertThat(docs, iterableWithSize(1));
         return docs.iterator().next();
     }
 
-    private void refresh(SamlServiceProviderIndex index) {
+    private Set<SamlServiceProviderDocument> findAllByEntityId(String entityId) {
+        final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
+        serviceProviderIndex.findByEntityId(entityId, ActionListener.wrap(
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            future::onFailure
+        ));
+        return future.actionGet();
+    }
+
+    private void refresh() {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        index.refresh(future);
+        serviceProviderIndex.refresh(future);
         future.actionGet();
     }
 

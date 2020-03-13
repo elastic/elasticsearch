@@ -19,7 +19,6 @@ import java.util.Objects;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
 public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 

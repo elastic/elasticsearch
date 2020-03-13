@@ -147,6 +147,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return index;
     }
 
+    @SuppressWarnings("deprecation") // dependencies in server for geo_shape field should be decoupled
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
     }

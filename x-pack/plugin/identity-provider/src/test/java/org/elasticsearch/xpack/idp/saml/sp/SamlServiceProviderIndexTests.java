@@ -210,7 +210,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private void writeDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, future);
+        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL, future);
         doc.setDocId(future.actionGet().getId());
     }
 

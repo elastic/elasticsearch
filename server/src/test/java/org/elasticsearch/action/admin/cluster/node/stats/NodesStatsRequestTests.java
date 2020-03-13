@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NodesStatsRequestTests extends ESTestCase {
@@ -89,6 +90,8 @@ public class NodesStatsRequestTests extends ESTestCase {
         assertTrue(request.discovery());
         assertTrue(request.ingest());
         assertTrue(request.adaptiveSelection());
+
+        assertThat(request.requestedMetrics(), equalTo(NodesStatsRequest.Metric.allMetrics()));
     }
 
     /**
@@ -114,6 +117,8 @@ public class NodesStatsRequestTests extends ESTestCase {
         assertFalse(request.discovery());
         assertFalse(request.ingest());
         assertFalse(request.adaptiveSelection());
+
+        assertThat(request.requestedMetrics(), empty());
     }
 
     /**
@@ -133,6 +138,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
         // TODO: Use a looping construct rather than direct API calls
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
+
         assertThat(request1.os(), equalTo(request2.os()));
         assertThat(request1.process(), equalTo(request2.process()));
         assertThat(request1.jvm(), equalTo(request2.jvm()));
@@ -145,5 +151,7 @@ public class NodesStatsRequestTests extends ESTestCase {
         assertThat(request1.discovery(), equalTo(request2.discovery()));
         assertThat(request1.ingest(), equalTo(request2.ingest()));
         assertThat(request1.adaptiveSelection(), equalTo(request2.adaptiveSelection()));
+
+        assertThat(request1.requestedMetrics(), equalTo(request2.requestedMetrics()));
     }
 }

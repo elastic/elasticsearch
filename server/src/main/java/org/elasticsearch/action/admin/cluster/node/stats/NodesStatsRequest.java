@@ -375,7 +375,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes stats endpoint. Eventually this list will be pluggable.
      */
-    private enum Metric {
+    public enum Metric {
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),

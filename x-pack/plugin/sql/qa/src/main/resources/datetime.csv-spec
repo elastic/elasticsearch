@@ -506,7 +506,7 @@ DATE_TRUNC('mcs', INTERVAL '1 12:43:21' DAY TO SECONDS)::string as dt_micro, DAT
 
     dt_hour    |    dt_min     |    dt_sec     |   dt_millis   |   dt_micro    |    dt_nano
 ---------------+---------------+---------------+---------------+---------------+---------------
-+1 12:00:00.0  |+1 12:43:00.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0  |+1 12:43:21.0
++1 12:00:00    |+1 12:43:00    |+1 12:43:21    |+1 12:43:21    |+1 12:43:21    |+1 12:43:21
 ;
 
 selectDateTruncWithField
@@ -596,18 +596,18 @@ SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp O
 ;
 
 dateTruncOrderByWithInterval
-schema::first_name:s|dt:ts
+schema::first_name:s|dt:ts|hire_date:ts|languages:byte
 SELECT first_name, hire_date + DATE_TRUNC('centuries', CASE WHEN languages = 5 THEN INTERVAL '18-3' YEAR TO MONTH
 WHEN languages = 4 THEN INTERVAL '108-4' YEAR TO MONTH WHEN languages = 3 THEN INTERVAL '212-3' YEAR TO MONTH
-ELSE INTERVAL '318-6' YEAR TO MONTH END) as dt FROM test_emp WHERE emp_no <= 10006 ORDER BY dt NULLS LAST LIMIT 5;
+ELSE INTERVAL '318-6' YEAR TO MONTH END) as dt, hire_date, languages FROM test_emp WHERE emp_no <= 10006 ORDER BY dt NULLS LAST LIMIT 5;
 
-   first_name |            dt
---------------+-------------------------
-Bezalel       | 1985-11-21 00:00:00.000Z
-Chirstian     | 1986-12-01 00:00:00.000Z
-Parto         | 2086-08-28 00:00:00.000Z
-Anneke        | 2189-06-02 00:00:00.000Z
-Georgi        | 2286-06-26 00:00:00.000Z
+   first_name |            dt            |        hire_date         | languages
+--------------+--------------------------+--------------------------+-----------
+Bezalel       | 1985-11-21 00:00:00.000Z | 1985-11-21T00:00:00.000Z | 5
+Chirstian     | 1986-12-01 00:00:00.000Z | 1986-12-01T00:00:00.000Z | 5
+Parto         | 2086-08-28 00:00:00.000Z | 1986-08-28T00:00:00.000Z | 4
+Anneke        | 2189-06-02 00:00:00.000Z | 1989-06-02T00:00:00.000Z | 3
+Georgi        | 2286-06-26 00:00:00.000Z | 1986-06-26T00:00:00.000Z | 2
 ;
 
 dateTruncFilter
@@ -627,20 +627,21 @@ SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp W
 ;
 
 dateTruncFilterWithInterval
-SELECT first_name FROM test_emp WHERE hire_date > '2020-03-05T10:11:22.123Z'::datetime - DATE_TRUNC('centuries', INTERVAL 190 YEARS) ORDER BY first_name ASC LIMIT 10;
+schema::first_name:s|hire_date:ts
+SELECT first_name, hire_date FROM test_emp WHERE hire_date > '2090-03-05T10:11:22.123Z'::datetime - DATE_TRUNC('centuries', INTERVAL 190 YEARS) ORDER BY first_name DESC, hire_date ASC LIMIT 10;
 
-  first_name
----------------
-Alejandro
-Amabile
-Anneke
-Anoosh
-Arumugam
-Basil
-Berhard
-Berni
-Bezalel
-Bojan
+  first_name   |          hire_date
+---------------+-------------------------
+null           | 1990-06-20 00:00:00.000Z
+null           | 1990-12-05 00:00:00.000Z
+null           | 1991-09-01 00:00:00.000Z
+null           | 1992-01-03 00:00:00.000Z
+null           | 1994-02-17 00:00:00.000Z
+Yongqiao       | 1995-03-20 00:00:00.000Z
+Yishay         | 1990-10-20 00:00:00.000Z
+Yinghua        | 1990-12-25 00:00:00.000Z
+Weiyi          | 1993-02-14 00:00:00.000Z
+Tuval          | 1995-12-15 00:00:00.000Z
 ;
 
 dateTruncGroupBy
@@ -655,13 +656,20 @@ SELECT count(*) as count, DATE_TRUNC('decade', hire_date) dt FROM test_emp GROUP
 
 dateTruncGroupByWithInterval
 schema::count:l|dt:ts
-SELECT count(*) as count, birth_date + DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) dt FROM test_emp GROUP BY dt ORDER BY 2 LIMIT 3;
+SELECT count(*) as count, birth_date + DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) dt FROM test_emp GROUP BY dt ORDER BY 2 LIMIT 10;
 
  count  |          dt
 --------+-------------------------
 10      | null
 1       | 1952-02-28 12:00:00.000Z
 1       | 1952-04-20 12:00:00.000Z
+1       | 1952-05-16 12:00:00.000Z
+1       | 1952-06-14 12:00:00.000Z
+1       | 1952-07-09 12:00:00.000Z
+1       | 1952-08-07 12:00:00.000Z
+1       | 1952-11-14 12:00:00.000Z
+1       | 1952-12-25 12:00:00.000Z
+1       | 1953-01-08 12:00:00.000Z
 ;
 
 dateTruncHaving
@@ -674,7 +682,7 @@ null    | 1999-04-30 00:00:00.000Z
 F       | 1997-05-19 00:00:00.000Z
 ;
 
-dateTruncHavingWithInterval
+dateTruncHavingWithInterval-Ignore
 schema::gender:s|dt:ts
 SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING max(hire_date) - DATE_TRUNC('hour', INTERVAL 1 YEARS) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
 

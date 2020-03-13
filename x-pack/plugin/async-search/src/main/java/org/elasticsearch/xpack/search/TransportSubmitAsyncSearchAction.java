@@ -83,7 +83,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 onFatalFailure(searchTask, cause, false, submitListener);
                             } else {
                                 final String docId = searchTask.getSearchId().getDocId();
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), searchResponse,
+                                // creates the fallback response if the node crashes/restarts in the middle of the request
+                                // TODO: store intermediate results ?
+                                AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
+                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
@@ -164,7 +167,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                  Runnable nextAction) {
         if (submitTask.isCancelled() || searchTask.isCancelled()) {
             // the user cancelled the submit so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getSearchId(), ActionListener.wrap(() -> {
+            store.deleteResponse(searchTask.getSearchId(), false, ActionListener.wrap(() -> {
                 taskManager.unregister(searchTask);
                 nextAction.run();
             }));

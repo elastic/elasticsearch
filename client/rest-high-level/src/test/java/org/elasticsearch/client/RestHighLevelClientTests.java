@@ -21,12 +21,7 @@ package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
+import org.apache.http.*;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicHttpResponse;
@@ -34,6 +29,7 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -113,23 +109,17 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -318,6 +308,63 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
     }
 
+    public void testParseCompressedEntity() throws IOException {
+        {
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(null, null));
+            assertEquals("Response body expected but not returned", ise.getMessage());
+        }
+        {
+            IllegalStateException ise = expectThrows(IllegalStateException.class,
+                () -> restHighLevelClient.parseEntity(new NStringEntity("", (ContentType) null), null));
+            assertEquals("Elasticsearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
+        }
+        {
+            NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(entity, null));
+            assertEquals("Unsupported Content-Type: " + entity.getContentType().getValue(), ise.getMessage());
+        }
+        {
+            CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertTrue(parser.nextToken().isValue());
+                String value = parser.text();
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                return value;
+            };
+
+            HttpEntity jsonEntity = new NByteArrayEntity(compress("{\"field\":\"value\"}"), ContentType.APPLICATION_JSON);
+            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(jsonEntity), entityParser));
+            HttpEntity yamlEntity = new NByteArrayEntity(compress("---\nfield: value\n"), ContentType.create("application/yaml"));
+            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(yamlEntity), entityParser));
+            HttpEntity smileEntity = createCompressedBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
+            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(smileEntity), entityParser));
+            HttpEntity cborEntity = createCompressedBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
+            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(cborEntity), entityParser));
+        }
+    }
+
+    private static byte[] compress(String content) throws IOException {
+        return compress(content.getBytes());
+    }
+
+    private static byte[] compress(byte[] content) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(content.length);
+        GZIPOutputStream gzip = new GZIPOutputStream(bos);
+        gzip.write(content);
+        gzip.close();
+        bos.close();
+
+        return bos.toByteArray();
+    }
+
+    private static Response createCompressedResponse(HttpEntity httpEntity) {
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(httpEntity);
+        when(response.getHeader(HttpHeaders.CONTENT_ENCODING)).thenReturn("gzip");
+        return response;
+    }
+
     private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
         try (XContentBuilder builder = xContentBuilder) {
             builder.startObject();
@@ -325,6 +372,16 @@ public class RestHighLevelClientTests extends ESTestCase {
             builder.endObject();
             return new NByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
         }
+    }
+
+    private static HttpEntity createCompressedBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
+        xContentBuilder.startObject();
+        xContentBuilder.field("field", "value");
+        xContentBuilder.endObject();
+        xContentBuilder.close();
+
+        BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
+        return new NByteArrayEntity(compress(bytesRef.bytes), contentType);
     }
 
     public void testConvertExistsResponse() {

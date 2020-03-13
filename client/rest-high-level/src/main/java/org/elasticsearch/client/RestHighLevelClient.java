@@ -20,6 +20,10 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHeaders;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -193,8 +197,8 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -207,6 +211,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -1266,7 +1271,7 @@ public class RestHighLevelClient implements Closeable {
             response -> {
                 CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
                     parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
-                return parseEntity(response.getEntity(), entityParser);
+                return parseResponse(response, entityParser);
             },
             singleton(404));
     }
@@ -1285,7 +1290,7 @@ public class RestHighLevelClient implements Closeable {
             response -> {
                 CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
                     parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
-                return parseEntity(response.getEntity(), entityParser);
+                return parseResponse(response, entityParser);
             },
             listener, singleton(404));
     }
@@ -1536,7 +1541,7 @@ public class RestHighLevelClient implements Closeable {
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores) throws IOException {
         return performRequest(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), ignores);
+                response -> parseResponse(response, entityParser), ignores);
     }
 
     /**
@@ -1548,7 +1553,7 @@ public class RestHighLevelClient implements Closeable {
                                                                   CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                   Set<Integer> ignores) throws IOException {
         return performRequest(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), ignores);
+                response -> parseResponse(response, entityParser), ignores);
     }
 
     /**
@@ -1644,7 +1649,7 @@ public class RestHighLevelClient implements Closeable {
         }
 
         try {
-            return Optional.of(parseEntity(response.getEntity(), entityParser));
+            return Optional.of(parseResponse(response, entityParser));
         } catch (Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
         }
@@ -1662,7 +1667,7 @@ public class RestHighLevelClient implements Closeable {
                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
                 ActionListener<Resp> listener, Set<Integer> ignores) {
         return performRequestAsync(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+                response -> parseResponse(response, entityParser), listener, ignores);
     }
 
     /**
@@ -1675,7 +1680,7 @@ public class RestHighLevelClient implements Closeable {
                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
                 ActionListener<Resp> listener, Set<Integer> ignores) {
         return performRequestAsync(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+                response -> parseResponse(response, entityParser), listener, ignores);
     }
 
 
@@ -1798,7 +1803,7 @@ public class RestHighLevelClient implements Closeable {
             return Cancellable.NO_OP;
         }
         req.setOptions(options);
-        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(),
+        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseResponse(response,
                 entityParser), listener);
         return client.performRequestAsync(req, responseListener);
     }
@@ -1851,7 +1856,7 @@ public class RestHighLevelClient implements Closeable {
                     responseException.getMessage(), restStatus, responseException);
         } else {
             try {
-                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
+                elasticsearchException = parseResponse(response, BytesRestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
@@ -1859,6 +1864,33 @@ public class RestHighLevelClient implements Closeable {
             }
         }
         return elasticsearchException;
+    }
+
+    protected final <Resp> Resp parseResponse(final Response response,
+                                              final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
+
+        Optional<String> compressionOfEntity = Optional.ofNullable(response.getHeader(HttpHeaders.CONTENT_ENCODING))
+            .filter("gzip"::equalsIgnoreCase);
+
+        HttpEntity httpEntity;
+        if (compressionOfEntity.isPresent()) {
+            String decompressedContent = decompress(EntityUtils.toByteArray(response.getEntity()));
+            httpEntity = new NStringEntity(decompressedContent, ContentType.get(response.getEntity()));
+        } else {
+            httpEntity = response.getEntity();
+        }
+
+        return parseEntity(httpEntity, entityParser);
+    }
+
+    private static String decompress(byte[] compressedBytes) throws IOException {
+        try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(compressedBytes);
+             GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
+             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(gzipInputStream, StandardCharsets.ISO_8859_1))) {
+
+            return bufferedReader.lines()
+                .collect(Collectors.joining("\n"));
+        }
     }
 
     protected final <Resp> Resp parseEntity(final HttpEntity entity,

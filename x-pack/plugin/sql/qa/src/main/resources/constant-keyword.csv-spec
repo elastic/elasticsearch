@@ -1,7 +1,7 @@
 // To mute tests follow example in file: example.csv-spec
 
 //
-// Tests testing field alias (introduced in ES 6.4)
+// Tests testing constant_keyword (introduced in ES 7.7)
 //
 
 // filtering

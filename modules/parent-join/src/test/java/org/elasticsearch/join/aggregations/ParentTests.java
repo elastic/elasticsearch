@@ -20,17 +20,18 @@
 package org.elasticsearch.join.aggregations;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(ParentJoinPlugin.class);
+        return List.of(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

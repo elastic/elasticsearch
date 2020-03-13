@@ -21,7 +21,7 @@ setup:
       indices.refresh: {}
 
 ---
-"Geo Shape Query":
+"Test Geo Shape Query":
 
   - do:
       search:
@@ -44,3 +44,16 @@ setup:
 
   - match:
       hits.hits.0._id: "1"
+
+---
+"Test Exists Query on geo_shape field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: location
+
+  - match: {hits.total: 1}

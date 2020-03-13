@@ -38,11 +38,12 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -61,7 +62,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ParentJoinPlugin.class);
+        return List.of(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

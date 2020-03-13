@@ -128,7 +128,7 @@ Because a Lucene commit is a relatively expensive operation,
 automatically flushes changes to disk in batches.
 To recover from a crash, operations that have been acknowledged but not yet committed 
 can be replayed from the translog.
-Before upgrading, you can explicitly call the {ref}/ndices-flush.html[Flush] API
+Before upgrading, you can explicitly call the {ref}/indices-flush.html[Flush] API
 to ensure that all changes are committed to disk.
 // end::flush-def[]
 

@@ -221,16 +221,21 @@ public class DateTrunc extends BinaryDateTimeFunction {
             long sec = durationInSec;
             long miliseccond = TimeUnit.NANOSECONDS.toMillis(d.getNano());
             Duration newDuration = Duration.ZERO;
-            if (unit.ordinal() <= ChronoUnit.DAYS.ordinal())
+            if (unit.ordinal() <= ChronoUnit.DAYS.ordinal()) {
                 newDuration = newDuration.plusDays(day * isNegative);
-            if (unit.ordinal() <= ChronoUnit.HOURS.ordinal())
+            }
+            if (unit.ordinal() <= ChronoUnit.HOURS.ordinal()) {
                 newDuration = newDuration.plusHours(hour * isNegative);
-            if (unit.ordinal() <= ChronoUnit.MINUTES.ordinal())
+            }
+            if (unit.ordinal() <= ChronoUnit.MINUTES.ordinal()) {
                 newDuration = newDuration.plusMinutes(min * isNegative);
-            if (unit.ordinal() <= ChronoUnit.SECONDS.ordinal())
+            }
+            if (unit.ordinal() <= ChronoUnit.SECONDS.ordinal()) {
                 newDuration = newDuration.plusSeconds(sec * isNegative);
-            if (unit.ordinal() <= ChronoUnit.MILLIS.ordinal())
+            }
+            if (unit.ordinal() <= ChronoUnit.MILLIS.ordinal()) {
                 newDuration = newDuration.plusMillis(miliseccond * isNegative);
+            }
             return new IntervalDayTime(newDuration, r.dataType());
         }
     }

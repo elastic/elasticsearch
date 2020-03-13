@@ -200,8 +200,8 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
                 + String.join(",", validContentTypes()) +  "]");
         }
 
-        final AbstractGeometryFieldMapper.AbstractSearcheableGeometryFieldType ft =
-            (AbstractGeometryFieldMapper.AbstractSearcheableGeometryFieldType) fieldType;
+        final AbstractGeometryFieldMapper.AbstractSearchableGeometryFieldType ft =
+            (AbstractGeometryFieldMapper.AbstractSearchableGeometryFieldType) fieldType;
         return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldName, strategy, relation, context));
     }
 

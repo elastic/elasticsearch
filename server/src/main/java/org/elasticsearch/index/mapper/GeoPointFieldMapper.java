@@ -222,7 +222,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    public static class GeoPointFieldType extends AbstractGeometryFieldMapper.AbstractSearcheableGeometryFieldType {
+    public static class GeoPointFieldType extends AbstractGeometryFieldMapper.AbstractSearchableGeometryFieldType {
         public GeoPointFieldType() {
         }
 

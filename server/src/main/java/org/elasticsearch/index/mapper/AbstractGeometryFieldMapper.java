@@ -272,14 +272,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class AbstractSearcheableGeometryFieldType extends MappedFieldType {
+    public abstract static class AbstractSearchableGeometryFieldType extends MappedFieldType {
 
         protected QueryProcessor geometryQueryBuilder;
 
-        protected AbstractSearcheableGeometryFieldType() {
+        protected AbstractSearchableGeometryFieldType() {
         }
 
-        protected AbstractSearcheableGeometryFieldType(AbstractSearcheableGeometryFieldType ref) {
+        protected AbstractSearchableGeometryFieldType(AbstractSearchableGeometryFieldType ref) {
             super(ref);
         }
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
@@ -291,7 +291,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends AbstractSearcheableGeometryFieldType {
+    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends AbstractSearchableGeometryFieldType {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
         protected Indexer<Parsed, Processed> geometryIndexer;

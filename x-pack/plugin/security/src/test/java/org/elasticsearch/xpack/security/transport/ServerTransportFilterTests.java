@@ -38,6 +38,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -77,12 +78,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
         ServerTransportFilter filter = getClientOrNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
@@ -98,12 +100,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(action), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(action), eq(request), eq(true), any(ActionListener.class));
         ServerTransportFilter filter = getClientOrNodeFilter();
         PlainActionFuture listener = mock(PlainActionFuture.class);
         filter.inbound(action, request, channel, listener);
@@ -118,12 +121,13 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testInboundAuthenticationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onFailure(authE);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
         ServerTransportFilter filter = getClientOrNodeFilter();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -140,12 +144,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         ServerTransportFilter filter = getClientOrNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = mock(Authentication.class);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -177,25 +182,27 @@ public class ServerTransportFilterTests extends ESTestCase {
         ServerTransportFilter filter = getNodeFilter(true);
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(internalAction), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(internalAction), eq(request), eq(true), any(ActionListener.class));
         doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(true), any(ActionListener.class));
 
         filter.inbound(internalAction, request, channel, new PlainActionFuture<>());
-        verify(authcService).authenticate(eq(internalAction), eq(request), eq((User)null), any(ActionListener.class));
+        verify(authcService).authenticate(eq(internalAction), eq(request), eq(true), any(ActionListener.class));
         verify(authzService).authorize(eq(authentication), eq(internalAction), eq(request), any(ActionListener.class));
 
         filter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
-        verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq((User)null), any(ActionListener.class));
+        verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(true), any(ActionListener.class));
         verify(authzService).authorize(eq(authentication), eq(nodeOrShardAction), eq(request), any(ActionListener.class));
         verifyNoMoreInteractions(authcService, authzService);
     }

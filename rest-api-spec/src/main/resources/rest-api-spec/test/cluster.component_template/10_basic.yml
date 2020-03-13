@@ -1,7 +1,7 @@
 ---
 "Basic CRUD":
   - skip:
-      version: "7.99.99 - "
+      version: "8.0.0 - "
       reason: not backported yet
 
   - do:

@@ -46,28 +46,23 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Performs shard-level bulk (index, delete or update) operations
  */
 public class TransportBatchedShardBulkAction extends TransportReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
-    private static final long SIXTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6);
-    private static final long THIRTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3);
-
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
 
     private static final Logger logger = LogManager.getLogger(TransportBatchedShardBulkAction.class);
 
-    private final AtomicLong pendingBytes = new AtomicLong(0);
+    private final BulkIndexingBreaker indexingBreaker;
     private final BatchedShardExecutor batchedShardExecutor;
 
     @Inject
@@ -76,6 +71,7 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
                                            BatchedShardExecutor batchedShardExecutor, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, true, false);
+        this.indexingBreaker = new BulkIndexingBreaker();
         this.batchedShardExecutor = batchedShardExecutor;
     }
 
@@ -117,27 +113,23 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
         CompletableContext<BatchedShardExecutor.FlushResult> flushContext = new CompletableContext<>();
 
         long operationSizeInBytes = operationSizeInBytes(request.items());
-        long pendingWithOperation = pendingBytes.addAndGet(operationSizeInBytes);
-
-        if (pendingWithOperation > THIRTY_PER_HEAP_SIZE) {
-            decrementPendingBytes(operationSizeInBytes);
-            long pendingPreOperation = pendingWithOperation - operationSizeInBytes;
-            listener.onFailure(new EsRejectedExecutionException("rejected execution of primary shard operation [" +
-                "pending_bytes=" + pendingPreOperation + ", " +
-                "operation_bytes=" + operationSizeInBytes + "," +
-                "max_pending_bytes=" + THIRTY_PER_HEAP_SIZE + "]", false));
+        try {
+            indexingBreaker.markPrimaryOperationStarted(operationSizeInBytes);
+        } catch (EsRejectedExecutionException e) {
+            listener.onFailure(e);
             return;
         }
 
         ActionListener<BatchedShardExecutor.WriteResult> writeListener = new ActionListener<>() {
             @Override
             public void onResponse(BatchedShardExecutor.WriteResult result) {
-                listener.onResponse(new WritePrimaryResult<>(result.getReplicaRequest(), result.getResponse(), flushContext));
+                final Runnable bytesDec = () -> indexingBreaker.markPrimaryOperationFinished(operationSizeInBytes);
+                listener.onResponse(new WritePrimaryResult<>(result.getReplicaRequest(), result.getResponse(), flushContext, bytesDec));
             }
 
             @Override
             public void onFailure(Exception e) {
-                decrementPendingBytes(operationSizeInBytes);
+                indexingBreaker.markPrimaryOperationFinished(operationSizeInBytes);
                 listener.onFailure(e);
             }
         };
@@ -146,14 +138,12 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
             @Override
             public void onResponse(BatchedShardExecutor.FlushResult flushResult) {
                 assert flushContext.isDone() == false;
-                decrementPendingBytes(operationSizeInBytes);
                 flushContext.complete(flushResult);
             }
 
             @Override
             public void onFailure(Exception e) {
                 assert flushContext.isDone() == false;
-                decrementPendingBytes(operationSizeInBytes);
                 flushContext.completeExceptionally(e);
             }
         };
@@ -170,11 +160,13 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
         Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response> {
 
         private final CompletableContext<BatchedShardExecutor.FlushResult> flushContext;
+        private final Runnable runnable;
 
         public WritePrimaryResult(ReplicaRequest request, Response finalResponse,
-                                  CompletableContext<BatchedShardExecutor.FlushResult> flushContext) {
+                                  CompletableContext<BatchedShardExecutor.FlushResult> flushContext, Runnable runnable) {
             super(request, finalResponse, null);
             this.flushContext = flushContext;
+            this.runnable = runnable;
         }
 
         @Override
@@ -193,15 +185,19 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
             }));
         }
 
+        @Override
+        public void primaryCoordinationComplete() {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                logger.error("uncaught exception when marking primary coordination complete", e);
+            }
+        }
     }
 
     @Override
     public ReplicaResult shardOperationOnReplica(BulkShardRequest request, IndexShard replica) {
         throw new AssertionError("Override the async method, so the synchronous method should not be called");
-    }
-
-    private void decrementPendingBytes(long operationSizeInBytes) {
-        pendingBytes.getAndAdd(-operationSizeInBytes);
     }
 
 
@@ -213,18 +209,12 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
     @Override
     protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         long operationSizeInBytes = operationSizeInBytes(request.items());
-        long pendingWithOperation = pendingBytes.addAndGet(operationSizeInBytes);
-
-        if (pendingWithOperation > SIXTY_PER_HEAP_SIZE) {
-            decrementPendingBytes(operationSizeInBytes);
-            long pendingPreOperation = pendingWithOperation - operationSizeInBytes;
-            listener.onFailure(new EsRejectedExecutionException("rejected execution of replica shard operation [" +
-                "pending_bytes=" + pendingPreOperation + ", " +
-                "operation_bytes=" + operationSizeInBytes + "," +
-                "max_pending_bytes=" + SIXTY_PER_HEAP_SIZE + "]", false));
+        try {
+            indexingBreaker.markReplicaOperationStarted(operationSizeInBytes);
+        } catch (EsRejectedExecutionException e) {
+            listener.onFailure(e);
             return;
         }
-
 
         ActionListener<Void> writeListener = new ActionListener<>() {
             @Override
@@ -241,13 +231,13 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
         ActionListener<BatchedShardExecutor.FlushResult> flushListener = new ActionListener<>() {
             @Override
             public void onResponse(BatchedShardExecutor.FlushResult flushResult) {
-                decrementPendingBytes(operationSizeInBytes);
+                indexingBreaker.markReplicaOperationFinished(operationSizeInBytes);
                 listener.onResponse(new ReplicaResult());
             }
 
             @Override
             public void onFailure(Exception e) {
-                decrementPendingBytes(operationSizeInBytes);
+                indexingBreaker.markReplicaOperationFinished(operationSizeInBytes);
                 listener.onFailure(e);
             }
         };

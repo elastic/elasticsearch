@@ -124,6 +124,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     public void testMethodsVisibility() {
         final String[] methodNames = new String[]{"convertExistsResponse",
                                                   "parseEntity",
+                                                  "parseResponse",
                                                   "parseResponseException",
                                                   "performRequest",
                                                   "performRequestAndParseEntity",

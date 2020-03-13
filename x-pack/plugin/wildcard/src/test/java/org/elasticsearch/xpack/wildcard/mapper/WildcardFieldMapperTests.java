@@ -93,7 +93,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     
     public void testTooBigKeywordField() throws IOException {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
         
@@ -120,7 +120,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     //Test long query strings don't cause exceptions
     public void testTooBigQueryField() throws IOException {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
         
@@ -148,7 +148,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 

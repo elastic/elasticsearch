@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -36,6 +38,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -50,11 +54,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -71,12 +75,21 @@ public class WildcardFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10; 
     public static final int NGRAM_SIZE = 3;        
+    static final NamedAnalyzer WILDCARD_ANALYZER = new NamedAnalyzer("_wildcard", AnalyzerScope.GLOBAL, new Analyzer() {
+        @Override
+        public TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
+            return new TokenStreamComponents(tokenizer);
+        }
+    });    
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new WildcardFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setIndexAnalyzer(WILDCARD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setStoreTermVectorOffsets(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -100,7 +113,28 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             return this;
         }
-        
+
+        @Override
+        public Builder indexOptions(IndexOptions indexOptions) {
+            if (indexOptions != IndexOptions.DOCS) {
+                throw new MapperParsingException("The field [" + name + "] cannot have indexOptions = " + indexOptions);
+            }
+            return this;
+        }
+
+        @Override
+        public Builder store(boolean store) {
+            if (store) {
+                throw new MapperParsingException("The field [" + name + "] cannot have store = true");                
+            }
+            return this;
+        }
+
+        @Override
+        public Builder similarity(SimilarityProvider similarity) {
+            throw new MapperParsingException("The field [" + name + "] cannot have custom similarities");                
+        }
+
         @Override
         public Builder index(boolean index) {
             if (index == false) {
@@ -316,8 +350,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     tokens.add(fragment);
                 } else {
                     // Break fragment into multiple Ngrams                
-                    NGramTokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
-                    tokenizer.setReader(new StringReader(fragment));
+                    TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), fragment);
                     CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                     String lastUnusedToken = null;
                     try {
@@ -460,13 +493,10 @@ public class WildcardFieldMapper extends FieldMapper {
         this.ignoreAbove = ignoreAbove;
         assert fieldType.indexOptions() == IndexOptions.DOCS;
         
-        ngramFieldType = new FieldType();
-        ngramFieldType.setTokenized(true);            
-        ngramFieldType.setIndexOptions(IndexOptions.DOCS);
-        ngramFieldType.setOmitNorms(true);
+        ngramFieldType = fieldType.clone();
+        ngramFieldType.setTokenized(true);                    
         ngramFieldType.freeze();
     }
-
 
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
@@ -512,18 +542,14 @@ public class WildcardFieldMapper extends FieldMapper {
     }   
     
     // For internal use by Lucene only - used to define ngram index
-    final FieldType ngramFieldType;
+    final MappedFieldType ngramFieldType;
     
     void createFields(String value, Document parseDoc, List<IndexableField>fields) {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
-        NGramTokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
-        //encode end of string with double end char so that 3gram index can be search for single char end eg "*c"
-        tokenizer.setReader(new StringReader(TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR));
-
-        
-        Field ngramField = new Field(fieldType().name(), tokenizer, ngramFieldType);
+        String ngramValue = TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
+        Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
         fields.add(ngramField);
         
         CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());

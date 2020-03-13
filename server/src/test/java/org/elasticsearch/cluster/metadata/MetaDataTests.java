@@ -44,6 +44,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -723,7 +724,7 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
-    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
+    private static IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
         return IndexMetaData.builder(name)
             .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
             .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
@@ -905,5 +906,38 @@ public class MetaDataTests extends ESTestCase {
         mapBuilder.put(key, null);
         final ImmutableOpenMap<String, MetaData.Custom> map = mapBuilder.build();
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+    }
+
+    public void testSerialization() throws IOException {
+        final MetaData orig = randomMetaData();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        orig.writeTo(out);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final MetaData fromStreamMeta = MetaData.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(),
+            namedWriteableRegistry));
+        assertTrue(MetaData.isGlobalStateEquals(orig, fromStreamMeta));
+    }
+
+    public static MetaData randomMetaData() {
+        return MetaData.builder()
+            .put(buildIndexMetaData("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
+            .put(IndexTemplateMetaData.builder("template" + randomAlphaOfLength(3))
+                .patterns(Arrays.asList("bar-*", "foo-*"))
+                .settings(Settings.builder()
+                    .put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
+                    .build())
+                .build())
+            .persistentSettings(Settings.builder()
+                .put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
+                .build())
+            .transientSettings(Settings.builder()
+                .put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
+                .build())
+            .clusterUUID("uuid" + randomAlphaOfLength(3))
+            .clusterUUIDCommitted(randomBoolean())
+            .indexGraveyard(IndexGraveyardTests.createRandom())
+            .version(randomNonNegativeLong())
+            .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
+            .build();
     }
 }

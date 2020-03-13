@@ -77,6 +77,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -110,8 +111,6 @@ import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -161,21 +160,21 @@ public class ClusterStateChanges {
         clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         IndicesService indicesService = mock(IndicesService.class);
-        // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
+        // MetaDataCreateIndexService uses withTempIndexService to check mappings -> fake it here
         try {
-            @SuppressWarnings("unchecked") final List<IndexEventListener> listeners = anyList();
-            when(indicesService.createIndex(any(IndexMetaData.class), listeners, anyBoolean()))
+            when(indicesService.withTempIndexService(any(IndexMetaData.class), any(CheckedFunction.class)))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
-                    IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];
+                    IndexMetaData indexMetaData = (IndexMetaData) invocationOnMock.getArguments()[0];
                     when(indexService.index()).thenReturn(indexMetaData.getIndex());
                     MapperService mapperService = mock(MapperService.class);
                     when(indexService.mapperService()).thenReturn(mapperService);
                     when(mapperService.documentMapper()).thenReturn(null);
                     when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                     when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
-                    return indexService;
-            });
+                    //noinspection unchecked
+                    return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
+                });
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

@@ -78,6 +78,19 @@ public class XContentParserTests extends ESTestCase {
 
             assertEquals(value, number.floatValue(), 0.0f);
 
+            switch (xContentType) {
+                case CBOR:
+                case SMILE:
+                    assertThat(number, instanceOf(Float.class));
+                    break;
+                case JSON:
+                case YAML:
+                    assertThat(number, instanceOf(Float.class));
+                    break;
+                default:
+                    throw new AssertionError("unexpected x-content type [" + xContentType + "]");
+            }
+
             assertThat(number, instanceOf(Float.class));
         }
     }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,7 +54,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
 
     static final String TYPE_FIELD_NAME = "_type";
-    static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     private static final String _SHARDS = "_shards";
     private static final String _INDEX = "_index";
@@ -281,7 +279,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (builder.getCompatibleMajorVersion() == Version.V_7_0_0.major) {
-            builder.field(TYPE_FIELD_NAME, SINGLE_MAPPING_TYPE);
+            builder.field(TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         innerToXContent(builder, params);
         builder.endObject();

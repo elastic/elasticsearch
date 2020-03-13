@@ -107,6 +107,4 @@ public class DocWriteResponseTests extends ESTestCase {
             }
         }
     }
-
-
 }

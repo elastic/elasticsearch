@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +53,7 @@ public class DocWriteResponseV7Tests extends ESTestCase {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), hasEntry(DocWriteResponse.TYPE_FIELD_NAME,DocWriteResponse.SINGLE_MAPPING_TYPE.toString()));
+                assertThat(parser.map(), hasEntry(DocWriteResponse.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME));
             }
         }
 

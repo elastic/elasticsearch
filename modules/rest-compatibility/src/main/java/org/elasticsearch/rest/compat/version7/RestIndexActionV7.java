@@ -10,7 +10,6 @@ import org.elasticsearch.rest.action.document.RestIndexAction;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
@@ -20,13 +19,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexActionV7 {
-    private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
         "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
         "or /{index}/_create/{id}).";
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestIndexAction.class));
-    private static final Consumer<RestRequest> DEPRECATION_WARNING =
-        r -> deprecationLogger.deprecatedAndMaybeLog("index_with_types",TYPES_DEPRECATION_MESSAGE);
+
+    private static void logDeprecationMessage() {
+        deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
+    }
 
     public static class CompatibleRestIndexAction extends RestIndexAction {
         @Override
@@ -40,10 +41,11 @@ public class RestIndexActionV7 {
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
+            logDeprecationMessage();
+            request.param("type");
             return super.prepareRequest(request, client);
         }
+
 
         @Override
         public boolean compatibilityRequired() {
@@ -61,8 +63,8 @@ public class RestIndexActionV7 {
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
+            logDeprecationMessage();
+            request.param("type");
             return super.prepareRequest(request, client);
         }
 
@@ -85,8 +87,8 @@ public class RestIndexActionV7 {
 
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-            DEPRECATION_WARNING.accept(request);
-            CompatibleHandlers.consumeParameterType(deprecationLogger).accept(request);
+            logDeprecationMessage();
+            request.param("type");
             return super.prepareRequest(request, client);
         }
 

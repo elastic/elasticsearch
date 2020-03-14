@@ -19,12 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.query.QueryShardContext;
+
 /**
  * a base class for geometry types that support shape query builder
  */
 public abstract class AbstractSearchableGeometryFieldType extends MappedFieldType {
 
-    protected AbstractGeometryFieldMapper.QueryProcessor geometryQueryBuilder;
+    protected QueryProcessor geometryQueryBuilder;
 
     protected AbstractSearchableGeometryFieldType() {
     }
@@ -33,12 +39,25 @@ public abstract class AbstractSearchableGeometryFieldType extends MappedFieldTyp
         super(ref);
     }
 
-    public void setGeometryQueryBuilder(AbstractGeometryFieldMapper.QueryProcessor geometryQueryBuilder)  {
+    public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
         this.geometryQueryBuilder = geometryQueryBuilder;
     }
 
-    public AbstractGeometryFieldMapper.QueryProcessor geometryQueryBuilder() {
+    public QueryProcessor geometryQueryBuilder() {
         return geometryQueryBuilder;
+    }
+
+    /**
+     * interface representing a query builder that generates a query from the given shape
+     */
+    public interface QueryProcessor {
+        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
+
+        @Deprecated
+        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
+                              QueryShardContext context) {
+            return process(shape, fieldName, relation, context);
+        }
     }
 }
 

@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class BulkIndexingBreaker {
 
-    // TODO: Configurable?
+    // TODO: Configurable? Allow dedicating coordinating nodes to have a higher value?
     private static final long SIXTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6);
     private static final long THIRTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3);
 

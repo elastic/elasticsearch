@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;

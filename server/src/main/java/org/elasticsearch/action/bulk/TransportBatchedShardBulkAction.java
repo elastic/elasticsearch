@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteResponse;
@@ -33,7 +32,6 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -65,6 +63,7 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
 
     private final BulkIndexingBreaker indexingBreaker;
     private final BatchedShardExecutor batchedShardExecutor;
+    private final String localNodeId;
 
     @Inject
     public TransportBatchedShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -74,6 +73,7 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, true, false);
         this.indexingBreaker = new BulkIndexingBreaker();
         this.batchedShardExecutor = batchedShardExecutor;
+        this.localNodeId = clusterService.localNode().getId();
     }
 
     @Override
@@ -111,15 +111,21 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
     @Override
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
                                            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
-        CompletableContext<BatchedShardExecutor.FlushResult> flushContext = new CompletableContext<>();
-
-        long operationSizeInBytes = operationSizeInBytes(request.items());
+        long operationSizeInBytes;
+        if (localNodeId.equals(request.getParentTask().getNodeId())) {
+            // If we are still on the coordinating node, we have already accounted for the bytes
+            operationSizeInBytes = 0;
+        } else {
+            operationSizeInBytes = operationSizeInBytes(request.items());
+        }
         try {
             indexingBreaker.markPrimaryOperationStarted(operationSizeInBytes);
         } catch (EsRejectedExecutionException e) {
             listener.onFailure(e);
             return;
         }
+
+        CompletableContext<BatchedShardExecutor.FlushResult> flushContext = new CompletableContext<>();
 
         ActionListener<BatchedShardExecutor.WriteResult> writeListener = new ActionListener<>() {
             @Override
@@ -209,7 +215,13 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
      */
     @Override
     protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        long operationSizeInBytes = operationSizeInBytes(request.items());
+        long operationSizeInBytes;
+        if (localNodeId.equals(request.getParentTask().getNodeId())) {
+            // If we are still on the coordinating node, we have already accounted for the bytes
+            operationSizeInBytes = 0;
+        } else {
+            operationSizeInBytes = operationSizeInBytes(request.items());
+        }
         try {
             indexingBreaker.markReplicaOperationStarted(operationSizeInBytes);
         } catch (EsRejectedExecutionException e) {

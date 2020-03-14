@@ -20,6 +20,8 @@ authenticate a user and retrieve information about the authenticated user.
 A successful call returns a JSON structure that shows user information such as their username, the roles that are
 assigned to the user, any assigned metadata, and information about the realms that authenticated and authorized the user.
 
+TIP: When you call any of `_security` API, you should take your `token` or choose `Basic Auth` type within your request.
+
 [[security-api-authenticate-response-codes]]
 ==== {api-response-codes-title}
 

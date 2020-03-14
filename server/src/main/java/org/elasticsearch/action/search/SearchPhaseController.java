@@ -67,7 +67,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -429,7 +432,7 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeProfileResult()
      */
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                                List<InternalAggregations> bufferedAggs, List<TopDocs> bufferedTopDocs,
+                                                List<Supplier<InternalAggregations>> bufferedAggs, List<TopDocs> bufferedTopDocs,
                                                 TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
                                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                                 boolean performFinalReduce) {
@@ -453,7 +456,7 @@ public final class SearchPhaseController {
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
         final boolean consumeAggs;
-        final List<InternalAggregations> aggregationsList;
+        final List<Supplier<InternalAggregations>> aggregationsList;
         if (bufferedAggs != null) {
             consumeAggs = false;
             // we already have results from intermediate reduces and just need to perform the final reduce
@@ -492,7 +495,7 @@ public final class SearchPhaseController {
                 }
             }
             if (consumeAggs) {
-                aggregationsList.add((InternalAggregations) result.consumeAggs());
+                aggregationsList.add(result.consumeAggs());
             }
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
@@ -508,8 +511,9 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(aggregationsList,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
+        final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(
+                aggregationsList.stream().map(Supplier::get).collect(toList()),
+                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size,
             reducedCompletionSuggestions);
@@ -600,7 +604,7 @@ public final class SearchPhaseController {
      */
     static final class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
         private final SearchShardTarget[] processedShards;
-        private final InternalAggregations[] aggsBuffer;
+        private final Supplier<InternalAggregations>[] aggsBuffer;
         private final TopDocs[] topDocsBuffer;
         private final boolean hasAggs;
         private final boolean hasTopDocs;
@@ -642,7 +646,9 @@ public final class SearchPhaseController {
             this.progressListener = progressListener;
             this.processedShards = new SearchShardTarget[expectedResultSize];
             // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
-            this.aggsBuffer = new InternalAggregations[hasAggs ? bufferSize : 0];
+            @SuppressWarnings("unchecked")
+            Supplier<InternalAggregations>[] aggsBuffer = new Supplier[hasAggs ? bufferSize : 0];
+            this.aggsBuffer = aggsBuffer;
             this.topDocsBuffer = new TopDocs[hasTopDocs ? bufferSize : 0];
             this.hasTopDocs = hasTopDocs;
             this.hasAggs = hasAggs;
@@ -665,10 +671,11 @@ public final class SearchPhaseController {
             if (querySearchResult.isNull() == false) {
                 if (index == bufferSize) {
                     if (hasAggs) {
-                        ReduceContext reduceContext = aggReduceContextBuilder.forPartialReduction();
-                        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Arrays.asList(aggsBuffer), reduceContext);
+                        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(
+                                Arrays.stream(aggsBuffer).map(Supplier::get).collect(toList()),
+                                aggReduceContextBuilder.forPartialReduction());
                         Arrays.fill(aggsBuffer, null);
-                        aggsBuffer[0] = reducedAggs;
+                        aggsBuffer[0] = () -> reducedAggs;
                     }
                     if (hasTopDocs) {
                         TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
@@ -681,12 +688,12 @@ public final class SearchPhaseController {
                     index = 1;
                     if (hasAggs || hasTopDocs) {
                         progressListener.notifyPartialReduce(SearchProgressListener.buildSearchShards(processedShards),
-                            topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0] : null, numReducePhases);
+                            topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0].get() : null, numReducePhases);
                     }
                 }
                 final int i = index++;
                 if (hasAggs) {
-                    aggsBuffer[i] = (InternalAggregations) querySearchResult.consumeAggs();
+                    aggsBuffer[i] = querySearchResult.consumeAggs();
                 }
                 if (hasTopDocs) {
                     final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
@@ -698,7 +705,7 @@ public final class SearchPhaseController {
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
         }
 
-        private synchronized List<InternalAggregations> getRemainingAggs() {
+        private synchronized List<Supplier<InternalAggregations>> getRemainingAggs() {
             return hasAggs ? Arrays.asList(aggsBuffer).subList(0, index) : null;
         }
 

@@ -22,13 +22,13 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -40,6 +40,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
@@ -54,7 +55,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private TotalHits totalHits;
     private float maxScore = Float.NaN;
     private DocValueFormat[] sortValueFormats;
-    private InternalAggregations aggregations;
+    private DelayableWriteable<InternalAggregations> aggregations;
     private boolean hasAggs;
     private Suggest suggest;
     private boolean searchTimedOut;
@@ -196,21 +197,21 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
-    public Aggregations consumeAggs() {
+    public Supplier<InternalAggregations> consumeAggs() {
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
-        Aggregations aggs = aggregations;
+        Supplier<InternalAggregations> aggs = aggregations;
         aggregations = null;
         return aggs;
     }
 
     public void aggregations(InternalAggregations aggregations) {
-        this.aggregations = aggregations;
+        this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
     }
 
-    public InternalAggregations aggregations() {
+    public DelayableWriteable<InternalAggregations> aggregations() {
         return aggregations;
     }
 
@@ -314,18 +315,22 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
-            aggregations = new InternalAggregations(in);
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                aggregations = DelayableWriteable.referencing(new InternalAggregations(in));
+            } else {
+                aggregations = DelayableWriteable.delayed(InternalAggregations::new, in);
+            }
         }
         if (in.getVersion().before(Version.V_7_2_0)) {
             List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
                 .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
             if (hasAggs && pipelineAggregators.isEmpty() == false) {
-                List<InternalAggregation> internalAggs = aggregations.asList().stream()
+                List<InternalAggregation> internalAggs = aggregations.get().asList().stream()
                     .map(agg -> (InternalAggregation) agg).collect(Collectors.toList());
                 //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly, while
                 //later versions include them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
                 //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1.
-                this.aggregations = new InternalAggregations(internalAggs, pipelineAggregators);
+                this.aggregations = DelayableWriteable.referencing(new InternalAggregations(internalAggs, pipelineAggregators));
             }
         }
         if (in.readBoolean()) {
@@ -366,7 +371,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            aggregations.writeTo(out);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                aggregations.get().writeTo(out);
+            } else {
+                aggregations.writeTo(out);
+            }
         }
         if (out.getVersion().before(Version.V_7_2_0)) {
             //Earlier versions expect sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
@@ -375,7 +384,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (aggregations == null) {
                 out.writeNamedWriteableList(Collections.emptyList());
             } else {
-                out.writeNamedWriteableList(aggregations.getTopLevelPipelineAggregators());
+                out.writeNamedWriteableList(aggregations.get().getTopLevelPipelineAggregators());
             }
         }
         if (suggest == null) {

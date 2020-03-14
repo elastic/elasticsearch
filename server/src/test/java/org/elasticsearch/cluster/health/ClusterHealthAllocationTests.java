@@ -75,6 +75,72 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
     }
 
+    public void testClusterHealthWithMultipleNodes() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        if (randomBoolean()) {
+            clusterState = addNode(clusterState, "node_m", true);
+        }
+        assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(5)
+                .numberOfReplicas(2))
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
+        MockAllocationService allocation = createAllocationService();
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        assertEquals(0, clusterState.nodes().getDataNodes().size());
+        assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));
+
+        // Add 2 Nodes. (Red -> Yellow)
+        clusterState = addNodes(clusterState, 1, 2);
+        assertEquals(2, clusterState.nodes().getDataNodes().size());
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        assertEquals(ClusterHealthStatus.YELLOW, getClusterHealthStatus(clusterState));
+        // Go back to the Red state.
+        clusterState = removeNodes(clusterState, 1, 2, allocation);
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        // Add 3 Nodes. (Red -> Green)
+        clusterState = addNodes(clusterState, 1, 3);
+        assertEquals(3, clusterState.nodes().getDataNodes().size());
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
+
+        // remove 2 Nodes. (Green -> Yellow)
+        clusterState = removeNodes(clusterState, 1, 2, allocation) ;
+        assertEquals(1, clusterState.nodes().getDataNodes().size());
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        assertEquals(ClusterHealthStatus.YELLOW, getClusterHealthStatus(clusterState));
+        // Go back to the Green state.
+        clusterState = addNodes(clusterState, 1, 2);
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        // remove 3 Nodes. (Green -> Red)
+        clusterState = removeNodes(clusterState, 1, 3, allocation) ;
+        assertEquals(0, clusterState.nodes().getDataNodes().size());
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));
+    }
+
+    private ClusterState addNodes(ClusterState clusterState, int startNode, int numberOfNodes) {
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
+        for(int nodeIndex = startNode ; nodeIndex <= numberOfNodes ; nodeIndex++) {
+            String nodeName = "node_d" + nodeIndex;
+            nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
+        }
+        return ClusterState.builder(clusterState).nodes(nodeBuilder).build();
+    }
+
+    private ClusterState removeNodes(ClusterState clusterState, int startNode, int numberOfNodes, MockAllocationService allocation) {
+        for(int nodeIndex = startNode ; nodeIndex <= numberOfNodes ; nodeIndex++) {
+            String nodeName = "node_d" + nodeIndex;
+            clusterState = removeNode(clusterState, nodeName, allocation);
+        }
+        return clusterState ;
+    }
+
     private ClusterState addNode(ClusterState clusterState, String nodeName, boolean isMaster) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
         nodeBuilder.add(newNode(nodeName, Collections.singleton(isMaster ? DiscoveryNodeRole.MASTER_ROLE : DiscoveryNodeRole.DATA_ROLE)));

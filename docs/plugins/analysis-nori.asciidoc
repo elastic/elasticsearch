@@ -434,3 +434,52 @@ Which responds with:
 --------------------------------------------------
 
 <1> The Hanja form is replaced by the Hangul translation.
+
+
+[[analysis-nori-number]]
+==== `nori_number` token filter
+
+The `nori_number` token filter normalizes Korean numbers
+to regular Arabic decimal numbers in half-width characters. For example:
+
+[source,console]
+--------------------------------------------------
+PUT nori_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "nori_tokenizer",
+            "filter": [
+              "nori_number"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET nori_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "십만이천오백"
+}
+--------------------------------------------------
+
+Which results in:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [ {
+    "token" : "102500",
+    "start_offset" : 0,
+    "end_offset" : 6,
+    "type" : "word",
+    "position" : 0
+  } ]
+}
+--------------------------------------------------

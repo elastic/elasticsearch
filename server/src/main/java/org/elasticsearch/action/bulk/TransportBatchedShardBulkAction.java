@@ -63,7 +63,6 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
 
     private final BulkIndexingBreaker indexingBreaker;
     private final BatchedShardExecutor batchedShardExecutor;
-    private final String localNodeId;
 
     @Inject
     public TransportBatchedShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -73,7 +72,6 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.SAME, true, false);
         this.indexingBreaker = new BulkIndexingBreaker();
         this.batchedShardExecutor = batchedShardExecutor;
-        this.localNodeId = clusterService.localNode().getId();
     }
 
     @Override
@@ -112,6 +110,7 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
                                            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         long operationSizeInBytes;
+        final String localNodeId = clusterService.localNode().getId();
         if (localNodeId.equals(request.getParentTask().getNodeId())) {
             // If we are still on the coordinating node, we have already accounted for the bytes
             operationSizeInBytes = 0;
@@ -216,6 +215,7 @@ public class TransportBatchedShardBulkAction extends TransportReplicationAction<
     @Override
     protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         long operationSizeInBytes;
+        final String localNodeId = clusterService.localNode().getId();
         if (localNodeId.equals(request.getParentTask().getNodeId())) {
             // If we are still on the coordinating node, we have already accounted for the bytes
             operationSizeInBytes = 0;

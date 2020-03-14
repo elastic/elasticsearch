@@ -108,7 +108,7 @@ final class FetchSearchPhase extends SearchPhase {
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
         final String scrollId;
         if (isScrollSearch) {
-            final boolean includeContextUUID = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0);
+            final boolean includeContextUUID = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0);
             scrollId = TransportSearchHelper.buildScrollId(queryResults, includeContextUUID);
         } else {
             scrollId = null;

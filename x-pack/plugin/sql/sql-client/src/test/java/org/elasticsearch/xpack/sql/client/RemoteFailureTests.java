@@ -94,7 +94,7 @@ public class RemoteFailureTests extends ESTestCase {
         assertEquals(
             "Can't parse error from Elasticsearch [Unrecognized token 'I': "
                 + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] "
-                + "at [line 1 col 4]. Response:\n"
+                + "at [line 1 col 1]. Response:\n"
                 + "I'm not json at all",
             e.getMessage());
     }
@@ -119,7 +119,7 @@ public class RemoteFailureTests extends ESTestCase {
             }).streamInput()));
         assertThat(e.getMessage(),
             startsWith("Can't parse error from Elasticsearch [Unrecognized token 'ÿ': "
-                + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] at [line 1 col 1]. Response:\n"));
+                + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] at [line 1 col 4]. Response:\n"));
     }
 
     public void testTooBig() {

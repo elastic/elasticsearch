@@ -23,10 +23,13 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -44,12 +47,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             loadMapping("mapping-multi-field-with-nested.json")));
 
     private String error(String sql) {
-        return error(indexResolution, sql);
+        return error(indexResolution, sql, Collections.emptyList());
+    }
+
+    private String error(String sql, List<SqlTypedParamValue> params) {
+        return error(indexResolution, sql, params);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
+        return error(getIndexResult, sql, Collections.emptyList());
+    }
+
+    private String error(IndexResolution getIndexResult, String sql, List<SqlTypedParamValue> params) {
         Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> analyzer.analyze(parser.createStatement(sql, params), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
         String pattern = "\nline ";
@@ -745,10 +757,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT * FROM test WHERE text LIKE 'foo'"));
     }
 
+    public void testInvalidPatternForLikeMatch() {
+        assertEquals("1:26: [keyword LIKE ?] pattern must not be [null]",
+                error("SELECT * FROM test WHERE keyword LIKE ?",
+                        Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null))));
+    }
+
     public void testInvalidTypeForRLikeMatch() {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
+    }
+
+    public void testInvalidPatternForRLikeMatch() {
+        assertEquals("1:26: [keyword RLIKE ?] pattern must not be [null]",
+                error("SELECT * FROM test WHERE keyword RLIKE ?",
+                        Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null))));
     }
 
     public void testMatchAndQueryFunctionsNotAllowedInSelect() {

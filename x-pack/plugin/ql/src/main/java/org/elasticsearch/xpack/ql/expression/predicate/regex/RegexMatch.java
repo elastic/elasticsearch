@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Objects;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 public abstract class RegexMatch<T> extends UnaryScalarFunction {
@@ -46,7 +47,14 @@ public abstract class RegexMatch<T> extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isStringAndExact(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        TypeResolution resolution = isStringAndExact(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        if (pattern == null) {
+            return new TypeResolution(format(null, "[{}] pattern must not be [null]", sourceText()));
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

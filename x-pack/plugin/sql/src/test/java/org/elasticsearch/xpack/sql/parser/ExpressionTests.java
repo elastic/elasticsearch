@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
@@ -21,16 +22,19 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditiona
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collections;
 import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -541,5 +545,13 @@ public class ExpressionTests extends ESTestCase {
         ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
         assertEquals("many", c.elseResult().toString());
+    }
+
+    public void testLikePatternWithNullParameter() {
+        Expression expr = parser.createExpression("a LIKE ?",
+                Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null)));
+        assertEquals(Like.class, expr.getClass());
+        Like like = (Like) expr;
+        assertNull(like.pattern());
     }
 }

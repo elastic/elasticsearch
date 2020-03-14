@@ -19,17 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -45,10 +34,19 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestShardsActionTests extends ESTestCase {
 
@@ -60,24 +58,12 @@ public class RestShardsActionTests extends ESTestCase {
         Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
         String index = "index";
         for (int i = 0; i < numShards; i++) {
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                index,
-                i,
-                localNode.getId(),
-                randomBoolean(),
-                ShardRoutingState.fromValue((byte) randomIntBetween(2, 3))
-            );
-            Path path = createTempDir().resolve("indices")
-                .resolve(shardRouting.shardId().getIndex().getUUID())
+            ShardRouting shardRouting = TestShardRouting.newShardRouting( index, i, localNode.getId(), randomBoolean(),
+                ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)));
+            Path path = createTempDir().resolve("indices").resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
-            ShardStats shardStats = new ShardStats(
-                shardRouting,
-                new ShardPath(false, path, path, shardRouting.shardId()),
-                null,
-                null,
-                null,
-                null
-            );
+            ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardRouting.shardId()),
+                null, null, null, null);
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);
         }
@@ -100,17 +86,7 @@ public class RestShardsActionTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(state.getState()).thenReturn(clusterState);
 
-        final RestController restController = new RestController(
-            Collections.emptySet(),
-            null,
-            null,
-            null,
-            new UsageService(),
-            randomBoolean()
-        );
         final RestShardsAction action = new RestShardsAction();
-        restController.registerHandler(action);
-
         final Table table = action.buildTable(new FakeRestRequest(), state, stats);
 
         // now, verify the table is correct
@@ -128,9 +104,9 @@ public class RestShardsActionTests extends ESTestCase {
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(numShards));
 
-        int i = 0;
+        Iterator<ShardRouting> shardRoutingsIt = shardRoutings.iterator();
         for (final List<Table.Cell> row : rows) {
-            ShardRouting shardRouting = shardRoutings.get(i);
+            ShardRouting shardRouting = shardRoutingsIt.next();
             ShardStats shardStats = shardStatsMap.get(shardRouting);
             assertThat(row.get(0).value, equalTo(shardRouting.getIndexName()));
             assertThat(row.get(1).value, equalTo(shardRouting.getId()));
@@ -140,7 +116,6 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(7).value, equalTo(localNode.getId()));
             assertThat(row.get(69).value, equalTo(shardStats.getDataPath()));
             assertThat(row.get(70).value, equalTo(shardStats.getStatePath()));
-            i++;
         }
     }
 }

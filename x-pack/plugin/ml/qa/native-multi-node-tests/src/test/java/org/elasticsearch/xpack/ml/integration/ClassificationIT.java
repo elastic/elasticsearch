@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Multi
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,25 +70,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String destIndex;
     private boolean analysisUsesExistingDestIndex;
 
-    @Before
-    public void enableLogging() {
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.action", "DEBUG")
-                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG"))
-            .get();
-    }
-
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.action")
-                .putNull("logger.org.elasticsearch.xpack.ml.dataframe"))
-            .get();
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
@@ -103,6 +85,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Classification(
                 KEYWORD_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -207,7 +190,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, numTopClasses, 50.0, null));
+                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, null, numTopClasses, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -435,7 +418,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(ALIAS_TO_NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53188")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
@@ -453,11 +435,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setGamma(1.0)
             .setEta(1.0)
             .setFeatureBagFraction(1.0)
-            .setMaximumNumberTrees(1)
+            .setMaxTrees(1)
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, null));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null));
         registerAnalytics(firstJob);
         putAnalytics(firstJob);
 
@@ -466,7 +448,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Classification) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, randomizeSeed));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed));
 
         registerAnalytics(secondJob);
         putAnalytics(secondJob);

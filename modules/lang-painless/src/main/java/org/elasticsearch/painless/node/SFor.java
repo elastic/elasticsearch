@@ -52,23 +52,26 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+
         scope = scope.newLocalScope();
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(scriptRoot, scope);
+                ((SDeclBlock)initializer).analyze(scriptRoot, scope, new Input());
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
-                initializer.read = false;
-                initializer.analyze(scriptRoot, scope);
+                AExpression.Input initializerInput = new AExpression.Input();
+                initializerInput.read = false;
+                AExpression.Output initializerOutput = initializer.analyze(scriptRoot, scope, initializerInput);
 
-                if (!initializer.statement) {
+                if (initializerOutput.statement == false) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
 
-                initializer.expected = initializer.actual;
+                initializer.input.expected = initializerOutput.actual;
                 initializer.cast();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -76,8 +79,9 @@ public final class SFor extends AStatement {
         }
 
         if (condition != null) {
-            condition.expected = boolean.class;
-            condition.analyze(scriptRoot, scope);
+            AExpression.Input conditionInput = new AExpression.Input();
+            conditionInput.expected = boolean.class;
+            condition.analyze(scriptRoot, scope, conditionInput);
             condition.cast();
 
             if (condition instanceof EBoolean) {
@@ -96,36 +100,42 @@ public final class SFor extends AStatement {
         }
 
         if (afterthought != null) {
-            afterthought.read = false;
-            afterthought.analyze(scriptRoot, scope);
+            AExpression.Input afterthoughtInput = new AExpression.Input();
+            afterthoughtInput.read = false;
+            AExpression.Output afterthoughtOutput = afterthought.analyze(scriptRoot, scope, afterthoughtInput);
 
-            if (!afterthought.statement) {
+            if (afterthoughtOutput.statement == false) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
 
-            afterthought.expected = afterthought.actual;
+            afterthought.input.expected = afterthoughtOutput.actual;
             afterthought.cast();
         }
 
+        output = new Output();
+
         if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+            Input blockInput = new Input();
+            blockInput.beginLoop = true;
+            blockInput.inLoop = true;
 
-            block.analyze(scriptRoot, scope);
+            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
 
-            if (block.loopEscape && !block.anyContinue) {
+            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (continuous && blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
 
-            block.statementCount = Math.max(1, block.statementCount);
+            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override

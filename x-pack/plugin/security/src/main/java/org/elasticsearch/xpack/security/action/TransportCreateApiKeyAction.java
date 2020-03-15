@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -44,6 +45,12 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
+            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                if (request.getRoleDescriptors() == null || request.getRoleDescriptors().isEmpty() ||
+                    false == request.getRoleDescriptors().stream().allMatch(RoleDescriptor::isEmpty)) {
+                    listener.onFailure(new IllegalArgumentException("derived api keys can only have explicit empty role descriptor"));
+                }
+            }
             generator.generateApiKey(authentication, request, listener);
         }
     }

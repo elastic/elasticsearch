@@ -191,7 +191,7 @@ public class SamlAuthnRequestValidator {
     private void validateNameIdPolicy(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final NameIDPolicy nameIDPolicy = request.getNameIDPolicy();
         if (null != nameIDPolicy) {
-            final String requestedFormat = request.getNameIDPolicy().getFormat();
+            final String requestedFormat = nameIDPolicy.getFormat();
             final String allowedFormat = sp.getAllowedNameIdFormat();
             if (Strings.hasText(requestedFormat)) {
                 if (allowedFormat != null && requestedFormat.equals(UNSPECIFIED) == false

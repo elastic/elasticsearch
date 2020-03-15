@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
@@ -33,18 +34,20 @@ public class TransportPutSamlServiceProviderAction
 
     private final Logger logger = LogManager.getLogger();
     private final SamlServiceProviderIndex index;
+    private final SamlIdentityProvider identityProvider;
     private final Clock clock;
 
     @Inject
     public TransportPutSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                                 SamlServiceProviderIndex index) {
-        this(transportService, actionFilters, index, Clock.systemUTC());
+                                                 SamlServiceProviderIndex index, SamlIdentityProvider identityProvider) {
+        this(transportService, actionFilters, index, identityProvider, Clock.systemUTC());
     }
 
     TransportPutSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                                 SamlServiceProviderIndex index, Clock clock) {
+                                          SamlServiceProviderIndex index, SamlIdentityProvider identityProvider, Clock clock) {
         super(PutSamlServiceProviderAction.NAME, transportService, actionFilters, PutSamlServiceProviderRequest::new);
         this.index = index;
+        this.identityProvider = identityProvider;
         this.clock = clock;
     }
 
@@ -54,6 +57,10 @@ public class TransportPutSamlServiceProviderAction
         final SamlServiceProviderDocument document = request.getDocument();
         if (document.docId != null) {
             listener.onFailure(new IllegalArgumentException("request document must not have an id [" + document.docId + "]"));
+            return;
+        }
+        if (document.nameIdFormat != null && identityProvider.getAllowedNameIdFormats().contains(document.nameIdFormat) == false) {
+            listener.onFailure(new IllegalArgumentException("NameID format [" + document.nameIdFormat + "] is not supported."));
             return;
         }
         index.findByEntityId(document.entityId, ActionListener.wrap(matchingDocuments -> {

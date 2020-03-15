@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -36,20 +38,28 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.opensaml.saml.saml2.core.NameIDType.EMAIL;
+import static org.opensaml.saml.saml2.core.NameIDType.PERSISTENT;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
     private SamlServiceProviderIndex index;
     private TransportPutSamlServiceProviderAction action;
+    private SamlIdentityProvider idp;
     private Instant now;
 
     @Before
     public void setupMocks() {
         index = mock(SamlServiceProviderIndex.class);
+        idp = mock(SamlIdentityProvider.class);
+        when(idp.getAllowedNameIdFormats()).thenReturn(Set.of(TRANSIENT));
+
         now = Instant.ofEpochMilli(System.currentTimeMillis() + randomLongBetween(-500_000, 500_000));
         final Clock clock = Clock.fixed(now, randomZone());
         action = new TransportPutSamlServiceProviderAction(
-            mock(TransportService.class), mock(ActionFilters.class), index, clock);
+            mock(TransportService.class), mock(ActionFilters.class), index, idp, clock);
     }
 
     public void testRegisterNewServiceProvider() throws Exception {
@@ -104,6 +114,18 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
         assertThat(document.lastModified, equalTo(now));
     }
 
+    public void testUnsupportedNameIDFormat() throws Exception {
+        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final String invalidFormat = randomFrom(PERSISTENT, EMAIL, randomAlphaOfLength(12));
+        document.setNameIdFormat(invalidFormat);
+
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document);
+        final PlainActionFuture<PutSamlServiceProviderResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, request, future);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("NameID format [" + invalidFormat + "] is not supported"));
+    }
+
     public AtomicReference<DocWriteResponse> mockWriteResponse(SamlServiceProviderDocument document, boolean created) {
         final AtomicReference<DocWriteResponse> writeResponse = new AtomicReference<>();
         doAnswer(inv -> {
@@ -148,5 +170,4 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));
     }
-
 }

@@ -42,6 +42,8 @@ import java.time.Clock;
 import java.util.Collection;
 import java.util.Set;
 
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
+
 /**
  * Builds SAML 2.0 {@link Response} objects for successful authentication results.
  */
@@ -221,13 +223,25 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     private NameID buildNameId(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final NameID nameID = samlFactory.object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
+        final String nameIdFormat;
         if (authnState != null && authnState.getRequestedNameidFormat() != null) {
-            nameID.setFormat(authnState.getRequestedNameidFormat());
+            nameIdFormat = authnState.getRequestedNameidFormat();
         } else {
-            nameID.setFormat(serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
-                idp.getServiceProviderDefaults().nameIdFormat);
+            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
+                idp.getServiceProviderDefaults().nameIdFormat;
         }
-        // TODO: Set the value according to the format
+        nameID.setFormat(nameIdFormat);
+        nameID.setValue(getNameIdValueForFormat(nameIdFormat, user));
         return nameID;
+    }
+
+    private String getNameIdValueForFormat(String format, UserServiceAuthentication user) {
+        switch (format) {
+            case TRANSIENT:
+                // See SAML 2.0 Core 8.3.8 & 1.3.4
+                return samlFactory.secureIdentifier();
+            default:
+                throw new IllegalStateException("Invalid NameID Format: " + format);
+        }
     }
 }

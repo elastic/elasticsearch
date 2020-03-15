@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
@@ -27,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+
 import static org.elasticsearch.xpack.ql.util.DateUtils.*;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;

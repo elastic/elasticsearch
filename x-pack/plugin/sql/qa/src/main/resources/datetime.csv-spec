@@ -682,6 +682,7 @@ null    | 1999-04-30 00:00:00.000Z
 F       | 1997-05-19 00:00:00.000Z
 ;
 
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/53565
 dateTruncHavingWithInterval-Ignore
 schema::gender:s|dt:ts
 SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING max(hire_date) - DATE_TRUNC('hour', INTERVAL 1 YEARS) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;

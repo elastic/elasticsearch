@@ -31,6 +31,8 @@ import java.io.IOException;
 
 public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest {
 
+    public static final TimeValue DEFAULT_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
     /**
      * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
      * will be populated. Note that if {@link #concreteNodes} is not null, it will be used and nodeIds
@@ -48,7 +50,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * */
     private DiscoveryNode[] concreteNodes;
 
-    private TimeValue timeout;
+    private TimeValue timeout = DEFAULT_NODE_TIMEOUT;
 
     protected BaseNodesRequest(StreamInput in) throws IOException {
         super(in);

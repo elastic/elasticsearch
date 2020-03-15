@@ -102,6 +102,7 @@ public class RestNodesAction extends AbstractCatAction {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
                 nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
                 nodesInfoRequest.timeout(timeout);
+
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {

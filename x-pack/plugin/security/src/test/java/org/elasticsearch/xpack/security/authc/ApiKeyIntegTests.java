@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -758,7 +760,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
-    public void testDerivedKeys() {
+    public void testDerivedKeys() throws ExecutionException, InterruptedException {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
@@ -812,6 +814,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals("key-100", key100Response.getName());
         assertNotNull(key100Response.getId());
         assertNotNull(key100Response.getKey());
+
+        // Check at the end to allow sometime for the operation to happen. Since an erroneous creation is
+        // asynchronous so that the document is not available immediately.
+        assertApiKeyNotCreated(client, "key-2");
+        assertApiKeyNotCreated(client, "key-3");
+        assertApiKeyNotCreated(client, "key-4");
+        assertApiKeyNotCreated(client, "key-5");
+    }
+
+    private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {
+        new RefreshRequestBuilder(client, RefreshAction.INSTANCE).setIndices(SECURITY_MAIN_ALIAS).execute().get();
+        assertEquals(0, client.execute(GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingApiKeyName(keyName, false)).get().getApiKeyInfos().length);
     }
 
     private void verifyGetResponse(int expectedNumberOfApiKeys, List<CreateApiKeyResponse> responses,

@@ -41,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportPutComponentTemplateAction extends TransportMasterNodeAction<PutComponentTemplateRequest, AcknowledgedResponse> {
+public class TransportPutComponentTemplateAction extends TransportMasterNodeAction<PutComponentTemplateAction.Request, AcknowledgedResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
@@ -50,7 +50,7 @@ public class TransportPutComponentTemplateAction extends TransportMasterNodeActi
                                                ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutComponentTemplateRequest::new, indexNameExpressionResolver);
+            PutComponentTemplateAction.Request::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -66,12 +66,12 @@ public class TransportPutComponentTemplateAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutComponentTemplateRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutComponentTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(Task task, final PutComponentTemplateRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final PutComponentTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         ComponentTemplate componentTemplate = request.componentTemplate();
         Template template = componentTemplate.template();

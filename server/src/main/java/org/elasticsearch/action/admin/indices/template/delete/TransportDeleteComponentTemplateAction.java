@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 public class TransportDeleteComponentTemplateAction
-    extends TransportMasterNodeAction<DeleteComponentTemplateRequest, AcknowledgedResponse> {
+    extends TransportMasterNodeAction<DeleteComponentTemplateAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteComponentTemplateAction.class);
 
@@ -51,7 +51,7 @@ public class TransportDeleteComponentTemplateAction
                                                   ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteComponentTemplateRequest::new, indexNameExpressionResolver);
+            DeleteComponentTemplateAction.Request::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -67,12 +67,12 @@ public class TransportDeleteComponentTemplateAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteComponentTemplateRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteComponentTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteComponentTemplateRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final DeleteComponentTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         indexTemplateService.removeComponentTemplate(request.name(), request.masterNodeTimeout(), listener);
     }

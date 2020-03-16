@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -50,7 +49,7 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
-        PutComponentTemplateRequest putRequest = new PutComponentTemplateRequest(request.param("name"));
+        PutComponentTemplateAction.Request putRequest = new PutComponentTemplateAction.Request(request.param("name"));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));

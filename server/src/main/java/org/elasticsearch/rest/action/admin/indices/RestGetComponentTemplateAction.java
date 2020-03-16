@@ -20,8 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +56,7 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
-        final GetComponentTemplateRequest getRequest = new GetComponentTemplateRequest(names);
+        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(names);
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
@@ -68,7 +66,7 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return channel ->
             client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
                     @Override
-                    protected RestStatus getStatus(final GetComponentTemplateResponse response) {
+                    protected RestStatus getStatus(final GetComponentTemplateAction.Response response) {
                         final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
                         return (templateExists || implicitAll) ? OK : NOT_FOUND;
                     }

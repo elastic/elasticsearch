@@ -29,26 +29,26 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class GetComponentTemplateResponseTests extends AbstractWireSerializingTestCase<GetComponentTemplateResponse> {
+public class GetComponentTemplateResponseTests extends AbstractWireSerializingTestCase<GetComponentTemplateAction.Response> {
     @Override
-    protected Writeable.Reader<GetComponentTemplateResponse> instanceReader() {
-        return GetComponentTemplateResponse::new;
+    protected Writeable.Reader<GetComponentTemplateAction.Response> instanceReader() {
+        return GetComponentTemplateAction.Response::new;
     }
 
     @Override
-    protected GetComponentTemplateResponse createTestInstance() {
+    protected GetComponentTemplateAction.Response createTestInstance() {
         if (randomBoolean()) {
-            return new GetComponentTemplateResponse(Collections.emptyMap());
+            return new GetComponentTemplateAction.Response(Collections.emptyMap());
         }
         Map<String, ComponentTemplate> templates = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             templates.put(randomAlphaOfLength(4), ComponentTemplateTests.randomInstance());
         }
-        return new GetComponentTemplateResponse(templates);
+        return new GetComponentTemplateAction.Response(templates);
     }
 
     @Override
-    protected GetComponentTemplateResponse mutateInstance(GetComponentTemplateResponse instance) throws IOException {
+    protected GetComponentTemplateAction.Response mutateInstance(GetComponentTemplateAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

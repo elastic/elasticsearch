@@ -40,14 +40,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class TransportGetComponentTemplateAction extends
-    TransportMasterNodeReadAction<GetComponentTemplateRequest, GetComponentTemplateResponse> {
+    TransportMasterNodeReadAction<GetComponentTemplateAction.Request, GetComponentTemplateAction.Response> {
 
     @Inject
     public TransportGetComponentTemplateAction(TransportService transportService, ClusterService clusterService,
                                                ThreadPool threadPool, ActionFilters actionFilters,
                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetComponentTemplateRequest::new, indexNameExpressionResolver);
+            GetComponentTemplateAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -56,23 +56,23 @@ public class TransportGetComponentTemplateAction extends
     }
 
     @Override
-    protected GetComponentTemplateResponse read(StreamInput in) throws IOException {
-        return new GetComponentTemplateResponse(in);
+    protected GetComponentTemplateAction.Response read(StreamInput in) throws IOException {
+        return new GetComponentTemplateAction.Response(in);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetComponentTemplateRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetComponentTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected void masterOperation(Task task, GetComponentTemplateRequest request, ClusterState state,
-                                   ActionListener<GetComponentTemplateResponse> listener) {
+    protected void masterOperation(Task task, GetComponentTemplateAction.Request request, ClusterState state,
+                                   ActionListener<GetComponentTemplateAction.Response> listener) {
         Map<String, ComponentTemplate> allTemplates = state.metaData().componentTemplates();
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            listener.onResponse(new GetComponentTemplateResponse(allTemplates));
+            listener.onResponse(new GetComponentTemplateAction.Response(allTemplates));
             return;
         }
 
@@ -89,6 +89,6 @@ public class TransportGetComponentTemplateAction extends
             }
         }
 
-        listener.onResponse(new GetComponentTemplateResponse(results));
+        listener.onResponse(new GetComponentTemplateAction.Response(results));
     }
 }

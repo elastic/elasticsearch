@@ -142,8 +142,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     modelActionListener.onResponse(new LocalModel(
                         trainedModelConfig.getModelId(),
                         trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition(),
-                        trainedModelConfig.getInput(),
-                        trainedModelConfig.getDefaultFieldMap())),
+                        trainedModelConfig.getInput())),
                 modelActionListener::onFailure
             ));
         } else {
@@ -201,8 +200,7 @@ public class ModelLoadingService implements ClusterStateListener {
         LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
             trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition(),
-            trainedModelConfig.getInput(),
-            trainedModelConfig.getDefaultFieldMap());
+            trainedModelConfig.getInput());
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such

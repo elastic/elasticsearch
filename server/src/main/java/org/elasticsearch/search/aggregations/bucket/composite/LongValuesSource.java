@@ -269,8 +269,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             }
             return new PointsSortedDocsProducer(fieldType.name(), toBucketFunction, lowerPoint, upperPoint);
         } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
-            ToLongFunction<byte[]> decode = ((DateFieldMapper.DateFieldType) fieldType).resolution()::parsePointAsMillis;
-            ToLongFunction<byte[]> toBucketFunction = value -> rounding.applyAsLong(decode.applyAsLong(value));
+            final ToLongFunction<byte[]> toBucketFunction = (value) -> rounding.applyAsLong(LongPoint.decodeDimension(value, 0));
             return new PointsSortedDocsProducer(fieldType.name(), toBucketFunction, lowerPoint, upperPoint);
         } else {
             return null;

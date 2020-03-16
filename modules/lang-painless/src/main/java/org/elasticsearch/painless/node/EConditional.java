@@ -47,48 +47,38 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        Input conditionInput = new Input();
-        conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        condition.expected = boolean.class;
+        condition.analyze(scriptRoot, scope);
         condition.cast();
 
-        Input leftInput = new Input();
-        leftInput.expected = input.expected;
-        leftInput.explicit = input.explicit;
-        leftInput.internal = input.internal;
+        left.expected = expected;
+        left.explicit = explicit;
+        left.internal = internal;
+        right.expected = expected;
+        right.explicit = explicit;
+        right.internal = internal;
+        actual = expected;
 
-        Input rightInput = new Input();
-        rightInput.expected = input.expected;
-        rightInput.explicit = input.explicit;
-        rightInput.internal = input.internal;
+        left.analyze(scriptRoot, scope);
+        right.analyze(scriptRoot, scope);
 
-        output.actual = input.expected;
-
-        Output leftOutput = left.analyze(scriptRoot, scope, leftInput);
-        Output rightOutput = right.analyze(scriptRoot, scope, rightInput);
-
-        if (input.expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
+        if (expected == null) {
+            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual);
 
             if (promote == null) {
-                throw createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
+                throw createError(new ClassCastException("cannot apply a conditional operator [?:] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]"));
             }
 
-            left.input.expected = promote;
-            right.input.expected = promote;
-            output.actual = promote;
+            left.expected = promote;
+            right.expected = promote;
+            actual = promote;
         }
 
         left.cast();
         right.cast();
-
-        return output;
     }
 
     @Override
@@ -100,7 +90,7 @@ public final class EConditional extends AExpression {
         conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
 
         conditionalNode.setLocation(location);
-        conditionalNode.setExpressionType(output.actual);
+        conditionalNode.setExpressionType(actual);
 
         return conditionalNode;
     }

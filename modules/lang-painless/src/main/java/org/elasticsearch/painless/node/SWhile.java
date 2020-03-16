@@ -45,15 +45,11 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         scope = scope.newLocalScope();
 
-        AExpression.Input conditionInput = new AExpression.Input();
-        conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.expected = boolean.class;
+        condition.analyze(scriptRoot, scope);
         condition.cast();
 
         if (condition instanceof EBoolean) {
@@ -69,27 +65,24 @@ public final class SWhile extends AStatement {
         }
 
         if (block != null) {
-            Input blockInput = new Input();
-            blockInput.beginLoop = true;
-            blockInput.inLoop = true;
+            block.beginLoop = true;
+            block.inLoop = true;
 
-            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+            block.analyze(scriptRoot, scope);
 
-            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
+            if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
-            if (continuous && blockOutput.anyBreak == false) {
-                output.methodEscape = true;
-                output.allEscape = true;
+            if (continuous && !block.anyBreak) {
+                methodEscape = true;
+                allEscape = true;
             }
 
-            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
+            block.statementCount = Math.max(1, block.statementCount);
         }
 
-        output.statementCount = 1;
-
-        return output;
+        statementCount = 1;
     }
 
     @Override

@@ -46,11 +46,8 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        declaration.analyze(scriptRoot, scope, new Input());
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        declaration.analyze(scriptRoot, scope);
 
         Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
         Class<?> type = scope.getVariable(location, declaration.name).getType();
@@ -62,21 +59,18 @@ public final class SCatch extends AStatement {
         }
 
         if (block != null) {
-            Input blockInput = new Input();
-            blockInput.lastSource = input.lastSource;
-            blockInput.inLoop = input.inLoop;
-            blockInput.lastLoop = input.lastLoop;
-            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+            block.lastSource = lastSource;
+            block.inLoop = inLoop;
+            block.lastLoop = lastLoop;
+            block.analyze(scriptRoot, scope);
 
-            output.methodEscape = blockOutput.methodEscape;
-            output.loopEscape = blockOutput.loopEscape;
-            output.allEscape = blockOutput.allEscape;
-            output.anyContinue = blockOutput.anyContinue;
-            output.anyBreak = blockOutput.anyBreak;
-            output.statementCount = blockOutput.statementCount;
+            methodEscape = block.methodEscape;
+            loopEscape = block.loopEscape;
+            allEscape = block.allEscape;
+            anyContinue = block.anyContinue;
+            anyBreak = block.anyBreak;
+            statementCount = block.statementCount;
         }
-
-        return output;
     }
 
     @Override

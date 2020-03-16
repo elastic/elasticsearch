@@ -34,11 +34,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
@@ -139,11 +137,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelInputTests.createRandomInput(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            "platinum",
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
-                    .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))));
+            "platinum");
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
@@ -178,11 +172,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelInputTests.createRandomInput(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            "platinum",
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
-                    .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))));
+            "platinum");
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();

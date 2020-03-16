@@ -45,28 +45,23 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         scope = scope.newLocalScope();
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        Input blockInput = new Input();
-        blockInput.beginLoop = true;
-        blockInput.inLoop = true;
-        Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+        block.beginLoop = true;
+        block.inLoop = true;
+        block.analyze(scriptRoot, scope);
 
-        if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
+        if (block.loopEscape && !block.anyContinue) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        AExpression.Input conditionInput = new AExpression.Input();
-        conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.expected = boolean.class;
+        condition.analyze(scriptRoot, scope);
         condition.cast();
 
         if (condition instanceof EBoolean) {
@@ -76,15 +71,13 @@ public final class SDo extends AStatement {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));
             }
 
-            if (blockOutput.anyBreak == false) {
-                output.methodEscape = true;
-                output.allEscape = true;
+            if (!block.anyBreak) {
+                methodEscape = true;
+                allEscape = true;
             }
         }
 
-        output.statementCount = 1;
-
-        return output;
+        statementCount = 1;
     }
 
     @Override

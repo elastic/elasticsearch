@@ -56,8 +56,9 @@ public class Ensemble implements TrainedModel {
                     p.namedObject(TrainedModel.class, n, null),
             (ensembleBuilder) -> { /* Noop does not matter client side */ },
             TRAINED_MODELS);
-        PARSER.declareNamedObject(Ensemble.Builder::setOutputAggregator,
+        PARSER.declareNamedObjects(Ensemble.Builder::setOutputAggregatorFromParser,
             (p, c, n) -> p.namedObject(OutputAggregator.class, n, null),
+            (ensembleBuilder) -> { /* Noop does not matter client side */ },
             AGGREGATE_OUTPUT);
         PARSER.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
         PARSER.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
@@ -193,6 +194,9 @@ public class Ensemble implements TrainedModel {
             return this;
         }
 
+        private void setOutputAggregatorFromParser(List<OutputAggregator> outputAggregators) {
+            this.setOutputAggregator(outputAggregators.get(0));
+        }
 
         private void setTargetType(String targetType) {
             this.targetType = TargetType.fromString(targetType);

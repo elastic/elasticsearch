@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -63,7 +62,7 @@ class JdbcHttpClient {
                 null,
                 Boolean.FALSE,
                 null,
-                new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
+                new RequestInfo(Mode.JDBC),
                 conCfg.fieldMultiValueLeniency(),
                 conCfg.indexIncludeFrozen(),
                 conCfg.binaryCommunication());
@@ -95,15 +94,16 @@ class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
-        SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version);
+        Version version = Version.fromString(mainResponse.getVersion());
+        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
     }
-
+    
     private void checkServerVersion() throws SQLException {
-        if (ClientVersion.isServerCompatible(serverInfo.version) == false) {
+        if (serverInfo.majorVersion != Version.CURRENT.major
+                || serverInfo.minorVersion != Version.CURRENT.minor
+                || serverInfo.revisionVersion != Version.CURRENT.revision) {
             throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
-                serverInfo.version.toString());
+                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
         }
     }
 

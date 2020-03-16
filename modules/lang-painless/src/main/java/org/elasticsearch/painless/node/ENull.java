@@ -36,26 +36,21 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.read == false) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (!read) {
             throw createError(new IllegalArgumentException("Must read from null constant."));
         }
 
-        if (input.expected != null) {
-            if (input.expected.isPrimitive()) {
+        if (expected != null) {
+            if (expected.isPrimitive()) {
                 throw createError(new IllegalArgumentException(
-                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]."));
+                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
             }
 
-            output.actual = input.expected;
+            actual = expected;
         } else {
-            output.actual = Object.class;
+            actual = Object.class;
         }
-
-        return output;
     }
 
     @Override
@@ -63,7 +58,7 @@ public final class ENull extends AExpression {
         NullNode nullNode = new NullNode();
 
         nullNode.setLocation(location);
-        nullNode.setExpressionType(output.actual);
+        nullNode.setExpressionType(actual);
 
         return nullNode;
     }

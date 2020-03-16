@@ -105,9 +105,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 + "   SELECT text, number, SQRT(number) AS s, SCORE()"
                 + "     FROM test"
                 + " ORDER BY number, SCORE()\", "
-                + "\"mode\":\"" + mode + "\""
-                + version(mode)
-                + ", \"fetch_size\":2" + columnarParameter(columnar) + "}";
+                + "\"mode\":\"" + mode + "\", "
+            + "\"fetch_size\":2" + columnarParameter(columnar) + "}";
 
         Number value = xContentDependentFloatingNumberValue(mode, 1f);
         String cursor = null;
@@ -117,8 +116,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
             } else {
                 columnar = randomBoolean();
-                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + version(mode) +
-                        columnarParameter(columnar) + "}",
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + columnarParameter(columnar) + "}",
                         ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode);
             }
 
@@ -153,8 +151,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         } else {
             expected.put("rows", emptyList());
         }
-        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + version(mode) +
-                columnarParameter(columnar) + "}",
+        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + columnarParameter(columnar) + "}",
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 
@@ -190,9 +187,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         String sqlRequest =
                 "{\"query\":\"SELECT DATE_PART('TZOFFSET', date) AS tz FROM test_date_timezone ORDER BY date\","
                         + "\"time_zone\":\"" + zoneId.getId() + "\", "
-                        + "\"mode\":\"" + mode + "\""
-                        + version(mode)
-                        + ",\"fetch_size\":2}";
+                        + "\"mode\":\"" + mode + "\", "
+                        + "\"fetch_size\":2}";
 
         String cursor = null;
         for (int i = 0; i <= datetimes.length; i += 2) {
@@ -203,7 +199,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 expected.put("columns", singletonList(columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
             } else {
-                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + version(mode) + "}",
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
                         ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode);
             }
 
@@ -219,7 +215,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + version(mode) + "}",
+        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 
@@ -427,10 +423,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     
     public void testUseColumnarForTranslateRequest() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
-
-        String mode = randomMode();
+        
         Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
-        request.setEntity(new StringEntity("{\"columnar\":true,\"query\":\"SELECT * FROM test\"" + mode(mode) + version(mode) + "}",
+        request.setEntity(new StringEntity("{\"columnar\":true,\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
                 ContentType.APPLICATION_JSON));
         expectBadRequest(() -> {
                 client().performRequest(request);
@@ -469,7 +464,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     private Map<String, Object> runSql(String mode, String sql, String suffix, boolean columnar) throws IOException {
         // put an explicit "columnar": false parameter or omit it altogether, it should make no difference
-        return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + version(mode) + columnarParameter(columnar) + "}",
+        return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + columnarParameter(columnar) + "}",
                 ContentType.APPLICATION_JSON), suffix, mode);
     }
     
@@ -572,10 +567,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode("plain") + version("plain") +
-                columnarParameter(columnar) + "}",
-                ContentType.APPLICATION_JSON));
-
+        request.setEntity(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode("plain") + columnarParameter(columnar) + "}",
+                  ContentType.APPLICATION_JSON));
+        
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
@@ -604,7 +598,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         expected.put("rows", singletonList(singletonList("foo")));
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", " +
-                "\"filter\":{\"match\": {\"test\": \"foo\"}}" + mode(mode) + version(mode) + "}",
+                "\"filter\":{\"match\": {\"test\": \"foo\"}}" + mode(mode) + "}",
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 
@@ -629,7 +623,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "10, \"foo\"";
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
                 "\"params\":[" + params + "]"
-                + mode(mode) + version(mode) + columnarParameter(columnar) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
+                + mode(mode) + columnarParameter(columnar) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode));
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {

@@ -1126,7 +1126,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         case ".logstash-management":
         case "security_audit_log":
         case ".slm-history":
-        case ".async-search":
             return true;
         default:
             return false;

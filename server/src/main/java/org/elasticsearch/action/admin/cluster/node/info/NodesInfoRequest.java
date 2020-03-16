@@ -286,7 +286,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),
-        THREAD_POOL("thread_pool"),
+        THREAD_POOL("threadPool"),
         TRANSPORT("transport"),
         HTTP("http"),
         PLUGINS("plugins"),

@@ -25,7 +25,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
@@ -43,8 +42,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
-
-    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -103,7 +100,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
         Classification evaluation = new Classification("act", "pred", Arrays.asList(new MulticlassConfusionMatrix()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
@@ -199,9 +196,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                      String actualField,
-                                                                                      String predictedField) {
+        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
             return Tuple.tuple(List.of(), List.of());
         }
 

@@ -234,10 +234,6 @@ public class DataFrameDataExtractor {
         return context.extractedFields.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toList());
     }
 
-    public List<ExtractedField> getAllExtractedFields() {
-        return context.extractedFields.getAllFields();
-    }
-
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);

@@ -139,7 +139,6 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
-import org.elasticsearch.client.ml.dataframe.Classification;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
@@ -2970,18 +2969,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-outlier-detection-customized
 
             // tag::put-data-frame-analytics-classification
-            DataFrameAnalysis classification = Classification.builder("my_dependent_variable") // <1>
+            DataFrameAnalysis classification = org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable") // <1>
                 .setLambda(1.0) // <2>
                 .setGamma(5.5) // <3>
                 .setEta(5.5) // <4>
-                .setMaxTrees(50) // <5>
+                .setMaximumNumberTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
                 .setNumTopFeatureImportanceValues(3) // <7>
                 .setPredictionFieldName("my_prediction_field_name") // <8>
                 .setTrainingPercent(50.0) // <9>
                 .setRandomizeSeed(1234L) // <10>
-                .setClassAssignmentObjective(Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY) // <11>
-                .setNumTopClasses(1) // <12>
+                .setNumTopClasses(1) // <11>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -2990,7 +2988,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setLambda(1.0) // <2>
                 .setGamma(5.5) // <3>
                 .setEta(5.5) // <4>
-                .setMaxTrees(50) // <5>
+                .setMaximumNumberTrees(50) // <5>
                 .setFeatureBagFraction(0.4) // <6>
                 .setNumTopFeatureImportanceValues(3) // <7>
                 .setPredictionFieldName("my_prediction_field_name") // <8>

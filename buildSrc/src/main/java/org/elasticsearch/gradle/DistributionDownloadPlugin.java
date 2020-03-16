@@ -174,21 +174,24 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private static void addIvyRepo(Project project, String name, String url, String group) {
-        IvyArtifactRepository ivyRepo = project.getRepositories().ivy(repo -> {
-            repo.setName(name);
-            repo.setUrl(url);
-            repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+        project.getRepositories().ivy(ivyRepo -> {
+            ivyRepo.setName(name);
+            ivyRepo.setUrl(url);
+            ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            repo.credentials(HttpHeaderCredentials.class, creds -> {
+            ivyRepo.credentials(HttpHeaderCredentials.class, creds -> {
                 creds.setName("X-Elastic-No-KPI");
                 creds.setValue("1");
             });
-            repo.getAuthentication().create("header", HttpHeaderAuthentication.class);
-            repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
+            ivyRepo.getAuthentication().create("header", HttpHeaderAuthentication.class);
+            ivyRepo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
+            ivyRepo.content(content -> content.includeGroup(group));
         });
-        project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
-            exclusiveContentRepository.filter(config -> config.includeGroup(group));
-            exclusiveContentRepository.forRepositories(ivyRepo);
+        project.getRepositories().all(repo -> {
+            if (repo.getName().equals(name) == false) {
+                // all other repos should ignore the special group name
+                repo.content(content -> content.excludeGroup(group));
+            }
         });
     }
 

@@ -42,30 +42,14 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
-        AStoreable.Input storeableInput = new AStoreable.Input();
-        storeableInput.read = input.read;
-        storeableInput.expected = input.expected;
-        storeableInput.explicit = input.explicit;
-        storeableInput.internal = input.internal;
-
-        return analyze(scriptRoot, scope, storeableInput);
-    }
-
-    @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         Variable variable = scope.getVariable(location, name);
 
-        if (input.write && variable.isFinal()) {
+        if (write && variable.isFinal()) {
             throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
         }
 
-        output.actual = variable.getType();
-
-        return output;
+        actual = variable.getType();
     }
 
     @Override
@@ -73,7 +57,7 @@ public final class EVariable extends AStoreable {
         VariableNode variableNode = new VariableNode();
 
         variableNode.setLocation(location);
-        variableNode.setExpressionType(output.actual);
+        variableNode.setExpressionType(actual);
         variableNode.setName(name);
 
         return variableNode;

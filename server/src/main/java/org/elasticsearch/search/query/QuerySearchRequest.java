@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -37,21 +36,24 @@ import java.util.Map;
 
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
-    private final SearchContextId contextId;
+    private long id;
 
-    private final AggregatedDfs dfs;
+    private AggregatedDfs dfs;
 
-    private final OriginalIndices originalIndices;
+    private OriginalIndices originalIndices;
 
-    public QuerySearchRequest(OriginalIndices originalIndices, SearchContextId contextId, AggregatedDfs dfs) {
-        this.contextId = contextId;
+    public QuerySearchRequest() {
+    }
+
+    public QuerySearchRequest(OriginalIndices originalIndices, long id, AggregatedDfs dfs) {
+        this.id = id;
         this.dfs = dfs;
         this.originalIndices = originalIndices;
     }
 
     public QuerySearchRequest(StreamInput in) throws IOException {
         super(in);
-        contextId = new SearchContextId(in);
+        id = in.readLong();
         dfs = new AggregatedDfs(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -59,13 +61,13 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        contextId.writeTo(out);
+        out.writeLong(id);
         dfs.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
-    public SearchContextId contextId() {
-        return contextId;
+    public long id() {
+        return id;
     }
 
     public AggregatedDfs dfs() {
@@ -90,7 +92,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public String getDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("id[");
-        sb.append(contextId);
+        sb.append(id);
         sb.append("], ");
         sb.append("indices[");
         Strings.arrayToDelimitedString(originalIndices.indices(), ",", sb);

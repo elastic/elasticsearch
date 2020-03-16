@@ -48,13 +48,9 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        AExpression.Input conditionInput = new AExpression.Input();
-        conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        condition.expected = boolean.class;
+        condition.analyze(scriptRoot, scope);
         condition.cast();
 
         if (condition instanceof EBoolean) {
@@ -65,36 +61,32 @@ public final class SIfElse extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        Input ifblockInput = new Input();
-        ifblockInput.lastSource = input.lastSource;
-        ifblockInput.inLoop = input.inLoop;
-        ifblockInput.lastLoop = input.lastLoop;
+        ifblock.lastSource = lastSource;
+        ifblock.inLoop = inLoop;
+        ifblock.lastLoop = lastLoop;
 
-        Output ifblockOutput = ifblock.analyze(scriptRoot, scope.newLocalScope(), ifblockInput);
+        ifblock.analyze(scriptRoot, scope.newLocalScope());
 
-        output.anyContinue = ifblockOutput.anyContinue;
-        output.anyBreak = ifblockOutput.anyBreak;
-        output.statementCount = ifblockOutput.statementCount;
+        anyContinue = ifblock.anyContinue;
+        anyBreak = ifblock.anyBreak;
+        statementCount = ifblock.statementCount;
 
         if (elseblock == null) {
             throw createError(new IllegalArgumentException("Extraneous else statement."));
         }
 
-        Input elseblockInput = new Input();
-        elseblockInput.lastSource = input.lastSource;
-        elseblockInput.inLoop = input.inLoop;
-        elseblockInput.lastLoop = input.lastLoop;
+        elseblock.lastSource = lastSource;
+        elseblock.inLoop = inLoop;
+        elseblock.lastLoop = lastLoop;
 
-        Output elseblockOutput = elseblock.analyze(scriptRoot, scope.newLocalScope(), elseblockInput);
+        elseblock.analyze(scriptRoot, scope.newLocalScope());
 
-        output.methodEscape = ifblockOutput.methodEscape && elseblockOutput.methodEscape;
-        output.loopEscape = ifblockOutput.loopEscape && elseblockOutput.loopEscape;
-        output.allEscape = ifblockOutput.allEscape && elseblockOutput.allEscape;
-        output.anyContinue |= elseblockOutput.anyContinue;
-        output.anyBreak |= elseblockOutput.anyBreak;
-        output.statementCount = Math.max(ifblockOutput.statementCount, elseblockOutput.statementCount);
-
-        return output;
+        methodEscape = ifblock.methodEscape && elseblock.methodEscape;
+        loopEscape = ifblock.loopEscape && elseblock.loopEscape;
+        allEscape = ifblock.allEscape && elseblock.allEscape;
+        anyContinue |= elseblock.anyContinue;
+        anyBreak |= elseblock.anyBreak;
+        statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
     }
 
     @Override

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.client.Version;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -23,7 +23,7 @@ public class EsDriver implements Driver {
 
     static {
         // invoke Version to perform classpath/jar sanity checks
-        ClientVersion.CURRENT.toString();
+        Version.CURRENT.toString();
 
         try {
             register();
@@ -96,12 +96,12 @@ public class EsDriver implements Driver {
 
     @Override
     public int getMajorVersion() {
-        return ClientVersion.CURRENT.major;
+        return Version.CURRENT.major;
     }
 
     @Override
     public int getMinorVersion() {
-        return ClientVersion.CURRENT.minor;
+        return Version.CURRENT.minor;
     }
 
     @Override

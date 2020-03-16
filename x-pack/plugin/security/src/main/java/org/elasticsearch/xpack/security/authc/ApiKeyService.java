@@ -574,7 +574,7 @@ public class ApiKeyService {
         return enabled && licenseState.isApiKeyServiceAllowed();
     }
 
-    public void ensureEnabled() {
+    private void ensureEnabled() {
         if (licenseState.isApiKeyServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }

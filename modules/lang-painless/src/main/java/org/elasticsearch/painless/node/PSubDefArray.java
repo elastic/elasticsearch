@@ -42,18 +42,13 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
-
-        Output indexOutput = index.analyze(scriptRoot, scope, new Input());
-        index.input.expected = indexOutput.actual;
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        index.analyze(scriptRoot, scope);
+        index.expected = index.actual;
         index.cast();
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
-
-        return output;
+        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
@@ -63,7 +58,7 @@ final class PSubDefArray extends AStoreable {
         braceSubDefNode.setChildNode(index.cast(index.write(classNode)));
 
         braceSubDefNode.setLocation(location);
-        braceSubDefNode.setExpressionType(output.actual);
+        braceSubDefNode.setExpressionType(actual);
 
         return braceSubDefNode;
     }
@@ -75,7 +70,7 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     void updateActual(Class<?> actual) {
-        this.output.actual = actual;
+        this.actual = actual;
     }
 
     @Override

@@ -48,22 +48,16 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.expected == null) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (expected == null) {
             ref = null;
-            output.actual = String.class;
+            actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(
-                    scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, input.expected, type, call, 0);
-            output.actual = input.expected;
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, expected, type, call, 0);
+            actual = expected;
         }
-
-        return output;
     }
 
     @Override
@@ -71,7 +65,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
         FuncRefNode funcRefNode = new FuncRefNode();
 
         funcRefNode.setLocation(location);
-        funcRefNode.setExpressionType(output.actual);
+        funcRefNode.setExpressionType(actual);
         funcRefNode.setFuncRef(ref);
 
         return funcRefNode;

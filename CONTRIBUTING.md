@@ -171,13 +171,13 @@ IntelliJ or Eclipse like describe above to use
 Elasticsearch typically uses singular nouns rather than plurals in URLs.
 For example:
 
-    /_ingest/pipeline
-    /_ingest/pipeline/{id}
+    /_ingest/pipline
+    /_ingest/pipline/{id}
 
 but not:
 
-    /_ingest/pipelines
-    /_ingest/pipelines/{id}
+    /_ingest/piplines
+    /_ingest/piplines/{id}
 
 You may find counterexamples, but new endpoints should use the singular
 form.

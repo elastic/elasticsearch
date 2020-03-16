@@ -43,23 +43,17 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
-        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
-
-        if (output.actual == null) {
+        if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 
-        Input childInput = new Input();
-        childInput.expected = output.actual;
-        childInput.explicit = true;
-        child.analyze(scriptRoot, scope, childInput);
+        child.expected = actual;
+        child.explicit = true;
+        child.analyze(scriptRoot, scope);
         child.cast();
-
-        return output;
     }
 
     @Override

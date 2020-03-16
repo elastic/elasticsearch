@@ -43,13 +43,9 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        AExpression.Input conditionInput = new AExpression.Input();
-        conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        condition.expected = boolean.class;
+        condition.analyze(scriptRoot, scope);
         condition.cast();
 
         if (condition instanceof EBoolean) {
@@ -60,18 +56,15 @@ public final class SIf extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        Input ifblockInput = new Input();
-        ifblockInput.lastSource = input.lastSource;
-        ifblockInput.inLoop = input.inLoop;
-        ifblockInput.lastLoop = input.lastLoop;
+        ifblock.lastSource = lastSource;
+        ifblock.inLoop = inLoop;
+        ifblock.lastLoop = lastLoop;
 
-        Output ifblockOutput = ifblock.analyze(scriptRoot, scope.newLocalScope(), ifblockInput);
+        ifblock.analyze(scriptRoot, scope.newLocalScope());
 
-        output.anyContinue = ifblockOutput.anyContinue;
-        output.anyBreak = ifblockOutput.anyBreak;
-        output.statementCount = ifblockOutput.statementCount;
-
-        return output;
+        anyContinue = ifblock.anyContinue;
+        anyBreak = ifblock.anyBreak;
+        statementCount = ifblock.statementCount;
     }
 
     @Override

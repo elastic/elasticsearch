@@ -310,7 +310,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
         FieldCapabilities build(boolean withIndices) {
             final String[] indices;
-            Collections.sort(indiceList, Comparator.comparing(o -> o.name));
+            /* Eclipse can't deal with o -> o.name, maybe because of
+             * https://bugs.eclipse.org/bugs/show_bug.cgi?id=511750 */
+            Collections.sort(indiceList, Comparator.comparing((IndexCaps o) -> o.name));
             if (withIndices) {
                 indices = indiceList.stream()
                     .map(caps -> caps.name)

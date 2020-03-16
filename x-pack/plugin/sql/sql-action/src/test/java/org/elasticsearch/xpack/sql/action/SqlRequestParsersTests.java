@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -49,10 +48,9 @@ public class SqlRequestParsersTests extends ESTestCase {
         Mode randomMode = randomFrom(Mode.values());
         
         SqlClearCursorRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \""
-                + randomMode.toString() + "\", \"client_id\" : \"bla\", \"version\": \"1.2.3\"}",
+                + randomMode.toString() + "\", \"client_id\" : \"bla\"}",
                 SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
-        assertNull(request.version());
         assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.getCursor());
         
@@ -68,11 +66,10 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertNull(request.clientId());
         assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
-
-        request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\", \"version\": \"1.2.3\"}",
+        
+        request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\"}",
                 SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
-        assertNull(request.version());
         assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
         
@@ -104,8 +101,6 @@ public class SqlRequestParsersTests extends ESTestCase {
                 SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"client_id\":123}", "client_id doesn't support values of type: VALUE_NUMBER",
                 SqlQueryRequest::fromXContent);
-        assertParsingErrorMessage("{\"version\":123}", "version doesn't support values of type: VALUE_NUMBER",
-            SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"params\":[{\"value\":123}]}", "failed to parse field [params]", SqlQueryRequest::fromXContent);
         assertParsingErrorMessage("{\"time_zone\":12}", "time_zone doesn't support values of type: VALUE_NUMBER",
                 SqlQueryRequest::fromXContent);
@@ -113,10 +108,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         Mode randomMode = randomFrom(Mode.values());
         String params;
         List<SqlTypedParamValue> list = new ArrayList<>(1);
-
-        final String clientVersion = Mode.isDedicatedClient(randomMode)
-            ? "\"version\": \"" + Version.CURRENT.toString() + "\","
-            : "";
+        
         if (Mode.isDriver(randomMode)) {
             params = "{\"value\":123, \"type\":\"whatever\"}";
             list.add(new SqlTypedParamValue("whatever", 123, true));
@@ -127,16 +119,12 @@ public class SqlRequestParsersTests extends ESTestCase {
         
         SqlQueryRequest request = generateRequest("{\"cursor\" : \"whatever\", \"mode\" : \""
                 + randomMode.toString() + "\", \"client_id\" : \"bla\","
-                + clientVersion
                 + "\"query\":\"select\","
                 + "\"params\":[" + params + "],"
                 + " \"time_zone\":\"UTC\","
                 + "\"request_timeout\":\"5s\",\"page_timeout\":\"10s\"}", SqlQueryRequest::fromXContent);
         assertNull(request.clientId());
         assertEquals(randomMode, request.mode());
-        if (Mode.isDedicatedClient(randomMode)) {
-            assertEquals(Version.CURRENT.toString(), request.version().toString());
-        }
         assertEquals("whatever", request.cursor());
         assertEquals("select", request.query());
 

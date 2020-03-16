@@ -51,27 +51,23 @@ final class PSubDefCall extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         parameterTypes.add(Object.class);
         int totalCaptures = 0;
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            Input expressionInput = new Input();
-            expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(scriptRoot, scope, expressionInput);
+            expression.internal = true;
+            expression.analyze(scriptRoot, scope);
 
-            if (expressionOutput.actual == void.class) {
+            if (expression.actual == void.class) {
                 throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
             }
 
-            expression.input.expected = expressionOutput.actual;
+            expression.expected = expression.actual;
             expression.cast();
-            parameterTypes.add(expressionOutput.actual);
+            parameterTypes.add(expression.actual);
 
             if (expression instanceof ILambda) {
                 ILambda lambda = (ILambda) expression;
@@ -85,9 +81,7 @@ final class PSubDefCall extends AExpression {
         }
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
-
-        return output;
+        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
@@ -99,7 +93,7 @@ final class PSubDefCall extends AExpression {
         }
 
         callSubDefNode.setLocation(location);
-        callSubDefNode.setExpressionType(output.actual);
+        callSubDefNode.setExpressionType(actual);
         callSubDefNode.setName(name);
         callSubDefNode.setRecipe(recipe.toString());
         callSubDefNode.getPointers().addAll(pointers);

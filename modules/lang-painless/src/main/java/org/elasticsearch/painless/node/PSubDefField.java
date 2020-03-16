@@ -43,14 +43,9 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
-
-        return output;
+        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override
@@ -58,7 +53,7 @@ final class PSubDefField extends AStoreable {
         DotSubDefNode dotSubDefNode = new DotSubDefNode();
 
         dotSubDefNode.setLocation(location);
-        dotSubDefNode.setExpressionType(output.actual);
+        dotSubDefNode.setExpressionType(actual);
         dotSubDefNode.setValue(value);
 
         return dotSubDefNode;
@@ -71,7 +66,7 @@ final class PSubDefField extends AStoreable {
 
     @Override
     void updateActual(Class<?> actual) {
-        this.output.actual = actual;
+        this.actual = actual;
     }
 
     @Override

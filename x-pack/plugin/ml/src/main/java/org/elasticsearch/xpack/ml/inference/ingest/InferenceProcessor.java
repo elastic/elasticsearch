@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -35,7 +34,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
@@ -64,7 +63,6 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String INFERENCE_CONFIG = "inference_config";
     public static final String TARGET_FIELD = "target_field";
     public static final String FIELD_MAPPINGS = "field_mappings";
-    public static final String FIELD_MAP = "field_map";
     private static final String DEFAULT_TARGET_FIELD = "ml.inference";
 
     private final Client client;
@@ -72,7 +70,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     private final String targetField;
     private final InferenceConfig inferenceConfig;
-    private final Map<String, String> fieldMap;
+    private final Map<String, String> fieldMapping;
     private final InferenceAuditor auditor;
     private volatile boolean previouslyLicensed;
     private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
@@ -83,14 +81,14 @@ public class InferenceProcessor extends AbstractProcessor {
                               String targetField,
                               String modelId,
                               InferenceConfig inferenceConfig,
-                              Map<String, String> fieldMap) {
+                              Map<String, String> fieldMapping) {
         super(tag);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
-        this.fieldMap = ExceptionsHelper.requireNonNull(fieldMap, FIELD_MAP);
+        this.fieldMapping = ExceptionsHelper.requireNonNull(fieldMapping, FIELD_MAPPINGS);
     }
 
     public String getModelId() {
@@ -128,7 +126,14 @@ public class InferenceProcessor extends AbstractProcessor {
 
     InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
-        Model.mapFieldsIfNecessary(fields, fieldMap);
+        if (fieldMapping != null) {
+            fieldMapping.forEach((src, dest) -> {
+                Object srcValue = MapHelper.dig(src, fields);
+                if (srcValue != null) {
+                    fields.put(dest, srcValue);
+                }
+            });
+        }
         return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
@@ -237,14 +242,7 @@ public class InferenceProcessor extends AbstractProcessor {
             // If multiple inference processors are in the same pipeline, it is wise to tag them
             // The tag will keep default value entries from stepping on each other
             String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD, defaultTargetField);
-            Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
-            if (fieldMap == null) {
-                fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
-                //TODO Remove in 8.x
-                if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(FIELD_MAPPINGS, FIELD_MAP);
-                }
-            }
+            Map<String, String> fieldMapping = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
 
             return new InferenceProcessor(client,
@@ -253,7 +251,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 targetField,
                 modelId,
                 inferenceConfig,
-                fieldMap);
+                fieldMapping);
         }
 
         // Package private for testing

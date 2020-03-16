@@ -43,18 +43,12 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
-
-        Input indexInput = new Input();
-        indexInput.expected = int.class;
-        index.analyze(scriptRoot, scope, indexInput);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        index.expected = int.class;
+        index.analyze(scriptRoot, scope);
         index.cast();
 
-        output.actual = clazz.getComponentType();
-
-        return output;
+        actual = clazz.getComponentType();
     }
 
     BraceSubNode write(ClassNode classNode) {
@@ -63,7 +57,7 @@ final class PSubBrace extends AStoreable {
         braceSubNode.setChildNode(index.cast(index.write(classNode)));
 
         braceSubNode.setLocation(location);
-        braceSubNode.setExpressionType(output.actual);
+        braceSubNode.setExpressionType(actual);
 
         return braceSubNode;
     }

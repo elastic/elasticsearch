@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
@@ -17,9 +16,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
     /**
      * @return The analysis parameters as a map
-     * @param fieldInfo Information about the fields like types and cardinalities
+     * @param extractedFields map of (name, types) for all the extracted fields
      */
-    Map<String, Object> getParams(FieldInfo fieldInfo);
+    Map<String, Object> getParams(Map<String, Set<String>> extractedFields);
 
     /**
      * @return {@code true} if this analysis supports fields with categorical values (i.e. text, keyword, ip)
@@ -65,27 +64,4 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * Returns the document id for the analysis state
      */
     String getStateDocId(String jobId);
-
-    /**
-     * Summarizes information about the fields that is necessary for analysis to generate
-     * the parameters needed for the process configuration.
-     */
-    interface FieldInfo {
-
-        /**
-         * Returns the types for the given field or {@code null} if the field is unknown
-         * @param field the field whose types to return
-         * @return the types for the given field or {@code null} if the field is unknown
-         */
-        @Nullable
-        Set<String> getTypes(String field);
-
-        /**
-         * Returns the cardinality of the given field or {@code null} if there is no cardinality for that field
-         * @param field the field whose cardinality to get
-         * @return the cardinality of the given field or {@code null} if there is no cardinality for that field
-         */
-        @Nullable
-        Long getCardinality(String field);
-    }
 }

@@ -91,14 +91,11 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         List<Class<?>> typeParameters = new ArrayList<>();
         PainlessMethod interfaceMethod;
         // inspect the target first, set interface method if we know it.
-        if (input.expected == null) {
+        if (expected == null) {
             interfaceMethod = null;
             // we don't know anything: treat as def
             returnType = def.class;
@@ -120,15 +117,15 @@ public final class ELambda extends AExpression implements ILambda {
 
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = scriptRoot.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(input.expected);
+            interfaceMethod = scriptRoot.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(expected);
             if (interfaceMethod == null) {
                 throw createError(new IllegalArgumentException("Cannot pass lambda to " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "], not a functional interface"));
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
             if (interfaceMethod.typeParameters.size() != paramTypeStrs.size())
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
-                        "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]");
+                        "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.returnType == void.class) {
                 returnType = def.class;
@@ -165,18 +162,17 @@ public final class ELambda extends AExpression implements ILambda {
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
-        AStatement.Input blockInput = new AStatement.Input();
-        blockInput.lastSource = true;
-        AStatement.Output blockOutput = block.analyze(scriptRoot, lambdaScope, blockInput);
+        block.lastSource = true;
+        block.analyze(scriptRoot, lambdaScope);
+        captures = new ArrayList<>(lambdaScope.getCaptures());
 
-        if (blockOutput.methodEscape == false) {
+        if (block.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
 
         maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
         // prepend capture list to lambda's arguments
-        captures = new ArrayList<>(lambdaScope.getCaptures());
         this.typeParameters = new ArrayList<>(captures.size() + typeParameters.size());
         parameterNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
@@ -191,18 +187,16 @@ public final class ELambda extends AExpression implements ILambda {
         scriptRoot.getFunctionTable().addFunction(name, returnType, this.typeParameters, true, true);
 
         // setup method reference to synthetic method
-        if (input.expected == null) {
+        if (expected == null) {
             ref = null;
-            output.actual = String.class;
+            actual = String.class;
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
             ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, input.expected, "this", name, captures.size());
-            output.actual = input.expected;
+                    location, expected, "this", name, captures.size());
+            actual = expected;
         }
-
-        return output;
     }
 
     @Override
@@ -226,7 +220,7 @@ public final class ELambda extends AExpression implements ILambda {
         LambdaNode lambdaNode = new LambdaNode();
 
         lambdaNode.setLocation(location);
-        lambdaNode.setExpressionType(output.actual);
+        lambdaNode.setExpressionType(actual);
         lambdaNode.setFuncRef(ref);
 
         for (Variable capture : captures) {

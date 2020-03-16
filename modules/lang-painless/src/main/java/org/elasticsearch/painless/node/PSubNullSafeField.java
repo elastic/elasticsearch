@@ -37,22 +37,16 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.write) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (write) {
             throw createError(new IllegalArgumentException("Can't write to null safe reference"));
         }
-        Input guardedInput = new Input();
-        guardedInput.read = input.read;
-        Output guardedOutput = guarded.analyze(scriptRoot, scope, guardedInput);
-        output.actual = guardedOutput.actual;
-        if (output.actual.isPrimitive()) {
+        guarded.read = read;
+        guarded.analyze(scriptRoot, scope);
+        actual = guarded.actual;
+        if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
-
-        return output;
     }
 
     @Override
@@ -72,7 +66,7 @@ public class PSubNullSafeField extends AStoreable {
         nullSafeSubNode.setChildNode(guarded.write(classNode));
 
         nullSafeSubNode.setLocation(location);
-        nullSafeSubNode.setExpressionType(output.actual);
+        nullSafeSubNode.setExpressionType(actual);
 
         return nullSafeSubNode;
     }

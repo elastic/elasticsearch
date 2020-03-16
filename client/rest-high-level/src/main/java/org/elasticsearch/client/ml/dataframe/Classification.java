@@ -22,12 +22,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 public class Classification implements DataFrameAnalysis {
@@ -46,12 +44,11 @@ public class Classification implements DataFrameAnalysis {
     static final ParseField LAMBDA = new ParseField("lambda");
     static final ParseField GAMMA = new ParseField("gamma");
     static final ParseField ETA = new ParseField("eta");
-    static final ParseField MAX_TREES = new ParseField("max_trees");
+    static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
-    static final ParseField CLASS_ASSIGNMENT_OBJECTIVE = new ParseField("class_assignment_objective");
     static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
     static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
 
@@ -70,57 +67,47 @@ public class Classification implements DataFrameAnalysis {
                 (String) a[7],
                 (Double) a[8],
                 (Integer) a[9],
-                (Long) a[10],
-                (ClassAssignmentObjective) a[11]));
+                (Long) a[10]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LAMBDA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), GAMMA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_TREES);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_CLASSES);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ClassAssignmentObjective.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CLASS_ASSIGNMENT_OBJECTIVE, ObjectParser.ValueType.STRING);
     }
 
     private final String dependentVariable;
     private final Double lambda;
     private final Double gamma;
     private final Double eta;
-    private final Integer maxTrees;
+    private final Integer maximumNumberTrees;
     private final Double featureBagFraction;
     private final Integer numTopFeatureImportanceValues;
     private final String predictionFieldName;
     private final Double trainingPercent;
-    private final ClassAssignmentObjective classAssignmentObjective;
     private final Integer numTopClasses;
     private final Long randomizeSeed;
 
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                           @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
+                           @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction,
                            @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
-                           @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed,
-                           @Nullable ClassAssignmentObjective classAssignmentObjective) {
+                           @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
         this.eta = eta;
-        this.maxTrees = maxTrees;
+        this.maximumNumberTrees = maximumNumberTrees;
         this.featureBagFraction = featureBagFraction;
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent;
-        this.classAssignmentObjective = classAssignmentObjective;
         this.numTopClasses = numTopClasses;
         this.randomizeSeed = randomizeSeed;
     }
@@ -146,8 +133,8 @@ public class Classification implements DataFrameAnalysis {
         return eta;
     }
 
-    public Integer getMaxTrees() {
-        return maxTrees;
+    public Integer getMaximumNumberTrees() {
+        return maximumNumberTrees;
     }
 
     public Double getFeatureBagFraction() {
@@ -170,10 +157,6 @@ public class Classification implements DataFrameAnalysis {
         return randomizeSeed;
     }
 
-    public ClassAssignmentObjective getClassAssignmentObjective() {
-        return classAssignmentObjective;
-    }
-
     public Integer getNumTopClasses() {
         return numTopClasses;
     }
@@ -191,8 +174,8 @@ public class Classification implements DataFrameAnalysis {
         if (eta != null) {
             builder.field(ETA.getPreferredName(), eta);
         }
-        if (maxTrees != null) {
-            builder.field(MAX_TREES.getPreferredName(), maxTrees);
+        if (maximumNumberTrees != null) {
+            builder.field(MAXIMUM_NUMBER_TREES.getPreferredName(), maximumNumberTrees);
         }
         if (featureBagFraction != null) {
             builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
@@ -209,9 +192,6 @@ public class Classification implements DataFrameAnalysis {
         if (randomizeSeed != null) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
-        if (classAssignmentObjective != null) {
-            builder.field(CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(), classAssignmentObjective);
-        }
         if (numTopClasses != null) {
             builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         }
@@ -221,8 +201,8 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
-            predictionFieldName, trainingPercent, randomizeSeed, numTopClasses, classAssignmentObjective);
+        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues,
+            predictionFieldName, trainingPercent, randomizeSeed, numTopClasses);
     }
 
     @Override
@@ -234,14 +214,13 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(lambda, that.lambda)
             && Objects.equals(gamma, that.gamma)
             && Objects.equals(eta, that.eta)
-            && Objects.equals(maxTrees, that.maxTrees)
+            && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && Objects.equals(trainingPercent, that.trainingPercent)
             && Objects.equals(randomizeSeed, that.randomizeSeed)
-            && Objects.equals(numTopClasses, that.numTopClasses)
-            && Objects.equals(classAssignmentObjective, that.classAssignmentObjective);
+            && Objects.equals(numTopClasses, that.numTopClasses);
     }
 
     @Override
@@ -249,32 +228,18 @@ public class Classification implements DataFrameAnalysis {
         return Strings.toString(this);
     }
 
-    public enum ClassAssignmentObjective {
-        MAXIMIZE_ACCURACY, MAXIMIZE_MINIMUM_RECALL;
-
-        public static ClassAssignmentObjective fromString(String value) {
-            return ClassAssignmentObjective.valueOf(value.toUpperCase(Locale.ROOT));
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-    }
-
     public static class Builder {
         private String dependentVariable;
         private Double lambda;
         private Double gamma;
         private Double eta;
-        private Integer maxTrees;
+        private Integer maximumNumberTrees;
         private Double featureBagFraction;
         private Integer numTopFeatureImportanceValues;
         private String predictionFieldName;
         private Double trainingPercent;
         private Integer numTopClasses;
         private Long randomizeSeed;
-        private ClassAssignmentObjective classAssignmentObjective;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -295,8 +260,8 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setMaxTrees(Integer maxTrees) {
-            this.maxTrees = maxTrees;
+        public Builder setMaximumNumberTrees(Integer maximumNumberTrees) {
+            this.maximumNumberTrees = maximumNumberTrees;
             return this;
         }
 
@@ -330,15 +295,9 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setClassAssignmentObjective(ClassAssignmentObjective classAssignmentObjective) {
-            this.classAssignmentObjective = classAssignmentObjective;
-            return this;
-        }
-
         public Classification build() {
-            return new Classification(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
-                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed,
-                classAssignmentObjective);
+            return new Classification(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
+                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed);
         }
     }
 }

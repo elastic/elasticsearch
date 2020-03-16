@@ -46,10 +46,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
@@ -64,13 +61,11 @@ final class PSubShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((getter != null || setter != null) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
-            output.actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
+        if ((getter != null || setter != null) && (!read || getter != null) && (!write || setter != null)) {
+            actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + type + "]."));
         }
-
-        return output;
     }
 
     @Override
@@ -78,7 +73,7 @@ final class PSubShortcut extends AStoreable {
         DotSubShortcutNode dotSubShortcutNode = new DotSubShortcutNode();
 
         dotSubShortcutNode.setLocation(location);
-        dotSubShortcutNode.setExpressionType(output.actual);
+        dotSubShortcutNode.setExpressionType(actual);
         dotSubShortcutNode.setGetter(getter);
         dotSubShortcutNode.setSetter(setter);
 

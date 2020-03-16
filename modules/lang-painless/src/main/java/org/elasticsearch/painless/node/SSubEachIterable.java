@@ -57,28 +57,23 @@ final class SSubEachIterable extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
         iterator = scope.defineInternalVariable(location, Iterator.class, "itr" + location.getOffset(), true);
 
-        if (expression.output.actual == def.class) {
+        if (expression.actual == def.class) {
             method = null;
         } else {
-            method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expression.output.actual, false, "iterator", 0);
+            method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expression.actual, false, "iterator", 0);
 
             if (method == null) {
                     throw createError(new IllegalArgumentException(
-                            "method [" + typeToCanonicalTypeName(expression.output.actual) + ", iterator/0] not found"));
+                            "method [" + typeToCanonicalTypeName(expression.actual) + ", iterator/0] not found"));
             }
         }
 
         cast = AnalyzerCaster.getLegalCast(location, def.class, variable.getType(), true, true);
-
-        return output;
     }
 
     @Override

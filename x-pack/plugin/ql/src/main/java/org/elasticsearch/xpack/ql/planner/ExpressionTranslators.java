@@ -111,7 +111,7 @@ public final class ExpressionTranslators {
             }
 
             if (e instanceof RLike) {
-                String pattern = ((RLike) e).pattern().asJavaRegex();
+                String pattern = ((RLike) e).pattern();
                 q = new RegexQuery(e.source(), targetFieldName, pattern);
             }
 

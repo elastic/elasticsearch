@@ -44,10 +44,7 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -57,25 +54,22 @@ public final class SBlock extends AStatement {
         for (AStatement statement : statements) {
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
-            if (output.allEscape) {
+            if (allEscape) {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
-            Input statementInput = new Input();
-            statementInput.inLoop = input.inLoop;
-            statementInput.lastSource = input.lastSource && statement == last;
-            statementInput.lastLoop = (input.beginLoop || input.lastLoop) && statement == last;
-            Output statementOutput = statement.analyze(scriptRoot, scope, statementInput);
+            statement.inLoop = inLoop;
+            statement.lastSource = lastSource && statement == last;
+            statement.lastLoop = (beginLoop || lastLoop) && statement == last;
+            statement.analyze(scriptRoot, scope);
 
-            output.methodEscape = statementOutput.methodEscape;
-            output.loopEscape = statementOutput.loopEscape;
-            output.allEscape = statementOutput.allEscape;
-            output.anyContinue |= statementOutput.anyContinue;
-            output.anyBreak |= statementOutput.anyBreak;
-            output.statementCount += statementOutput.statementCount;
+            methodEscape = statement.methodEscape;
+            loopEscape = statement.loopEscape;
+            allEscape = statement.allEscape;
+            anyContinue |= statement.anyContinue;
+            anyBreak |= statement.anyBreak;
+            statementCount += statement.statementCount;
         }
-
-        return output;
     }
 
     @Override
@@ -87,8 +81,8 @@ public final class SBlock extends AStatement {
         }
 
         blockNode.setLocation(location);
-        blockNode.setAllEscape(output.allEscape);
-        blockNode.setStatementCount(output.statementCount);
+        blockNode.setAllEscape(allEscape);
+        blockNode.setStatementCount(statementCount);
 
         return blockNode;
     }

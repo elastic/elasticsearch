@@ -52,7 +52,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -133,8 +132,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextId id() {
-        return new SearchContextId("", 0);
+    public long id() {
+        return 0;
     }
 
     @Override

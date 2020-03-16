@@ -58,15 +58,15 @@ public class ExtractedFieldsDetector {
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
-    private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
+    private final Map<String, Long> fieldCardinalities;
 
     ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, int docValueFieldsLimit,
-                            FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+                            FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> fieldCardinalities) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
-        this.cardinalitiesForFieldsWithConstraints = Objects.requireNonNull(cardinalitiesForFieldsWithConstraints);
+        this.fieldCardinalities = Objects.requireNonNull(fieldCardinalities);
     }
 
     public Tuple<ExtractedFields, List<FieldSelection>> detect() {
@@ -286,13 +286,12 @@ public class ExtractedFieldsDetector {
 
     private void checkFieldsWithCardinalityLimit() {
         for (FieldCardinalityConstraint constraint : config.getAnalysis().getFieldCardinalityConstraints()) {
-            constraint.check(cardinalitiesForFieldsWithConstraints.get(constraint.getField()));
+            constraint.check(fieldCardinalities.get(constraint.getField()));
         }
     }
 
     private ExtractedFields detectExtractedFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
-        ExtractedFields extractedFields = ExtractedFields.build(fields, Collections.emptySet(), fieldCapabilitiesResponse,
-            cardinalitiesForFieldsWithConstraints);
+        ExtractedFields extractedFields = ExtractedFields.build(fields, Collections.emptySet(), fieldCapabilitiesResponse);
         boolean preferSource = extractedFields.getDocValueFields().size() > docValueFieldsLimit;
         extractedFields = deduplicateMultiFields(extractedFields, preferSource, fieldSelection);
         if (preferSource) {
@@ -322,7 +321,7 @@ public class ExtractedFieldsDetector {
                     chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField, fieldSelection));
             }
         }
-        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()), cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()));
     }
 
     private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields, ExtractedField parent,
@@ -373,7 +372,7 @@ public class ExtractedFieldsDetector {
         for (ExtractedField field : extractedFields.getAllFields()) {
             adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
         }
-        return new ExtractedFields(adjusted, cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(adjusted);
     }
 
     private ExtractedFields fetchBooleanFieldsAsIntegers(ExtractedFields extractedFields) {
@@ -390,7 +389,7 @@ public class ExtractedFieldsDetector {
                 adjusted.add(field);
             }
         }
-        return new ExtractedFields(adjusted, cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(adjusted);
     }
 
     private void addIncludedFields(ExtractedFields extractedFields, Set<FieldSelection> fieldSelection) {

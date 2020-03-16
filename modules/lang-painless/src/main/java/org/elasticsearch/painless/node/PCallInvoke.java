@@ -53,43 +53,37 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
-        prefix.input.expected = prefixOutput.actual;
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        prefix.analyze(scriptRoot, scope);
+        prefix.expected = prefix.actual;
         prefix.cast();
 
-        if (prefixOutput.actual == def.class) {
+        if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
-                    prefixOutput.actual, prefix instanceof EStatic, name, arguments.size());
+            PainlessMethod method =
+                    scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                        "method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
             scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            sub = new PSubCallInvoke(location, method, prefixOutput.actual, arguments);
+            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }
 
         if (nullSafe) {
             sub = new PSubNullSafeCallInvoke(location, sub);
         }
 
-        Input subInput = new Input();
-        subInput.expected = input.expected;
-        subInput.explicit = input.explicit;
-        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
-        output.actual = subOutput.actual;
+        sub.expected = expected;
+        sub.explicit = explicit;
+        sub.analyze(scriptRoot, scope);
+        actual = sub.actual;
 
-        output.statement = true;
-
-        return output;
+        statement = true;
     }
 
     @Override
@@ -100,7 +94,7 @@ public final class PCallInvoke extends AExpression {
         callNode.setRightNode(sub.write(classNode));
 
         callNode.setLocation(location);
-        callNode.setExpressionType(output.actual);
+        callNode.setExpressionType(actual);
 
         return callNode;
     }

@@ -46,49 +46,42 @@ public final class STry extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
-        Input blockInput = new Input();
-        blockInput.lastSource = input.lastSource;
-        blockInput.inLoop = input.inLoop;
-        blockInput.lastLoop = input.lastLoop;
+        block.lastSource = lastSource;
+        block.inLoop = inLoop;
+        block.lastLoop = lastLoop;
 
-        Output blockOutput = block.analyze(scriptRoot, scope.newLocalScope(), blockInput);
+        block.analyze(scriptRoot, scope.newLocalScope());
 
-        output.methodEscape = blockOutput.methodEscape;
-        output.loopEscape = blockOutput.loopEscape;
-        output.allEscape = blockOutput.allEscape;
-        output.anyContinue = blockOutput.anyContinue;
-        output.anyBreak = blockOutput.anyBreak;
+        methodEscape = block.methodEscape;
+        loopEscape = block.loopEscape;
+        allEscape = block.allEscape;
+        anyContinue = block.anyContinue;
+        anyBreak = block.anyBreak;
 
         int statementCount = 0;
 
         for (SCatch catc : catches) {
-            Input catchInput = new Input();
-            catchInput.lastSource = input.lastSource;
-            catchInput.inLoop = input.inLoop;
-            catchInput.lastLoop = input.lastLoop;
+            catc.lastSource = lastSource;
+            catc.inLoop = inLoop;
+            catc.lastLoop = lastLoop;
 
-            Output catchOutput = catc.analyze(scriptRoot, scope.newLocalScope(), catchInput);
+            catc.analyze(scriptRoot, scope.newLocalScope());
 
-            output.methodEscape &= catchOutput.methodEscape;
-            output.loopEscape &= catchOutput.loopEscape;
-            output.allEscape &= catchOutput.allEscape;
-            output.anyContinue |= catchOutput.anyContinue;
-            output.anyBreak |= catchOutput.anyBreak;
+            methodEscape &= catc.methodEscape;
+            loopEscape &= catc.loopEscape;
+            allEscape &= catc.allEscape;
+            anyContinue |= catc.anyContinue;
+            anyBreak |= catc.anyBreak;
 
-            statementCount = Math.max(statementCount, catchOutput.statementCount);
+            statementCount = Math.max(statementCount, catc.statementCount);
         }
 
-        output.statementCount = blockOutput.statementCount + statementCount;
-
-        return output;
+        this.statementCount = block.statementCount + statementCount;
     }
 
     @Override

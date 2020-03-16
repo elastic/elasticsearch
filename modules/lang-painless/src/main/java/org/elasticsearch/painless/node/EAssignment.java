@@ -62,24 +62,32 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        analyzeLHS(scriptRoot, scope);
+        analyzeIncrDecr();
 
-        Output leftOutput;
-        Output rightOutput;
+        if (operation != null) {
+            analyzeCompound(scriptRoot, scope);
+        } else if (rhs != null) {
+            analyzeSimple(scriptRoot, scope);
+        } else {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
+    }
 
+    private void analyzeLHS(ScriptRoot scriptRoot, Scope scope) {
         if (lhs instanceof AStoreable) {
             AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
 
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(scriptRoot, scope, leftInput);
+            lhs.read = read;
+            lhs.write = true;
+            lhs.analyze(scriptRoot, scope);
         } else {
             throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
         }
+    }
 
+    private void analyzeIncrDecr() {
         if (pre && post) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         } else if (pre || post) {
@@ -88,11 +96,11 @@ public final class EAssignment extends AExpression {
             }
 
             if (operation == Operation.INCR) {
-                if (leftOutput.actual == double.class) {
+                if (lhs.actual == double.class) {
                     rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
+                } else if (lhs.actual == float.class) {
                     rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
+                } else if (lhs.actual == long.class) {
                     rhs = new EConstant(location, 1L);
                 } else {
                     rhs = new EConstant(location, 1);
@@ -100,11 +108,11 @@ public final class EAssignment extends AExpression {
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
-                if (leftOutput.actual == double.class) {
+                if (lhs.actual == double.class) {
                     rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
+                } else if (lhs.actual == float.class) {
                     rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
+                } else if (lhs.actual == long.class) {
                     rhs = new EConstant(location, 1L);
                 } else {
                     rhs = new EConstant(location, 1);
@@ -115,105 +123,103 @@ public final class EAssignment extends AExpression {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
+    }
 
-        if (operation != null) {
-            rightOutput = rhs.analyze(scriptRoot, scope, new Input());
-            boolean shift = false;
+    private void analyzeCompound(ScriptRoot scriptRoot, Scope scope) {
+        rhs.analyze(scriptRoot, scope);
+        boolean shift = false;
 
-            if (operation == Operation.MUL) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-            } else if (operation == Operation.DIV) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-            } else if (operation == Operation.REM) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-            } else if (operation == Operation.ADD) {
-                promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
-            } else if (operation == Operation.SUB) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-            } else if (operation == Operation.LSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
-                shift = true;
-            } else if (operation == Operation.RSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
-                shift = true;
-            } else if (operation == Operation.USH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
-                shift = true;
-            } else if (operation == Operation.BWAND) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
-            } else if (operation == Operation.XOR) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
-            } else if (operation == Operation.BWOR) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-            if (promote == null || (shift && shiftDistance == null)) {
-                throw createError(new ClassCastException("Cannot apply compound assignment " +
-                        "[" + operation.symbol + "=] to types [" + leftOutput.actual + "] and [" + rightOutput.actual + "]."));
-            }
-
-            cat = operation == Operation.ADD && promote == String.class;
-
-            if (cat) {
-                if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rightOutput.actual == String.class) {
-                    ((EBinary)rhs).cat = true;
-                }
-            }
-
-            if (shift) {
-                if (promote == def.class) {
-                    // shifts are promoted independently, but for the def type, we need object.
-                    rhs.input.expected = promote;
-                } else if (shiftDistance == long.class) {
-                    rhs.input.expected = int.class;
-                    rhs.input.explicit = true;
-                } else {
-                    rhs.input.expected = shiftDistance;
-                }
-            } else {
-                rhs.input.expected = promote;
-            }
-
-            rhs.cast();
-
-            there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
-            back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
-
-
-        } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
-            // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
-                rightOutput = rhs.analyze(scriptRoot, scope, new Input());
-
-                if (rightOutput.actual == void.class) {
-                    throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
-                }
-
-                rhs.input.expected = rightOutput.actual;
-                lhs.updateActual(rightOutput.actual);
-            // Otherwise, we must adapt the rhs type to the lhs type with a cast.
-            } else {
-                Input rightInput = new Input();
-                rightInput.expected = leftOutput.actual;
-                rhs.analyze(scriptRoot, scope, rightInput);
-            }
-
-            rhs.cast();
+        if (operation == Operation.MUL) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+        } else if (operation == Operation.DIV) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+        } else if (operation == Operation.REM) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+        } else if (operation == Operation.ADD) {
+            promote = AnalyzerCaster.promoteAdd(lhs.actual, rhs.actual);
+        } else if (operation == Operation.SUB) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+        } else if (operation == Operation.LSH) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
+            shift = true;
+        } else if (operation == Operation.RSH) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
+            shift = true;
+        } else if (operation == Operation.USH) {
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
+            shift = true;
+        } else if (operation == Operation.BWAND) {
+            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
+        } else if (operation == Operation.XOR) {
+            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
+        } else if (operation == Operation.BWOR) {
+            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
         } else {
-            throw new IllegalStateException("Illegal tree structure.");
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        output.statement = true;
-        output.actual = input.read ? leftOutput.actual : void.class;
+        if (promote == null || (shift && shiftDistance == null)) {
+            throw createError(new ClassCastException("Cannot apply compound assignment " +
+                "[" + operation.symbol + "=] to types [" + lhs.actual + "] and [" + rhs.actual + "]."));
+        }
 
-        return output;
+        cat = operation == Operation.ADD && promote == String.class;
+
+        if (cat) {
+            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual == String.class) {
+                ((EBinary)rhs).cat = true;
+            }
+
+            rhs.expected = rhs.actual;
+        } else if (shift) {
+            if (promote == def.class) {
+                // shifts are promoted independently, but for the def type, we need object.
+                rhs.expected = promote;
+            } else if (shiftDistance == long.class) {
+                rhs.expected = int.class;
+                rhs.explicit = true;
+            } else {
+                rhs.expected = shiftDistance;
+            }
+        } else {
+            rhs.expected = promote;
+        }
+
+        rhs.cast();
+
+        there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
+        back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
+
+        this.statement = true;
+        this.actual = read ? lhs.actual : void.class;
+    }
+
+    private void analyzeSimple(ScriptRoot scriptRoot, Scope scope) {
+        AStoreable lhs = (AStoreable)this.lhs;
+
+        // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
+        if (lhs.isDefOptimized()) {
+            rhs.analyze(scriptRoot, scope);
+
+            if (rhs.actual == void.class) {
+                throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
+            }
+
+            rhs.expected = rhs.actual;
+            lhs.updateActual(rhs.actual);
+        // Otherwise, we must adapt the rhs type to the lhs type with a cast.
+        } else {
+            rhs.expected = lhs.actual;
+            rhs.analyze(scriptRoot, scope);
+        }
+
+        rhs.cast();
+
+        this.statement = true;
+        this.actual = read ? lhs.actual : void.class;
     }
 
     /**
@@ -230,12 +236,12 @@ public final class EAssignment extends AExpression {
         assignmentNode.setRightNode(rhs.cast(rhs.write(classNode)));
 
         assignmentNode.setLocation(location);
-        assignmentNode.setExpressionType(output.actual);
+        assignmentNode.setExpressionType(actual);
         assignmentNode.setCompoundType(promote);
         assignmentNode.setPre(pre);
         assignmentNode.setPost(post);
         assignmentNode.setOperation(operation);
-        assignmentNode.setRead(input.read);
+        assignmentNode.setRead(read);
         assignmentNode.setCat(cat);
         assignmentNode.setThere(there);
         assignmentNode.setBack(back);

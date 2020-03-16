@@ -42,24 +42,19 @@ public final class EString extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.read == false) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (!read) {
             throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
         }
 
-        output.actual = String.class;
-
-        return output;
+        actual = String.class;
     }
 
     @Override
     ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(actual);
         constantNode.setConstant(constant);
 
         return constantNode;

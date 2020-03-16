@@ -29,7 +29,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.version;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -256,18 +255,18 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String sql) throws IOException {
-        Mode mode = Mode.PLAIN;
+        String mode = Mode.PLAIN.toString();
         if (clientType.equals(ClientType.JDBC.toString())) {
-            mode = Mode.JDBC;
+            mode = Mode.JDBC.toString();
         } else if (clientType.startsWith(ClientType.ODBC.toString())) {
-            mode = Mode.ODBC;
+            mode = Mode.ODBC.toString();
         } else if (clientType.equals(ClientType.CLI.toString())) {
-            mode = Mode.CLI;
+            mode = Mode.CLI.toString();
         }
 
-        runSql(mode.toString(), clientType, sql);
+        runSql(mode, clientType, sql);
     }
-
+    
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void assertTranslateQueryMetric(int expected, Map<String, Object> responseAsMap) throws IOException {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
@@ -279,7 +278,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         }
         assertEquals(expected, actualMetricValue);
     }
-
+    
     private void runSql(String mode, String restClient, String sql) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
@@ -294,8 +293,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + version(mode) +
-            (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}", ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
+                (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}",
+                ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
     

@@ -44,18 +44,15 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.read == false) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (!read) {
             throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
         }
 
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                output.actual = float.class;
+                actual = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
@@ -66,20 +63,18 @@ public final class EDecimal extends AExpression {
             }
             try {
                 constant = Double.parseDouble(toParse);
-                output.actual = double.class;
+                actual = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
         }
-
-        return output;
     }
 
     @Override
     ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(actual);
         constantNode.setConstant(constant);
 
         return constantNode;

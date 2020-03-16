@@ -46,11 +46,8 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.read == false) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (!read) {
             throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
         }
 
@@ -61,7 +58,7 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(value.substring(0, value.length() - 1));
-                output.actual = double.class;
+                actual = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
@@ -72,34 +69,34 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                output.actual = float.class;
+                actual = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else if (value.endsWith("l") || value.endsWith("L")) {
             try {
                 constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
-                output.actual = long.class;
+                actual = long.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid long constant [" + value + "]."));
             }
         } else {
             try {
-                Class<?> sort = input.expected == null ? int.class : input.expected;
+                Class<?> sort = expected == null ? int.class : expected;
                 int integer = Integer.parseInt(value, radix);
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    output.actual = byte.class;
+                    actual = byte.class;
                 } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    output.actual = char.class;
+                    actual = char.class;
                 } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    output.actual = short.class;
+                    actual = short.class;
                 } else {
                     constant = integer;
-                    output.actual = int.class;
+                    actual = int.class;
                 }
             } catch (NumberFormatException exception) {
                 try {
@@ -113,15 +110,13 @@ public final class ENumeric extends AExpression {
                 throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]."));
             }
         }
-
-        return output;
     }
 
     @Override
     ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(actual);
         constantNode.setConstant(constant);
 
         return constantNode;

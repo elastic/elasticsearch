@@ -255,48 +255,30 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
         }
 
-        final B[] list;
-        if (reduceContext.isFinalReduce()) {
-            final int size = Math.min(requiredSize, buckets.size());
-            final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
-            for (List<B> sameTermBuckets : buckets.values()) {
-                final B b = reduceBucket(sameTermBuckets, reduceContext);
-                if (sumDocCountError == -1) {
-                    b.docCountError = -1;
-                } else {
-                    b.docCountError += sumDocCountError;
-                }
-                if (b.docCount >= minDocCount) {
-                    B removed = ordered.insertWithOverflow(b);
-                    if (removed != null) {
-                        otherDocCount += removed.getDocCount();
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
-                    }
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
-                }
+        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
+        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
+        for (List<B> sameTermBuckets : buckets.values()) {
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
+            if (sumDocCountError == -1) {
+                b.docCountError = -1;
+            } else {
+                b.docCountError += sumDocCountError;
             }
-            list = createBucketsArray(ordered.size());
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                list[i] = ordered.pop();
-            }
-        } else {
-            // keep all buckets on partial reduce
-            // TODO: we could prune the buckets when sorting by key
-            list = createBucketsArray(buckets.size());
-            int pos = 0;
-            for (List<B> sameTermBuckets : buckets.values()) {
-                final B b = reduceBucket(sameTermBuckets, reduceContext);
-                reduceContext.consumeBucketsAndMaybeBreak(1);
-                if (sumDocCountError == -1) {
-                    b.docCountError = -1;
+            if (b.docCount >= minDocCount || reduceContext.isFinalReduce() == false) {
+                B removed = ordered.insertWithOverflow(b);
+                if (removed != null) {
+                    otherDocCount += removed.getDocCount();
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
                 } else {
-                    b.docCountError += sumDocCountError;
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                 }
-                list[pos++] = b;
+            } else {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
+        }
+        B[] list = createBucketsArray(ordered.size());
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            list[i] = ordered.pop();
         }
         long docCountError;
         if (sumDocCountError == -1) {

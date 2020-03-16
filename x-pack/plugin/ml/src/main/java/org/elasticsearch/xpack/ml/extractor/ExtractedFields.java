@@ -28,14 +28,12 @@ public class ExtractedFields {
     private final List<ExtractedField> allFields;
     private final List<ExtractedField> docValueFields;
     private final String[] sourceFields;
-    private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    public ExtractedFields(List<ExtractedField> allFields, Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+    public ExtractedFields(List<ExtractedField> allFields) {
         this.allFields = Collections.unmodifiableList(allFields);
         this.docValueFields = filterFields(ExtractedField.Method.DOC_VALUE, allFields);
         this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream().map(ExtractedField::getSearchField)
             .toArray(String[]::new);
-        this.cardinalitiesForFieldsWithConstraints = Collections.unmodifiableMap(cardinalitiesForFieldsWithConstraints);
     }
 
     public List<ExtractedField> getAllFields() {
@@ -50,20 +48,14 @@ public class ExtractedFields {
         return docValueFields;
     }
 
-    public Map<String, Long> getCardinalitiesForFieldsWithConstraints() {
-        return cardinalitiesForFieldsWithConstraints;
-    }
-
     private static List<ExtractedField> filterFields(ExtractedField.Method method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getMethod() == method).collect(Collectors.toList());
     }
 
     public static ExtractedFields build(Collection<String> allFields, Set<String> scriptFields,
-                                        FieldCapabilitiesResponse fieldsCapabilities,
-                                        Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+                                        FieldCapabilitiesResponse fieldsCapabilities) {
         ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
-        return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()),
-            cardinalitiesForFieldsWithConstraints);
+        return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()));
     }
 
     public static TimeField newTimeField(String name, ExtractedField.Method method) {

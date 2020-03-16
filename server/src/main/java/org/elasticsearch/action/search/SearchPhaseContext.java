@@ -23,7 +23,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
@@ -97,11 +96,11 @@ interface SearchPhaseContext extends Executor {
 
     /**
      * Releases a search context with the given context ID on the node the given connection is connected to.
-     * @see org.elasticsearch.search.query.QuerySearchResult#getContextId()
-     * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
+     * @see org.elasticsearch.search.query.QuerySearchResult#getRequestId()
+     * @see org.elasticsearch.search.fetch.FetchSearchResult#getRequestId()
      *
      */
-    default void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }

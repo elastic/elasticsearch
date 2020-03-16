@@ -204,7 +204,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
-        @Override
         public KeywordFieldType clone() {
             return new KeywordFieldType(this);
         }
@@ -322,7 +321,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
-    public int ignoreAbove() {
+    // pkg-private for testing
+    int ignoreAbove() {
         return ignoreAbove;
     }
 

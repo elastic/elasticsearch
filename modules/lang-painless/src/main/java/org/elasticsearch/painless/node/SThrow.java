@@ -41,21 +41,15 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        AExpression.Input expressionInput = new AExpression.Input();
-        expressionInput.expected = Exception.class;
-        expression.analyze(scriptRoot, scope, expressionInput);
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        expression.expected = Exception.class;
+        expression.analyze(scriptRoot, scope);
         expression.cast();
 
-        output.methodEscape = true;
-        output.loopEscape = true;
-        output.allEscape = true;
-        output.statementCount = 1;
-
-        return output;
+        methodEscape = true;
+        loopEscape = true;
+        allEscape = true;
+        statementCount = 1;
     }
 
     @Override

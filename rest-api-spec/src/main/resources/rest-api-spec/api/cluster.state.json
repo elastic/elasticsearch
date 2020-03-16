@@ -97,7 +97,6 @@
         "options":[
           "open",
           "closed",
-          "hidden",
           "none",
           "all"
         ],

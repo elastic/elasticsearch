@@ -96,9 +96,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
 
     private InternalTopMetrics.TopMetric top(SortValue sortValue, double metricValue) {
         DocValueFormat sortFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
-        DocValueFormat metricFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
-        InternalTopMetrics.MetricValue realMetricValue = new InternalTopMetrics.MetricValue(metricFormat, SortValue.from(metricValue));
-        return new InternalTopMetrics.TopMetric(sortFormat, sortValue, singletonList(realMetricValue));
+        return new InternalTopMetrics.TopMetric(sortFormat, sortValue, new double[] {metricValue});
     }
 
     private InternalTopMetrics reduce(InternalTopMetrics... results) {

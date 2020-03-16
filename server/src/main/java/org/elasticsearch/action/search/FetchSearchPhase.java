@@ -22,9 +22,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -32,7 +30,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
@@ -53,21 +50,17 @@ final class FetchSearchPhase extends SearchPhase {
     private final Logger logger;
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchProgressListener progressListener;
-    private final ClusterState clusterState;
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
-                     SearchPhaseContext context,
-                     ClusterState clusterState) {
-        this(resultConsumer, searchPhaseController, context, clusterState,
+                     SearchPhaseContext context) {
+        this(resultConsumer, searchPhaseController, context,
             (response, scrollId) -> new ExpandSearchPhase(context, response, scrollId));
     }
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
-                     SearchPhaseContext context,
-                     ClusterState clusterState,
-                     BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
+                     SearchPhaseContext context, BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
@@ -81,7 +74,6 @@ final class FetchSearchPhase extends SearchPhase {
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
-        this.clusterState = clusterState;
     }
 
     @Override
@@ -105,14 +97,8 @@ final class FetchSearchPhase extends SearchPhase {
     private void innerRun() throws IOException {
         final int numShards = context.getNumShards();
         final boolean isScrollSearch = context.getRequest().scroll() != null;
-        final List<SearchPhaseResult> phaseResults = queryResults.asList();
-        final String scrollId;
-        if (isScrollSearch) {
-            final boolean includeContextUUID = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0);
-            scrollId = TransportSearchHelper.buildScrollId(queryResults, includeContextUUID);
-        } else {
-            scrollId = null;
-        }
+        List<SearchPhaseResult> phaseResults = queryResults.asList();
+        String scrollId = isScrollSearch ? TransportSearchHelper.buildScrollId(queryResults) : null;
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = ()
@@ -157,7 +143,7 @@ final class FetchSearchPhase extends SearchPhase {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                         Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
                             searchShardTarget.getNodeId());
-                        ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getContextId(), i, entry,
+                        ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getRequestId(), i, entry,
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices());
                         executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
                             connection);
@@ -167,10 +153,10 @@ final class FetchSearchPhase extends SearchPhase {
         }
     }
 
-    protected ShardFetchSearchRequest createFetchRequest(SearchContextId contextId, int index, IntArrayList entry,
-                                                         ScoreDoc[] lastEmittedDocPerShard, OriginalIndices originalIndices) {
+    protected ShardFetchSearchRequest createFetchRequest(long queryId, int index, IntArrayList entry,
+                                                               ScoreDoc[] lastEmittedDocPerShard, OriginalIndices originalIndices) {
         final ScoreDoc lastEmittedDoc = (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[index] : null;
-        return new ShardFetchSearchRequest(originalIndices, contextId, entry, lastEmittedDoc);
+        return new ShardFetchSearchRequest(originalIndices, queryId, entry, lastEmittedDoc);
     }
 
     private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget,
@@ -192,8 +178,7 @@ final class FetchSearchPhase extends SearchPhase {
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        logger.debug(
-                            () -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.contextId()), e);
+                        logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
                         progressListener.notifyFetchFailure(shardIndex, e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {
@@ -216,7 +201,7 @@ final class FetchSearchPhase extends SearchPhase {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                context.sendReleaseSearchContext(queryResult.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                context.sendReleaseSearchContext(queryResult.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

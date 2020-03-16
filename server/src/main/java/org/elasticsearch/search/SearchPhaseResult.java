@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -40,7 +39,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
-    protected SearchContextId contextId;
+    protected long requestId;
 
     protected SearchPhaseResult() {
 
@@ -51,10 +50,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     /**
-     * Returns the search context ID that is used to reference the search context on the executing node
+     * Returns the results request ID that is used to reference the search context on the executing node
      */
-    public SearchContextId getContextId() {
-        return contextId;
+    public long getRequestId() {
+        return requestId;
     }
 
     /**

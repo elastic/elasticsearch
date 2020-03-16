@@ -44,17 +44,12 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, scope, new Input());
+            declaration.analyze(scriptRoot, scope);
         }
 
-        output.statementCount = declarations.size();
-
-        return output;
+        statementCount = declarations.size();
     }
 
     @Override

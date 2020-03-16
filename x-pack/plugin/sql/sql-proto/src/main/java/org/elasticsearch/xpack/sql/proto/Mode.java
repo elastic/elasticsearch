@@ -33,8 +33,4 @@ public enum Mode {
     public static boolean isDriver(Mode mode) {
         return mode == JDBC || mode == ODBC;
     }
-
-    public static boolean isDedicatedClient(Mode mode) {
-        return mode == JDBC || mode == ODBC || mode == CLI;
-    }
 }

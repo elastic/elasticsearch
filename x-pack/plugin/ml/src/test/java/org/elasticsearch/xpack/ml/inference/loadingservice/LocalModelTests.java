@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,16 +41,13 @@ public class LocalModelTests extends ESTestCase {
 
     public void testClassificationInfer() throws Exception {
         String modelId = "classification_model";
-        List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model model = new LocalModel(modelId,
-            definition,
-            new TrainedModelInput(inputFields),
-            Collections.singletonMap("field.foo", "field.foo.keyword"));
+        Model model = new LocalModel(modelId, definition, new TrainedModelInput(inputFields));
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
@@ -72,10 +68,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(true))
             .build();
-        model = new LocalModel(modelId,
-            definition,
-            new TrainedModelInput(inputFields),
-            Collections.singletonMap("field.foo", "field.foo.keyword"));
+        model = new LocalModel(modelId, definition, new TrainedModelInput(inputFields));
         result = getSingleValue(model, fields, new ClassificationConfig(0));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
@@ -97,14 +90,11 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel("regression_model",
-            trainedModelDefinition,
-            new TrainedModelInput(inputFields),
-            Collections.singletonMap("bar", "bar.keyword"));
+        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields));
 
         Map<String, Object> fields = new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar.keyword", 0.5);
+            put("field.foo", 1.0);
+            put("field.bar", 0.5);
             put("categorical", "dog");
         }};
 
@@ -124,7 +114,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields), null);
+        Model model = new LocalModel("regression_model", trainedModelDefinition, new TrainedModelInput(inputFields));
 
         Map<String, Object> fields = new HashMap<>() {{
             put("something", 1.0);

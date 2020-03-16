@@ -42,17 +42,12 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        Output guardedOutput = guarded.analyze(scriptRoot, scope, new Input());
-        output.actual = guardedOutput.actual;
-        if (output.actual.isPrimitive()) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        guarded.analyze(scriptRoot, scope);
+        actual = guarded.actual;
+        if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
-
-        return output;
     }
 
     @Override
@@ -62,7 +57,7 @@ public class PSubNullSafeCallInvoke extends AExpression {
         nullSafeSubNode.setChildNode(guarded.write(classNode));
 
         nullSafeSubNode.setLocation(location);
-        nullSafeSubNode.setExpressionType(output.actual);
+        nullSafeSubNode.setExpressionType(actual);
 
         return nullSafeSubNode;
     }

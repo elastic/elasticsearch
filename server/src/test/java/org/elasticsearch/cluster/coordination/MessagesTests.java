@@ -179,18 +179,13 @@ public class MessagesTests extends ESTestCase {
         Join initialJoin = new Join(createNode(randomAlphaOfLength(10)), createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
             randomNonNegativeLong(), randomNonNegativeLong());
         JoinRequest initialJoinRequest = new JoinRequest(initialJoin.getSourceNode(),
-            randomNonNegativeLong(), randomBoolean() ? Optional.empty() : Optional.of(initialJoin));
+            randomBoolean() ? Optional.empty() : Optional.of(initialJoin));
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialJoinRequest,
                 (CopyFunction<JoinRequest>) joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
             joinRequest -> {
                 if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
-                    return new JoinRequest(createNode(randomAlphaOfLength(10)),
-                        joinRequest.getMinimumTerm(), joinRequest.getOptionalJoin());
-                } else if (randomBoolean()) {
-                    return new JoinRequest(joinRequest.getSourceNode(),
-                        randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
-                        joinRequest.getOptionalJoin());
+                    return new JoinRequest(createNode(randomAlphaOfLength(20)), joinRequest.getOptionalJoin());
                 } else {
                     // change OptionalJoin
                     final Optional<Join> newOptionalJoin;
@@ -200,7 +195,7 @@ public class MessagesTests extends ESTestCase {
                         newOptionalJoin = Optional.of(new Join(joinRequest.getSourceNode(), createNode(randomAlphaOfLength(10)),
                             randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
                     }
-                    return new JoinRequest(joinRequest.getSourceNode(), joinRequest.getMinimumTerm(), newOptionalJoin);
+                    return new JoinRequest(joinRequest.getSourceNode(), newOptionalJoin);
                 }
             });
     }

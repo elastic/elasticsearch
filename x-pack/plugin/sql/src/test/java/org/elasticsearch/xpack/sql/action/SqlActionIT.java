@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -30,7 +28,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
         SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-                .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).version(Version.CURRENT.toString()).get();
+                .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
@@ -43,19 +41,6 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         assertEquals(42L, response.rows().get(0).get(countIndex));
         assertEquals("baz", response.rows().get(1).get(dataIndex));
         assertEquals(43L, response.rows().get(1).get(countIndex));
-    }
-
-    public void testSqlActionCurrentVersion() {
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query("SELECT true").mode(randomFrom(Mode.CLI, Mode.JDBC)).version(Version.CURRENT.toString()).get();
-        assertThat(response.size(), equalTo(1L));
-        assertEquals(true, response.rows().get(0).get(0));
-    }
-
-    public void testSqlActionOutdatedVersion() {
-        SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query("SELECT true").mode(randomFrom(Mode.CLI, Mode.JDBC)).version("1.2.3");
-        assertRequestBuilderThrows(request, org.elasticsearch.action.ActionRequestValidationException.class);
     }
 }
 

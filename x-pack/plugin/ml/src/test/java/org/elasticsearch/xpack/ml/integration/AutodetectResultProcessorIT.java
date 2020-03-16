@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -94,11 +93,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(
-            LocalStateMachineLearning.class,
-            ReindexPlugin.class,
-            // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+        return pluginList(LocalStateMachineLearning.class, ReindexPlugin.class);
     }
 
     @Before

@@ -24,10 +24,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
-import org.elasticsearch.xpack.ml.extractor.DocValueField;
-import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.extractor.MultiField;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -36,7 +33,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -162,13 +158,10 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
-        List<ExtractedField> extractedFieldList = new ArrayList<>(3);
-        extractedFieldList.add(new DocValueField("foo", Collections.emptySet()));
-        extractedFieldList.add(new MultiField("bar", new DocValueField("bar.keyword", Collections.emptySet())));
-        extractedFieldList.add(new DocValueField("baz", Collections.emptySet()));
+        List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null)));
-        AnalyticsResultProcessor resultProcessor = createResultProcessor(extractedFieldList);
+        AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
 
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
@@ -184,8 +177,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
-        assertThat(storedModel.getDefaultFieldMap(), equalTo(Collections.singletonMap("bar", "bar.keyword")));
-        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar.keyword", "baz")));
+        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar", "baz")));
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
         Map<String, Object> metadata = storedModel.getMetadata();
@@ -243,13 +235,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         return createResultProcessor(Collections.emptyList());
     }
 
-    private AnalyticsResultProcessor createResultProcessor(List<ExtractedField> fieldNames) {
-        return new AnalyticsResultProcessor(analyticsConfig,
-            dataFrameRowsJoiner,
-            statsHolder,
-            trainedModelProvider,
-            auditor,
-            resultsPersisterService,
-            fieldNames);
+    private AnalyticsResultProcessor createResultProcessor(List<String> fieldNames) {
+        return new AnalyticsResultProcessor(
+            analyticsConfig, dataFrameRowsJoiner, statsHolder, trainedModelProvider, auditor, resultsPersisterService, fieldNames);
     }
 }

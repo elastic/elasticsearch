@@ -44,7 +44,7 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField LAMBDA = new ParseField("lambda");
     static final ParseField GAMMA = new ParseField("gamma");
     static final ParseField ETA = new ParseField("eta");
-    static final ParseField MAX_TREES = new ParseField("max_trees");
+    static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
@@ -72,7 +72,7 @@ public class Regression implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LAMBDA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), GAMMA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_TREES);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -84,7 +84,7 @@ public class Regression implements DataFrameAnalysis {
     private final Double lambda;
     private final Double gamma;
     private final Double eta;
-    private final Integer maxTrees;
+    private final Integer maximumNumberTrees;
     private final Double featureBagFraction;
     private final Integer numTopFeatureImportanceValues;
     private final String predictionFieldName;
@@ -92,14 +92,14 @@ public class Regression implements DataFrameAnalysis {
     private final Long randomizeSeed;
 
     private Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                       @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
+                       @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction,
                        @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
                        @Nullable Double trainingPercent, @Nullable Long randomizeSeed) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
         this.eta = eta;
-        this.maxTrees = maxTrees;
+        this.maximumNumberTrees = maximumNumberTrees;
         this.featureBagFraction = featureBagFraction;
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
         this.predictionFieldName = predictionFieldName;
@@ -128,8 +128,8 @@ public class Regression implements DataFrameAnalysis {
         return eta;
     }
 
-    public Integer getMaxTrees() {
-        return maxTrees;
+    public Integer getMaximumNumberTrees() {
+        return maximumNumberTrees;
     }
 
     public Double getFeatureBagFraction() {
@@ -165,8 +165,8 @@ public class Regression implements DataFrameAnalysis {
         if (eta != null) {
             builder.field(ETA.getPreferredName(), eta);
         }
-        if (maxTrees != null) {
-            builder.field(MAX_TREES.getPreferredName(), maxTrees);
+        if (maximumNumberTrees != null) {
+            builder.field(MAXIMUM_NUMBER_TREES.getPreferredName(), maximumNumberTrees);
         }
         if (featureBagFraction != null) {
             builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
@@ -189,7 +189,7 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
+        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues,
             predictionFieldName, trainingPercent, randomizeSeed);
     }
 
@@ -202,7 +202,7 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(lambda, that.lambda)
             && Objects.equals(gamma, that.gamma)
             && Objects.equals(eta, that.eta)
-            && Objects.equals(maxTrees, that.maxTrees)
+            && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
@@ -220,7 +220,7 @@ public class Regression implements DataFrameAnalysis {
         private Double lambda;
         private Double gamma;
         private Double eta;
-        private Integer maxTrees;
+        private Integer maximumNumberTrees;
         private Double featureBagFraction;
         private Integer numTopFeatureImportanceValues;
         private String predictionFieldName;
@@ -246,8 +246,8 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setMaxTrees(Integer maxTrees) {
-            this.maxTrees = maxTrees;
+        public Builder setMaximumNumberTrees(Integer maximumNumberTrees) {
+            this.maximumNumberTrees = maximumNumberTrees;
             return this;
         }
 
@@ -277,7 +277,7 @@ public class Regression implements DataFrameAnalysis {
         }
 
         public Regression build() {
-            return new Regression(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
+            return new Regression(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
                 numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed);
         }
     }

@@ -47,24 +47,18 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            Input expressionInput = new Input();
-            expressionInput.expected = method.typeParameters.get(argument);
-            expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.expected = method.typeParameters.get(argument);
+            expression.internal = true;
+            expression.analyze(scriptRoot, scope);
             expression.cast();
         }
 
-        output.statement = true;
-        output.actual = method.returnType;
-
-        return output;
+        statement = true;
+        actual = method.returnType;
     }
 
     @Override
@@ -76,7 +70,7 @@ final class PSubCallInvoke extends AExpression {
         }
 
         callSubNode.setLocation(location);
-        callSubNode.setExpressionType(output.actual);
+        callSubNode.setExpressionType(actual);
         callSubNode.setMethod(method);
         callSubNode .setBox(box);
 

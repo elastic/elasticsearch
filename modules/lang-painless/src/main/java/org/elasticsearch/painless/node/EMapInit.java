@@ -51,27 +51,24 @@ public final class EMapInit extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.read == false) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (!read) {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
 
-        output.actual = HashMap.class;
+        actual = HashMap.class;
 
-        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
+                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
         }
 
-        method = scriptRoot.getPainlessLookup().lookupPainlessMethod(output.actual, false, "put", 2);
+        method = scriptRoot.getPainlessLookup().lookupPainlessMethod(actual, false, "put", 2);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", put/2] not found"));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", put/2] not found"));
         }
 
         if (keys.size() != values.size()) {
@@ -81,24 +78,20 @@ public final class EMapInit extends AExpression {
         for (int index = 0; index < keys.size(); ++index) {
             AExpression expression = keys.get(index);
 
-            Input expressionInput = new Input();
-            expressionInput.expected = def.class;
-            expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.expected = def.class;
+            expression.internal = true;
+            expression.analyze(scriptRoot, scope);
             expression.cast();
         }
 
         for (int index = 0; index < values.size(); ++index) {
             AExpression expression = values.get(index);
 
-            Input expressionInput = new Input();
-            expressionInput.expected = def.class;
-            expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.expected = def.class;
+            expression.internal = true;
+            expression.analyze(scriptRoot, scope);
             expression.cast();
         }
-
-        return output;
     }
 
     @Override
@@ -112,7 +105,7 @@ public final class EMapInit extends AExpression {
         }
 
         mapInitializationNode.setLocation(location);
-        mapInitializationNode.setExpressionType(output.actual);
+        mapInitializationNode.setExpressionType(actual);
         mapInitializationNode.setConstructor(constructor);
         mapInitializationNode.setMethod(method);
 

@@ -52,11 +52,6 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         return this;
     }
 
-    public SqlQueryRequestBuilder version(String version) {
-        request.version(version);
-        return this;
-    }
-
     public SqlQueryRequestBuilder cursor(String cursor) {
         request.cursor(cursor);
         return this;

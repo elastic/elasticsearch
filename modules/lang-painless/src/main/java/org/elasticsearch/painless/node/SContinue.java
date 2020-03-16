@@ -35,23 +35,18 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.inLoop == false) {
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
+        if (!inLoop) {
             throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
         }
 
-        if (input.lastLoop) {
+        if (lastLoop) {
             throw createError(new IllegalArgumentException("Extraneous continue statement."));
         }
 
-        output.allEscape = true;
-        output.anyContinue = true;
-        output.statementCount = 1;
-
-        return output;
+        allEscape = true;
+        anyContinue = true;
+        statementCount = 1;
     }
 
     @Override

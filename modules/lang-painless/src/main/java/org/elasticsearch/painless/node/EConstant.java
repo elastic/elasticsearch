@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
@@ -41,42 +40,35 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         if (constant instanceof String) {
-            output.actual = String.class;
+            actual = String.class;
         } else if (constant instanceof Double) {
-            output.actual = double.class;
+            actual = double.class;
         } else if (constant instanceof Float) {
-            output.actual = float.class;
+            actual = float.class;
         } else if (constant instanceof Long) {
-            output.actual = long.class;
+            actual = long.class;
         } else if (constant instanceof Integer) {
-            output.actual = int.class;
+            actual = int.class;
         } else if (constant instanceof Character) {
-            output.actual = char.class;
+            actual = char.class;
         } else if (constant instanceof Short) {
-            output.actual = short.class;
+            actual = short.class;
         } else if (constant instanceof Byte) {
-            output.actual = byte.class;
+            actual = byte.class;
         } else if (constant instanceof Boolean) {
-            output.actual = boolean.class;
+            actual = boolean.class;
         } else {
-            throw createError(new IllegalStateException("unexpected type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(constant.getClass()) + "] " +
-                    "for constant node"));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
-
-        return output;
     }
 
     @Override
     ConstantNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(actual);
         constantNode.setConstant(constant);
 
         return constantNode;

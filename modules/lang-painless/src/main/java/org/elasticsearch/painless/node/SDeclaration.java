@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.node.AExpression.Input;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -48,23 +47,17 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    void analyze(ScriptRoot scriptRoot, Scope scope) {
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
         type = resolvedType;
 
         if (expression != null) {
-            AExpression.Input expressionInput = new AExpression.Input();
-            expressionInput.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.expected = resolvedType.getType();
+            expression.analyze(scriptRoot, scope);
             expression.cast();
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
-
-        return output;
     }
 
     @Override

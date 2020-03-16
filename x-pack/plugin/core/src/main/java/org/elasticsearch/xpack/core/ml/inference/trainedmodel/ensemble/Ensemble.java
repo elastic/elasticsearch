@@ -73,10 +73,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                     p.namedObject(StrictlyParsedTrainedModel.class, n, null),
             (ensembleBuilder) -> ensembleBuilder.setModelsAreOrdered(true),
             TRAINED_MODELS);
-        parser.declareNamedObject(Ensemble.Builder::setOutputAggregator,
+        parser.declareNamedObjects(Ensemble.Builder::setOutputAggregatorFromParser,
             (p, c, n) ->
                 lenient ? p.namedObject(LenientlyParsedOutputAggregator.class, n, null) :
                     p.namedObject(StrictlyParsedOutputAggregator.class, n, null),
+            (ensembleBuilder) -> {/*Noop as it could be an array or object, it just has to be a one*/},
             AGGREGATE_OUTPUT);
         parser.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
         parser.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
@@ -411,6 +412,14 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         public Builder setClassificationWeights(List<Double> classificationWeights) {
             this.classificationWeights = classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
             return this;
+        }
+
+        private void setOutputAggregatorFromParser(List<OutputAggregator> outputAggregators) {
+            if (outputAggregators.size() != 1) {
+                throw ExceptionsHelper.badRequestException("[{}] must have exactly one aggregator defined.",
+                    AGGREGATE_OUTPUT.getPreferredName());
+            }
+            this.setOutputAggregator(outputAggregators.get(0));
         }
 
         private void setTargetType(String targetType) {

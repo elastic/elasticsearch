@@ -511,7 +511,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
-        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState,
+        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
@@ -560,7 +560,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
                                                         BiFunction<String, String, Transport.Connection> connectionLookup,
-                                                        ClusterState clusterState,
+                                                        long clusterStateVersion,
                                                         Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
                                                         Map<String, Set<String>> indexRoutings,
@@ -571,14 +571,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, indexRoutings, executor, searchRequest, listener, shardIterators,
-                timeProvider, clusterState, task, (iter) -> {
+                timeProvider, clusterStateVersion, task, (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
                     searchRequest,
                     iter,
                     timeProvider,
                     connectionLookup,
-                    clusterState,
+                    clusterStateVersion,
                     aliasFilter,
                     concreteIndexBoosts,
                     indexRoutings,
@@ -598,12 +598,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterState, task, clusters);
+                        shardIterators, timeProvider, clusterStateVersion, task, clusters);
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterState, task, clusters);
+                        shardIterators, timeProvider, clusterStateVersion, task, clusters);
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

@@ -70,27 +70,23 @@ the same sort values then this aggregation could return either document's fields
 
 ==== `metrics`
 
-`metrics` selects the fields to of the "top" document to return.
+`metrics` selects the fields to of the "top" document to return. Like most other
+aggregations, `top_metrics` casts these values cast to `double` precision
+floating point numbers. So they have to be numeric. Dates *work*, but they
+come back as a `double` precision floating point containing milliseconds since
+epoch. `keyword` fields aren't allowed.
 
 You can return multiple metrics by providing a list:
 
 [source,console,id=search-aggregations-metrics-top-metrics-list-of-metrics]
 ----
-PUT /test
-{
-  "mappings": {
-    "properties": {
-      "d": {"type": "date"}
-    }
-  }
-}
 POST /test/_bulk?refresh
 {"index": {}}
-{"s": 1, "v": 3.1415, "m": 1, "d": "2020-01-01T00:12:12Z"}
+{"s": 1, "v": 3.1415, "m": 1.9}
 {"index": {}}
-{"s": 2, "v": 1.0, "m": 6, "d": "2020-01-02T00:12:12Z"}
+{"s": 2, "v": 1.0, "m": 6.7}
 {"index": {}}
-{"s": 3, "v": 2.71828, "m": -12, "d": "2019-12-31T00:12:12Z"}
+{"s": 3, "v": 2.71828, "m": -12.2}
 POST /test/_search?filter_path=aggregations
 {
   "aggs": {
@@ -98,8 +94,7 @@ POST /test/_search?filter_path=aggregations
       "top_metrics": {
         "metrics": [
           {"field": "v"},
-          {"field": "m"},
-          {"field": "d"}
+          {"field": "m"}
         ],
         "sort": {"s": "desc"}
       }
@@ -119,8 +114,7 @@ Which returns:
         "sort": [3],
         "metrics": {
           "v": 2.718280076980591,
-          "m": -12,
-          "d": "2019-12-31T00:12:12.000Z"
+          "m": -12.199999809265137
         }
       } ]
     }
@@ -128,6 +122,7 @@ Which returns:
 }
 ----
 // TESTRESPONSE
+
 
 ==== `size`
 
@@ -251,14 +246,14 @@ Which returns:
           "key": "192.168.0.1",
           "doc_count": 2,
           "tm": {
-            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 2 } } ]
+            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 2.0 } } ]
           }
         },
         {
           "key": "192.168.0.2",
           "doc_count": 1,
           "tm": {
-            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 3 } } ]
+            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 3.0 } } ]
           }
         }
       ],
@@ -308,14 +303,14 @@ Which returns:
           "key": "192.168.0.2",
           "doc_count": 1,
           "tm": {
-            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 3 } } ]
+            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 3.0 } } ]
           }
         },
         {
           "key": "192.168.0.1",
           "doc_count": 2,
           "tm": {
-            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 2 } } ]
+            "top": [ {"sort": ["2020-01-01T02:01:01.000Z"], "metrics": {"v": 2.0 } } ]
           }
         }
       ],

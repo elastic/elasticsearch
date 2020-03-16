@@ -17,7 +17,7 @@ import java.util.Objects;
  *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern implements StringPattern {
+public class LikePattern {
 
     private final String pattern;
     private final char escape;
@@ -43,7 +43,9 @@ public class LikePattern implements StringPattern {
         return escape;
     }
 
-    @Override
+    /**
+     * Returns the pattern in (Java) regex format.
+     */
     public String asJavaRegex() {
         return regex;
     }

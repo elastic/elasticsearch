@@ -77,16 +77,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
             // assert that the mappings are updated
-            Map<String, Object> configIndexMappings = getConfigIndexMappings();
-
-            // Remove renamed fields
-            if (getOldClusterVersion().before(Version.V_8_0_0)) {
-                configIndexMappings = XContentMapValues.filter(expectedConfigIndexMappings, null, new String[] {
-                    "analysis.properties.*.properties.maximum_number_trees" // This was renamed to max_trees
-                });
-            }
-
-            assertThat(configIndexMappings, equalTo(expectedConfigIndexMappings));
+            assertThat(getConfigIndexMappings(), equalTo(expectedConfigIndexMappings));
         }
     }
 

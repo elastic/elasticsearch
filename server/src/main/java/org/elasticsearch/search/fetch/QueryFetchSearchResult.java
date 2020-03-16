@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -45,8 +44,8 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
-    public SearchContextId getContextId() {
-        return queryResult.getContextId();
+    public long getRequestId() {
+        return queryResult.getRequestId();
     }
 
     @Override

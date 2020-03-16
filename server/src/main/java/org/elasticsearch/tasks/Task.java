@@ -141,13 +141,6 @@ public class Task {
     }
 
     /**
-     * Returns the task's start time in nanoseconds ({@link System#nanoTime()} style).
-     */
-    public long getStartTimeNanos() {
-        return startTimeNanos;
-    }
-
-    /**
      * Returns id of the parent task or NO_PARENT_ID if the task doesn't have any parent tasks
      */
     public TaskId getParentTaskId() {

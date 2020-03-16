@@ -117,11 +117,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
-    /**
-     * Return this {@linkplain SortValue} as a boxed {@linkplain Number}.
-     */
-    public abstract Number numberValue();
-
     private static class DoubleSortValue extends SortValue {
         public static final String NAME = "double";
 
@@ -183,11 +178,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String toString() {
             return Double.toString(key);
-        }
-
-        @Override
-        public Number numberValue() {
-            return key;
         }
     }
 
@@ -252,11 +242,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String toString() {
             return Long.toString(key);
-        }
-
-        @Override
-        public Number numberValue() {
-            return key;
         }
     }
 }

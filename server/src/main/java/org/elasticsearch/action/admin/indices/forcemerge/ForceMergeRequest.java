@@ -19,11 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -56,15 +53,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
 
-    private static final Version FORCE_MERGE_UUID_VERSION = Version.V_7_7_0;
-
-    /**
-     * Force merge UUID to store in the live commit data of a shard under
-     * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
-     */
-    @Nullable
-    private final String forceMergeUUID;
-
     /**
      * Constructs a merge request over one or more indices.
      *
@@ -72,7 +60,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
      */
     public ForceMergeRequest(String... indices) {
         super(indices);
-        forceMergeUUID = UUIDs.randomBase64UUID();
     }
 
     public ForceMergeRequest(StreamInput in) throws IOException {
@@ -80,11 +67,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            forceMergeUUID = in.readOptionalString();
-        } else {
-            forceMergeUUID = null;
-        }
     }
 
     /**
@@ -122,15 +104,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
-     * Force merge UUID to use when force merging or {@code null} if not using one in a mixed version cluster containing nodes older than
-     * {@link #FORCE_MERGE_UUID_VERSION}.
-     */
-    @Nullable
-    public String forceMergeUUID() {
-        return forceMergeUUID;
-    }
-
-    /**
      * Should flush be performed after the merge. Defaults to {@code true}.
      */
     public boolean flush() {
@@ -159,9 +132,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            out.writeOptionalString(forceMergeUUID);
-        }
     }
 
     @Override

@@ -70,7 +70,7 @@ public class HttpClient {
                 null,
                 Boolean.FALSE,
                 null,
-                new RequestInfo(Mode.CLI, ClientVersion.CURRENT),
+                new RequestInfo(Mode.CLI),
                 false,
                 false,
                 cfg.binaryCommunication());

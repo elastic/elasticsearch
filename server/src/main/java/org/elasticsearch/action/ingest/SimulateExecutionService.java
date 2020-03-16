@@ -69,13 +69,6 @@ class SimulateExecutionService {
             final AtomicInteger counter = new AtomicInteger();
             final List<SimulateDocumentResult> responses =
                 new CopyOnWriteArrayList<>(new SimulateDocumentBaseResult[request.getDocuments().size()]);
-
-            if (request.getDocuments().isEmpty()) {
-                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
-                    request.isVerbose(), responses));
-                return;
-            }
-
             int iter = 0;
             for (IngestDocument ingestDocument : request.getDocuments()) {
                 final int index = iter;

@@ -7,32 +7,33 @@
 package org.elasticsearch.xpack.eql.action;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class EqlActionIT extends AbstractEqlIntegTestCase {
 
     static final String indexPrefix = "endgame";
     static final String testIndexName = indexPrefix + "-1.4.0";
-    protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
+    protected static final String PARAM_FORMATTING = "%1$s.test";
+
 
     @BeforeClass
     public static void checkForSnapshot() {
@@ -40,29 +41,26 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
     }
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setUpData() throws Exception {
         // Insert test data
         ObjectMapper mapper = new ObjectMapper();
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, EqlActionIT.class.getResourceAsStream("/test_data.json"))) {
-            List<Object> list = parser.list();
-            for (Object item : list) {
-                assertThat(item, instanceOf(HashMap.class));
+        JsonNode rootNode = mapper.readTree(EqlActionIT.class.getResourceAsStream("/test_data.json"));
+        Iterator<JsonNode> entries = rootNode.elements();
+        while (entries.hasNext()) {
+            JsonNode entry = entries.next();
 
-                HashMap<String, Object> entry = (HashMap<String, Object>) item;
+            // Adjust the structure of the document with additional event.category and @timestamp fields
+            // Add event.category field
+            ObjectNode objEvent = ((ObjectNode)entry).putObject("event");
+            JsonNode objEventType = entry.get("event_type");
+            objEvent.put("category", objEventType.asText());
 
-                // Adjust the structure of the document with additional event.category and @timestamp fields
-                // Add event.category field
-                HashMap<String, Object> objEvent = new HashMap<>();
-                objEvent.put("category", entry.get("event_type"));
-                entry.put("event", objEvent);
+            // Add @timestamp field
+            JsonNode objTimestamp = entry.get("timestamp");
+            ((ObjectNode)entry).put("@timestamp", objTimestamp.asLong());
 
-                // Add @timestamp field
-                entry.put("@timestamp", entry.get("timestamp"));
-
-                bulkBuilder.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
-            }
+            bulkBuilder.add(new IndexRequest(testIndexName).source(entry.toString(), XContentType.JSON));
         }
         BulkResponse bulkResponse = bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(bulkResponse.hasFailures() ? bulkResponse.buildFailureMessage() : "", bulkResponse.hasFailures(), equalTo(false));
@@ -110,24 +108,19 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         this.spec = spec;
     }
 
-    private static long[] extractIds(List<SearchHit> events) {
-        final int len = events.size();
-        final long ids[] = new long[len];
-        for (int i = 0; i < len; i++) {
-            ids[i] = ((Number) events.get(i).getSourceAsMap().get("serial_event_id")).longValue();
-        }
-        return ids;
-    }
-
-    private void assertSpec(List<SearchHit> events) {
-        assertNotNull(events);
-        assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]", spec.expectedEventIds(), extractIds(events));
-    }
-
     public final void test() {
         EqlSearchResponse response = new EqlSearchRequestBuilder(client(), EqlSearchAction.INSTANCE)
-                .indices(testIndexName).query(spec.query()).get();
+            .indices(testIndexName).query(spec.query()).get();
 
-        assertSpec(response.hits().events());
+        List<SearchHit> events = response.hits().events();
+        assertNotNull(events);
+
+        final int len = events.size();
+        final long ids[] = new long[len];
+        for (int i = 0; i < events.size(); i++) {
+            ids[i] = ((Number) events.get(i).getSourceAsMap().get("serial_event_id")).longValue();
+        }
+        final String msg = "unexpected result for spec: [" + spec.toString() + "]";
+        assertArrayEquals(msg, spec.expectedEventIds(), ids);
     }
 }

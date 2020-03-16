@@ -297,7 +297,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
         dayToSecond = intervalLiteral(Duration.ofDays(-127).minusHours(17).minusMinutes(59).minusSeconds(59).minusNanos(987654321),
             INTERVAL_DAY_TO_SECOND);
-        assertEquals("-127 17:59:00.998", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("ms"), dayToSecond, null)
+        assertEquals("-127 17:59:59.987", toString((IntervalDayTime) new DateTrunc(Source.EMPTY, l("ms"), dayToSecond, null)
             .makePipe().asProcessor().process(null)));
     }
     private String toString(IntervalYearMonth intervalYearMonth) {

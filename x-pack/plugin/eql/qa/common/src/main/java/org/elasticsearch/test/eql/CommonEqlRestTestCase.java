@@ -16,53 +16,28 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
-    static class SearchTestConfiguration {
-        final String input;
-        final int expectedStatus;
-        final String expectedMessage;
-
-        SearchTestConfiguration(String input, int status, String msg) {
-            this.input = input;
-            this.expectedStatus = status;
-            this.expectedMessage = msg;
-        }
-    }
-
-    public static final String defaultValidationIndexName = "eql_search_validation_test";
+    private static final String defaultValidationIndexName = "eql_search_validation_test";
     private static final String validQuery = "process where user = 'SYSTEM'";
 
-    public static final ArrayList<SearchTestConfiguration> searchValidationTests;
-    static {
-        searchValidationTests = new ArrayList<>();
-        searchValidationTests.add(new SearchTestConfiguration(null, 400, "request body or source parameter is required"));
-        searchValidationTests.add(new SearchTestConfiguration("{}", 400, "query is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"\"}", 400, "query is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}",
-            400, "timestamp field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}",
-            400, "event category field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"implicit_join_key_field\": \"\"}",
-            400, "implicit join key field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"size\": 0}",
-            400, "size must be greater than 0"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"size\": -1}",
-            400, "size must be greater than 0"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"search_after\": null}",
-            400, "search_after doesn't support values of type: VALUE_NULL"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"search_after\": []}",
-            400, "must contains at least one value"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"filter\": null}",
-            400, "filter doesn't support values of type: VALUE_NULL"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"query\": \"" + validQuery + "\", \"filter\": {}}",
-            400, "query malformed, empty clause found"));
-    }
+    private static final String[][] testBadRequests = {
+            {null, "request body or source parameter is required"},
+            {"{}", "query is null or empty"},
+            {"{\"query\": \"\"}", "query is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"implicit_join_key_field\": \"\"}", "implicit join key field is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"size\": 0}", "size must be greater than 0"},
+            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than 0"},
+            {"{\"query\": \"" + validQuery + "\", \"search_after\": null}", "search_after doesn't support values of type: VALUE_NULL"},
+            {"{\"query\": \"" + validQuery + "\", \"search_after\": []}", "must contains at least one value"},
+            {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
+            {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
+    };
 
     @BeforeClass
     public static void checkForSnapshot() {
@@ -79,24 +54,19 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
         deleteIndex(defaultValidationIndexName);
     }
 
-    public void testSearchValidationFailures() throws Exception {
+    public void testBadRequests() throws Exception {
         final String contentType = "application/json";
-        for (SearchTestConfiguration config : searchValidationTests) {
+        for (String[] test : testBadRequests) {
             final String endpoint = "/" + defaultValidationIndexName + "/_eql/search";
             Request request = new Request("GET", endpoint);
-            request.setJsonEntity(config.input);
+            request.setJsonEntity(test[0]);
 
-            Response response = null;
-            if (config.expectedStatus == 400) {
-                ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-                response = e.getResponse();
-            } else {
-                response = client().performRequest(request);
-            }
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            Response response = e.getResponse();
 
             assertThat(response.getHeader("Content-Type"), containsString(contentType));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString(config.expectedMessage));
-            assertThat(response.getStatusLine().getStatusCode(), is(config.expectedStatus));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
+            assertThat(response.getStatusLine().getStatusCode(), is(400));
         }
     }
 }

@@ -1856,6 +1856,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
         if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
+
+        if (randomBoolean()) {
             searchRequest.scroll(randomTimeValue());
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }

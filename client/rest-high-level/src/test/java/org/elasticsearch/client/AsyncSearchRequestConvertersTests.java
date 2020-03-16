@@ -46,6 +46,13 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         SearchRequest searchRequest = RequestConvertersTests.createTestSearchRequest(indices, expectedParams);
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(searchRequest);
+        // some properties of theSearchRequest are always overwritten in the submit request,
+        // so we need to adapt the expected parameters accordingly for tests to pass
+        expectedParams.put("ccs_minimize_roundtrips", "false");
+        expectedParams.put("request_cache", "true");
+        expectedParams.put("batched_reduce_size", "5");
+        expectedParams.put("pre_filter_shard_size", "1");
+
         if (randomBoolean()) {
             boolean cleanOnCompletion = randomBoolean();
             submitRequest.setCleanOnCompletion(cleanOnCompletion);

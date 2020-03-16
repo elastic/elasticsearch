@@ -23,14 +23,11 @@ package org.elasticsearch.client.asyncsearch;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.Objects;
 
 /**
  * A request to track asynchronously the progress of a search against one or more indices.
- *
- * @see AsyncSearchResponse
  */
 public class SubmitAsyncSearchRequest implements Validatable {
 
@@ -46,7 +43,11 @@ public class SubmitAsyncSearchRequest implements Validatable {
      * @param searchRequest the actual search request to submit
      */
     public SubmitAsyncSearchRequest(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
+        this.searchRequest = new SearchRequest(searchRequest);
+        this.searchRequest.setCcsMinimizeRoundtrips(false);
+        this.searchRequest.setPreFilterShardSize(1);
+        this.searchRequest.setBatchedReduceSize(5);
+        this.searchRequest.requestCache(true);
     }
 
 

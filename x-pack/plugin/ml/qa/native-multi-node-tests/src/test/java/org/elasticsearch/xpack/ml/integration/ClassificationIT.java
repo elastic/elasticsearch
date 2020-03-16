@@ -322,9 +322,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    @AwaitsFix(bugUrl = "Muted until ml-cpp supports multiple classes")
     public void testDependentVariableCardinalityTooHighError() throws Exception {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
+
         // Index one more document with a class different than the two already used.
         client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
             .source(KEYWORD_FIELD, "fox")

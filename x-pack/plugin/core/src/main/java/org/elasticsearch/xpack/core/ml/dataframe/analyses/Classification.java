@@ -46,8 +46,15 @@ public class Classification implements DataFrameAnalysis {
 
     private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
 
+    private static final String NUM_CLASSES = "num_classes";
+
     private static final ConstructingObjectParser<Classification, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Classification, Void> STRICT_PARSER = createParser(false);
+
+    /**
+     * The max number of classes classification supports
+     */
+    private static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
 
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Classification, Void> parser = new ConstructingObjectParser<>(
@@ -218,7 +225,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
+    public Map<String, Object> getParams(FieldInfo fieldInfo) {
         Map<String, Object> params = new HashMap<>();
         params.put(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         params.putAll(boostedTreeParams.getParams());
@@ -227,10 +234,11 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
-        String predictionFieldType = getPredictionFieldType(extractedFields.get(dependentVariable));
+        String predictionFieldType = getPredictionFieldType(fieldInfo.getTypes(dependentVariable));
         if (predictionFieldType != null) {
             params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
         }
+        params.put(NUM_CLASSES, fieldInfo.getCardinality(dependentVariable));
         return params;
     }
 
@@ -272,7 +280,7 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
-        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, 2));
+        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, MAX_DEPENDENT_VARIABLE_CARDINALITY));
     }
 
     @SuppressWarnings("unchecked")

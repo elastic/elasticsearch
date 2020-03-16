@@ -187,38 +187,46 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetParams() {
-        Map<String, Set<String>> extractedFields =
+        DataFrameAnalysis.FieldInfo fieldInfo = new TestFieldInfo(
             Map.of(
                 "foo", Set.of(BooleanFieldMapper.CONTENT_TYPE),
                 "bar", Set.of(NumberFieldMapper.NumberType.LONG.typeName()),
-                "baz", Set.of(KeywordFieldMapper.CONTENT_TYPE));
+                "baz", Set.of(KeywordFieldMapper.CONTENT_TYPE)),
+            Map.of(
+                "foo", 10L,
+                "bar", 20L,
+                "baz", 30L)
+        );
         assertThat(
-            new Classification("foo").getParams(extractedFields),
+            new Classification("foo").getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable", "foo",
                     "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
                     "prediction_field_name", "foo_prediction",
-                    "prediction_field_type", "bool")));
+                    "prediction_field_type", "bool",
+                    "num_classes", 10L)));
         assertThat(
-            new Classification("bar").getParams(extractedFields),
+            new Classification("bar").getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable", "bar",
                     "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
                     "prediction_field_name", "bar_prediction",
-                    "prediction_field_type", "int")));
+                    "prediction_field_type", "int",
+                    "num_classes", 20L)));
         assertThat(
-            new Classification("baz").getParams(extractedFields),
+            new Classification("baz").getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable", "baz",
                     "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
                     "prediction_field_name", "baz_prediction",
-                    "prediction_field_type", "string")));
+                    "prediction_field_type", "string",
+                    "num_classes", 30L)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {
@@ -232,7 +240,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.size(), equalTo(1));
         assertThat(constraints.get(0).getField(), equalTo(classification.getDependentVariable()));
         assertThat(constraints.get(0).getLowerBound(), equalTo(2L));
-        assertThat(constraints.get(0).getUpperBound(), equalTo(2L));
+        assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
     }
 
     public void testGetExplicitlyMappedFields() {
@@ -330,5 +338,26 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     @Override
     protected Classification mutateInstanceForVersion(Classification instance, Version version) {
         return mutateForVersion(instance, version);
+    }
+
+    private static class TestFieldInfo implements DataFrameAnalysis.FieldInfo {
+
+        private final Map<String, Set<String>> fieldTypes;
+        private final Map<String, Long> fieldCardinalities;
+
+        private TestFieldInfo(Map<String, Set<String>> fieldTypes, Map<String, Long> fieldCardinalities) {
+            this.fieldTypes = fieldTypes;
+            this.fieldCardinalities = fieldCardinalities;
+        }
+
+        @Override
+        public Set<String> getTypes(String field) {
+            return fieldTypes.get(field);
+        }
+
+        @Override
+        public Long getCardinality(String field) {
+            return fieldCardinalities.get(field);
+        }
     }
 }

@@ -99,7 +99,7 @@ public class SamlAuthnRequestValidator {
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
-            getSpFromIssuer(authnRequest.getIssuer(), ActionListener.wrap(
+            getSpFromIssuer(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(
                 sp -> {
                     try {
                         validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
@@ -226,12 +226,12 @@ public class SamlAuthnRequestValidator {
         });
     }
 
-    private void getSpFromIssuer(Issuer issuer, ActionListener<SamlServiceProvider> listener) {
+    private void getSpFromIssuer(Issuer issuer, String acs, ActionListener<SamlServiceProvider> listener) {
         if (issuer == null || issuer.getValue() == null) {
             throw new ElasticsearchSecurityException("SAML authentication request has no issuer", RestStatus.BAD_REQUEST);
         }
         final String issuerString = issuer.getValue();
-        idp.getRegisteredServiceProvider(issuerString, false, ActionListener.wrap(
+        idp.getRegisteredServiceProvider(issuerString, acs, false, ActionListener.wrap(
             serviceProvider -> {
                 if (null == serviceProvider) {
                     throw new ElasticsearchSecurityException(

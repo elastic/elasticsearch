@@ -45,18 +45,21 @@ import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnActio
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
 import org.elasticsearch.xpack.idp.privileges.UserPrivilegeResolver;
-import org.elasticsearch.xpack.idp.saml.rest.action.RestDeleteSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
-import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
-import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
-import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlInitiateSingleSignOnAction;
-import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
-import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
-import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestDeleteSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestPutSamlServiceProviderAction;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlInitiateSingleSignOnAction;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
+import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderFactory;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderCacheSettings;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
+import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
+import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -95,8 +98,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
 
         final ServiceProviderDefaults serviceProviderDefaults = ServiceProviderDefaults.forSettings(settings);
-        final SamlServiceProviderResolver resolver = new SamlServiceProviderResolver(settings, index, serviceProviderDefaults);
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver)
+        final SamlServiceProviderFactory serviceProviderFactory = new SamlServiceProviderFactory(serviceProviderDefaults);
+        final SamlServiceProviderResolver serviceResolver = new SamlServiceProviderResolver(settings, index, serviceProviderFactory);
+        final WildcardServiceProviderResolver wildcardResolver = WildcardServiceProviderResolver.create(environment, resourceWatcherService,
+            scriptService, serviceProviderFactory);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
             .fromSettings(environment)
             .serviceProviderDefaults(serviceProviderDefaults)
             .build();
@@ -147,6 +153,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(ENABLED_SETTING);
         settings.addAll(SamlIdentityProviderBuilder.getSettings());
+        settings.addAll(ServiceProviderCacheSettings.getSettings());
         settings.addAll(ServiceProviderDefaults.getSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());

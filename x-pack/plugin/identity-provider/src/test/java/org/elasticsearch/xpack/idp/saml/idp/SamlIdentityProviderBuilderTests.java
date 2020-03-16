@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
+import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.Duration;
@@ -85,9 +86,13 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put("xpack.idp.signing.certificate", destSigningCertPath)
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         final ServiceProviderDefaults defaults = ServiceProviderDefaults.forSettings(settings);
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build();
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
+            .fromSettings(env)
+            .serviceProviderDefaults(defaults)
+            .build();
         assertThat(idp.getEntityId(), equalTo("urn:elastic:cloud:idp"));
         assertThat(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/sso/redirect"));
         assertThat(idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/sso/post"));
@@ -121,12 +126,16 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
             randomAlphaOfLengthBetween(4, 8), randomFrom(TRANSIENT, PERSISTENT),
             Duration.standardMinutes(randomIntBetween(2, 90)));
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build());
+            () -> SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
+                .fromSettings(env)
+                .serviceProviderDefaults(defaults)
+                .build());
         assertThat(e, instanceOf(ValidationException.class));
         assertThat(e.getMessage(), containsString("Signing credential must be specified"));
     }
@@ -161,9 +170,13 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put("xpack.idp.signing.certificate", destSigningCertPath)
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         final ServiceProviderDefaults defaults = ServiceProviderDefaults.forSettings(settings);
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build();
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
+            .fromSettings(env)
+            .serviceProviderDefaults(defaults)
+            .build();
         assertThat(idp.getAllowedNameIdFormats(), hasSize(1));
         assertThat(idp.getAllowedNameIdFormats(), Matchers.contains(TRANSIENT));
     }
@@ -198,10 +211,11 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put("xpack.idp.signing.certificate", destSigningCertPath)
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         final ServiceProviderDefaults defaults = ServiceProviderDefaults.forSettings(settings);
-        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () ->
+            SamlIdentityProvider.builder(serviceResolver, wildcardResolver).fromSettings(env).serviceProviderDefaults(defaults).build());
         assertThat(e.getMessage(), containsString("are not valid NameID formats. Allowed values are"));
         assertThat(e.getMessage(), containsString(PERSISTENT));
     }
@@ -213,9 +227,10 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "not a url")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
+            () -> SamlIdentityProvider.builder(serviceResolver, wildcardResolver).fromSettings(env).build());
         assertThat(e.getMessage(), containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), containsString("Not a valid URL"));
     }
@@ -229,9 +244,10 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
+            () -> SamlIdentityProvider.builder(serviceResolver, wildcardResolver).fromSettings(env).build());
         assertThat(e.getMessage(), containsString(IDP_SSO_REDIRECT_ENDPOINT.getKey()));
         assertThat(e.getMessage(), containsString("is required"));
     }
@@ -246,9 +262,10 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_ORGANIZATION_NAME.getKey(), "The Organization")
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
-            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
+            () -> SamlIdentityProvider.builder(serviceResolver, wildcardResolver).fromSettings(env).build());
         assertThat(e.getMessage(), containsString(IDP_ORGANIZATION_URL.getKey()));
         assertThat(e.getMessage(), containsString("Not a valid URL"));
     }

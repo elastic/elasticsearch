@@ -47,7 +47,7 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         SamlFactory factory = new SamlFactory();
         SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
         PlainActionFuture<SamlMetadataResponse> future = new PlainActionFuture<>();
-        generator.generateMetadata("https://sp.org", future);
+        generator.generateMetadata("https://sp.org", null, future);
         SamlMetadataResponse response = future.actionGet();
         final String xml = response.getXmlString();
 

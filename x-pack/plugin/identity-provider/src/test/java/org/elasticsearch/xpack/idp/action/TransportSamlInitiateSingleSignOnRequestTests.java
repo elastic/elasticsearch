@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
+import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
@@ -124,7 +125,8 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
                 .writeToContext(threadContext);
         }
 
-        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         final CloudServiceProvider serviceProvider = new CloudServiceProvider("https://sp.some.org",
             "test sp",
             true,
@@ -138,13 +140,13 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
                 "https://saml.elasticsearch.org/attributes/email",
                 "https://saml.elasticsearch.org/attributes/roles"),
             null, false, false);
-        mockRegisteredServiceProvider(resolver, "https://sp.some.org", serviceProvider);
-        mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
+        mockRegisteredServiceProvider(serviceResolver, "https://sp.some.org", serviceProvider);
+        mockRegisteredServiceProvider(serviceResolver, "https://sp2.other.org", null);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
             "elastic-cloud", TRANSIENT, Duration.standardMinutes(15));
         final X509Credential signingCredential = readCredentials("RSA", randomFrom(1024, 2048, 4096));
         final SamlIdentityProvider idp = SamlIdentityProvider
-            .builder(resolver)
+            .builder(serviceResolver, wildcardResolver)
             .fromSettings(env)
             .signingCredential(signingCredential)
             .serviceProviderDefaults(defaults)

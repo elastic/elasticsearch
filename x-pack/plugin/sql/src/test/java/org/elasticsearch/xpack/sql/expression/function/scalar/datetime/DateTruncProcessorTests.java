@@ -114,7 +114,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         Literal dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
         TemporalAmount period = Period.ofYears(2019).plusMonths(10);
         Literal yearToMonth = intervalLiteral(period, INTERVAL_YEAR_TO_MONTH);
-        TemporalAmount duration = Duration.ofDays(105).plusHours(2).plusMinutes(45).plusSeconds(55).plusNanos(123000000);
+        TemporalAmount duration = Duration.ofDays(105).plusHours(2).plusMinutes(45).plusSeconds(55).plusNanos(123456789);
         Literal dayToSecond = intervalLiteral(duration, INTERVAL_DAY_TO_SECOND);
 
         assertEquals("2000-01-01T00:00:00.000+10:00",

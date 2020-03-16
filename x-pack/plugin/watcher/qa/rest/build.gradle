@@ -8,7 +8,6 @@ dependencies {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
-  restXpackTests
 }
 
 task testJar(type: Jar) {
@@ -18,7 +17,6 @@ task testJar(type: Jar) {
 
 artifacts {
   testArtifacts testJar
-  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
 restResources {

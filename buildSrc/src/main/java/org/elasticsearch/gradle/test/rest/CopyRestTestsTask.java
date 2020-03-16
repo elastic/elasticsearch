@@ -114,7 +114,7 @@ public class CopyRestTestsTask extends DefaultTask {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
-                    c.from(coreConfig.getAsFileTree());
+                    c.from(coreConfig.getSingleFile());
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
                 });
@@ -138,7 +138,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
-                c.from(xpackConfig.getAsFileTree());
+                c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });

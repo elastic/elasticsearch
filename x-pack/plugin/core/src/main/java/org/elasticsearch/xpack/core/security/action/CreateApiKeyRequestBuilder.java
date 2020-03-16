@@ -74,11 +74,15 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (InputStream stream = source.streamInput();
                 XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            CreateApiKeyRequest createApiKeyRequest = PARSER.parse(parser, null);
+            CreateApiKeyRequest createApiKeyRequest = parse(parser);
             setName(createApiKeyRequest.getName());
             setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
             setExpiration(createApiKeyRequest.getExpiration());
         }
         return this;
+    }
+
+    public static CreateApiKeyRequest parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 }

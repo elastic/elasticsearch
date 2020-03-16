@@ -375,6 +375,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we do make sure to clean it on a successful response from a shard
         SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);
         onShardFailure(shardIndex, shardTarget, e);
+        final ShardRouting nextShard = shardIt.nextOrNull();
+        final boolean lastShard = nextShard == null;
+        if (lastShard) {
+            onShardGroupFailure(shardIndex, shardTarget, e);
+        }
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
@@ -385,11 +390,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
-            onShardGroupFailure(shardIndex, shardTarget, e);
             onPhaseDone();
         } else {
-            final ShardRouting nextShard = shardIt.nextOrNull();
-            final boolean lastShard = nextShard == null;
             // trace log this exception
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
@@ -405,7 +407,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
-                onShardGroupFailure(shardIndex, shardTarget, e);
             }
         }
     }

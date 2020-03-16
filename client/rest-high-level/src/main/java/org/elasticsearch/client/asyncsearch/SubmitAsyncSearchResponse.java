@@ -27,8 +27,11 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an async search request.
@@ -202,7 +205,10 @@ public class SubmitAsyncSearchResponse implements ToXContentObject  {
     }
 
     private static SearchResponse parseSearchResponse(XContentParser p) throws IOException {
-        return SearchResponse.fromXContent(p);
+        // we should be before the opening START_OBJECT of the response
+        ensureExpectedToken(Token.START_OBJECT, p.currentToken(), p::getTokenLocation);
+        p.nextToken();
+        return SearchResponse.innerFromXContent(p);
     }
 
     public static SubmitAsyncSearchResponse fromXContent(XContentParser parser) throws IOException {

@@ -255,16 +255,12 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public static SearchResponse fromXContent(XContentParser parser) throws IOException {
-        // token pointer can either be before or on the opening START_OBJECT token. In case we are on it already,
-        // the first advance to test will move us o the following FIELD_NAME token
-        if (parser.nextToken() == Token.START_OBJECT) {
-            // advance to next field name
-            parser.nextToken();
-        }
+        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        parser.nextToken();
         return innerFromXContent(parser);
     }
 
-    static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
+    public static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;

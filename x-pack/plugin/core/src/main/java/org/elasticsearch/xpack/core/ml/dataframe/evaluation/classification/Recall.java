@@ -98,7 +98,7 @@ public class Recall implements EvaluationMetric {
             Arrays.asList(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
-                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                    .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                     .size(MAX_CLASSES_CARDINALITY)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             Arrays.asList(

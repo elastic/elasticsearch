@@ -41,7 +41,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportPutComponentTemplateAction extends TransportMasterNodeAction<PutComponentTemplateAction.Request, AcknowledgedResponse> {
+public class TransportPutComponentTemplateAction
+    extends TransportMasterNodeAction<PutComponentTemplateAction.Request, AcknowledgedResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 

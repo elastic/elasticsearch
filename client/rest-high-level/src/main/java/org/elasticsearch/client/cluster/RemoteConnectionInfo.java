@@ -66,9 +66,9 @@ public final class RemoteConnectionInfo {
         PARSER.declareString(constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
         PARSER.declareBoolean(constructorArg(), new ParseField(SKIP_UNAVAILABLE));
 
-        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyModeInfo.ADDRESS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.MAX_SOCKET_CONNECTIONS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.NUM_SOCKETS_CONNECTED));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyModeInfo.PROXY_ADDRESS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.MAX_PROXY_SOCKET_CONNECTIONS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.NUM_PROXY_SOCKETS_CONNECTED));
 
         PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SniffModeInfo.SEEDS));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffModeInfo.MAX_CONNECTIONS_PER_CLUSTER));

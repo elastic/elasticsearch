@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -36,7 +35,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
     }
 

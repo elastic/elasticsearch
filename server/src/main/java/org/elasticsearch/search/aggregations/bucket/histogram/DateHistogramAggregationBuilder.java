@@ -49,7 +49,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -93,7 +93,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
 
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
@@ -118,6 +118,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     public static DateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new DateHistogramAggregationBuilder(aggregationName), null);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        DateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();

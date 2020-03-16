@@ -20,13 +20,17 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,6 +38,22 @@ import java.util.List;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(
+            MissingAggregationBuilder.NAME,
+            List.of(
+                CoreValuesSourceType.NUMERIC,
+                CoreValuesSourceType.BYTES,
+                CoreValuesSourceType.GEOPOINT,
+                CoreValuesSourceType.RANGE,
+                CoreValuesSourceType.IP,
+                CoreValuesSourceType.BOOLEAN,
+                CoreValuesSourceType.DATE
+            ),
+            (MissingAggregatorSupplier) MissingAggregator::new
+        );
+    }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
@@ -50,13 +70,22 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected MissingAggregator doCreateInternal(ValuesSource valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
                                                     List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+
+        final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(config.valueSourceType(), MissingAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+
+        return ((MissingAggregatorSupplier) aggregatorSupplier)
+            .build(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metaData);
     }
 
 }

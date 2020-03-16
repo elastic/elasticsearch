@@ -61,8 +61,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.HISTOGRAM);
+            CoreValuesSourceType.BOOLEAN);
     }
 
     public void testNoDocs() throws IOException {

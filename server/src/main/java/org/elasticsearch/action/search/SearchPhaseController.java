@@ -664,9 +664,9 @@ public final class SearchPhaseController {
                     }
                     numReducePhases++;
                     index = 1;
-                    if (hasAggs) {
-                        progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
-                            topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
+                    if (hasAggs || hasTopDocs) {
+                        progressListener.notifyPartialReduce(SearchProgressListener.buildSearchShards(processedShards),
+                            topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0] : null, numReducePhases);
                     }
                 }
                 final int i = index++;
@@ -695,8 +695,8 @@ public final class SearchPhaseController {
         public ReducedQueryPhase reduce() {
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(),
                 getRemainingAggs(), getRemainingTopDocs(), topDocsStats, numReducePhases, false, performFinalReduce);
-            progressListener.notifyReduce(progressListener.searchShards(results.asList()),
-                reducePhase.totalHits, reducePhase.aggregations);
+            progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
+                reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             return reducePhase;
         }
 
@@ -751,7 +751,8 @@ public final class SearchPhaseController {
                 List<SearchPhaseResult> resultList = results.asList();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
-                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits, reducePhase.aggregations);
+                listener.notifyFinalReduce(SearchProgressListener.buildSearchShards(resultList),
+                    reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
                 return reducePhase;
             }
         };

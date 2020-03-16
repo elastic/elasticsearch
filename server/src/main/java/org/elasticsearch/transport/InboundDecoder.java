@@ -87,10 +87,12 @@ public class InboundDecoder implements Releasable {
                 retainedContent = reference.retain();
             }
             if (decompressor != null) {
-                decompress(retainedContent);
-                ReleasableBytesReference decompressed;
-                while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    forwardNonEmptyContent(channel, decompressed);
+                try (Releasable toRelease = retainedContent) {
+                    decompress(retainedContent);
+                    ReleasableBytesReference decompressed;
+                    while ((decompressed = decompressor.pollDecompressedPage()) != null) {
+                        forwardNonEmptyContent(channel, decompressed);
+                    }
                 }
             } else {
                 forwardNonEmptyContent(channel, retainedContent);

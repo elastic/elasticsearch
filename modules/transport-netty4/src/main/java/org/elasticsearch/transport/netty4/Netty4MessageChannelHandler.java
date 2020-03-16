@@ -27,6 +27,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -68,8 +69,11 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
             int bytesHandled = Integer.MAX_VALUE;
             while (bytesHandled != 0) {
-                ReleasableBytesReference reference = new ReleasableBytesReference(Netty4Utils.toBytesReference(buffer), buffer::release);
-                bytesHandled = decoder.handle(channel, reference);
+                buffer.retain();
+                final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
+                try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::release)) {
+                    bytesHandled = decoder.handle(channel, reference);
+                }
                 buffer.readerIndex(buffer.readerIndex() + bytesHandled);
             }
         } finally {

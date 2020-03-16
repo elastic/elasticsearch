@@ -61,12 +61,9 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -105,14 +102,13 @@ public class RestNodesAction extends AbstractCatAction {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        Set<String> metrics = Stream.of(
-                            NodesStatsRequest.Metric.JVM,
-                            NodesStatsRequest.Metric.OS,
-                            NodesStatsRequest.Metric.FS,
-                            NodesStatsRequest.Metric.PROCESS,
-                            NodesStatsRequest.Metric.SCRIPT
-                        ).map(NodesStatsRequest.Metric::metricName).collect(Collectors.toSet());
-                        nodesStatsRequest.clear().indices(true).addMetrics(metrics);
+                        nodesStatsRequest.clear().indices(true).addMetrics(
+                            NodesStatsRequest.Metric.JVM.metricName(),
+                            NodesStatsRequest.Metric.OS.metricName(),
+                            NodesStatsRequest.Metric.FS.metricName(),
+                            NodesStatsRequest.Metric.PROCESS.metricName(),
+                            NodesStatsRequest.Metric.SCRIPT.metricName()
+                        );
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {

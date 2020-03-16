@@ -24,11 +24,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 
 public class NodesStatsRequestTests extends ESTestCase {
 
@@ -36,18 +35,40 @@ public class NodesStatsRequestTests extends ESTestCase {
      * Make sure that we can set, serialize, and deserialize arbitrary sets
      * of metrics.
      */
-    public void testMetricsSetters() throws Exception {
+    public void testAddMetrics() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest(randomAlphaOfLength(8));
         request.indices(randomFrom(CommonStatsFlags.ALL));
-        List<String> metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics());
+        String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(String[]::new);
         request.addMetrics(metrics);
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
     }
 
     /**
-     * Test that a newly constructed NodesStatsRequestObject requests all of the
-     * possible metrics defined in {@link NodesStatsRequest}.
+     * Check that we can add a metric.
+     */
+    public void testAddSingleMetric() throws Exception {
+        NodesStatsRequest request = new NodesStatsRequest();
+        request.addMetric(randomFrom(NodesStatsRequest.Metric.allMetrics()));
+        NodesStatsRequest deserializedRequest = roundTripRequest(request);
+        assertRequestsEqual(request, deserializedRequest);
+    }
+
+    /**
+     * Check that we can remove a metric.
+     */
+    public void testRemoveSingleMetric() throws Exception {
+        NodesStatsRequest request = new NodesStatsRequest();
+        request.all();
+        String metric = randomFrom(NodesStatsRequest.Metric.allMetrics());
+        request.removeMetric(metric);
+        NodesStatsRequest deserializedRequest = roundTripRequest(request);
+        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
+        assertThat(metric, not(in(request.requestedMetrics())));
+    }
+
+    /**
+     * Test that a newly constructed NodesStatsRequestObject requests only index metrics.
      */
     public void testNodesStatsRequestDefaults() {
         NodesStatsRequest defaultNodesStatsRequest = new NodesStatsRequest(randomAlphaOfLength(8));
@@ -59,10 +80,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that the {@link NodesStatsRequest#all()} method sets all of the
-     * metrics to {@code true}.
-     *
-     * TODO: Use a looping construct rather than direct API calls
+     * Test that the {@link NodesStatsRequest#all()} method enables all metrics.
      */
     public void testNodesInfoRequestAll() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("node");
@@ -73,10 +91,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that the {@link NodesStatsRequest#clear()} method sets all of the
-     * metrics to {@code false}.
-     *
-     * TODO: Use a looping construct rather than direct API calls
+     * Test that the {@link NodesStatsRequest#clear()} method removes all metrics.
      */
     public void testNodesInfoRequestClear() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("node");

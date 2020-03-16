@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
@@ -45,8 +46,10 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -59,6 +62,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -89,11 +93,19 @@ public class SearchPhaseControllerTests extends ESTestCase {
     @Before
     public void setup() {
         reductions = new CopyOnWriteArrayList<>();
-        searchPhaseController = new SearchPhaseController(
-            (finalReduce) -> {
-                reductions.add(finalReduce);
-                return new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, finalReduce);
-            });
+        searchPhaseController = new SearchPhaseController(s -> new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public ReduceContext forPartialReduction() {
+                reductions.add(false);
+                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null);
+            }
+
+            public ReduceContext forFinalReduction() {
+                reductions.add(true);
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineTree.EMPTY);
+            };
+        });
     }
 
     public void testSortDocs() {
@@ -176,8 +188,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
         for (int trackTotalHits : new int[] {SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE}) {
-            SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
-                searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits, true);
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
+                    queryResults.asList(), false, trackTotalHits, InternalAggregationTestCase.emptyReduceContextBuilder(), true);
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(nShards,
                 reducedQueryPhase.sortedTopDocs.scoreDocs, reducedQueryPhase.suggest);
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
@@ -221,8 +233,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
      * Generate random query results received from the provided number of shards, including the provided
      * number of search hits and randomly generated completion suggestions based on the name and size of the provided ones.
      * Note that <code>shardIndex</code> is already set to the generated completion suggestions to simulate what
-     * {@link SearchPhaseController#reducedQueryPhase(Collection, boolean, int, boolean)} does, meaning that the returned query results
-     * can be fed directly to
+     * {@link SearchPhaseController#reducedQueryPhase(Collection, boolean, int, InternalAggregation.ReduceContextBuilder, boolean)} does,
+     * meaning that the returned query results can be fed directly to
      * {@link SearchPhaseController#sortDocs(boolean, Collection, Collection, SearchPhaseController.TopDocsStats, int, int, List)}
      */
     private static AtomicArray<SearchPhaseResult> generateQueryResults(int nShards, List<CompletionSuggestion> suggestions,
@@ -431,7 +443,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         assertEquals(numTotalReducePhases, reduce.numReducePhases);
         assertEquals(numTotalReducePhases, reductions.size());
-        assertFinalReduction(request);
+        assertAggReduction(request);
         InternalMax max = (InternalMax) reduce.aggregations.asList().get(0);
         assertEquals(3.0D, max.getValue(), 0.0D);
         assertFalse(reduce.sortedTopDocs.isSortedByField);
@@ -475,7 +487,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             threads[i].join();
         }
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertFinalReduction(request);
+        assertAggReduction(request);
         InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);
         assertEquals(max.get(), internalMax.getValue(), 0.0D);
         assertEquals(1, reduce.sortedTopDocs.scoreDocs.length);
@@ -512,7 +524,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             consumer.consumeResult(result);
         }
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertFinalReduction(request);
+        assertAggReduction(request);
         InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);
         assertEquals(max.get(), internalMax.getValue(), 0.0D);
         assertEquals(0, reduce.sortedTopDocs.scoreDocs.length);
@@ -547,7 +559,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             consumer.consumeResult(result);
         }
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertFinalReduction(request);
+        assertAggReduction(request);
         assertEquals(1, reduce.sortedTopDocs.scoreDocs.length);
         assertEquals(max.get(), reduce.maxScore, 0.0f);
         assertEquals(expectedNumResults, reduce.totalHits.value);
@@ -558,9 +570,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertNull(reduce.sortedTopDocs.collapseValues);
     }
 
-    private void assertFinalReduction(SearchRequest searchRequest) {
-        assertThat(reductions.size(), greaterThanOrEqualTo(1));
-        assertEquals(searchRequest.isFinalReduce(), reductions.get(reductions.size() - 1));
+    private void assertAggReduction(SearchRequest searchRequest) {
+        if (searchRequest.source() == null || searchRequest.source().aggregations() == null ||
+                searchRequest.source().aggregations().getAggregatorFactories().isEmpty()) {
+            // When there aren't any aggregations we don't perform any aggregation reductions.
+            assertThat(reductions.size(), equalTo(0));
+        } else {
+            assertThat(reductions.size(), greaterThanOrEqualTo(1));
+            assertEquals(searchRequest.isFinalReduce(), reductions.get(reductions.size() - 1));
+        }
     }
 
     public void testNewSearchPhaseResults() {
@@ -655,7 +673,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             consumer.consumeResult(result);
         }
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertFinalReduction(request);
+        assertAggReduction(request);
         assertEquals(Math.min(expectedNumResults, size), reduce.sortedTopDocs.scoreDocs.length);
         assertEquals(expectedNumResults, reduce.totalHits.value);
         assertEquals(max.get(), ((FieldDoc)reduce.sortedTopDocs.scoreDocs[0]).fields[0]);
@@ -693,7 +711,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             consumer.consumeResult(result);
         }
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertFinalReduction(request);
+        assertAggReduction(request);
         assertEquals(3, reduce.sortedTopDocs.scoreDocs.length);
         assertEquals(expectedNumResults, reduce.totalHits.value);
         assertEquals(a, ((FieldDoc)reduce.sortedTopDocs.scoreDocs[0]).fields[0]);
@@ -787,7 +805,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             CompletionSuggestion.Entry.Option option = completion.getOptions().get(0);
             assertEquals(maxScoreCompletion, option.getScore(), 0f);
         }
-        assertFinalReduction(request);
+        assertAggReduction(request);
         assertEquals(1, reduce.sortedTopDocs.scoreDocs.length);
         assertEquals(maxScoreCompletion, reduce.sortedTopDocs.scoreDocs[0].score, 0f);
         assertEquals(0, reduce.sortedTopDocs.scoreDocs[0].doc);
@@ -862,7 +880,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 threads[i].join();
             }
             SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-            assertFinalReduction(request);
+            assertAggReduction(request);
             InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);
             assertEquals(max.get(), internalMax.getValue(), 0.0D);
             assertEquals(1, reduce.sortedTopDocs.scoreDocs.length);

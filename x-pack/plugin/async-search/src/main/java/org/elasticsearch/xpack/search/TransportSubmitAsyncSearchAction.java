@@ -167,7 +167,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                  Runnable nextAction) {
         if (submitTask.isCancelled() || searchTask.isCancelled()) {
             // the user cancelled the submit so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getSearchId(), ActionListener.wrap(() -> {
+            store.deleteResponse(searchTask.getSearchId(), false, ActionListener.wrap(() -> {
                 taskManager.unregister(searchTask);
                 nextAction.run();
             }));

@@ -20,6 +20,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -53,7 +54,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
             new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
             new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
             new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
-            new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD));
+            new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD, CONSTANT_KEYWORD));
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);

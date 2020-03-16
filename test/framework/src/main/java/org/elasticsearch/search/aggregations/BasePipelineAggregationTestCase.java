@@ -34,12 +34,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder.ValidationContext;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -195,5 +197,35 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
+    }
+
+    /**
+     * Helper for testing validation.
+     */
+    protected String validate(AggregationBuilder parent, AF builder) {
+        return validate(ValidationContext.forInsideTree(parent, null), builder);
+    }
+
+    /**
+     * Helper for testing validation.
+     */
+    protected String validate(Collection<AggregationBuilder> siblingAggregations, AF builder) {
+        return validate(siblingAggregations, emptyList(), builder);
+    }
+
+    /**
+     * Helper for testing validation.
+     */
+    protected String validate(Collection<AggregationBuilder> siblingAggregations,
+            Collection<PipelineAggregationBuilder> siblingPipelineAggregations, AF builder) {
+        return validate(ValidationContext.forTreeRoot(siblingAggregations, siblingPipelineAggregations, null), builder);
+    }
+
+    /**
+     * Helper for testing validation.
+     */
+    protected String validate(ValidationContext context, AF builder) {
+        builder.validate(context);
+        return context.getValidationException() == null ? null : context.getValidationException().getMessage();
     }
 }

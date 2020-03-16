@@ -87,7 +87,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                         BytesReference.bytes(xContentBuilder).streamInput()
                     )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, "transform-preview", false));
+                return new Request(TransformConfig.fromXContent(newParser, null, false));
             }
         }
 

@@ -72,7 +72,6 @@ public final class TransformIndex {
 
         // transform does not create aliases, however the user might customize this in future
         Set<Alias> aliases = null;
-        logger.info("mapping {} setting {}", indexMappings, settings);
         return new TransformDestIndexSettings(indexMappings, settings, aliases);
     }
 

@@ -27,12 +27,12 @@ import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.MockMessage;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.RestContent;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
@@ -113,11 +113,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // user field matches
         assertTrue("Matches the user filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
                 new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.empty(), Optional.empty(), Optional.empty())));
-        final User unfilteredUser;
+        final User unfilteredUser = mock(User.class);
         if (randomBoolean()) {
-            unfilteredUser = new User(null);
-        } else {
-            unfilteredUser = new User(new User(null), new User(randomFrom(filteredUsers).principal()));
+            when(unfilteredUser.authenticatedUser()).thenReturn(new User(randomFrom(filteredUsernames)));
         }
         // null user field does NOT match
         assertFalse("Does not match the user filter predicate because of null username.",

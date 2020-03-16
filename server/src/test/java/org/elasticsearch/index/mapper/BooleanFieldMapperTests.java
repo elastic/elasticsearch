@@ -27,8 +27,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,7 +80,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
 
-        try (Directory dir = new RAMDirectory();
+        try (Directory dir = new ByteBuffersDirectory();
              IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
             w.addDocuments(doc.docs());
             try (DirectoryReader reader = DirectoryReader.open(w)) {
@@ -180,7 +180,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
 
     public void testMultiFields() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "boolean")
@@ -192,7 +192,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject()
                 .endObject().endObject());
         DocumentMapper mapper = indexService.mapperService()
-            .merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()

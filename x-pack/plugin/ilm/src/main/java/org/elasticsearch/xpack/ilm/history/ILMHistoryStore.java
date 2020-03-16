@@ -25,6 +25,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,12 +33,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -45,6 +49,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.TEMPLATE_ILM_HISTORY;
 
 /**
  * The {@link ILMHistoryStore} handles indexing {@link ILMHistoryItem} documents into the
@@ -91,16 +96,27 @@ public class ILMHistoryStore implements Closeable {
                                 .collect(Collectors.joining("\n"))), e);
                         throw new ElasticsearchException(e);
                     }
+                    if (logger.isTraceEnabled()) {
+                        logger.info("about to index: {}",
+                            request.requests().stream()
+                                .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
+                                .map(Objects::toString)
+                                .collect(Collectors.joining(",")));
+                    }
                 }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                     long items = request.numberOfActions();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("indexed [{}] items into ILM history index [{}]", items,
+                        logger.trace("indexed [{}] items into ILM history index [{}], items: {}", items,
                             Arrays.stream(response.getItems())
                                 .map(BulkItemResponse::getIndex)
                                 .distinct()
+                                .collect(Collectors.joining(",")),
+                            request.requests().stream()
+                                .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
+                                .map(Objects::toString)
                                 .collect(Collectors.joining(",")));
                     }
                     if (response.hasFailures()) {
@@ -163,6 +179,7 @@ public class ILMHistoryStore implements Closeable {
      * @param listener Called after the index has been created. `onResponse` called with `true` if the index was created,
      *                `false` if it already existed.
      */
+    @SuppressWarnings("unchecked")
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> listener) {
         final String initialHistoryIndexName = ILM_HISTORY_INDEX_PREFIX + "000001";
         final AliasOrIndex ilmHistory = state.metaData().getAliasAndIndexLookup().get(ILM_HISTORY_ALIAS);
@@ -171,11 +188,19 @@ public class ILMHistoryStore implements Closeable {
         if (ilmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias
             logger.debug("creating ILM history index [{}]", initialHistoryIndexName);
+
+            // Template below should be already defined as real index template but it can be deleted. To avoid race condition with its
+            // recreation we apply settings and mappings ourselves
+            byte[] templateBytes = TEMPLATE_ILM_HISTORY.loadBytes();
+            Map<String, Object> templateAsMap = XContentHelper.convertToMap(new BytesArray(templateBytes, 0, templateBytes.length),
+                false, XContentType.JSON).v2();
+
             client.admin().indices().prepareCreate(initialHistoryIndexName)
+                .setSettings((Map<String, ?>) templateAsMap.get("settings"))
+                .setMapping((Map<String, Object>) templateAsMap.get("mappings"))
                 .setWaitForActiveShards(1)
-                .addAlias(new Alias(ILM_HISTORY_ALIAS)
-                    .writeIndex(true))
-                .execute(new ActionListener<CreateIndexResponse>() {
+                .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true).isHidden(true))
+                .execute(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {
                         listener.onResponse(true);

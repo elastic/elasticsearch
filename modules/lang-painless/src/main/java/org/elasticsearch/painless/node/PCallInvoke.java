@@ -19,19 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.CallNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -55,52 +53,56 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
+        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
+        prefix.input.expected = prefixOutput.actual;
+        prefix.cast();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        prefix.analyze(scriptRoot, locals);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, locals);
-
-        if (prefix.actual == def.class) {
+        if (prefixOutput.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            PainlessMethod method =
-                    scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+            PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
+                    prefixOutput.actual, prefix instanceof EStatic, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+                        "method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
             scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
+            sub = new PSubCallInvoke(location, method, prefixOutput.actual, arguments);
         }
 
         if (nullSafe) {
             sub = new PSubNullSafeCallInvoke(location, sub);
         }
 
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(scriptRoot, locals);
-        actual = sub.actual;
+        Input subInput = new Input();
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
 
-        statement = true;
+        output.statement = true;
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.write(classWriter, methodWriter, globals);
+    CallNode write(ClassNode classNode) {
+        CallNode callNode = new CallNode();
+
+        callNode.setLeftNode(prefix.cast(prefix.write(classNode)));
+        callNode.setRightNode(sub.write(classNode));
+
+        callNode.setLocation(location);
+        callNode.setExpressionType(output.actual);
+
+        return callNode;
     }
 
     @Override

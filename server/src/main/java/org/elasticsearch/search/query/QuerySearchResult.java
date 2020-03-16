@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -63,18 +64,54 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
 
+    private final boolean isNull;
+
     public QuerySearchResult() {
+        this(false);
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        long id = in.readLong();
-        readFromWithId(id, in);
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            isNull = in.readBoolean();
+        } else {
+            isNull = false;
+        }
+        if (isNull == false) {
+            SearchContextId id = new SearchContextId(in);
+            readFromWithId(id, in);
+        }
     }
 
-    public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.requestId = id;
+    public QuerySearchResult(SearchContextId id, SearchShardTarget shardTarget) {
+        this.contextId = id;
         setSearchShardTarget(shardTarget);
+        isNull = false;
+    }
+
+    private QuerySearchResult(boolean isNull) {
+        this.isNull = isNull;
+    }
+
+    /**
+     * Returns an instance that contains no response.
+     */
+    public static QuerySearchResult nullInstance() {
+        return new QuerySearchResult(true);
+    }
+
+    /**
+     * Returns true if the result doesn't contain any useful information.
+     * It is used by the search action to avoid creating an empty response on
+     * shard request that rewrites to match_no_docs.
+     *
+     * TODO: Currently we need the concrete aggregators to build empty responses. This means that we cannot
+     *       build an empty response in the coordinating node so we rely on this hack to ensure that at least one shard
+     *       returns a valid empty response. We should move the ability to create empty responses to aggregation builders
+     *       in order to allow building empty responses directly from the coordinating node.
+     */
+    public boolean isNull() {
+        return isNull;
     }
 
     @Override
@@ -173,6 +210,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasAggs = aggregations != null;
     }
 
+    public InternalAggregations aggregations() {
+        return aggregations;
+    }
+
     /**
      * Returns and nulls out the profiled results for this search, or potentially null if result was empty.
      * This allows to free up memory once the profiled result is consumed.
@@ -258,8 +299,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasScoreDocs || hasSuggestHits();
     }
 
-    public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.requestId = id;
+    public void readFromWithId(SearchContextId id, StreamInput in) throws IOException {
+        this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -300,8 +341,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(requestId);
-        writeToNoId(out);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeBoolean(isNull);
+        }
+        if (isNull == false) {
+            contextId.writeTo(out);
+            writeToNoId(out);
+        }
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {

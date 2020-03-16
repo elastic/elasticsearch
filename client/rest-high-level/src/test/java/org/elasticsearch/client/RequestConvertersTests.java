@@ -53,6 +53,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
@@ -153,17 +155,17 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExists() throws IOException {
-        doTestSourceExists((index, id) -> new GetRequest(index, id));
+        doTestSourceExists((index, id) -> new GetSourceRequest(index, id));
     }
 
-    public void testSourceExistsWithType() throws IOException {
-        doTestSourceExists((index, id) -> new GetRequest(index, id));
+    public void testGetSource() throws IOException {
+        doTestGetSource((index, id) -> new GetSourceRequest(index, id));
     }
 
-    private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
+    private static void doTestSourceExists(BiFunction<String, String, GetSourceRequest> requestFunction) throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        final GetRequest getRequest = requestFunction.apply(index, id);
+        final GetSourceRequest getRequest = requestFunction.apply(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -192,6 +194,44 @@ public class RequestConvertersTests extends ESTestCase {
         }
         Request request = RequestConverters.sourceExists(getRequest);
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
+        assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
+
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    private static void doTestGetSource(BiFunction<String, String, GetSourceRequest> requestFunction) throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        final GetSourceRequest getRequest = requestFunction.apply(index, id);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            String preference = randomAlphaOfLengthBetween(3, 10);
+            getRequest.preference(preference);
+            expectedParams.put("preference", preference);
+        }
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            getRequest.routing(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            boolean realtime = randomBoolean();
+            getRequest.realtime(realtime);
+            if (realtime == false) {
+                expectedParams.put("realtime", "false");
+            }
+        }
+        if (randomBoolean()) {
+            boolean refresh = randomBoolean();
+            getRequest.refresh(refresh);
+            if (refresh) {
+                expectedParams.put("refresh", "true");
+            }
+        }
+        Request request = RequestConverters.getSource(getRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
 
         assertEquals(expectedParams, request.getParameters());
@@ -398,9 +438,13 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
         if (randomBoolean()) {
-            int slices = randomInt(100);
+            int slices = randomIntBetween(0,4);
             reindexRequest.setSlices(slices);
-            expectedParams.put("slices", String.valueOf(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
         } else {
             expectedParams.put("slices", "1");
         }
@@ -461,7 +505,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int slices = randomIntBetween(0, 4);
-            expectedParams.put("slices", Integer.toString(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
             updateByQueryRequest.setSlices(slices);
         } else {
             expectedParams.put("slices", "1");
@@ -517,7 +565,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int slices = randomIntBetween(0, 4);
-            expectedParams.put("slices", Integer.toString(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
             deleteByQueryRequest.setSlices(slices);
         } else {
             expectedParams.put("slices", "1");
@@ -1370,11 +1422,6 @@ public class RequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
-        if (hasFields) {
-            assertThat(request.getParameters(), hasKey("fields"));
-            String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
-            assertArrayEquals(tvRequest.getFields(), requestFields);
-        }
         for (Map.Entry<String, String> param : expectedParams.entrySet()) {
             assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
         }

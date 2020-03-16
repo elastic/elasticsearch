@@ -9,9 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
 
@@ -23,13 +20,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowerIndexStep> {
+public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<OpenFollowerIndexStep> {
 
     @Override
     protected OpenFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new OpenFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new OpenFollowerIndexStep(stepKey, nextStepKey, client);
     }
 
     @Override
@@ -51,6 +48,17 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         return new OpenFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
+    @Override
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetaData.State.CLOSE)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+    }
+
     public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
@@ -59,7 +67,6 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Client client = Mockito.mock(Client.class);
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
@@ -76,19 +83,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
     }
 
     public void testOpenFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetaData.State.CLOSE)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Mockito.doAnswer(invocation -> {
             OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
@@ -102,7 +97,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -126,12 +121,6 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
             .numberOfReplicas(0)
             .build();
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {
             OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
@@ -144,7 +133,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

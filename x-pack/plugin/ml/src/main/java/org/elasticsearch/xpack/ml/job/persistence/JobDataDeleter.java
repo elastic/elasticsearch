@@ -83,11 +83,7 @@ public class JobDataDeleter {
         // _doc is the most efficient sort order and will also disable scoring
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
-        try {
-            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }
 
     /**

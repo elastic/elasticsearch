@@ -6,7 +6,10 @@
 
 package org.elasticsearch.xpack.ql;
 
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
@@ -31,5 +34,19 @@ public final class TestUtils {
         return new Configuration(zoneId,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
+    }
+
+    public static Literal of(Object value) {
+        return of(Source.EMPTY, value);
+    }
+
+    /**
+     * Utility method for creating 'in-line' Literals (out of values instead of expressions).
+     */
+    public static Literal of(Source source, Object value) {
+        if (value instanceof Literal) {
+            return (Literal) value;
+        }
+        return new Literal(source, value, DataTypes.fromJava(value));
     }
 }

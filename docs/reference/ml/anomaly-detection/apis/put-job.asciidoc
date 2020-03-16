@@ -49,11 +49,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
 `analysis_config`.`bucket_span`:::
 (<<time-units,time units>>)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span]
-+
---
-To learn more about the relationship between time related settings, see 
-<<ml-put-datafeed-time-related-settings>>.
---
 
 `analysis_config`.`categorization_field_name`:::
 (string)
@@ -83,7 +78,7 @@ A detector has the following properties:
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
 
-`analysis_config`.`detectors`.`custom_rules`::::
+[[put-customrules]]`analysis_config`.`detectors`.`custom_rules`::::
 +
 --
 (array)

@@ -140,7 +140,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         if (logger.isTraceEnabled()) {
                             logger.trace("[{}] condition not met ({}) [{}], returning existing state (info: {})",
                                 index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(),
-                                Strings.toString(stepInfo));
+                                stepInfo == null ? "null" : Strings.toString(stepInfo));
                         }
                         // We may have executed a step and set "nextStepKey" to
                         // a value, but in this case, since the condition was

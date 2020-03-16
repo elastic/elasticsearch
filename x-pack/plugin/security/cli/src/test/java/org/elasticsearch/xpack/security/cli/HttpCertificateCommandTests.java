@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.security.cli;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import joptsimple.OptionSet;
-import org.apache.lucene.util.Constants;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.DLSequence;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -530,13 +529,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testTextFileSubstitutions() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/50964", Constants.WINDOWS);
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
             try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
                  StringWriter out = new StringWriter();
                  PrintWriter writer = new PrintWriter(out)) {
                 HttpCertificateCommand.copyWithSubstitutions(in, writer, subs);
-                return out.toString();
+                return out.toString().replace("\r\n", "\n");
             }
         };
         assertThat(copy.apply("abc\n", Map.of()), is("abc\n"));
@@ -601,7 +599,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final Attribute[] extensionAttributes = csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
         assertThat(extensionAttributes, arrayWithSize(1));
         assertThat(extensionAttributes[0].getAttributeValues(), arrayWithSize(1));
-        assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DERSequence.class));
+        assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DLSequence.class));
 
         // We register 1 extension - the subject alternative names
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);

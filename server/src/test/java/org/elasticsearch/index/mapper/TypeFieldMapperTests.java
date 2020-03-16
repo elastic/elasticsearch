@@ -67,7 +67,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         DirectoryReader r = DirectoryReader.open(w);
         w.close();
 
-        MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
+        MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
         IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
@@ -75,7 +75,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(values.advanceExact(0));
         assertEquals(0, values.nextOrd());
         assertEquals(SortedSetDocValues.NO_MORE_ORDS, values.nextOrd());
-        assertEquals(new BytesRef("_doc"), values.lookupOrd(0));
+        assertEquals(new BytesRef("type"), values.lookupOrd(0));
         r.close();
         dir.close();
     }

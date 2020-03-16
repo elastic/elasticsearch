@@ -446,11 +446,11 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
             MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
-        assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#parent"));
-        assertTrue(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#child"));
-        assertTrue(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
+        assertFalse(service.mapperService().fieldType("join_field").eagerGlobalOrdinals());
+        assertNotNull(service.mapperService().fieldType("join_field#parent"));
+        assertTrue(service.mapperService().fieldType("join_field#parent").eagerGlobalOrdinals());
+        assertNotNull(service.mapperService().fieldType("join_field#child"));
+        assertTrue(service.mapperService().fieldType("join_field#child").eagerGlobalOrdinals());
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
@@ -466,10 +466,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .endObject());
         service.mapperService().merge("type", new CompressedXContent(mapping),
             MapperService.MergeReason.MAPPING_UPDATE);
-        assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#parent"));
-        assertFalse(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
-        assertNotNull(service.mapperService().fullName("join_field#child"));
-        assertFalse(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
+        assertFalse(service.mapperService().fieldType("join_field").eagerGlobalOrdinals());
+        assertNotNull(service.mapperService().fieldType("join_field#parent"));
+        assertFalse(service.mapperService().fieldType("join_field#parent").eagerGlobalOrdinals());
+        assertNotNull(service.mapperService().fieldType("join_field#child"));
+        assertFalse(service.mapperService().fieldType("join_field#child").eagerGlobalOrdinals());
     }
 }

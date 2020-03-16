@@ -19,17 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.WhileNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a while loop.
@@ -49,23 +45,19 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        locals = Locals.newLocalScope(locals);
+        scope = scope.newLocalScope();
 
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.cast();
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        if (condition instanceof EBoolean) {
+            continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
@@ -77,63 +69,40 @@ public final class SWhile extends AStatement {
         }
 
         if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+            Input blockInput = new Input();
+            blockInput.beginLoop = true;
+            blockInput.inLoop = true;
 
-            block.analyze(scriptRoot, locals);
+            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
 
-            if (block.loopEscape && !block.anyContinue) {
+            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (continuous && blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
 
-            block.statementCount = Math.max(1, block.statementCount);
+            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
 
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+    WhileNode write(ClassNode classNode) {
+        WhileNode whileNode = new WhileNode();
 
-        Label begin = new Label();
-        Label end = new Label();
+        whileNode.setConditionNode(condition.cast(condition.write(classNode)));
+        whileNode.setBlockNode(block == null ? null : block.write(classNode));
 
-        methodWriter.mark(begin);
+        whileNode.setLocation(location);
+        whileNode.setContinuous(continuous);
 
-        if (!continuous) {
-            condition.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (block != null) {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-            }
-
-            block.continu = begin;
-            block.brake = end;
-            block.write(classWriter, methodWriter, globals);
-        } else {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
-            }
-        }
-
-        if (block == null || !block.allEscape) {
-            methodWriter.goTo(begin);
-        }
-
-        methodWriter.mark(end);
+        return whileNode;
     }
 
     @Override

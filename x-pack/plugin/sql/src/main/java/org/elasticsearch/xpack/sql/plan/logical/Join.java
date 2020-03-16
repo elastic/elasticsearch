@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -102,7 +102,7 @@ public class Join extends BinaryPlan {
         return childrenResolved() &&
                 duplicatesResolved() &&
                 expressionsResolved() &&
-                (condition == null || DataType.BOOLEAN == condition.dataType());
+                (condition == null || DataTypes.BOOLEAN == condition.dataType());
     }
 
     @Override

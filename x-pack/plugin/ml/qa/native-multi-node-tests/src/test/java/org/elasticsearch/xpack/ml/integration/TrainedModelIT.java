@@ -93,6 +93,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage\""));
         assertThat(response, containsString("\"definition\""));
+        assertThat(response, not(containsString("\"compressed_definition\"")));
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
@@ -210,14 +211,14 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setRightChild(2)
                 .setSplitFeature(0)
                 .setThreshold(0.5),
-                TreeNode.builder(1).setLeafValue(0.3),
+                TreeNode.builder(1).setLeafValue(Collections.singletonList(0.3)),
                 TreeNode.builder(2)
                 .setThreshold(0.0)
                 .setSplitFeature(3)
                 .setLeftChild(3)
                 .setRightChild(4),
-                TreeNode.builder(3).setLeafValue(0.1),
-                TreeNode.builder(4).setLeafValue(0.2))
+                TreeNode.builder(3).setLeafValue(Collections.singletonList(0.1)),
+                TreeNode.builder(4).setLeafValue(Collections.singletonList(0.2)))
             .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -226,8 +227,8 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setRightChild(2)
                 .setSplitFeature(2)
                 .setThreshold(1.0),
-                TreeNode.builder(1).setLeafValue(1.5),
-                TreeNode.builder(2).setLeafValue(0.9))
+                TreeNode.builder(1).setLeafValue(Collections.singletonList(1.5)),
+                TreeNode.builder(2).setLeafValue(Collections.singletonList(0.9)))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -236,8 +237,8 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setRightChild(2)
                 .setSplitFeature(1)
                 .setThreshold(0.2),
-                TreeNode.builder(1).setLeafValue(1.5),
-                TreeNode.builder(2).setLeafValue(0.9))
+                TreeNode.builder(1).setLeafValue(Collections.singletonList(1.5)),
+                TreeNode.builder(2).setLeafValue(Collections.singletonList(0.9)))
             .build();
         return Ensemble.builder()
             .setTargetType(TargetType.REGRESSION)

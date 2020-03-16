@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -83,12 +82,15 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.Cipher;
@@ -208,6 +210,7 @@ public final class TokenService {
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private final XPackLicenseState licenseState;
+    private final SecurityContext securityContext;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -215,7 +218,7 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
-    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState,
+    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityContext securityContext,
                         SecurityIndexManager securityMainIndex, SecurityIndexManager securityTokensIndex,
                         ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
@@ -226,6 +229,7 @@ public final class TokenService {
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
         this.licenseState = licenseState;
+        this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
@@ -393,6 +397,35 @@ public final class TokenService {
     }
 
     /**
+     * Decodes the provided token, and validates it (for format, expiry and invalidation).
+     * If valid, the token's {@link Authentication} (see {@link UserToken#getAuthentication()} is provided to the listener.
+     * If the token is invalid (expired etc), then {@link ActionListener#onFailure(Exception)} will be called.
+     * If tokens are not enabled, or the token does not exist, {@link ActionListener#onResponse} will be called with a
+     * {@code null} authentication object.
+     */
+    public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
+        ensureEnabled();
+        decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
+            if (userToken != null) {
+                checkIfTokenIsValid(userToken, ActionListener.wrap(
+                    token -> {
+                        if (token == null) {
+                            // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
+                            // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
+                            listener.onFailure(new IllegalArgumentException("Cannot validate access token"));
+                        } else {
+                            listener.onResponse(token.getAuthentication());
+                        }
+                    },
+                    listener::onFailure
+                ));
+            } else {
+                listener.onFailure(new IllegalArgumentException("Cannot decode access token"));
+            }
+        }, listener::onFailure));
+    }
+
+    /**
      * Reads the authentication and metadata from the given token.
      * This method does not validate whether the token is expired or not.
      */
@@ -526,7 +559,7 @@ public final class TokenService {
                     listener.onResponse(null);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // could happen with a token that is not ours
             if (logger.isDebugEnabled()) {
                logger.debug("built in token service unable to decode token", e);
@@ -801,7 +834,7 @@ public final class TokenService {
         findTokenFromRefreshToken(refreshToken,
             backoff,
             ActionListener.wrap(tokenDocHit -> {
-                final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
+                final Authentication clientAuth = securityContext.getAuthentication();
                 innerRefresh(refreshToken, tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(),
                     tokenDocHit.getPrimaryTerm(),
                     clientAuth, backoff, refreshRequested, listener);
@@ -1455,7 +1488,7 @@ public final class TokenService {
             throw LicenseUtils.newComplianceException("security tokens");
         }
         if (enabled == false) {
-            throw new IllegalStateException("security tokens are not enabled");
+            throw new FeatureNotEnabledException(Feature.TOKEN_SERVICE, "security tokens are not enabled");
         }
     }
 
@@ -2021,7 +2054,7 @@ public final class TokenService {
 
             if (state.nodes().isLocalNodeElectedMaster()) {
                 if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state.metaData());
+                    installTokenMetadata(state);
                 } else {
                     logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
                         () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
@@ -2044,8 +2077,8 @@ public final class TokenService {
     // to prevent too many cluster state update tasks to be queued for doing the same update
     private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
 
-    private void installTokenMetadata(MetaData metaData) {
-        if (metaData.custom(TokenMetaData.TYPE) == null) {
+    private void installTokenMetadata(ClusterState state) {
+        if (state.custom(TokenMetaData.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
                 clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override

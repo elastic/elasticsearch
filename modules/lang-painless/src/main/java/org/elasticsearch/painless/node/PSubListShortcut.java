@@ -19,18 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ListSubShortcutNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a list load/store shortcut.  (Internal only.)
@@ -51,12 +48,10 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
         getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
@@ -76,26 +71,32 @@ final class PSubListShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
-            index.expected = int.class;
-            index.analyze(scriptRoot, locals);
-            index = index.cast(scriptRoot, locals);
+        if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+            Input indexInput = new Input();
+            indexInput.expected = int.class;
+            index.analyze(scriptRoot, scope, indexInput);
+            index.cast();
 
-            actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+            output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));
         }
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        setup(classWriter, methodWriter, globals);
-        load(classWriter, methodWriter, globals);
-    }
+    ListSubShortcutNode write(ClassNode classNode) {
+        ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
 
-    @Override
-    int accessElementCount() {
-        return 2;
+        listSubShortcutNode.setChildNode(index.cast(index.write(classNode)));
+
+        listSubShortcutNode.setLocation(location);
+        listSubShortcutNode.setExpressionType(output.actual);
+        listSubShortcutNode.setGetter(getter);
+        listSubShortcutNode.setSetter(setter);
+
+        return listSubShortcutNode;
     }
 
     @Override
@@ -106,31 +107,6 @@ final class PSubListShortcut extends AStoreable {
     @Override
     void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        index.write(classWriter, methodWriter, globals);
-        writeIndexFlip(methodWriter, w -> {
-            w.invokeInterface(WriterConstants.COLLECTION_TYPE, WriterConstants.COLLECTION_SIZE);
-        });
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.invokeMethodCall(getter);
-
-        if (getter.returnType == getter.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
-        }
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.invokeMethodCall(setter);
-        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 
     @Override

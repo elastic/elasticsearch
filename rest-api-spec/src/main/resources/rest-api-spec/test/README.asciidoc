@@ -198,6 +198,23 @@ header. The warnings must match exactly. Using it looks like this:
             id:        1
 ....
 
+If the arguments to `do` include `allowed_warnings` then matching `Warning`
+headers do not fail the request. Unlike the `warnings` argument, these aren't
+expected so much as "allowed". This usually comes up in backwards compatibility
+testing. Using it looks like this:
+
+....
+    - do:
+        allowed_warnings:
+            - some warning
+            - this argument is also always a list, never a single string
+            - no matter how many warnings you expect
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
 If the arguments to `do` include `node_selector` then the request is only
 sent to nodes that match the `node_selector`. It looks like this:
 

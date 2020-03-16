@@ -38,6 +38,7 @@ public class FactoryTests extends ScriptTestCase {
         contexts.put(DeterministicFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
 
         return contexts;
     }
@@ -254,5 +255,23 @@ public class FactoryTests extends ScriptTestCase {
                 FactoryTestScript.CONTEXT, Collections.emptyMap());
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("x", 1));
         assertEquals(2, script.execute(1));
+    }
+
+    public abstract static class VoidReturnTestScript {
+        public static final String[] PARAMETERS = {"map"};
+        public abstract void execute(Map<Object, Object> map);
+
+        public interface Factory {
+            VoidReturnTestScript newInstance();
+        }
+
+        public static final ScriptContext<VoidReturnTestScript.Factory> CONTEXT =
+                new ScriptContext<>("test", VoidReturnTestScript.Factory.class);
+    }
+
+    public void testVoidReturn() {
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                scriptEngine.compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
+        assertEquals(iae.getMessage(), "Not a statement.");
     }
 }

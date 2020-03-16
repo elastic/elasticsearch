@@ -102,8 +102,7 @@ class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
-    public final Collection<FullHttpResponse> post(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+    public final Collection<FullHttpResponse> post(SocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)
         throws InterruptedException {
         return processRequestsWithBody(HttpMethod.POST, remoteAddress, urisAndBodies);
     }
@@ -114,15 +113,14 @@ class Netty4HttpClient implements Closeable {
         return responses.iterator().next();
     }
 
-    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
-    public final Collection<FullHttpResponse> put(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+    public final Collection<FullHttpResponse> put(SocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)
         throws InterruptedException {
         return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);
     }
 
-    private Collection<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, Tuple<String,
-        CharSequence>... urisAndBodies) throws InterruptedException {
-        Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
+    private Collection<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, List<Tuple<String,
+        CharSequence>> urisAndBodies) throws InterruptedException {
+        Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);

@@ -50,7 +50,6 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
     protected final U includeExclude;
 
     MergingBucketsDeferringCollector deferringCollector;
-    LeafBucketCollector subCollectors;
     final SetBackedScalingCuckooFilter filter;
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
@@ -115,14 +114,14 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
         return null;
     }
 
-    protected void doCollect(V val, int docId) throws IOException {
+    protected void doCollect(LeafBucketCollector subCollector, V val, int docId) throws IOException {
         long bucketOrdinal = addValueToOrds(val);
 
         if (bucketOrdinal < 0) { // already seen
             bucketOrdinal = -1 - bucketOrdinal;
-            collectExistingBucket(subCollectors, docId, bucketOrdinal);
+            collectExistingBucket(subCollector, docId, bucketOrdinal);
         } else {
-            collectBucket(subCollectors, docId, bucketOrdinal);
+            collectBucket(subCollector, docId, bucketOrdinal);
         }
     }
 

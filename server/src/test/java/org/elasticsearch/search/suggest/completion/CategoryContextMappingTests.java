@@ -718,7 +718,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fullName("completion");
+        CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fieldType("completion");
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
         assertEquals("Unknown context name [brand], must be one of [ctx, type]", e.getMessage());

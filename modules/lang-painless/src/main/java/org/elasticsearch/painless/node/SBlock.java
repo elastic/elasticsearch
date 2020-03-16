@@ -19,16 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -46,14 +44,10 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -63,31 +57,40 @@ public final class SBlock extends AStatement {
         for (AStatement statement : statements) {
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
-            if (allEscape) {
+            if (output.allEscape) {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
-            statement.inLoop = inLoop;
-            statement.lastSource = lastSource && statement == last;
-            statement.lastLoop = (beginLoop || lastLoop) && statement == last;
-            statement.analyze(scriptRoot, locals);
+            Input statementInput = new Input();
+            statementInput.inLoop = input.inLoop;
+            statementInput.lastSource = input.lastSource && statement == last;
+            statementInput.lastLoop = (input.beginLoop || input.lastLoop) && statement == last;
+            Output statementOutput = statement.analyze(scriptRoot, scope, statementInput);
 
-            methodEscape = statement.methodEscape;
-            loopEscape = statement.loopEscape;
-            allEscape = statement.allEscape;
-            anyContinue |= statement.anyContinue;
-            anyBreak |= statement.anyBreak;
-            statementCount += statement.statementCount;
+            output.methodEscape = statementOutput.methodEscape;
+            output.loopEscape = statementOutput.loopEscape;
+            output.allEscape = statementOutput.allEscape;
+            output.anyContinue |= statementOutput.anyContinue;
+            output.anyBreak |= statementOutput.anyBreak;
+            output.statementCount += statementOutput.statementCount;
         }
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    BlockNode write(ClassNode classNode) {
+        BlockNode blockNode = new BlockNode();
+
         for (AStatement statement : statements) {
-            statement.continu = continu;
-            statement.brake = brake;
-            statement.write(classWriter, methodWriter, globals);
+            blockNode.addStatementNode(statement.write(classNode));
         }
+
+        blockNode.setLocation(location);
+        blockNode.setAllEscape(output.allEscape);
+        blockNode.setStatementCount(output.statementCount);
+
+        return blockNode;
     }
 
     @Override

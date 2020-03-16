@@ -24,12 +24,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,6 +86,15 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     /**
+     * Make a mutable copy of the aggregation results.
+     * <p>
+     * IMPORTANT: The copy doesn't include any pipeline aggregations, if there are any.
+     */
+    public List<InternalAggregation> copyResults() {
+        return new ArrayList<>(getInternalAggregations());
+    }
+
+    /**
      * Returns the top-level pipeline aggregators.
      * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
      * become part of the list of {@link InternalAggregation}s.
@@ -95,6 +106,20 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     @SuppressWarnings("unchecked")
     private List<InternalAggregation> getInternalAggregations() {
         return (List<InternalAggregation>) aggregations;
+    }
+
+    /**
+     * Get value to use when sorting by a descendant of the aggregation containing this.
+     */
+    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        InternalAggregation aggregation = get(head.name);
+        if (aggregation == null) {
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name + "]");
+        }
+        if (tail.hasNext()) {
+            return aggregation.sortValue(tail.next(), tail);
+        }
+        return aggregation.sortValue(head.key);
     }
 
     /**
@@ -114,13 +139,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.reducePipelines(agg, context))
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
                 .collect(Collectors.toList());
 
-            List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
-            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
-                InternalAggregation newAgg
-                    = pipelineAggregator.doReduce(new InternalAggregations(reducedInternalAggs), context);
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+                SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+                InternalAggregation newAgg = sib.doReduce(new InternalAggregations(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
             return new InternalAggregations(reducedInternalAggs);

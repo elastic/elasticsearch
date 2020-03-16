@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -36,13 +34,11 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,10 +60,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final String NESTED_FIELD = "outer-field.inner-field";
     private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
     private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
-    private static final List<Boolean> BOOLEAN_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(false, true));
-    private static final List<Double> NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0));
-    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(10, 20));
-    private static final List<String> KEYWORD_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList("cat", "dog"));
+    private static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
+    private static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
+    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
+    private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
 
     private String jobId;
     private String sourceIndex;
@@ -79,6 +75,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -88,6 +85,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Classification(
                 KEYWORD_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -116,14 +114,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
@@ -157,14 +159,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
@@ -184,7 +190,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, numTopClasses, 50.0, null));
+                new Classification(dependentVariable, BoostedTreeParams.builder().build(), null, null, numTopClasses, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -220,14 +226,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, expectedMappingTypeForPredictedField);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, expectedMappingTypeForPredictedField);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
         assertEvaluation(dependentVariable, dependentVariableValues, "ml." + predictedClassField);
     }
@@ -308,13 +318,15 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    @AwaitsFix(bugUrl = "Muted until ml-cpp supports multiple classes")
     public void testDependentVariableCardinalityTooHighError() throws Exception {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
+
         // Index one more document with a class different than the two already used.
         client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
             .source(KEYWORD_FIELD, "fox")
@@ -366,7 +378,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -385,7 +397,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(ALIAS_TO_KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -404,7 +416,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
-        assertMlResultsFieldMappings(predictedClassField, "keyword");
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertEvaluation(ALIAS_TO_NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
@@ -425,11 +437,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setGamma(1.0)
             .setEta(1.0)
             .setFeatureBagFraction(1.0)
-            .setMaximumNumberTrees(1)
+            .setMaxTrees(1)
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, null));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null));
         registerAnalytics(firstJob);
         putAnalytics(firstJob);
 
@@ -438,7 +450,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Classification) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, randomizeSeed));
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed));
 
         registerAnalytics(secondJob);
         putAnalytics(secondJob);
@@ -484,7 +496,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Now calling the _delete_expired_data API should remove unused state
         assertThat(deleteExpiredData().isDeleted(), is(true));
 
-        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state").execute().actionGet();
+        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state*").execute().actionGet();
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 
@@ -562,15 +574,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
         }
         return destDoc;
-    }
-
-    /**
-     * Wrapper around extractValue that:
-     * - allows dots (".") in the path elements provided as arguments
-     * - supports implicit casting to the appropriate type
-     */
-    private static <T> T getFieldValue(Map<String, Object> doc, String... path) {
-        return (T)extractValue(String.join(".", path), doc);
     }
 
     private static <T> void assertTopClasses(Map<String, Object> resultsObject,
@@ -654,26 +657,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
-    }
-
-    private void assertMlResultsFieldMappings(String predictedClassField, String expectedType) {
-        Map<String, Object> mappings =
-            client()
-                .execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(destIndex))
-                .actionGet()
-                .mappings()
-                .get(destIndex)
-                .sourceAsMap();
-        assertThat(
-            mappings.toString(),
-            getFieldValue(
-                mappings,
-                "properties", "ml", "properties", String.join(".properties.", predictedClassField.split("\\.")), "type"),
-            equalTo(expectedType));
-        assertThat(
-            mappings.toString(),
-            getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
-            equalTo(expectedType));
     }
 
     private String stateDocId() {

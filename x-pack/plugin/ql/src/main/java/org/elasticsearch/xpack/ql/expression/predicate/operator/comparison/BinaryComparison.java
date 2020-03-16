@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
@@ -33,7 +34,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 
     @Override

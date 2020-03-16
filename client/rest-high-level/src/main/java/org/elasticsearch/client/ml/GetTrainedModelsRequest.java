@@ -22,6 +22,7 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.core.PageParams;
+import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;
@@ -34,12 +35,14 @@ public class GetTrainedModelsRequest implements Validatable {
     public static final String ALLOW_NO_MATCH = "allow_no_match";
     public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
+    public static final String TAGS = "tags";
 
     private final List<String> ids;
     private Boolean allowNoMatch;
     private Boolean includeDefinition;
     private Boolean decompressDefinition;
     private PageParams pageParams;
+    private List<String> tags;
 
     /**
      * Helper method to create a request that will get ALL TrainedModelConfigs
@@ -109,6 +112,29 @@ public class GetTrainedModelsRequest implements Validatable {
     public GetTrainedModelsRequest setDecompressDefinition(Boolean decompressDefinition) {
         this.decompressDefinition = decompressDefinition;
         return this;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    /**
+     * The tags that the trained model must match. These correspond to {@link TrainedModelConfig#getTags()}.
+     *
+     * The models returned will match ALL tags supplied.
+     * If none are provided, only the provided ids are used to find models
+     * @param tags The tags to match when finding models
+     */
+    public GetTrainedModelsRequest setTags(List<String> tags) {
+        this.tags = tags;
+        return this;
+    }
+
+    /**
+     * See {@link GetTrainedModelsRequest#setTags(List)}
+     */
+    public GetTrainedModelsRequest setTags(String... tags) {
+        return setTags(Arrays.asList(tags));
     }
 
     @Override

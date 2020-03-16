@@ -73,8 +73,8 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -197,7 +197,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        MappedFieldType intFieldType = mapperService.fullName("int_field");
+        MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
         queryFunctions.add(MatchNoDocsQuery::new);
@@ -329,7 +329,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         stringValues.add("value2");
         stringValues.add("value3");
 
-        MappedFieldType intFieldType = mapperService.fullName("int_field");
+        MappedFieldType intFieldType = mapperService.fieldType("int_field");
         List<int[]> ranges = new ArrayList<>();
         ranges.add(new int[]{-5, 5});
         ranges.add(new int[]{0, 10});
@@ -836,7 +836,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         Version v = Version.CURRENT;
 
-        try (RAMDirectory directory = new RAMDirectory()) {
+        try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 List<Document> documents = new ArrayList<>();
                 Document document = new Document();
@@ -875,7 +875,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
-        try (RAMDirectory directory = new RAMDirectory()) {
+        try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
                 for (int i = 0; i < 1024; i++) {

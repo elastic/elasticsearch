@@ -26,11 +26,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -41,9 +41,11 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
-    public RestGetIndicesAction(final RestController controller) {
-        controller.registerHandler(GET, "/{index}", this);
-        controller.registerHandler(HEAD, "/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/{index}"),
+            new Route(HEAD, "/{index}"));
     }
 
     @Override

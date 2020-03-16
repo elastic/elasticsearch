@@ -417,8 +417,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"initial_connect_timeout\":\"30m\"," +
                 "\"skip_unavailable\":true}}", Strings.toString(builder));
         } else {
-            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"proxy\",\"address\":\"seed:1\"," +
-                "\"num_sockets_connected\":16,\"max_socket_connections\":18,\"initial_connect_timeout\":\"30m\"," +
+            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"proxy\",\"proxy_address\":\"seed:1\"," +
+                "\"num_proxy_sockets_connected\":16,\"max_proxy_socket_connections\":18,\"initial_connect_timeout\":\"30m\"," +
                 "\"skip_unavailable\":true}}", Strings.toString(builder));
         }
     }
@@ -517,7 +517,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {
                                         connection.getConnectionManager().getConnection(node);
-                                    } catch (NodeNotConnectedException e) {
+                                    } catch (NoSuchRemoteClusterException e) {
                                         // Ignore
                                     }
                                 }
@@ -590,7 +590,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     private static Settings buildProxySettings(String clusterAlias, List<String> addresses) {
         Settings.Builder builder = Settings.builder();
-        builder.put(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).getKey(),
+        builder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).getKey(),
             addresses.get(0));
         builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "proxy");
         return builder.build();

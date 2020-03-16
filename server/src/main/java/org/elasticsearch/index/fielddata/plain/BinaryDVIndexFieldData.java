@@ -21,13 +21,16 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.search.SortedSetSelector;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVAtomicFieldData> {
 
@@ -49,19 +52,12 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
             boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-        /**
-         * Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
-         * returns a custom sort field otherwise.
-         */
-        if (nested != null ||
-                (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
-                (source.sortMissingFirst(missingValue) == false && source.sortMissingLast(missingValue) == false)) {
-            return new SortField(getFieldName(), source, reverse);
-        }
-        SortField sortField = new SortedSetSortField(fieldName, reverse,
-            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
-        sortField.setMissingValue(source.sortMissingLast(missingValue) ^ reverse ?
-            SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
-        return sortField;
+        return new SortField(getFieldName(), source, reverse);
+    }
+
+    @Override
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 }

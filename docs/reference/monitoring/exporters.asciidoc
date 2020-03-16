@@ -3,6 +3,18 @@
 [[es-monitoring-exporters]]
 == Exporters
 
+[IMPORTANT]
+=========================
+{metricbeat} is the recommended method for collecting and shipping monitoring
+data to a monitoring cluster.
+
+If you have previously configured internal collection, you should migrate to
+using {metricbeat} collection. Use either {metricbeat} collection or
+internal collection; do not use both.
+
+Learn more about <<configuring-metricbeat>>.
+=========================
+
 The purpose of exporters is to take data collected from any Elastic Stack
 source and route it to the monitoring cluster. It is possible to configure
 more than one exporter, but the general and default setup is to use a single
@@ -11,13 +23,13 @@ exporter.
 There are two types of exporters in {es}:
 
 `local`::
-The default exporter used by {monitoring} for {es}. This exporter routes data
-back into the _same_ cluster. See <<local-exporter>>. 
+The default exporter used by {es} {monitor-features}. This exporter routes data
+back into the _same_ cluster. See <<local-exporter>>.
 
 `http`::
 The preferred exporter, which you can use to route data into any supported
 {es} cluster accessible via HTTP. Production environments should always use a
-separate monitoring cluster. See <<http-exporter>>. 
+separate monitoring cluster. See <<http-exporter>>.
 
 Both exporters serve the same purpose: to set up the monitoring cluster and route
 monitoring data. However, they perform these tasks in very different ways. Even
@@ -34,43 +46,43 @@ IMPORTANT: It is critical that all nodes share the same setup. Otherwise,
 monitoring data might be routed in different ways or to different places.
 
 When the exporters route monitoring data into the monitoring cluster, they use
-`_bulk` indexing for optimal performance. All monitoring data is forwarded in 
-bulk to all enabled exporters on the same node. From there, the exporters 
+`_bulk` indexing for optimal performance. All monitoring data is forwarded in
+bulk to all enabled exporters on the same node. From there, the exporters
 serialize the monitoring data and send a bulk request to the monitoring cluster.
-There is no queuing--in memory or persisted to disk--so any failure during the 
-export results in the loss of that batch of monitoring data. This design limits 
+There is no queuing--in memory or persisted to disk--so any failure during the
+export results in the loss of that batch of monitoring data. This design limits
 the impact on {es} and the assumption is that the next pass will succeed.
 
-Routing monitoring data involves indexing it into the appropriate monitoring 
-indices. Once the data is indexed, it exists in a monitoring index that, by 
-default, is named with a daily index pattern. For {es} monitoring data, this is 
-an index that matches `.monitoring-es-6-*`. From there, the data lives inside 
-the monitoring cluster and must be curated or cleaned up as necessary. If you do 
-not curate the monitoring data, it eventually fills up the nodes and the cluster 
-might fail due to lack of disk space. 
+Routing monitoring data involves indexing it into the appropriate monitoring
+indices. Once the data is indexed, it exists in a monitoring index that, by
+default, is named with a daily index pattern. For {es} monitoring data, this is
+an index that matches `.monitoring-es-6-*`. From there, the data lives inside
+the monitoring cluster and must be curated or cleaned up as necessary. If you do
+not curate the monitoring data, it eventually fills up the nodes and the cluster
+might fail due to lack of disk space.
 
-TIP: You are strongly recommended to manage the curation of indices and 
+TIP: You are strongly recommended to manage the curation of indices and
 particularly the monitoring indices. To do so, you can take advantage of the
-<<local-exporter-cleaner,cleaner service>> or 
+<<local-exporter-cleaner,cleaner service>> or
 {curator-ref-current}/index.html[Elastic Curator].
 
 //TO-DO: Add information about index lifecycle management https://github.com/elastic/x-pack-elasticsearch/issues/2814
 
-There is also a disk watermark (known as the flood stage 
-watermark), which protects clusters from running out of disk space. When this 
-feature is triggered, it makes all indices (including monitoring indices) 
-read-only until the issue is fixed and a user manually makes the index writeable 
-again. While an active monitoring index is read-only, it will naturally fail to 
-write (index) new data and will continuously log errors that indicate the write 
-failure. For more information, see 
+There is also a disk watermark (known as the flood stage
+watermark), which protects clusters from running out of disk space. When this
+feature is triggered, it makes all indices (including monitoring indices)
+read-only until the issue is fixed and a user manually makes the index writeable
+again. While an active monitoring index is read-only, it will naturally fail to
+write (index) new data and will continuously log errors that indicate the write
+failure. For more information, see
 {ref}/disk-allocator.html[Disk-based Shard Allocation].
 
 [float]
 [[es-monitoring-default-exporter]]
 === Default exporters
 
-If a node or cluster does not explicitly define an {monitoring} exporter, the
-following default exporter is used:
+If a node or cluster does not explicitly define an exporter, the following
+default exporter is used:
 
 [source,yaml]
 ---------------------------------------------------
@@ -117,7 +129,7 @@ information, see <<http-exporter-settings>>.
 WARNING: Some users create their own templates that match _all_ index patterns,
 which therefore impact the monitoring indices that get created. It is critical
 that you do not disable `_source` storage for the monitoring indices. If you do,
-{monitoring} for {kib} does not work and you cannot visualize monitoring data
+{kib} {monitor-features} do not work and you cannot visualize monitoring data
 for your cluster.
 
 The following table lists the ingest pipelines that are required before an
@@ -127,7 +139,7 @@ exporter can route monitoring data:
 |=======================
 | Pipeline               | Purpose
 | `xpack_monitoring_2`   | Upgrades X-Pack monitoring data coming from X-Pack
-5.0 - 5.4 to be compatible with the format used in {monitoring} 5.5.
+5.0 - 5.4 to be compatible with the format used in 5.5 {monitor-features}.
 | `xpack_monitoring_6`   | A placeholder pipeline that is empty.
 |=======================
 
@@ -153,8 +165,9 @@ whether this update has occurred is by checking for the presence of indices
 matching `.monitoring-es-6-*` (or more concretely the existence of the
 new pipeline). Versions prior to 5.5 used `.monitoring-es-2-*`.
 
-Each resource that is created by an {monitoring} exporter has a `version` field, 
-which is used to determine whether the resource should be replaced. The `version` 
-field value represents the latest version of {monitoring} that changed the 
-resource. If a resource is edited by someone or something external to 
-{monitoring}, those changes are lost the next time an automatic update occurs. 
+Each resource that is created by an exporter has a `version` field,
+which is used to determine whether the resource should be replaced. The `version`
+field value represents the latest version of {monitor-features} that changed the
+resource. If a resource is edited by someone or something external to the
+{monitor-features}, those changes are lost the next time an automatic update
+occurs.

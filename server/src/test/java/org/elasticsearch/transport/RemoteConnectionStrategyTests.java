@@ -30,29 +30,31 @@ import static org.mockito.Mockito.mock;
 public class RemoteConnectionStrategyTests extends ESTestCase {
 
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
-        ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
+        ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
+            .put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
             .build();
         assertTrue(first.shouldRebuildConnection(newSettings));
     }
 
     public void testSameStrategyChangeMeansThatStrategyDoesNotNeedToBeRebuilt() {
-        ConnectionManager connectionManager = new ConnectionManager(Settings.EMPTY, mock(Transport.class));
+        ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
+            .put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
             .build();
         assertFalse(first.shouldRebuildConnection(newSettings));
     }
 
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
-        ConnectionManager connectionManager = new ConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
+        ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
@@ -61,6 +63,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
+        newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
         if (randomBoolean()) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5));

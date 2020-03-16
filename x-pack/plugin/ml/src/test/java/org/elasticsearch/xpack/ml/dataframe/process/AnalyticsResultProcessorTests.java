@@ -21,17 +21,22 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
+import org.elasticsearch.xpack.ml.extractor.DocValueField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.MultiField;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -58,9 +63,10 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsProcess<AnalyticsResult> process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
-    private ProgressTracker progressTracker = new ProgressTracker();
+    private StatsHolder statsHolder = new StatsHolder();
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
+    private ResultsPersisterService resultsPersisterService;
     private DataFrameAnalyticsConfig analyticsConfig;
 
     @Before
@@ -70,6 +76,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         dataFrameRowsJoiner = mock(DataFrameRowsJoiner.class);
         trainedModelProvider = mock(TrainedModelProvider.class);
         auditor = mock(DataFrameAnalyticsAuditor.class);
+        resultsPersisterService = mock(ResultsPersisterService.class);
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
@@ -93,7 +100,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     public void testProcess_GivenEmptyResults() {
         givenDataFrameRows(2);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, 50, null), new AnalyticsResult(null, 100, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, 50, null, null), new AnalyticsResult(null, 100, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -101,14 +108,15 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         verify(dataFrameRowsJoiner).close();
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner);
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(100));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));
     }
 
     public void testProcess_GivenRowResults() {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null), new AnalyticsResult(rowResults2, 100, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null, null),
+            new AnalyticsResult(rowResults2, 100, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -118,14 +126,15 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults1);
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults2);
 
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(100));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));
     }
 
     public void testProcess_GivenDataFrameRowsJoinerFails() {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null), new AnalyticsResult(rowResults2, 100, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null, null),
+            new AnalyticsResult(rowResults2, 100, null, null)));
 
         doThrow(new RuntimeException("some failure")).when(dataFrameRowsJoiner).processRowResults(any(RowResults.class));
 
@@ -140,7 +149,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         verify(auditor).error(eq(JOB_ID), auditCaptor.capture());
         assertThat(auditCaptor.getValue(), containsString("Error processing results; some failure"));
 
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(0));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -153,10 +162,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
-        List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
+        List<ExtractedField> extractedFieldList = new ArrayList<>(3);
+        extractedFieldList.add(new DocValueField("foo", Collections.emptySet()));
+        extractedFieldList.add(new MultiField("bar", new DocValueField("bar.keyword", Collections.emptySet())));
+        extractedFieldList.add(new DocValueField("baz", Collections.emptySet()));
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
-        AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null)));
+        AnalyticsResultProcessor resultProcessor = createResultProcessor(extractedFieldList);
 
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
@@ -172,7 +184,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
-        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar", "baz")));
+        assertThat(storedModel.getDefaultFieldMap(), equalTo(Collections.singletonMap("bar", "bar.keyword")));
+        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar.keyword", "baz")));
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
         Map<String, Object> metadata = storedModel.getMetadata();
@@ -199,7 +212,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -212,7 +225,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
 
         assertThat(resultProcessor.getFailure(), startsWith("error processing results; error storing trained model with id [" + JOB_ID));
-        assertThat(progressTracker.writingResultsPercent.get(), equalTo(0));
+        assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(0));
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {
@@ -230,8 +243,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         return createResultProcessor(Collections.emptyList());
     }
 
-    private AnalyticsResultProcessor createResultProcessor(List<String> fieldNames) {
-        return new AnalyticsResultProcessor(
-            analyticsConfig, dataFrameRowsJoiner, progressTracker, trainedModelProvider, auditor, fieldNames);
+    private AnalyticsResultProcessor createResultProcessor(List<ExtractedField> fieldNames) {
+        return new AnalyticsResultProcessor(analyticsConfig,
+            dataFrameRowsJoiner,
+            statsHolder,
+            trainedModelProvider,
+            auditor,
+            resultsPersisterService,
+            fieldNames);
     }
 }

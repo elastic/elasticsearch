@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.gen.script;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
@@ -27,7 +28,7 @@ public class ScriptTemplate {
     private final DataType outputType;
 
     public ScriptTemplate(String template) {
-        this(template, Params.EMPTY, DataType.KEYWORD);
+        this(template, Params.EMPTY, DataTypes.KEYWORD);
     }
 
     public ScriptTemplate(String template, Params params, DataType outputType) {

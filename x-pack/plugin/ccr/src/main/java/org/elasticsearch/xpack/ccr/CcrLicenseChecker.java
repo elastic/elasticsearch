@@ -412,7 +412,7 @@ public class CcrLicenseChecker {
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ccr",
                         licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+                        RemoteClusterLicenseChecker::isAllowedByLicense));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
@@ -426,7 +426,7 @@ public class CcrLicenseChecker {
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ccr",
                         licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+                        RemoteClusterLicenseChecker::isAllowedByLicense));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 

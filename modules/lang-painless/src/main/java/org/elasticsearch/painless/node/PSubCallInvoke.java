@@ -19,17 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.CallSubNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a method call.
@@ -49,38 +47,40 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = method.typeParameters.get(argument);
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            Input expressionInput = new Input();
+            expressionInput.expected = method.typeParameters.get(argument);
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.cast();
         }
 
-        statement = true;
-        actual = method.returnType;
+        output.statement = true;
+        output.actual = method.returnType;
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        if (box.isPrimitive()) {
-            methodWriter.box(MethodWriter.getType(box));
-        }
+    CallSubNode write(ClassNode classNode) {
+        CallSubNode callSubNode = new CallSubNode();
 
         for (AExpression argument : arguments) {
-            argument.write(classWriter, methodWriter, globals);
+            callSubNode.addArgumentNode(argument.cast(argument.write(classNode)));
         }
 
-        methodWriter.invokeMethodCall(method);
+        callSubNode.setLocation(location);
+        callSubNode.setExpressionType(output.actual);
+        callSubNode.setMethod(method);
+        callSubNode .setBox(box);
+
+        return callSubNode;
     }
 
     @Override

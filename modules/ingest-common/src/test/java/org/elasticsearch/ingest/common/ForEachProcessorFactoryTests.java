@@ -43,7 +43,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Processor processor = new TestProcessor(ingestDocument -> { });
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, c) -> processor);
-        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService, genericExecutor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -59,7 +59,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Processor processor = new TestProcessor(ingestDocument -> { });
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, c) -> processor);
-        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService, genericExecutor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -77,7 +77,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_first", (r, t, c) -> processor);
         registry.put("_second", (r, t, c) -> processor);
-        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService, genericExecutor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -90,7 +90,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithNonExistingProcessorType() throws Exception {
-        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService, genericExecutor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
@@ -103,7 +103,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Processor processor = new TestProcessor(ingestDocument -> { });
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, c) -> processor);
-        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService, genericExecutor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
         config.put("processor", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
         Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(registry, null, config));
@@ -111,7 +111,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithMissingProcessor() {
-        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService, genericExecutor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(Collections.emptyMap(), null, config));

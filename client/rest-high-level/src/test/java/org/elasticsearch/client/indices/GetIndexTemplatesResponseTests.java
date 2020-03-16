@@ -110,8 +110,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                     assertThat(result.order(), equalTo(esIMD.order()));
                     assertThat(result.version(), equalTo(esIMD.version()));
 
-                    assertThat(esIMD.mappings().size(), equalTo(1));
-                    BytesArray mappingSource = new BytesArray(esIMD.mappings().valuesIt().next().uncompressed());
+                    BytesArray mappingSource = new BytesArray(esIMD.mappings().uncompressed());
                     Map<String, Object> expectedMapping =
                         XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
@@ -205,7 +204,10 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             serverTemplateBuilder.order(clientITMD.order());
             serverTemplateBuilder.version(clientITMD.version());
             if (clientITMD.mappings() != null) {
-                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, clientITMD.mappings().source());
+                // The client-side mappings never include a wrapping type, but server-side mappings
+                // for index templates still do so we need to wrap things here
+                String mappings = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\": " + clientITMD.mappings().source().string() + "}";
+                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
             }
             serverIndexTemplates.add(serverTemplateBuilder.build());
 

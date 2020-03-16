@@ -212,9 +212,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
                 if (shouldMinimizeRoundtrips(searchRequest)) {
-                    ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider, searchService::createReduceContext,
-                        remoteClusterService, threadPool, listener,
-                        (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
+                    ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider,
+                            searchService.aggReduceContextBuilder(searchRequest),
+                            remoteClusterService, threadPool, listener,
+                            (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
@@ -260,7 +261,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void ccsRemoteReduce(SearchRequest searchRequest, OriginalIndices localIndices, Map<String, OriginalIndices> remoteIndices,
-                                SearchTimeProvider timeProvider, Function<Boolean, InternalAggregation.ReduceContext> reduceContext,
+                                SearchTimeProvider timeProvider, InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                 RemoteClusterService remoteClusterService, ThreadPool threadPool, ActionListener<SearchResponse> listener,
                                 BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer) {
 
@@ -298,7 +299,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });
         } else {
-            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(searchRequest.source(), timeProvider, reduceContext);
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
+                    searchRequest.source(), timeProvider, aggReduceContextBuilder);
             AtomicInteger skippedClusters = new AtomicInteger(0);
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
@@ -325,7 +327,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static SearchResponseMerger createSearchResponseMerger(SearchSourceBuilder source, SearchTimeProvider timeProvider,
-                                                           Function<Boolean, InternalAggregation.ReduceContext> reduceContextFunction) {
+                                                           InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
         final int from;
         final int size;
         final int trackTotalHitsUpTo;
@@ -342,7 +344,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, reduceContextFunction);
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
     }
 
     static void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing, AtomicInteger skippedClusters,
@@ -511,7 +513,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
-        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
+        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
@@ -553,14 +555,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (ShardIterator shardIterator : localShardsIterator) {
             shards.add(new SearchShardIterator(localClusterAlias, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
-        return new GroupShardsIterator<>(shards);
+        return GroupShardsIterator.sortAndCreate(shards);
     }
 
-    private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
+    private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(SearchTask task, SearchRequest searchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
                                                         BiFunction<String, String, Transport.Connection> connectionLookup,
-                                                        long clusterStateVersion,
+                                                        ClusterState clusterState,
                                                         Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
                                                         Map<String, Set<String>> indexRoutings,
@@ -571,9 +573,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, indexRoutings, executor, searchRequest, listener, shardIterators,
-                timeProvider, clusterStateVersion, task, (iter) -> {
-                AbstractSearchAsyncAction action = searchAsyncAction(task, searchRequest, iter, timeProvider, connectionLookup,
-                    clusterStateVersion, aliasFilter, concreteIndexBoosts, indexRoutings, listener, false, clusters);
+                timeProvider, clusterState, task, (iter) -> {
+                AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
+                    task,
+                    searchRequest,
+                    iter,
+                    timeProvider,
+                    connectionLookup,
+                    clusterState,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    indexRoutings,
+                    listener,
+                    false,
+                    clusters);
                 return new SearchPhase(action.getName()) {
                     @Override
                     public void run() {
@@ -587,12 +600,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterStateVersion, task, clusters);
+                        shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterStateVersion, task, clusters);
+                        shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

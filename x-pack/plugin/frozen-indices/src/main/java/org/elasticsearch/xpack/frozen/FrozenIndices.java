@@ -74,6 +74,6 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new RestFreezeIndexAction(restController));
+        return Collections.singletonList(new RestFreezeIndexAction());
     }
 }

@@ -6,8 +6,13 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
+restResources {
+  restTests {
+    includeCore '*'
+  }
+}
+
 integTest {
-  includePackaged = true
   runner {
     systemProperty 'tests.rest.blacklist',
       [

@@ -74,13 +74,13 @@ public class Licensing implements ActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestGetLicenseAction(restController));
-        handlers.add(new RestPutLicenseAction(restController));
-        handlers.add(new RestDeleteLicenseAction(restController));
-        handlers.add(new RestGetTrialStatus(restController));
-        handlers.add(new RestGetBasicStatus(restController));
-        handlers.add(new RestPostStartTrialLicense(restController));
-        handlers.add(new RestPostStartBasicLicense(restController));
+        handlers.add(new RestGetLicenseAction());
+        handlers.add(new RestPutLicenseAction());
+        handlers.add(new RestDeleteLicenseAction());
+        handlers.add(new RestGetTrialStatus());
+        handlers.add(new RestGetBasicStatus());
+        handlers.add(new RestPostStartTrialLicense());
+        handlers.add(new RestPostStartBasicLicense());
         return handlers;
     }
 

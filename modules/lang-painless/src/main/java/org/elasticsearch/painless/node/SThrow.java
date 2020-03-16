@@ -19,15 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ThrowNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a throw statement.
@@ -43,27 +41,32 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        AExpression.Input expressionInput = new AExpression.Input();
+        expressionInput.expected = Exception.class;
+        expression.analyze(scriptRoot, scope, expressionInput);
+        expression.cast();
+
+        output.methodEscape = true;
+        output.loopEscape = true;
+        output.allEscape = true;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        expression.expected = Exception.class;
-        expression.analyze(scriptRoot, locals);
-        expression = expression.cast(scriptRoot, locals);
+    ThrowNode write(ClassNode classNode) {
+        ThrowNode throwNode = new ThrowNode();
 
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
-        statementCount = 1;
-    }
+        throwNode.setExpressionNode(expression.cast(expression.write(classNode)));
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-        expression.write(classWriter, methodWriter, globals);
-        methodWriter.throwException();
+        throwNode.setLocation(location);
+
+        return throwNode;
     }
 
     @Override

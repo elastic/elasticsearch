@@ -19,21 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -55,25 +51,21 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        if (actual == null) {
+        if (output.actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, arguments.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
+                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/" + arguments.size() + "] not found"));
         }
 
         scriptRoot.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
@@ -83,38 +75,39 @@ public final class ENewObj extends AExpression {
 
         if (constructor.typeParameters.size() != arguments.size()) {
             throw createError(new IllegalArgumentException(
-                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
+                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "] " +
                     "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
         }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = types[argument];
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            Input expressionInput = new Input();
+            expressionInput.expected = types[argument];
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.cast();
         }
 
-        statement = true;
+        output.statement = true;
+
+        return output;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.newInstance(MethodWriter.getType(actual));
-
-        if (read) {
-            methodWriter.dup();
-        }
+    NewObjectNode write(ClassNode classNode) {
+        NewObjectNode newObjectNode = new NewObjectNode();
 
         for (AExpression argument : arguments) {
-            argument.write(classWriter, methodWriter, globals);
+            newObjectNode.addArgumentNode(argument.cast(argument.write(classNode)));
         }
 
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+        newObjectNode.setLocation(location);
+        newObjectNode.setExpressionType(output.actual);
+        newObjectNode.setRead(input.read);
+        newObjectNode.setConstructor(constructor);
+
+        return newObjectNode;
     }
 
     @Override

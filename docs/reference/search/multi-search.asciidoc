@@ -3,6 +3,16 @@
 
 Executes several searches with a single API request.
 
+[source,console]
+--------------------------------------------------
+GET twitter/_msearch
+{ }
+{"query" : {"match" : { "message": "this is a test"}}}
+{"index": "twitter2"}
+{"query" : {"match_all" : {}}}
+--------------------------------------------------
+// TEST[setup:twitter]
+
 [[search-multi-search-api-request]]
 ==== {api-request-title}
 
@@ -12,11 +22,11 @@ Executes several searches with a single API request.
 [[search-multi-search-api-desc]]
 ==== {api-description-title}
 
-The multi search AP executes several searches from a single API request.
+The multi search API executes several searches from a single API request.
 The format of the request is similar to the bulk API format and makes use 
-of the newline delimited JSON (NDJSON) format. The structure is as follows (the 
-structure is specifically optimized to reduce parsing if a specific search ends 
-up redirected to another node):
+of the newline delimited JSON (NDJSON) format.
+
+The structure is as follows:
 
 [source,js]
 --------------------------------------------------
@@ -27,53 +37,198 @@ body\n
 --------------------------------------------------
 // NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
-may be preceded by a carriage return `\r`. When sending requests to this endpoint the
-`Content-Type` header should be set to `application/x-ndjson`.
+This structure is specifically optimized to reduce parsing if a specific search
+ends up redirected to another node.
+
+[IMPORTANT]
+====
+The final line of data must end with a newline character `\n`. Each newline
+character may be preceded by a carriage return `\r`. When sending requests to
+this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
+====
 
 [[search-multi-search-api-path-params]]
 ==== {api-path-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To search all indices, use `_all` or omit this parameter.
 
+[[search-multi-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+`ccs_minimize_roundtrips`::
+(Optional, boolean)
+If `true`, network roundtrips between the coordinating node and remote clusters
+are minimized for {ccs} requests. Defaults to `true`. See
+<<ccs-network-delays>>.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`ignore_throttled`::
+(Optional, boolean)
+If `true`, concrete, expanded or aliased indices are ignored when throttled.
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`max_concurrent_searches`::
+(Optional, integer)
+Maximum number of concurrent searches the multi search API can execute.
+
+`max_concurrent_shard_requests`::
++
+--
+(Optional, integer)
+Maximum number of concurrent shard requests that each sub-search request
+executes per node.  Defaults to `5`. 
+
+You can use this parameter to prevent a request from overloading a cluster. For
+example, a default request hits all indices in a cluster. This could cause shard
+request rejections if the number of shards per node is high.
+
+In certain scenarios, parallelism isn't achieved through concurrent requests. In
+those cases, a low value in this  parameter could result in poor performance.
+For example, in an environment where a very low number of concurrent search
+requests are expected, a higher value in this parameter may improve performance.
+--
+
+`pre_filter_shard_size`::
+(Optional, integer)
+Defines a threshold that enforces a pre-filter roundtrip to prefilter search
+shards based on query rewriting if the number of shards the search request
+expands to exceeds the threshold. This filter roundtrip can limit the number of
+shards significantly if for instance a shard can not match any documents based
+on it's rewrite method i.e., if date filters are mandatory to match but the
+shard bounds and the query are disjoint. Defaults to `128`.
+
+`rest_total_hits_as_int`::
+(Optional, boolean)
+If `true`, `hits.total` are returned as an integer in the
+response. Defaults to `false`, which returns an object.
+
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field,routing value>> used to route search operations
+to a specific shard.
+
+`search_type`::
++
+--
+(Optional, string)
+Indicates whether global term and document frequencies should be used when
+scoring returned documents. 
+
+Options are:
+
+`query_then_fetch`::
+(default)
+Documents are scored using local term and document frequencies for the shard.
+This is usually faster but less accurate.
+
+`dfs_query_then_fetch`::
+Documents are scored using global term and document frequencies across all
+shards. This is usually slower but more accurate.
+--
+  
+`typed_keys`::
+(Optional, boolean)
+Specifies whether aggregation and suggester names should be prefixed by their
+respective types in the response.
 
 [[search-multi-search-api-request-body]]
 ==== {api-request-body-title}
 
-`aggregations`::
-  (Optional, object) Specifies aggregations.
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
-  
-`max_concurrent_searches`::
-  (Optional, integer) Specifies the maximum number of concurrent searches the 
-  multi search API will execute. This default is based on the number of data 
-  nodes and the default search thread pool size.
-  
-`max_concurrent_shard_requests`::
-  (Optional, integer) Specifies the maximum number of concurrent shard requests 
-  that each sub search request will execute per node. This parameter should be 
-  used to protect a single request from overloading a cluster (for example a 
-  default request will hit all indices in a cluster which could cause shard 
-  request rejections if the number of shards per node is high). Defaults to `5`. 
-  In certain scenarios parallelism isn't achieved through concurrent request 
-  such that this protection will result in poor performance. For instance in an 
-  environment where only a very low number of concurrent search requests are 
-  expected it might help to increase this value to a higher number.
+The request body contains a newline-delimited list of search `<header>` and
+search `<body>` objects.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
-  
-`query`::
-  (Optional, <<query-dsl,query object>>) Defines the search definition using the 
-  <<query-dsl,Query DSL>>.
+`<header>`::
++
+--
+(Required, object)
+Contains parameters used to limit or change the subsequent search body request.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+This object is required for each search body but can be empty (`{}`) or a blank
+line.
+--
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+`allow_no_indices`:::
+(Optional, boolean)
+If `true`, the request does *not* return an error if a wildcard expression or
+`_all` value retrieves only missing or closed indices.
++
+This parameter also applies to <<indices-aliases,index aliases>> that point to a
+missing or closed index.
 
-`size`:: 
-  (Optional, integer) The number of hits to return. Defaults to `10`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
 
+`ignore_unavailable`:::
+(Optional, boolean) If `true`, documents from missing or closed indices are not
+included in the response. Defaults to `false`.
+
+`index`:::
+(Optional, string or array of strings)
+Index name or <<indices-aliases,alias>> used to limit the request. Wildcard
+expressions are supported. You can specify multiple indices as an array.
+
+`preference`:::
+(Optional, string)
+Node or shard used to perform the search. Random by default.
+
+`request_cache`:::
+(Optional, boolean)
+If `true`, the request cache can be used for this search. Defaults to
+index-level settings. See <<shard-request-cache>>.
+
+`routing`:::
+(Optional, string)
+Custom <<mapping-routing-field,routing value>> used to route search operations
+to a specific shard.
+
+`search_type`:::
++
+--
+(Optional, string)
+Indicates whether global term and document frequencies should be used when
+scoring returned documents. 
+
+Options are:
+
+`query_then_fetch`::
+(default)
+Documents are scored using local term and document frequencies for the shard.
+This is usually faster but less accurate.
+
+`dfs_query_then_fetch`::
+Documents are scored using global term and document frequencies across all
+shards. This is usually slower but more accurate.
+--
+
+`<body>`::
+(Optional, object)
+Contains parameters for a search request:
+
+`aggregations`:::
+(Optional, <<_structuring_aggregations,aggregation object>>)
+Aggregations you wish to run during the search. See <<search-aggregations>>.
+
+`query`:::
+(Optional, <<query-dsl,query DSL object>>) Query you wish to run during the
+search. Hits matching this query are returned in the response.
+
+`from`:::
+(Optional, integer)
+Starting offset for returned hits. Defaults to `0`.
+
+`size`:::
+(Optional, integer)
+Number of hits to return. Defaults to `10`.
 
 [[search-multi-search-api-response-body]]
 ==== {api-response-body-title}

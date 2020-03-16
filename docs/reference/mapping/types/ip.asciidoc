@@ -45,11 +45,6 @@ The following parameters are accepted by `ip` fields:
 
 [horizontal]
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

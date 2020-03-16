@@ -19,15 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-
-import java.util.Set;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Implements a field who's value is null if the prefix is null rather than throwing an NPE.
@@ -41,27 +37,22 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
+    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        this.input = input;
+        output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (write) {
+        if (input.write) {
             throw createError(new IllegalArgumentException("Can't write to null safe reference"));
         }
-        guarded.read = read;
-        guarded.analyze(scriptRoot, locals);
-        actual = guarded.actual;
-        if (actual.isPrimitive()) {
+        Input guardedInput = new Input();
+        guardedInput.read = input.read;
+        Output guardedOutput = guarded.analyze(scriptRoot, scope, guardedInput);
+        output.actual = guardedOutput.actual;
+        if (output.actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
-    }
 
-
-    @Override
-    int accessElementCount() {
-        return guarded.accessElementCount();
+        return output;
     }
 
     @Override
@@ -75,27 +66,15 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        Label end = new Label();
-        methodWriter.dup();
-        methodWriter.ifNull(end);
-        guarded.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
-    }
+    NullSafeSubNode write(ClassNode classNode) {
+        NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
 
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalArgumentException("Can't write to null safe field"));
-    }
+        nullSafeSubNode.setChildNode(guarded.write(classNode));
 
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalArgumentException("Can't write to null safe field"));
-    }
+        nullSafeSubNode.setLocation(location);
+        nullSafeSubNode.setExpressionType(output.actual);
 
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalArgumentException("Can't write to null safe field"));
+        return nullSafeSubNode;
     }
 
     @Override

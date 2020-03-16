@@ -87,7 +87,8 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
-    private int bucketCount; // only used from the process() thread, so doesn't need to be volatile
+    private final long priorRunsBucketCount;
+    private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
 
@@ -122,6 +123,7 @@ public class AutodetectResultProcessor {
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.deleteInterimRequired = true;
+        this.priorRunsBucketCount = timingStats.getBucketCount();
     }
 
     public void process() {
@@ -140,7 +142,7 @@ public class AutodetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
+            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, currentRunBucketCount);
 
         } catch (Exception e) {
             failed = true;
@@ -166,7 +168,7 @@ public class AutodetectResultProcessor {
     }
 
     private void readResults() {
-        bucketCount = 0;
+        currentRunBucketCount = 0;
         try {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
@@ -174,7 +176,7 @@ public class AutodetectResultProcessor {
                     AutodetectResult result = iterator.next();
                     processResult(result);
                     if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
                     }
                 } catch (Exception e) {
                     if (isAlive() == false) {
@@ -212,7 +214,7 @@ public class AutodetectResultProcessor {
             // results are also interim
             timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
-            ++bucketCount;
+            ++currentRunBucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
@@ -316,6 +318,8 @@ public class AutodetectResultProcessor {
 
         persister.persistModelSizeStats(modelSizeStats, this::isAlive);
         notifyModelMemoryStatusChange(modelSizeStats);
+        notifyCategorizationStatusChange(modelSizeStats);
+
         latestModelSizeStats = modelSizeStats;
     }
 
@@ -333,6 +337,16 @@ public class AutodetectResultProcessor {
                         new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit(), ByteSizeUnit.BYTES).toString(),
                         new ByteSizeValue(modelSizeStats.getModelBytesExceeded(), ByteSizeUnit.BYTES).toString()));
                 }
+            }
+        }
+    }
+
+    private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
+        ModelSizeStats.CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
+        if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
+            if (categorizationStatus == ModelSizeStats.CategorizationStatus.WARN) {
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
+                    priorRunsBucketCount + currentRunBucketCount));
             }
         }
     }

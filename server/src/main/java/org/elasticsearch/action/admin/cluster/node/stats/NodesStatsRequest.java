@@ -54,18 +54,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         if (in.getVersion().before(Version.V_7_7_0)) {
-            addOrRemoveMetric(in.readBoolean(), Metric.OS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.PROCESS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.JVM.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.FS.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.HTTP.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.BREAKER.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.SCRIPT.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.INGEST.metricName());
-            addOrRemoveMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.OS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.PROCESS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.JVM.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.FS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.HTTP.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.BREAKER.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.SCRIPT.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
         } else {
             requestedMetrics.addAll(in.readStringList());
         }
@@ -182,15 +182,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Helper method for adding and removing metrics.
+     * Helper method for adding metrics during deserialization.
      * @param includeMetric Whether or not to include a metric.
      * @param metricName Name of the metric to include or remove.
      */
-    private void addOrRemoveMetric(boolean includeMetric, String metricName) {
+    private void optionallyAddMetric(boolean includeMetric, String metricName) {
         if (includeMetric) {
             requestedMetrics.add(metricName);
-        } else {
-            requestedMetrics.remove(metricName);
         }
     }
 

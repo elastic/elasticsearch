@@ -24,6 +24,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
@@ -99,6 +102,32 @@ public class NodesStatsRequestTests extends ESTestCase {
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.NONE.getFlags()));
         assertThat(request.requestedMetrics(), empty());
+    }
+
+    /**
+     * Test that (for now) we can only add metrics from a set of known metrics.
+     */
+    public void testUnknownMetricsRejected() {
+        String unknownMetric1 = "unknown_metric1";
+        String unknownMetric2 = "unknown_metric2";
+        Set<String> unknownMetrics = new HashSet<>();
+        unknownMetrics.add(unknownMetric1);
+        unknownMetrics.addAll(randomSubsetOf(NodesStatsRequest.Metric.allMetrics()));
+
+        NodesStatsRequest request = new NodesStatsRequest();
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.addMetric(unknownMetric1));
+        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
+
+        exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric1));
+        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
+
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        assertThat(exception.getMessage(), equalTo("Used illegal metric: [" + unknownMetric1 + "]"));
+
+        unknownMetrics.add(unknownMetric2);
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
     }
 
     /**

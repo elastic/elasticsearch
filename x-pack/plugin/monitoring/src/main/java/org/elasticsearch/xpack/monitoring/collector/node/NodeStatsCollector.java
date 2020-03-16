@@ -67,11 +67,12 @@ public class NodeStatsCollector extends Collector {
                                                   final ClusterState clusterState) throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
-        request.addMetric(NodesStatsRequest.Metric.OS.metricName());
-        request.addMetric(NodesStatsRequest.Metric.JVM.metricName());
-        request.addMetric(NodesStatsRequest.Metric.PROCESS.metricName());
-        request.addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName());
-        request.addMetric(NodesStatsRequest.Metric.FS.metricName());
+        request.addMetrics(
+            NodesStatsRequest.Metric.OS.metricName(),
+            NodesStatsRequest.Metric.JVM.metricName(),
+            NodesStatsRequest.Metric.PROCESS.metricName(),
+            NodesStatsRequest.Metric.THREAD_POOL.metricName(),
+            NodesStatsRequest.Metric.FS.metricName());
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet(getCollectionTimeout());
 

@@ -27,7 +27,7 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
     }
 
     public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> authnState) {
-        this.spEntityId = Objects.requireNonNull(spEntityId);
+        this.spEntityId = Objects.requireNonNull(spEntityId, "spEntityId is required for successful responses");
         this.forceAuthn = forceAuthn;
         this.authnState = Map.copyOf(Objects.requireNonNull(authnState));
     }
@@ -49,13 +49,12 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
         out.writeString(spEntityId);
         out.writeBoolean(forceAuthn);
         out.writeMap(authnState);
-
     }
 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "{ spEntityId='" + getSpEntityId() + "',\n" +
             " forceAuthn='" + isForceAuthn() + "',\n" +
-            " additionalData='" + getAuthnState() + "' }";
+            " authnState='" + getAuthnState() + "' }";
     }
 }

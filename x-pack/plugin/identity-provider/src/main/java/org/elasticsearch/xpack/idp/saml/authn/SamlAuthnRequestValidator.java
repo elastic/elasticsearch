@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -51,8 +52,8 @@ import java.util.zip.InflaterInputStream;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
-/*
- * Processes a SAML AuthnRequest, validates it and extracts necessary information
+/**
+ * Processes a SAML AuthnRequest, validates it, extracts necessary information and returns a {@link SamlValidateAuthnRequestResponse}
  */
 public class SamlAuthnRequestValidator {
 
@@ -152,17 +153,14 @@ public class SamlAuthnRequestValidator {
                 }
                 final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                 if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
-                    logAndRespond(
-                        "Unable to validate signature of authentication request, " +
-                            "Service Provider hasn't registered signing credentials",
-                        listener);
+                    logAndRespond(new ParameterizedMessage("Unable to validate signature of authentication request, " +
+                        "Service Provider [{}] hasn't registered signing credentials", sp.getEntityId()), listener);
                     return;
                 }
                 if (validateSignature(parsedQueryString, spSigningCredentials) == false) {
                     logAndRespond(
                         new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
-                            parsedQueryString.queryString,
-                            samlFactory.describeCredentials(spSigningCredentials)), listener);
+                            parsedQueryString.queryString, samlFactory.describeCredentials(spSigningCredentials)), listener);
                     return;
                 }
             } else if (Strings.hasText(parsedQueryString.sigAlg)) {
@@ -170,15 +168,19 @@ public class SamlAuthnRequestValidator {
                     parsedQueryString.queryString), listener);
                 return;
             } else {
-                logAndRespond("The Service Provider must sign authentication requests but no signature was found", listener);
+                logAndRespond(
+                    new ParameterizedMessage(
+                        "The Service Provider [{}] must sign authentication requests but no signature was found", sp.getEntityId()),
+                    listener);
                 return;
             }
         }
-
+        final Map<String, Object> authnState = new HashMap<>();
         checkDestination(authnRequest);
-        checkAcs(authnRequest, sp);
-
-        Map<String, Object> authnState = buildAuthnState(authnRequest, sp);
+        checkAcs(authnRequest, sp, authnState);
+        validateNameIdPolicy(authnRequest, sp, authnState);
+        authnState.put(SamlAuthenticationState.Fields.ENTITY_ID.getPreferredName(), sp.getEntityId());
+        authnState.put(SamlAuthenticationState.Fields.AUTHN_REQUEST_ID.getPreferredName(), authnRequest.getID());
         final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(sp.getEntityId(),
             authnRequest.isForceAuthn(), authnState);
         logger.trace(new ParameterizedMessage("Validated AuthnResponse from queryString [{}] and extracted [{}]",
@@ -186,24 +188,21 @@ public class SamlAuthnRequestValidator {
         listener.onResponse(response);
     }
 
-    private Map<String, Object> buildAuthnState(AuthnRequest request, SamlServiceProvider sp) {
-        Map<String, Object> authnState = new HashMap<>();
+    private void validateNameIdPolicy(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final NameIDPolicy nameIDPolicy = request.getNameIDPolicy();
         if (null != nameIDPolicy) {
             final String requestedFormat = request.getNameIDPolicy().getFormat();
+            final String allowedFormat = sp.getAllowedNameIdFormat();
             if (Strings.hasText(requestedFormat)) {
-                authnState.put("nameid_format", requestedFormat);
-                // we should not throw an error. Pass this as additional data so that the /saml/init API can
-                // return a SAML response with the appropriate status (3.4.1.1 in the core spec)
-                if (requestedFormat.equals(UNSPECIFIED) == false && sp.getAllowedNameIdFormats().contains(requestedFormat) == false) {
-                    logger.warn(() ->
-                        new ParameterizedMessage("The requested NameID format [{}] doesn't match the allowed NameID formats" +
-                            "for this Service Provider are {}", requestedFormat, sp.getAllowedNameIdFormats()));
-                    authnState.put("error", "invalid_nameid_policy");
+                if (allowedFormat != null && requestedFormat.equals(UNSPECIFIED) == false
+                    && requestedFormat.equals(allowedFormat) == false) {
+                    throw new ElasticsearchSecurityException("The requested NameID format [{}] doesn't match the allowed NameID format" +
+                        " for this Service Provider which is [{}]", requestedFormat, sp.getAllowedNameIdFormat());
+                } else {
+                    authnState.put(SamlAuthenticationState.Fields.NAMEID_FORMAT.getPreferredName(), requestedFormat);
                 }
             }
         }
-        return authnState;
     }
 
     private boolean validateSignature(ParsedQueryString queryString, Collection<X509Credential> credentials) {
@@ -254,7 +253,7 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private void checkAcs(AuthnRequest request, SamlServiceProvider sp) {
+    private void checkAcs(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final String acs = request.getAssertionConsumerServiceURL();
         if (Strings.hasText(acs) == false) {
             final String message = request.getAssertionConsumerServiceIndex() == null ?
@@ -267,6 +266,7 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("The registered ACS URL for this Service Provider is [{}] but the authentication " +
                 "request contained [{}]", RestStatus.BAD_REQUEST, sp.getAssertionConsumerService(), acs);
         }
+        authnState.put(SamlAuthenticationState.Fields.ACS_URL.getPreferredName(), acs);
     }
 
     protected Element parseSamlMessage(byte[] content) {
@@ -309,19 +309,18 @@ public class SamlAuthnRequestValidator {
         return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
     }
 
-    private void logAndRespond(String message, ActionListener listener) {
+    private void logAndRespond(String message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
         logger.debug(message);
         listener.onFailure(new ElasticsearchSecurityException(message));
     }
 
-    private void logAndRespond(String message, Throwable e, ActionListener listener) {
-        logger.debug(message);
-        listener.onFailure(new ElasticsearchSecurityException(message, e));
+    private void logAndRespond(ParameterizedMessage message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
+        logAndRespond(message.getFormattedMessage(), listener);
     }
 
-    private void logAndRespond(ParameterizedMessage message, ActionListener listener) {
-        logger.debug(message.getFormattedMessage());
-        listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
+    private void logAndRespond(String message, Throwable e, ActionListener<SamlValidateAuthnRequestResponse> listener) {
+        logger.debug(message);
+        listener.onFailure(new ElasticsearchSecurityException(message, e));
     }
 
     private class ParsedQueryString {

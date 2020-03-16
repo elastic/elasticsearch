@@ -210,7 +210,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private void writeDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, future);
+        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL, future);
         doc.setDocId(future.actionGet().getId());
     }
 
@@ -258,7 +258,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         document.setLastModifiedMillis(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 36)).millis());
 
         if (randomBoolean()) {
-            document.setNameIdFormats(randomSubsetOf(List.of(NameID.TRANSIENT, NameID.PERSISTENT)));
+            document.setNameIdFormat(randomFrom(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL));
         }
         if (randomBoolean()) {
             document.setAuthenticationExpiryMillis(TimeValue.timeValueMinutes(randomIntBetween(1, 15)).millis());

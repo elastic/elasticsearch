@@ -21,7 +21,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final String name;
     private final boolean enabled;
     private final URL assertionConsumerService;
-    private final Set<String> allowedNameIdFormats;
+    private final String allowedNameIdFormat;
     private final ReadableDuration authnExpiry;
     private final ServiceProviderPrivileges privileges;
     private final AttributeNames attributeNames;
@@ -29,9 +29,8 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, String name, boolean enabled, URL assertionConsumerService,
-                                Set<String> allowedNameIdFormats, ReadableDuration authnExpiry,
-                                ServiceProviderPrivileges privileges, AttributeNames attributeNames,
+    public CloudServiceProvider(String entityId, String name, boolean enabled, URL assertionConsumerService, String allowedNameIdFormat,
+                                ReadableDuration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
                                 Set<X509Credential> spSigningCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
@@ -40,7 +39,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
         this.name = name;
         this.enabled = enabled;
         this.assertionConsumerService = assertionConsumerService;
-        this.allowedNameIdFormats = Set.copyOf(allowedNameIdFormats);
+        this.allowedNameIdFormat = allowedNameIdFormat;
         this.authnExpiry = authnExpiry;
         this.privileges = privileges;
         this.attributeNames = attributeNames;
@@ -65,8 +64,8 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public Set<String> getAllowedNameIdFormats() {
-        return allowedNameIdFormats;
+    public String getAllowedNameIdFormat() {
+        return allowedNameIdFormat;
     }
 
     @Override

@@ -25,6 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutSamlServiceProviderRequest extends ActionRequest {
+    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.NONE;
 
     private final SamlServiceProviderDocument document;
     private final WriteRequest.RefreshPolicy refreshPolicy;
@@ -63,18 +64,18 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
     }
 
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        this.document.writeTo(out);
-        this.refreshPolicy.writeTo(out);
+        document.writeTo(out);
+        refreshPolicy.writeTo(out);
     }
 
     public SamlServiceProviderDocument getDocument() {
         return document;
-    }
-
-    public WriteRequest.RefreshPolicy getRefreshPolicy() {
-        return refreshPolicy;
     }
 
     @Override

@@ -13,39 +13,39 @@ import java.io.IOException;
 
 public class SamlInitiateSingleSignOnResponse extends ActionResponse {
 
-    private String redirectUrl;
-    private String responseBody;
-    private String spEntityId;
+    private String postUrl;
+    private String samlResponse;
+    private String entityId;
 
     public SamlInitiateSingleSignOnResponse(StreamInput in) throws IOException {
         super(in);
-        this.redirectUrl = in.readString();
-        this.responseBody = in.readString();
-        this.spEntityId = in.readString();
+        this.postUrl = in.readString();
+        this.samlResponse = in.readString();
+        this.entityId = in.readString();
     }
 
-    public SamlInitiateSingleSignOnResponse(String redirectUrl, String responseBody, String spEntityId) {
-        this.redirectUrl = redirectUrl;
-        this.responseBody = responseBody;
-        this.spEntityId = spEntityId;
+    public SamlInitiateSingleSignOnResponse(String postUrl, String samlResponse, String entityId) {
+        this.postUrl = postUrl;
+        this.samlResponse = samlResponse;
+        this.entityId = entityId;
     }
 
-    public String getRedirectUrl() {
-        return redirectUrl;
+    public String getPostUrl() {
+        return postUrl;
     }
 
-    public String getResponseBody() {
-        return responseBody;
+    public String getSamlResponse() {
+        return samlResponse;
     }
 
-    public String getSpEntityId() {
-        return spEntityId;
+    public String getEntityId() {
+        return entityId;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(redirectUrl);
-        out.writeString(responseBody);
-        out.writeString(spEntityId);
+        out.writeString(postUrl);
+        out.writeString(samlResponse);
+        out.writeString(entityId);
     }
 }

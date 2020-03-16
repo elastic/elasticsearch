@@ -227,12 +227,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public String entityId;
 
     public String acs;
+    
+    @Nullable
+    public String nameIdFormat;
 
     public boolean enabled = true;
     public Instant created;
     public Instant lastModified;
 
-    public Set<String> nameIdFormats = Set.of();
     public Set<String> signMessages = Set.of();
 
     @Nullable
@@ -253,7 +255,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         enabled = in.readBoolean();
         created = in.readInstant();
         lastModified = in.readInstant();
-        nameIdFormats = in.readSet(StreamInput::readString);
+        nameIdFormat = in.readOptionalString();
         authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.resource = in.readString();
@@ -278,7 +280,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeBoolean(enabled);
         out.writeInstant(created);
         out.writeInstant(lastModified);
-        out.writeCollection(nameIdFormats, StreamOutput::writeString);
+        out.writeOptionalString(nameIdFormat);
         out.writeOptionalVLong(authenticationExpiryMillis);
 
         out.writeString(privileges.resource);
@@ -331,8 +333,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         this.lastModified = Instant.ofEpochMilli(millis);
     }
 
-    public void setNameIdFormats(Collection<String> nameIdFormats) {
-        this.nameIdFormats = nameIdFormats == null ? Set.of() : Set.copyOf(nameIdFormats);
+    public void setNameIdFormat(String nameIdFormat) {
+        this.nameIdFormat = nameIdFormat;
     }
 
     public void setSignMessages(Collection<String> signMessages) {
@@ -363,7 +365,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             Objects.equals(enabled, that.enabled) &&
             Objects.equals(created, that.created) &&
             Objects.equals(lastModified, that.lastModified) &&
-            Objects.equals(nameIdFormats, that.nameIdFormats) &&
+            Objects.equals(nameIdFormat, that.nameIdFormat) &&
             Objects.equals(authenticationExpiryMillis, that.authenticationExpiryMillis) &&
             Objects.equals(certificates, that.certificates) &&
             Objects.equals(privileges, that.privileges) &&
@@ -372,7 +374,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
     @Override
     public int hashCode() {
-        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormats, authenticationExpiryMillis,
+        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormat, authenticationExpiryMillis,
             certificates, privileges, attributeNames);
     }
 
@@ -392,7 +394,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         DOC_PARSER.declareBoolean(SamlServiceProviderDocument::setEnabled, Fields.ENABLED);
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setCreatedMillis, Fields.CREATED_DATE);
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setLastModifiedMillis, Fields.LAST_MODIFIED);
-        DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setNameIdFormats, Fields.NAME_ID);
+        DOC_PARSER.declareStringOrNull(SamlServiceProviderDocument::setNameIdFormat, Fields.NAME_ID);
         DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setSignMessages, Fields.SIGN_MSGS);
         DOC_PARSER.declareField(SamlServiceProviderDocument::setAuthenticationExpiryMillis,
             parser -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.longValue(),
@@ -470,7 +472,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
         builder.field(Fields.CREATED_DATE.getPreferredName(), created == null ? null : created.toEpochMilli());
         builder.field(Fields.LAST_MODIFIED.getPreferredName(), lastModified == null ? null : lastModified.toEpochMilli());
-        builder.field(Fields.NAME_ID.getPreferredName(), nameIdFormats == null ? List.of() : nameIdFormats);
+        builder.field(Fields.NAME_ID.getPreferredName(), nameIdFormat);
         builder.field(Fields.SIGN_MSGS.getPreferredName(), signMessages == null ? List.of() : signMessages);
         builder.field(Fields.AUTHN_EXPIRY.getPreferredName(), authenticationExpiryMillis);
 

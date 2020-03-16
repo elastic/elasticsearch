@@ -81,6 +81,7 @@ public class TransportPutSamlServiceProviderAction
 
     private void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
                                WriteRequest.RefreshPolicy refreshPolicy, ActionListener<PutSamlServiceProviderResponse> listener) {
+
         final Instant now = clock.instant();
         if (document.created == null || opType == DocWriteRequest.OpType.CREATE) {
             document.created = now;

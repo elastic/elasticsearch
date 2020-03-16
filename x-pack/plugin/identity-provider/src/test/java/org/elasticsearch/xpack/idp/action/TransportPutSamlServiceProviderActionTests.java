@@ -109,7 +109,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
         final AtomicReference<DocWriteResponse> writeResponse = new AtomicReference<>();
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
-            assertThat(args, Matchers.arrayWithSize(3));
+            assertThat(args, Matchers.arrayWithSize(4));
 
             SamlServiceProviderDocument doc = (SamlServiceProviderDocument) args[0];
             assertThat(doc.getDocId(), notNullValue());
@@ -124,7 +124,8 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             listener.onResponse(docWriteResponse);
 
             return null;
-        }).when(index).writeDocument(any(SamlServiceProviderDocument.class), any(DocWriteRequest.OpType.class), any(ActionListener.class));
+        }).when(index).writeDocument(any(SamlServiceProviderDocument.class), any(DocWriteRequest.OpType.class),
+            any(WriteRequest.RefreshPolicy.class), any(ActionListener.class));
 
         return writeResponse;
     }

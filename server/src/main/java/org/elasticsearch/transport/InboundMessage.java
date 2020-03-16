@@ -121,6 +121,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             Header header = aggregatedMessage.getHeader();
             Version remoteVersion = header.getVersion();
             StreamInput streamInput = aggregatedMessage.getContent().streamInput();
+            streamInput.setVersion(remoteVersion);
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 ensureVersionCompatibility(remoteVersion, this.version, header.isHandshake());

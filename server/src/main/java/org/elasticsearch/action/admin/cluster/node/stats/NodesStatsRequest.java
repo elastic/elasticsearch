@@ -184,7 +184,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Helper method for adding metrics during deserialization.
      * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to include or remove.
+     * @param metricName Name of the metric to add.
      */
     private void optionallyAddMetric(boolean includeMetric, String metricName) {
         if (includeMetric) {

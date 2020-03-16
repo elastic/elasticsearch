@@ -128,6 +128,10 @@ The following <<indices-create-index,create index API>> request uses the
 `remove_duplicates` filter to configure a new <<analysis-custom-analyzer,custom
 analyzer>>.
 
+This custom analyzer uses the `keyword_repeat` and `stemmer` filters to create a
+stemmed and unstemmed version of each token in a stream. The `remove_duplicates`
+filter then removes any duplicate tokens in the same position.
+
 [source,console]
 ----
 PUT my_index

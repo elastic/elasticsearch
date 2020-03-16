@@ -777,7 +777,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
         final Client clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
 
-        final String expectedMessage = "can only have explicit empty role descriptor";
+        final String expectedMessage = "creating derived api keys requires an explicit role descriptor that is empty";
 
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
                 () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-2").get());

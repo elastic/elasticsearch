@@ -214,12 +214,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
 
     public boolean isEmpty() {
-        return Arrays.equals(clusterPrivileges, Strings.EMPTY_ARRAY)
-            && Arrays.equals(configurableClusterPrivileges, ConfigurableClusterPrivileges.EMPTY_ARRAY)
-            && Arrays.equals(indicesPrivileges, IndicesPrivileges.NONE)
-            && Arrays.equals(applicationPrivileges, ApplicationResourcePrivileges.NONE)
-            && Arrays.equals(runAs, Strings.EMPTY_ARRAY)
-            && metadata.equals(Collections.emptyMap());
+        return clusterPrivileges.length == 0
+            && configurableClusterPrivileges.length == 0
+            && indicesPrivileges.length == 0
+            && applicationPrivileges.length == 0
+            && runAs.length == 0
+            && metadata.size() == 0;
     }
 
     @Override

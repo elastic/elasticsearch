@@ -26,10 +26,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -210,6 +214,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         } else {
             out.writeStringArray(requestedMetrics.toArray(String[]::new));
         }
+    }
+
+    public static Map<String, Consumer<NodesStatsRequest>> getDispatchMap() {
+        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
+        for (Metric metric : Metric.values()) {
+            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
+        }
+        map.put("indices", request -> request.indices(true));
+        return Collections.unmodifiableMap(map);
     }
 
     /**

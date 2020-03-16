@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
@@ -54,21 +53,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}"));
     }
 
-    static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(
-            entry("os", r -> r.addMetric(NodesStatsRequest.Metric.OS.metricName())),
-            entry("jvm", r -> r.addMetric(NodesStatsRequest.Metric.JVM.metricName())),
-            entry("thread_pool", r -> r.addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName())),
-            entry("fs", r -> r.addMetric(NodesStatsRequest.Metric.FS.metricName())),
-            entry("transport", r -> r.addMetric(NodesStatsRequest.Metric.TRANSPORT.metricName())),
-            entry("http", r -> r.addMetric(NodesStatsRequest.Metric.HTTP.metricName())),
-            entry("indices", r -> r.indices(true)),
-            entry("process", r -> r.addMetric(NodesStatsRequest.Metric.PROCESS.metricName())),
-            entry("breaker", r -> r.addMetric(NodesStatsRequest.Metric.BREAKER.metricName())),
-            entry("script", r -> r.addMetric(NodesStatsRequest.Metric.SCRIPT.metricName())),
-            entry("discovery", r -> r.addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())),
-            entry("ingest", r -> r.addMetric(NodesStatsRequest.Metric.INGEST.metricName())),
-            entry("adaptive_selection", r -> r.addMetric(NodesStatsRequest.Metric.ADAPTIVE_SELECTION.metricName())));
-
+    static final Map<String, Consumer<NodesStatsRequest>> METRICS = NodesStatsRequest.getDispatchMap();
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 
     static {

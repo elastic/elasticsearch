@@ -547,6 +547,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("keyword", rqsq.field());
     }
 
+    public void testLikeRLikeAsPainlessScripts() {
+        LogicalPlan p = plan("SELECT count(*), CASE WHEN keyword LIKE '%foo%' THEN 1 WHEN keyword RLIKE '.*bar.*' THEN 2 " +
+                             "ELSE 3 END AS t FROM test GROUP BY t");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.regex(InternalSqlScriptUtils.docValue(" +
+                     "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.regex(InternalSqlScriptUtils.docValue(" +
+                     "doc,params.v3),params.v4),params.v5,params.v6])",
+                scriptTemplate.toString());
+        assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",
+                scriptTemplate.params().toString());
+    }
+
     public void testTranslateNotExpression_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT * FROM test WHERE NOT(POSITION('x', keyword) = 0)");
         assertTrue(p instanceof Project);

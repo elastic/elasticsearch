@@ -73,3 +73,13 @@ The listener thread pool is no longer used internally by Elasticsearch.
 Therefore, these settings have been deprecated. You can safely remove these
 settings from the configuration of your nodes.
 
+[discrete]
+[[breaking_77_highlighters_changes]]
+=== Highlighters changes
+
+[discrete]
+==== Ignored keyword values are no longer highlighted
+If a keyword value was ignored during indexing because of its length
+(`ignore_above` parameter was applied), {es} doesn't attempt to
+highlight it anymore, which means no highlights are produced for
+ignored values.

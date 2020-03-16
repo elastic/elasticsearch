@@ -23,12 +23,13 @@ final class PainlessScripts {
         new MessageFormat("String.valueOf(doc[''{0}''].value).equals(String.valueOf(doc[''{1}''].value))", Locale.ROOT);
 
     /**
-     * Builds field comparison script for the given actual and predicted field names.
+     * Builds script that tests field values equality for the given actual and predicted field names.
+     *
      * @param actualField name of the actual field
      * @param predictedField name of the predicted field
-     * @return script that compares values of actualField and predictedField
+     * @return script that tests whether the values of actualField and predictedField are equal
      */
-    static Script buildComparisonScript(String actualField, String predictedField) {
+    static Script buildIsEqualScript(String actualField, String predictedField) {
         return new Script(COMPARISON_SCRIPT_TEMPLATE.format(new Object[]{ actualField, predictedField }));
     }
 }

@@ -109,7 +109,7 @@ public class Precision implements EvaluationMetric {
                 topActualClassNames.get().stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
-            Script script = PainlessScripts.buildComparisonScript(actualField, predictedField);
+            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)

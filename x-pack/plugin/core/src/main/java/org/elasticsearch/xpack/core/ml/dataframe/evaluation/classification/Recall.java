@@ -92,7 +92,7 @@ public class Recall implements EvaluationMetric {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
-        Script script = PainlessScripts.buildComparisonScript(actualField, predictedField);
+        Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
         return Tuple.tuple(
             List.of(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)

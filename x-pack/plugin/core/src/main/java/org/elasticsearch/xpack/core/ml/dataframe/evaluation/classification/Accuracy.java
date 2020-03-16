@@ -104,7 +104,7 @@ public class Accuracy implements EvaluationMetric {
         List<AggregationBuilder> aggs = new ArrayList<>();
         List<PipelineAggregationBuilder> pipelineAggs = new ArrayList<>();
         if (overallAccuracy.get() == null) {
-            Script script = PainlessScripts.buildComparisonScript(actualField, predictedField);
+            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
             aggs.add(AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(script));
         }
         if (result.get() == null) {

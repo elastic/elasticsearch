@@ -46,8 +46,11 @@ public class SearchSortValuesAndFormats implements Writeable {
                 this.formattedSortValues[i] = sortValueFormats[i].format((long) sortValue);
             } else if (sortValue instanceof Double) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((double) sortValue);
+            } else if (sortValue instanceof Float || sortValue instanceof Integer) {
+                // sort by _score or _doc
+                this.formattedSortValues[i] = sortValue;
             } else {
-                assert sortValue == null : "Sort values must be a BytesRef, Long or Double, but got "
+                assert sortValue == null : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got "
                     + sortValue.getClass() + ": " + sortValue;
                 this.formattedSortValues[i] = sortValue;
             }

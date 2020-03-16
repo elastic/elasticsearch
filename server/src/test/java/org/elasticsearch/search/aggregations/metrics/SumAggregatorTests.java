@@ -37,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -206,19 +207,12 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmapped() throws IOException {
-        testCase(newMatchAllQuery(),
+        sumRandomDocsTestCase(randomIntBetween(1, 5),
             sum("_name").field("unknown_field"),
-            writer -> {
-                final int numDocs = randomIntBetween(10, 100);
-                for (int i = 0; i < numDocs; i++) {
-                    writer.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, randomLong())));
-                }
-            },
-            internalSum -> {
-                assertEquals(0d, internalSum.getValue(), 0d);
-                assertFalse(AggregationInspectionHelper.hasValue(internalSum));
-            },
-            singleton(defaultFieldType())
+            (sum, docs, result) -> {
+                assertEquals(0d, result.getValue(), 0d);
+                assertFalse(AggregationInspectionHelper.hasValue(result));
+            }
         );
     }
 
@@ -260,56 +254,50 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptSingleValuedField() throws IOException {
-        scriptTestCase(1,
+        sumRandomDocsTestCase(1,
             sum("_name")
                 .field(FIELD_NAME)
-                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap())));
+                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap())),
+            (sum, docs, result) -> {
+                assertEquals(sum + docs.size(), result.getValue(), 0d);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+            }
+        );
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
-        scriptTestCase(randomIntBetween(2, 5),
+        final int valuesPerField = randomIntBetween(2, 5);
+        sumRandomDocsTestCase(valuesPerField,
             sum("_name")
                 .field(FIELD_NAME)
-                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap())));
+                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap())),
+            (sum, docs, result) -> {
+                assertEquals(sum + (docs.size() * valuesPerField), result.getValue(), 0d);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+            }
+        );
     }
 
     public void testFieldScriptSingleValuedField() throws IOException {
-        scriptTestCase(1,
+        sumRandomDocsTestCase(1,
             sum("_name")
-                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", FIELD_NAME))));
+                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", FIELD_NAME))),
+            (sum, docs, result) -> {
+                assertEquals(sum + docs.size(), result.getValue(), 0d);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+            }
+        );
     }
 
     public void testFieldScriptMultiValuedField() throws IOException {
-        scriptTestCase(randomIntBetween(2, 5),
+        final int valuesPerField = randomIntBetween(2, 5);
+        sumRandomDocsTestCase(valuesPerField,
             sum("_name")
-                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", FIELD_NAME))));
-    }
-
-    private void scriptTestCase(int numValuesPerField, SumAggregationBuilder builder) throws IOException {
-        final MappedFieldType fieldType = defaultFieldType();
-
-        final int numDocs = randomIntBetween(10, 100);
-        final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
-        long sum = 0;
-        for (int iDoc = 0; iDoc < numDocs; iDoc++) {
-            Set<IndexableField> doc = new HashSet<>();
-            for (int iValue = 0; iValue < numValuesPerField; iValue++) {
-                final long value = randomLongBetween(0, 1000);
-                sum += value;
-                doc.add(new SortedNumericDocValuesField(fieldType.name(), value));
+                .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", FIELD_NAME))),
+            (sum, docs, result) -> {
+                assertEquals(sum + (docs.size() * valuesPerField), result.getValue(), 0d);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
             }
-            docs.add(doc);
-        }
-        final long expectedSum = sum + (numDocs * numValuesPerField);
-
-        testCase(newMatchAllQuery(),
-            builder,
-            writer -> writer.addDocuments(docs),
-            internalSum -> {
-                assertEquals(expectedSum, internalSum.getValue(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            },
-            singleton(fieldType)
         );
     }
 
@@ -348,24 +336,43 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingUnmapped() throws IOException {
-        final int numDocs = randomIntBetween(10, 100);
         final long missingValue = randomLongBetween(1, 1000);
-        final long expectedSum = numDocs * missingValue;
-
-        testCase(newMatchAllQuery(),
+        sumRandomDocsTestCase(randomIntBetween(1, 5),
             sum("_name")
                 .field("unknown_field")
                 .missing(missingValue),
-            writer -> {
-                for (int i = 0; i < numDocs; i++) {
-                    writer.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, randomLong())));
-                }
-            },
-            internalSum -> {
-                assertEquals(expectedSum, internalSum.getValue(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            },
-            singleton(defaultFieldType())
+            (sum, docs, result) -> {
+                assertEquals(docs.size() * missingValue, result.getValue(), 0d);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+            }
+        );
+    }
+
+    private void sumRandomDocsTestCase(int valuesPerField,
+                                       SumAggregationBuilder builder,
+                                       TriConsumer<Long, List<Set<IndexableField>>, InternalSum> verify) throws IOException {
+
+        final MappedFieldType fieldType = defaultFieldType();
+
+        final int numDocs = randomIntBetween(10, 100);
+        final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
+        long sum = 0;
+        for (int iDoc = 0; iDoc < numDocs; iDoc++) {
+            Set<IndexableField> doc = new HashSet<>();
+            for (int iValue = 0; iValue < valuesPerField; iValue++) {
+                final long value = randomLongBetween(0, 1000);
+                sum += value;
+                doc.add(new SortedNumericDocValuesField(fieldType.name(), value));
+            }
+            docs.add(doc);
+        }
+        final long finalSum = sum;
+
+        testCase(newMatchAllQuery(),
+            builder,
+            writer -> writer.addDocuments(docs),
+            internalSum -> verify.apply(finalSum, docs, internalSum),
+            singleton(fieldType)
         );
     }
 

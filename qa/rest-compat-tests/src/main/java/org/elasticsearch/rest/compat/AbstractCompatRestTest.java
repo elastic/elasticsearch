@@ -28,7 +28,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
-import java.net.http.HttpHeaders;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;

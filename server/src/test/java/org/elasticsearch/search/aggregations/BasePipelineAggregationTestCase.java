@@ -96,7 +96,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
      */
     public void testFromXContent() throws IOException {
         AF testAgg = createTestAggregatorFactory();
-        AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg);
+        AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().addPipelineAggregator(testAgg);
         logger.info("Content string: {}", factoriesBuilder);
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {

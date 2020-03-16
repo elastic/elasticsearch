@@ -276,7 +276,7 @@ emp_no              |INTEGER        |integer
 extra               |STRUCT         |object
 extra.info          |STRUCT         |object
 extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |keyword
+extra_gender        |VARCHAR        |constant_keyword
 extra_no            |INTEGER        |integer
 first_name          |VARCHAR        |text
 first_name.keyword  |VARCHAR        |keyword
@@ -285,6 +285,7 @@ hire_date           |TIMESTAMP      |datetime
 languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
+null_constant       |VARCHAR        |constant_keyword
 salary              |INTEGER        |integer
 ;
 
@@ -304,7 +305,7 @@ emp_no              |INTEGER        |integer
 extra               |STRUCT         |object
 extra.info          |STRUCT         |object
 extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |keyword
+extra_gender        |VARCHAR        |constant_keyword
 extra_no            |INTEGER        |integer
 first_name          |VARCHAR        |text
 first_name.keyword  |VARCHAR        |keyword
@@ -313,6 +314,7 @@ hire_date           |TIMESTAMP      |datetime
 languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
+null_constant       |VARCHAR        |constant_keyword
 salary              |INTEGER        |integer
 ;
 

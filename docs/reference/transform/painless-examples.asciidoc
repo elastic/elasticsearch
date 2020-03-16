@@ -254,7 +254,7 @@ them. The table below shows how normalization modifies the output of the
 This example shows you how to get the duration of a session by client IP from a 
 data log by using 
 {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket script]. 
-The example uses the the {kib} sample web logs dataset.
+The example uses the {kib} sample web logs dataset.
 
 [source,console]
 --------------------------------------------------

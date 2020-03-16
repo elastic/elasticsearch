@@ -19,10 +19,9 @@
 package org.elasticsearch.search.aggregations.support;
 
 /**
- * {@link AggregatorSupplier} is a place holder interface.  The {@link ValuesSourceRegistry} uses this as a common interface for tools to
- * construct aggregator instances.  The aggregators for each aggregation should all share a signature, and that signature should be
- * used to create an AggregatorSupplier for that aggregation.  Alternatively, if an existing supplier has a matching signature, please
- * re-use that.
+ * {@link AggregatorSupplier} serves as a marker for what the {@link ValuesSourceRegistry} holds to construct aggregator instances.
+ * The aggregators for each aggregation should all share a signature, and that signature should be used to create an AggregatorSupplier for
+ * that aggregation.  Alternatively, if an existing supplier has a matching signature, please re-use that.
  *
  * In many cases, this can be a simple wrapper over the aggregator constructor.  If that is sufficient, please consider the "typecast
  * lambda" syntax:

@@ -26,16 +26,23 @@ import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
- * {@link ValuesSourceType}s are the quantum unit of aggregations support.  {@link org.elasticsearch.index.mapper.MappedFieldType}s that
- * allow aggregations map to exactly one ValuesSourceType, although multiple field types can map to the same ValuesSourceType.  Aggregations
- * in turn provide a set of ValuesSourceTypes they can operate on.  ValuesSourceTypes in turn map to a single direct sub-class of
- * {@link ValuesSource} (e.g. {@link ValuesSource.Numeric}; note that a given ValuesSourceType can yield different sub-sub-classes, e.g.
- * {@link ValuesSource.Numeric.WithScript}, depending on the configuration).  Note that it's possible that two different ValuesSourceTypes
- * will yield the same ValuesSource subclass.  This typically happens when the underlying representation is shared, but logically the data
- * are different, such as with numbers and dates.
+ * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
+ * Aggregations declare their support for a given ValuesSourceType (via {@link ValuesSourceRegistry#register}), and should then not need
+ * to care about the fields which use that ValuesSourceType.
  *
- * ValuesSourceTypes should be stateless, and thus immutable.  We recommend that plugins define an enum for their ValuesSourceTypes, even
- * if the plugin only intends to define one ValuesSourceType.  ValuesSourceTypes are not serialized as part of the aggregations framework.
+ * ValuesSourceTypes provide a set of methods to instantiate concrete {@link ValuesSource} instances, based on the actual source of the
+ * data for the aggregations.  In general, aggregations should not call these methods, but rather rely on {@link ValuesSourceConfig} to have
+ * selected the correct implementation.
+ *
+ * ValuesSourceTypes should be stateless.  We recommend that plugins define an enum for their ValuesSourceTypes, even if the plugin only
+ * intends to define one ValuesSourceType.  ValuesSourceTypes are not serialized as part of the aggregations framework.
+ *
+ * Prefer reusing an existing ValuesSourceType (ideally from {@link CoreValuesSourceType}) over creating a new type.  There are some cases
+ * where creating a new type is necessary however.  In particular, consider a new ValuesSourceType if the field has custom encoding/decoding
+ * requirements; if the field needs to expose additional information to the aggregation (e.g. {@link ValuesSource.Range#rangeType()}); or
+ * if logically the type needs a more restricted use (e.g. even though dates are stored as numbers, it doesn't make sense to pass them to
+ * a sum aggregation).  When adding a new ValuesSourceType, new aggregators should be added and registered at the same time, to add support
+ * for the new type to existing aggregations, as appropriate.
  */
 public interface ValuesSourceType {
     /**

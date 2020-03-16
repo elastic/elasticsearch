@@ -31,6 +31,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -71,7 +72,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.lucene.search.Queries.newMatchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 
 public class SumAggregatorTests extends AggregatorTestCase {
@@ -81,7 +81,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_SCRIPT_NAME = "field_script";
 
     public void testNoDocs() throws IOException {
-        testCase(newMatchAllQuery(), iw -> {
+        testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, count -> {
             assertEquals(0L, count.getValue(), 0d);
@@ -90,7 +90,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(newMatchAllQuery(), iw -> {
+        testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, count -> {
@@ -100,7 +100,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNumericDocValues() throws IOException {
-        testCase(newMatchAllQuery(), iw -> {
+        testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
@@ -151,7 +151,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     public void testStringField() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            testCase(newMatchAllQuery(), iw -> {
+            testCase(new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             }, count -> {
                 assertEquals(0L, count.getValue(), 0d);
@@ -194,7 +194,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        testCase(newMatchAllQuery(),
+        testCase(new MatchAllDocsQuery(),
             sum("_name").field(FIELD_NAME),
             iw -> {
                 for (double value : values) {
@@ -246,7 +246,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final InternalSum internalSum = search(searcher, newMatchAllQuery(), builder, fieldType);
+                final InternalSum internalSum = search(searcher, new MatchAllDocsQuery(), builder, fieldType);
                 assertEquals(sum, internalSum.getValue(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }
@@ -322,7 +322,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        testCase(newMatchAllQuery(),
+        testCase(new MatchAllDocsQuery(),
             sum("_name")
                 .field(aggField.name())
                 .missing(missingValue),
@@ -368,7 +368,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        testCase(newMatchAllQuery(),
+        testCase(new MatchAllDocsQuery(),
             builder,
             writer -> writer.addDocuments(docs),
             internalSum -> verify.apply(finalSum, docs, internalSum),

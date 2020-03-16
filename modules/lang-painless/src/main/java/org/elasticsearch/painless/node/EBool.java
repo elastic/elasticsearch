@@ -46,16 +46,23 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        left.expected = boolean.class;
-        left.analyze(scriptRoot, scope);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        Input leftInput = new Input();
+        leftInput.expected = boolean.class;
+        left.analyze(scriptRoot, scope, leftInput);
         left.cast();
 
-        right.expected = boolean.class;
-        right.analyze(scriptRoot, scope);
+        Input rightInput = new Input();
+        rightInput.expected = boolean.class;
+        right.analyze(scriptRoot, scope, rightInput);
         right.cast();
 
-        actual = boolean.class;
+        output.actual = boolean.class;
+
+        return output;
     }
 
     @Override
@@ -66,7 +73,7 @@ public final class EBool extends AExpression {
         booleanNode.setRightNode(right.cast(right.write(classNode)));
 
         booleanNode.setLocation(location);
-        booleanNode.setExpressionType(actual);
+        booleanNode.setExpressionType(output.actual);
         booleanNode.setOperation(operation);
 
         return booleanNode;

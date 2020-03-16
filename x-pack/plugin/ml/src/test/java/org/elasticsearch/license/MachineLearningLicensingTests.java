@@ -484,7 +484,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "          \"target_field\": \"regression_value\",\n" +
             "          \"model_id\": \"modelprocessorlicensetest\",\n" +
             "          \"inference_config\": {\"regression\": {}},\n" +
-            "          \"field_mappings\": {}\n" +
+            "          \"field_map\": {}\n" +
             "        }\n" +
             "      }]}\n";
         // Creating a pipeline should work

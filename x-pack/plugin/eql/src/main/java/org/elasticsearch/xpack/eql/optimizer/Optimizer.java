@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -43,6 +45,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanLiteralsOnTheRight(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceWildcards(),
+                new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 // prune/elimination
@@ -95,6 +98,30 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         }
 
                         e = like;
+                    }
+                }
+
+                return e;
+            });
+        }
+    }
+
+    private static class ReplaceNullChecks extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+
+            return filter.transformExpressionsUp(e -> {
+                // expr == null || expr != null
+                if (e instanceof Equals || e instanceof NotEquals) {
+                    BinaryComparison cmp = (BinaryComparison) e;
+
+                    if (cmp.right().foldable() && cmp.right().fold() == null) {
+                        if (e instanceof Equals) {
+                            e = new IsNull(e.source(), cmp.left());
+                        } else {
+                            e = new IsNotNull(e.source(), cmp.left());
+                        }
                     }
                 }
 

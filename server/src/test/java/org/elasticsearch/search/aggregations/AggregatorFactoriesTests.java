@@ -41,8 +41,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -239,7 +239,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         builder.addAggregator(AggregationBuilders.avg("real").field("target"));
         PipelineTree tree = builder.buildPipelineTree();
         assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()),
-                equalTo(List.of("foo", "bar")));
+                equalTo(Arrays.asList("foo", "bar")));
     }
 
     @Override

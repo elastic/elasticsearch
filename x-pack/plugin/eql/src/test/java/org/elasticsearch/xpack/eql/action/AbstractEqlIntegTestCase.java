@@ -12,8 +12,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
@@ -35,7 +35,7 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(LocalStateEqlXPackPlugin.class);
+        return Arrays.asList(LocalStateEqlXPackPlugin.class);
     }
 }
 

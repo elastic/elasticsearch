@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -97,6 +98,7 @@ public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
+    private static final String PRIMARY_SHARDS_INACTIVE = "not all primary shards are active";
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -410,8 +412,26 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException(
-                        "Starting data frame analytics [" + task.getParams().getId() + "] timed out after [" + timeout + "]"));
+                    logger.error(
+                        () -> new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                            task.getParams().getId(),
+                            timeout,
+                            predicate.assignmentExplanation));
+                    if (predicate.assignmentExplanation != null) {
+                        cancelAnalyticsStart(task,
+                            new ElasticsearchStatusException(
+                                "Could not start data frame analytics task, timed out after [{}] waiting for task assignment. "
+                                    + "Assignment explanation [{}]",
+                                RestStatus.TOO_MANY_REQUESTS,
+                                timeout,
+                                predicate.assignmentExplanation),
+                            listener);
+                    } else {
+                        listener.onFailure(new ElasticsearchException(
+                            "Starting data frame analytics [{}] timed out after [{}]",
+                            task.getParams().getId(),
+                            timeout));
+                    }
                 }
         });
     }
@@ -436,6 +456,7 @@ public class TransportStartDataFrameAnalyticsAction
     private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile Exception exception;
+        private volatile String assignmentExplanation;
 
         @Override
         public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -450,9 +471,15 @@ public class TransportStartDataFrameAnalyticsAction
                 return true;
             }
 
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                assignment.isAssigned() == false) {
-                // Assignment has failed despite passing our "fast fail" validation
+            if (assignment != null
+                && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false
+                && assignment.isAssigned() == false) {
+                assignmentExplanation = assignment.getExplanation();
+                // Assignment failed due to primary shard check.
+                // This is hopefully intermittent and we should allow another assignment attempt.
+                if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
+                    return false;
+                }
                 exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
                     assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
                 return true;
@@ -583,8 +610,12 @@ public class TransportStartDataFrameAnalyticsAction
                     MlStatsIndex.indexPattern(),
                     AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
-                String reason = "Not opening data frame analytics job [" + id +
-                    "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";
+                String reason = "Not opening data frame analytics job ["
+                    + id
+                    + "], because "
+                    + PRIMARY_SHARDS_INACTIVE
+                    + " for the following indices ["
+                    + String.join(",", unavailableIndices) + "]";
                 logger.debug(reason);
                 return new PersistentTasksCustomMetaData.Assignment(null, reason);
             }

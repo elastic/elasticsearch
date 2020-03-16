@@ -395,7 +395,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
                         @Override
                         public Executor executor() {
-                            return threadPool.executor(ThreadPool.Names.LISTENER);
+                            return threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
                         }
 
                         @Override

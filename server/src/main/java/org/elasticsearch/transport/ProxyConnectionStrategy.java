@@ -272,9 +272,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("address", address);
-            builder.field("num_sockets_connected", numSocketsConnected);
-            builder.field("max_socket_connections", maxSocketConnections);
+            builder.field("proxy_address", address);
+            builder.field("num_proxy_sockets_connected", numSocketsConnected);
+            builder.field("max_proxy_socket_connections", maxSocketConnections);
             return builder;
         }
 

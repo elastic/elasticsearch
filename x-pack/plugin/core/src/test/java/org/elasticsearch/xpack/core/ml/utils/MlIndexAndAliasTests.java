@@ -157,7 +157,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertThat(
             indicesAliasesRequest.getAliasActions(),
             contains(
-                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX),
+                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX).isHidden(true),
                 AliasActions.remove().alias(TEST_INDEX_ALIAS).index(LEGACY_INDEX_WITHOUT_SUFFIX)));
     }
 
@@ -175,7 +175,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         IndicesAliasesRequest indicesAliasesRequest = aliasesRequestCaptor.getValue();
         assertThat(
             indicesAliasesRequest.getAliasActions(),
-            contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName)));
+            contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName).isHidden(true)));
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {

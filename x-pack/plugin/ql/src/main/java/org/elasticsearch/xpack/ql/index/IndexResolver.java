@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.type.ConstantKeywordEsField;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DateEsField;
@@ -60,6 +61,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
@@ -298,8 +300,13 @@ public class IndexResolver {
             StringBuilder errorMessage = new StringBuilder();
 
             boolean hasUnmapped = types.containsKey(UNMAPPED);
+            // a keyword field and a constant_keyword field with the same name in two different indices are considered "compatible"
+            // since a common use case of constant_keyword field involves two indices with a field having the same name: one being
+            // a keyword, the other being a constant_keyword
+            boolean hasCompatibleKeywords = types.containsKey(KEYWORD.esType()) && types.containsKey(CONSTANT_KEYWORD.esType());
+            int allowedTypesCount = (hasUnmapped ? 2 : 1) + (hasCompatibleKeywords ? 1 : 0);
 
-            if (types.size() > (hasUnmapped ? 2 : 1)) {
+            if (types.size() > allowedTypesCount) {
                 // build the error message
                 // and create a MultiTypeField
 
@@ -342,6 +349,11 @@ public class IndexResolver {
                 if (errorMessage.length() > 0) {
                     return new InvalidMappedField(n, errorMessage.toString());
                 }
+            }
+
+            // if there are both a keyword and a constant_keyword type for this field, only keep the keyword as a common compatible type
+            if (hasCompatibleKeywords) {
+                types.remove(CONSTANT_KEYWORD.esType());
             }
 
             // everything checks
@@ -435,6 +447,9 @@ public class IndexResolver {
         if (esType == DATETIME) {
             return new DateEsField(fieldName, props, isAggregateable);
         }
+        if (esType == CONSTANT_KEYWORD) {
+            return new ConstantKeywordEsField(fieldName);
+        }
         if (esType == UNSUPPORTED) {
             return new UnsupportedEsField(fieldName, typeName, null, props);
         }
@@ -501,14 +516,14 @@ public class IndexResolver {
 
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
             String fieldName = entry.getKey();
-            Map<String, FieldCapabilities> types = entry.getValue();
 
             // ignore size added by the mapper plugin
             if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
                 continue;
             }
 
-            // apply verification
+            Map<String, FieldCapabilities> types = new LinkedHashMap<>(entry.getValue());
+            // apply verification and possibly remove the "duplicate" CONSTANT_KEYWORD field type
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
 
             // filter meta fields and unmapped

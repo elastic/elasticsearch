@@ -705,7 +705,6 @@ public class IndexResolver {
             ObjectObjectCursor<String, List<AliasMetaData>> index = iter.next();
             for (AliasMetaData aliasMetaData : index.value) {
                 String aliasName = aliasMetaData.alias();
-                typesErrors.putIfAbsent(aliasName, new HashSet<>());
                 aliasToIndices.putIfAbsent(aliasName, new HashSet<String>());
                 aliasToIndices.get(aliasName).add(index.key);
             }
@@ -713,7 +712,8 @@ public class IndexResolver {
         
         // iterate over each type
         for (Entry<String, FieldCapabilities> type : types.entrySet()) {
-            if (type.getKey() == UNMAPPED) {
+            String esFieldType = type.getKey();
+            if (esFieldType == UNMAPPED) {
                 continue;
             }
             String[] indices = type.getValue().indices();
@@ -728,17 +728,24 @@ public class IndexResolver {
                         continue;
                     }
                     for (AliasMetaData aliasMetaData : indexAliases) {
-                        typesErrors.get(aliasMetaData.alias()).add(type.getKey());
+                        String aliasName = aliasMetaData.alias();
+                        if (typesErrors.containsKey(aliasName)) {
+                            typesErrors.get(aliasName).add(esFieldType);
+                        } else {
+                            Set<String> fieldTypes = new HashSet<>();
+                            fieldTypes.add(esFieldType);
+                            typesErrors.put(aliasName, fieldTypes);
+                        }
                     }
                 }
             }
         }
         
-        for (Entry<String, Set<String>> entry : typesErrors.entrySet()) {
-            String aliasName = entry.getKey();
+        for (String aliasName : aliasToIndices.keySet()) {
             // if, for the same index alias, there are multiple field types for this fieldName ie the index alias has indices where the same
             // field name is of different types
-            if (entry.getValue().size() > 1) {
+            Set<String> esFieldTypes = typesErrors.get(aliasName);
+            if (esFieldTypes != null && esFieldTypes.size() > 1) {
                 // consider the field as invalid, for the currently checked index alias
                 // the error message doesn't actually matter
                 invalidFields.put(aliasName, new InvalidMappedField(fieldName));

@@ -2755,6 +2755,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     // test that the response handler is invoked on a failure to send
     public void testFailToSend() throws InterruptedException {
+        final RuntimeException failToSendException;
+        if (randomBoolean()) {
+            failToSendException = new IllegalStateException("fail to send");
+        } else {
+            failToSendException = new TransportException("fail to send");
+        }
         final TransportInterceptor interceptor = new TransportInterceptor() {
             @Override
             public AsyncSender interceptSender(final AsyncSender sender) {
@@ -2767,7 +2773,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         final TransportRequestOptions options,
                         final TransportResponseHandler<T> handler) {
                         if ("fail-to-send-action".equals(action)) {
-                            throw new IllegalStateException("fail to send");
+                            throw failToSendException;
                         } else {
                             sender.sendRequest(connection, action, request, options, handler);
                         }
@@ -2823,9 +2829,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
             assertThat(te.get(), not(nullValue()));
-            assertThat(te.get().getMessage(), equalTo("failure to send"));
-            assertThat(te.get().getCause(), instanceOf(IllegalStateException.class));
-            assertThat(te.get().getCause().getMessage(), equalTo("fail to send"));
+
+            if (failToSendException instanceof IllegalStateException) {
+                assertThat(te.get().getMessage(), equalTo("failure to send"));
+                assertThat(te.get().getCause(), instanceOf(IllegalStateException.class));
+                assertThat(te.get().getCause().getMessage(), equalTo("fail to send"));
+            } else {
+                assertThat(te.get().getMessage(), equalTo("fail to send"));
+                assertThat(te.get().getCause(), nullValue());
+            }
         }
 
     }

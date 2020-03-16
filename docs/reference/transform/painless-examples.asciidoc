@@ -251,7 +251,10 @@ them. The table below shows how normalization modifies the output of the
 [[painless-bucket-script]]
 ==== Getting duration by using bucket script
 
-
+This example shows you how to get the duration of a session by client IP from a 
+data log by using 
+{ref}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket script]. 
+The example uses the the {kib} sample web logs dataset.
 
 [source,console]
 --------------------------------------------------
@@ -279,13 +282,13 @@ PUT _data_frame/transforms/data_log
           "field": "timestamp"
         }
       },
-      "time_length": {
+      "time_length": { <1>
         "bucket_script": {
-          "buckets_path": {
+          "buckets_path": { <2>
             "min": "time_frame.gte.value",
             "max": "time_frame.lte.value"
           },
-          "script": "params.max - params.min"
+          "script": "params.max - params.min" <3>
         }
       }
     }
@@ -294,3 +297,9 @@ PUT _data_frame/transforms/data_log
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
+<1> To define the length of the sessions, we use a bucket script.
+<2> The bucket path is a map of script variables and their associated path to 
+the buckets you want to use for the variable. In this particular case, `min` and 
+`max` are variables mapped to `time_frame.gte.value` and `time_frame.lte.value`.
+<3> Finally, the script substracts the start date of the session from the end 
+date which results in the duration of the session.

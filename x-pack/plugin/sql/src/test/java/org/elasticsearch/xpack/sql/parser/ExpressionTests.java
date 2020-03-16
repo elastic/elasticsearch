@@ -21,14 +21,17 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collections;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
@@ -538,5 +541,12 @@ public class ExpressionTests extends ESTestCase {
         ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
         assertEquals("many", c.elseResult().toString());
+    }
+
+    public void testLikePatternWithNullParameterNotAllowed() {
+        ParsingException e = expectThrows(ParsingException.class,
+                () -> parser.createExpression("a LIKE ?",
+                    Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName, null))));
+        assertEquals("line 1:9: Pattern must not be [null]", e.getMessage());
     }
 }

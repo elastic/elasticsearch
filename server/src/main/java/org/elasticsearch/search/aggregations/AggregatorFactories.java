@@ -236,7 +236,6 @@ public class AggregatorFactories {
         // ordered nicely, although technically order does not matter
         private final Collection<AggregationBuilder> aggregationBuilders = new LinkedHashSet<>();
         private final Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders = new LinkedHashSet<>();
-        private boolean skipResolveOrder;
 
         /**
          * Create an empty builder.
@@ -299,26 +298,14 @@ public class AggregatorFactories {
             return this;
         }
 
-        /**
-         * FOR TESTING ONLY
-         */
-        Builder skipResolveOrder() {
-            this.skipResolveOrder = true;
-            return this;
-        }
-
         public AggregatorFactories build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }
             List<PipelineAggregationBuilder> orderedpipelineAggregators = null;
-            if (skipResolveOrder) {
-                orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorBuilders);
-            } else {
-                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
-                for (PipelineAggregationBuilder builder : orderedpipelineAggregators) {
-                    builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
-                }
+            orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
+            for (PipelineAggregationBuilder builder : orderedpipelineAggregators) {
+                builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
 

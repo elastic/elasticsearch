@@ -45,15 +45,19 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         scope = scope.newLocalScope();
 
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.cast();
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        if (condition instanceof EBoolean) {
+            continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
@@ -65,31 +69,34 @@ public final class SWhile extends AStatement {
         }
 
         if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+            Input blockInput = new Input();
+            blockInput.beginLoop = true;
+            blockInput.inLoop = true;
 
-            block.analyze(scriptRoot, scope);
+            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
 
-            if (block.loopEscape && !block.anyContinue) {
+            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (continuous && blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
 
-            block.statementCount = Math.max(1, block.statementCount);
+            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override
     WhileNode write(ClassNode classNode) {
         WhileNode whileNode = new WhileNode();
 
-        whileNode.setConditionNode(condition.write(classNode));
+        whileNode.setConditionNode(condition.cast(condition.write(classNode)));
         whileNode.setBlockNode(block == null ? null : block.write(classNode));
 
         whileNode.setLocation(location);

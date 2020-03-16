@@ -79,7 +79,7 @@ normalization {
     // ignore generated keytab files for the purposes of build avoidance
     ignore '*.keytab'
     // ignore fixture ports file which is on the classpath primarily to pacify the security manager
-    ignore '*HdfsFixture/**'
+    ignore 'ports'
   }
 }
 
@@ -152,20 +152,29 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     runner {
       onlyIf { BuildParams.inFipsJvm == false }
       if (integTestTaskName.contains("Ha")) {
+        Path portsFile
+        File portsFileDir = file("${workingDir}/hdfsFixture")
         if (integTestTaskName.contains("Secure")) {
-          Path path = buildDir.toPath()
+          portsFile = buildDir.toPath()
             .resolve("fixtures")
             .resolve("secureHaHdfsFixture")
             .resolve("ports")
-          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
         } else {
-          Path path = buildDir.toPath()
+          portsFile = buildDir.toPath()
             .resolve("fixtures")
             .resolve("haHdfsFixture")
             .resolve("ports")
-          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
         }
-        classpath += files("$buildDir/fixtures")
+        nonInputProperties.systemProperty "test.hdfs-fixture.ports", file("$portsFileDir/ports")
+        classpath += files(portsFileDir)
+        // Copy ports file to separate location which is placed on the test classpath
+        doFirst {
+          mkdir(portsFileDir)
+          copy {
+            from portsFile
+            into portsFileDir
+          }
+        }
       }
 
       if (integTestTaskName.contains("Secure")) {

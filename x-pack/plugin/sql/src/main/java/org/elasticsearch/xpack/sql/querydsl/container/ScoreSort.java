@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
+
 import java.util.Objects;
 
 public class ScoreSort extends Sort {

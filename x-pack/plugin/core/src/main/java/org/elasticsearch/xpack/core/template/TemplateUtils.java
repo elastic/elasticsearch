@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -161,14 +160,13 @@ public class TemplateUtils {
         if (templateMeta == null) {
             return false;
         }
-        ImmutableOpenMap<String, CompressedXContent> mappings = templateMeta.getMappings();
+        CompressedXContent mappings = templateMeta.getMappings();
         // check all mappings contain correct version in _meta
         // we have to parse the source here which is annoying
-        for (Object typeMapping : mappings.values().toArray()) {
-            CompressedXContent typeMappingXContent = (CompressedXContent) typeMapping;
+        if (mappings != null) {
             try {
                 Map<String, Object> typeMappingMap = convertToMap(
-                    new BytesArray(typeMappingXContent.uncompressed()), false,
+                    new BytesArray(mappings.uncompressed()), false,
                     XContentType.JSON).v2();
                 // should always contain one entry with key = typename
                 assert (typeMappingMap.size() == 1);

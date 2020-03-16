@@ -53,10 +53,13 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        expression.analyze(scriptRoot, scope);
-        expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, scope);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
+        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, new AExpression.Input());
+        expression.input.expected = expressionOutput.actual;
+        expression.cast();
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -67,31 +70,34 @@ public class SEach extends AStatement {
         scope = scope.newLocalScope();
         Variable variable = scope.defineVariable(location, clazz, name, true);
 
-        if (expression.actual.isArray()) {
+        if (expressionOutput.actual.isArray()) {
             sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
+        } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expressionOutput.actual) + "]."));
         }
 
-        sub.analyze(scriptRoot, scope);
+        sub.analyze(scriptRoot, scope, input);
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
         }
 
-        block.beginLoop = true;
-        block.inLoop = true;
-        block.analyze(scriptRoot, scope);
-        block.statementCount = Math.max(1, block.statementCount);
+        Input blockInput = new Input();
+        blockInput.beginLoop = true;
+        blockInput.inLoop = true;
+        Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+        blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
 
-        if (block.loopEscape && !block.anyContinue) {
+        if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
             throw createError(new IllegalArgumentException("Extraneous for loop."));
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.node.AExpression.Input;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -47,24 +48,30 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
         type = resolvedType;
 
         if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = resolvedType.getType();
+            expression.analyze(scriptRoot, scope, expressionInput);
+            expression.cast();
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
+
+        return output;
     }
 
     @Override
     DeclarationNode write(ClassNode classNode) {
         DeclarationNode declarationNode = new DeclarationNode();
 
-        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
+        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
 
         declarationNode.setLocation(location);
         declarationNode.setDeclarationType(((DResolvedType)type).getType());

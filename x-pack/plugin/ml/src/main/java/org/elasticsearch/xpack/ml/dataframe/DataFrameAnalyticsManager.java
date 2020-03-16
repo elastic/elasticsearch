@@ -30,11 +30,13 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -98,12 +100,18 @@ public class DataFrameAnalyticsManager {
                 }
 
             },
-            error -> task.setFailed(error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         // Retrieve configuration
-        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
+        ActionListener<Boolean> statsIndexListener = ActionListener.wrap(
             aBoolean -> configProvider.get(task.getParams().getId(), configListener),
+            configListener::onFailure
+        );
+
+        // Make sure the stats index and alias exist
+        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
+            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(clusterState, statsIndexListener),
             configListener::onFailure
         );
 
@@ -111,7 +119,26 @@ public class DataFrameAnalyticsManager {
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasListener);
     }
 
+    private void createStatsIndexAndUpdateMappingsIfNecessary(ClusterState clusterState, ActionListener<Boolean> listener) {
+        ActionListener<Boolean> createIndexListener = ActionListener.wrap(
+            aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
+                    MlStatsIndex.writeAlias(),
+                    MlStatsIndex::mapping,
+                    client,
+                    clusterState,
+                    listener)
+            , listener::onFailure
+        );
+
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, createIndexListener);
+    }
+
     private void executeStartingJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            LOGGER.debug("[{}] task is stopping. Marking as complete before starting job.", task.getParams().getId());
+            task.markAsCompleted();
+            return;
+        }
         DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
             task.getAllocationId(), null);
         DataFrameAnalyticsTask.StartingState startingState = DataFrameAnalyticsTask.determineStartingState(
@@ -141,6 +168,11 @@ public class DataFrameAnalyticsManager {
     }
 
     private void executeJobInMiddleOfReindexing(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            LOGGER.debug("[{}] task is stopping. Marking as complete before restarting reindexing.", task.getParams().getId());
+            task.markAsCompleted();
+            return;
+        }
         ClientHelper.executeAsyncWithOrigin(client,
             ML_ORIGIN,
             DeleteIndexAction.INSTANCE,
@@ -148,10 +180,11 @@ public class DataFrameAnalyticsManager {
             ActionListener.wrap(
                 r-> reindexDataframeAndStartAnalysis(task, config),
                 e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
                         reindexDataframeAndStartAnalysis(task, config);
                     } else {
-                        task.setFailed(e.getMessage());
+                        task.setFailed(cause.getMessage());
                     }
                 }
             ));
@@ -159,7 +192,8 @@ public class DataFrameAnalyticsManager {
 
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         if (task.isStopping()) {
-            // The task was requested to stop before we started reindexing
+            LOGGER.debug("[{}] task is stopping. Marking as complete before starting reindexing and analysis.",
+                task.getParams().getId());
             task.markAsCompleted();
             return;
         }
@@ -167,18 +201,23 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             reindexResponse -> {
+                // If the reindex task is canceled, this listener is called.
+                // Consequently, we should not signal reindex completion.
                 if (task.isStopping()) {
-                    LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before marking reindex as finished.",
+                        task.getParams().getId());
+                    task.markAsCompleted();
                     return;
                 }
                 task.setReindexingTaskId(null);
                 task.setReindexingFinished();
                 auditor.info(
                     config.getId(),
-                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
+                        reindexResponse.getTook()));
                 startAnalytics(task, config);
             },
-            error -> task.setFailed(error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         // Reindex
@@ -195,9 +234,12 @@ public class DataFrameAnalyticsManager {
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
+                    LOGGER.info("[{}] Started reindexing", config.getId());
                     Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
                         new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
                     task.setReindexingTaskId(reindexTask.getId());
+                    auditor.info(config.getId(),
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING, config.getDest().getIndex()));
                 }
             },
             reindexCompletedListener::onFailure
@@ -233,23 +275,37 @@ public class DataFrameAnalyticsManager {
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            LOGGER.debug("[{}] task is stopping. Marking as complete before starting analysis.", task.getParams().getId());
+            task.markAsCompleted();
+            return;
+        }
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory),
+                    updatedTask -> {
+                        if (task.isStopping()) {
+                            LOGGER.debug("[{}] task is stopping. Marking as complete before starting native process.",
+                                task.getParams().getId());
+                            task.markAsCompleted();
+                            return;
+                        }
+                        processManager.runJob(task, config, dataExtractorFactory);
+                    },
                     error -> {
-                        if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(error);
+                        if (cause instanceof ResourceNotFoundException) {
                             // Task has stopped
                         } else {
-                            task.setFailed(error.getMessage());
+                            task.setFailed(cause.getMessage());
                         }
                     }
                 ));
             },
-            error -> task.setFailed(error.getMessage())
+            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
         );
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(

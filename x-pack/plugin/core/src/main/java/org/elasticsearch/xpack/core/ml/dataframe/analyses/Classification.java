@@ -142,7 +142,7 @@ public class Classification implements DataFrameAnalysis {
         dependentVariable = in.readString();
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
         } else {
             classAssignmentObjective = ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL;
@@ -194,7 +194,7 @@ public class Classification implements DataFrameAnalysis {
         out.writeString(dependentVariable);
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeEnum(classAssignmentObjective);
         }
         out.writeOptionalVInt(numTopClasses);

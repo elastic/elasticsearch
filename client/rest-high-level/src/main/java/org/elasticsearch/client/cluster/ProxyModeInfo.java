@@ -23,9 +23,9 @@ import java.util.Objects;
 
 public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
     static final String NAME = "proxy";
-    static final String ADDRESS = "address";
-    static final String NUM_SOCKETS_CONNECTED = "num_sockets_connected";
-    static final String MAX_SOCKET_CONNECTIONS = "max_socket_connections";
+    static final String PROXY_ADDRESS = "proxy_address";
+    static final String NUM_PROXY_SOCKETS_CONNECTED = "num_proxy_sockets_connected";
+    static final String MAX_PROXY_SOCKET_CONNECTIONS = "max_proxy_socket_connections";
     private final String address;
     private final int maxSocketConnections;
     private final int numSocketsConnected;

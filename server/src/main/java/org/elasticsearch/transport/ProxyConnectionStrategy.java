@@ -172,7 +172,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     public RemoteConnectionInfo.ModeInfo getModeInfo() {
-        return new ProxyModeInfo(configuredAddress, maxNumConnections, connectionManager.size());
+        return new ProxyModeInfo(configuredAddress, configuredServerName, maxNumConnections, connectionManager.size());
     }
 
     private void performProxyConnectionProcess(ActionListener<Void> listener) {
@@ -255,17 +255,24 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final String address;
+        private final String serverName;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        public ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
+        public ProxyModeInfo(String address, String serverName, int maxSocketConnections, int numSocketsConnected) {
             this.address = address;
+            this.serverName = serverName;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
         }
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
+            if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+                serverName = input.readString();
+            } else {
+                serverName = null;
+            }
             maxSocketConnections = input.readVInt();
             numSocketsConnected = input.readVInt();
         }
@@ -273,6 +280,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("proxy_address", address);
+            builder.field("server_name", serverName);
             builder.field("num_proxy_sockets_connected", numSocketsConnected);
             builder.field("max_proxy_socket_connections", maxSocketConnections);
             return builder;
@@ -281,6 +289,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeString(serverName);
+            }
             out.writeVInt(maxSocketConnections);
             out.writeVInt(numSocketsConnected);
         }
@@ -297,6 +308,10 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         public String getAddress() {
             return address;
+        }
+
+        public String getServerName() {
+            return serverName;
         }
 
         public int getMaxSocketConnections() {
@@ -319,12 +334,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             ProxyModeInfo otherProxy = (ProxyModeInfo) o;
             return maxSocketConnections == otherProxy.maxSocketConnections &&
                 numSocketsConnected == otherProxy.numSocketsConnected &&
-                Objects.equals(address, otherProxy.address);
+                Objects.equals(address, otherProxy.address) &&
+                Objects.equals(serverName, otherProxy.serverName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(address, maxSocketConnections, numSocketsConnected);
+            return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
         }
     }
 }

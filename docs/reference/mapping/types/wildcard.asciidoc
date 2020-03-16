@@ -39,7 +39,9 @@ PUT my_index/_doc/1
 POST my_index/_doc/_search
 {
   "query": {
-      "wildcard" : "*quite*lengthy"
+      "wildcard" : {
+          "value": "*quite*lengthy"
+        }
   }
 }
 

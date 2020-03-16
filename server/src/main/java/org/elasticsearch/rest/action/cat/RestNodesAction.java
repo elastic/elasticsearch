@@ -64,7 +64,6 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 

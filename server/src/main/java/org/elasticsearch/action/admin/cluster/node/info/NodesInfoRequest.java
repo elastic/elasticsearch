@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.SortedSet;
@@ -111,7 +110,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * Add collection of metrics
+     * Add multiple metrics
      */
     public NodesInfoRequest addMetrics(String... metrics) {
         SortedSet<String> illegalMetrics = new TreeSet<>();

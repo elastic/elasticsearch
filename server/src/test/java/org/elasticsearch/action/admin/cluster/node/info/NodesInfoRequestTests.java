@@ -85,8 +85,7 @@ public class NodesInfoRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that the {@link NodesInfoRequest#all()} method sets all of the
-     * metrics to {@code true}.
+     * Test that the {@link NodesInfoRequest#all()} method enables all metrics.
      */
     public void testNodesInfoRequestAll() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
@@ -96,8 +95,7 @@ public class NodesInfoRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that the {@link NodesInfoRequest#clear()} method sets all of the
-     * metrics to {@code false}.
+     * Test that the {@link NodesInfoRequest#clear()} method disables all metrics.
      */
     public void testNodesInfoRequestClear() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest("node");
@@ -129,7 +127,7 @@ public class NodesInfoRequestTests extends ESTestCase {
 
         unknownMetrics.add(unknownMetric2);
         exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
-        assertThat(exception.getMessage(), equalTo(String.format("Used illegal metrics: [%s, %s]", unknownMetric1, unknownMetric2)));
+        assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
     }
 
     /**

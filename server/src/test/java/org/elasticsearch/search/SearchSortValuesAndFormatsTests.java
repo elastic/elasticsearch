@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.Before;
@@ -59,12 +59,31 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
 
     @Override
     protected SearchSortValuesAndFormats mutateInstance(SearchSortValuesAndFormats instance) {
-        Object[] sortValues = instance.getFormattedSortValues();
+        Object[] sortValues = instance.getRawSortValues();
         Object[] newValues = Arrays.copyOf(sortValues, sortValues.length + 1);
         DocValueFormat[] newFormats = Arrays.copyOf(instance.getSortValueFormats(), sortValues.length + 1);
-        newValues[sortValues.length] =  LuceneTests.randomSortValue();
+        newValues[sortValues.length] =  randomSortValue();
         newFormats[sortValues.length] = DocValueFormat.RAW;
         return new SearchSortValuesAndFormats(newValues, newFormats);
+    }
+
+    private static Object randomSortValue() {
+        switch(randomIntBetween(0, 5)) {
+            case 0:
+                return null;
+            case 1:
+                return new BytesRef(randomAlphaOfLengthBetween(3, 10));
+            case 2:
+                return randomInt();
+            case 3:
+                return randomLong();
+            case 4:
+                return randomFloat();
+            case 5:
+                return randomDouble();
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 
     public static SearchSortValuesAndFormats randomInstance()  {
@@ -72,7 +91,7 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
         Object[] values = new Object[size];
         DocValueFormat[] sortValueFormats = new DocValueFormat[size];
         for (int i = 0; i < size; i++) {
-            values[i] = LuceneTests.randomSortValue();
+            values[i] = randomSortValue();
             sortValueFormats[i] = DocValueFormat.RAW;
         }
         return new SearchSortValuesAndFormats(values, sortValueFormats);

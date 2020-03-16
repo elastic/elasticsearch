@@ -333,7 +333,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     if(handler.compatibilityRequired() == false //regular (not removed) handlers are always dispatched
                         //handlers that were registered compatible, require request to be compatible
-                        || isV7Compatible(request)) {
+                        || isCompatible(request)) {
                         dispatchRequest(request, channel, handler);
                     } else {
                         handleBadRequest(uri, requestMethod, channel);
@@ -349,7 +349,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         handleBadRequest(uri, requestMethod, channel);
     }
 
-    public static boolean isV7Compatible(ToXContent.Params params) {
+    private boolean isCompatible(ToXContent.Params params) {
         String param = params.param(COMPATIBLE_PARAMS_KEY);
         return COMPATIBLE_VERSION.equals(param);
     }

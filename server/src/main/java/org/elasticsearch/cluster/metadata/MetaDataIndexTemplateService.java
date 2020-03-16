@@ -155,17 +155,7 @@ public class MetaDataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    if (create && currentState.metaData().componentTemplates().containsKey(name)) {
-                        throw new IllegalArgumentException("component_template [" + name + "] already exists");
-                    }
-
-                    // TODO: validation of component template
-//                    validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
-
-                    logger.info("adding component template [{}]", name);
-                    return ClusterState.builder(currentState)
-                        .metaData(MetaData.builder(currentState.metaData()).put(name, template))
-                        .build();
+                    return addComponentTemplate(currentState, create, name, template);
                 }
 
                 @Override
@@ -173,6 +163,22 @@ public class MetaDataIndexTemplateService {
                     listener.onResponse(new AcknowledgedResponse(true));
                 }
             });
+    }
+
+    // Package visible for testing
+    static ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
+                                             final String name, final ComponentTemplate template) {
+        if (create && currentState.metaData().componentTemplates().containsKey(name)) {
+            throw new IllegalArgumentException("component template [" + name + "] already exists");
+        }
+
+        // TODO: validation of component template
+        // validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+
+        logger.info("adding component template [{}]", name);
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData()).put(name, template))
+            .build();
     }
 
     /**

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;

@@ -78,6 +78,10 @@ setup:
 
 ---
 "As a child of terms":
+  - skip:
+      version: " - 6.99.99"
+      reason: the test is written for hits.total.value
+
   - do:
       bulk:
         refresh: true

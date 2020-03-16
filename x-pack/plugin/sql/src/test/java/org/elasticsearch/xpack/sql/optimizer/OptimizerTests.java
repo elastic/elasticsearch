@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Null
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
@@ -361,7 +362,7 @@ public class OptimizerTests extends ESTestCase {
                 new ConstantFolding().rule(new Like(EMPTY, of(EMPTY, "test_emp"), new LikePattern("test%", (char) 0)))
                         .canonical());
         assertEquals(TRUE,
-                new ConstantFolding().rule(new RLike(EMPTY, of(EMPTY, "test_emp"), "test.emp")).canonical());
+                new ConstantFolding().rule(new RLike(EMPTY, of(EMPTY, "test_emp"), new RLikePattern("test.emp"))).canonical());
     }
 
     public void testConstantFoldingDatetime() {
@@ -495,7 +496,7 @@ public class OptimizerTests extends ESTestCase {
         // comparison
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), NULL)));
         // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, "123")));
+        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, new RLikePattern("123"))));
     }
 
     public void testNullFoldingOnCast() {

@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 
@@ -25,16 +23,5 @@ public class Like extends RegexMatch<LikePattern> {
     @Override
     protected Like replaceChild(Expression newLeft) {
         return new Like(source(), newLeft, pattern());
-    }
-
-    @Override
-    public Boolean fold() {
-        Object val = field().fold();
-        return RegexOperation.match(val, pattern().asJavaRegex());
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        return new RegexProcessor(pattern().asJavaRegex());
     }
 }

@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
@@ -44,7 +43,7 @@ public class NodesInfoRequestTests extends ESTestCase {
      */
     public void testAddMetricsSet() throws Exception {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
-        request.addMetrics(randomSubsetOf(NodesInfoRequest.Metric.allMetrics()));
+        randomSubsetOf(NodesInfoRequest.Metric.allMetrics()).forEach(request::addMetric);
         NodesInfoRequest deserializedRequest = roundTripRequest(request);
         assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
     }
@@ -111,21 +110,26 @@ public class NodesInfoRequestTests extends ESTestCase {
      * Test that (for now) we can only add metrics from a set of known metrics.
      */
     public void testUnknownMetricsRejected() {
-        String unknownMetric = "unknown_metric1";
+        String unknownMetric1 = "unknown_metric1";
+        String unknownMetric2 = "unknown_metric2";
         Set<String> unknownMetrics = new HashSet<>();
-        unknownMetrics.add(unknownMetric);
+        unknownMetrics.add(unknownMetric1);
         unknownMetrics.addAll(randomSubsetOf(NodesInfoRequest.Metric.allMetrics()));
 
         NodesInfoRequest request = new NodesInfoRequest();
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.addMetric(unknownMetric));
-        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.addMetric(unknownMetric1));
+        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
 
-        exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric));
-        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric));
+        exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric1));
+        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
 
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics));
-        assertThat(exception.getMessage(), startsWith("Used an illegal metric: "));
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        assertThat(exception.getMessage(), equalTo("Used illegal metric: [" + unknownMetric1 + "]"));
+
+        unknownMetrics.add(unknownMetric2);
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        assertThat(exception.getMessage(), equalTo(String.format("Used illegal metrics: [%s, %s]", unknownMetric1, unknownMetric2)));
     }
 
     /**

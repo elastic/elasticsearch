@@ -27,7 +27,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -110,11 +113,21 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     /**
      * Add collection of metrics
      */
-    public NodesInfoRequest addMetrics(Collection<String> metrics) {
-        if (Metric.allMetrics().containsAll(metrics) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metrics);
+    public NodesInfoRequest addMetrics(String... metrics) {
+        SortedSet<String> illegalMetrics = new TreeSet<>();
+        Set<String> validMetrics = new HashSet<>();
+        for (String metric : metrics) {
+            if (Metric.allMetrics().contains(metric)) {
+                validMetrics.add(metric);
+            } else {
+                illegalMetrics.add(metric);
+            }
         }
-        requestedMetrics.addAll(metrics);
+        if (illegalMetrics.isEmpty() == false) {
+            String plural = illegalMetrics.size() == 1 ? "" : "s";
+            throw new IllegalStateException("Used illegal metric" + plural + ": " + illegalMetrics);
+        }
+        requestedMetrics.addAll(validMetrics);
         return this;
     }
 

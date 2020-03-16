@@ -100,7 +100,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.clear();
             // disregard unknown metrics
             metrics.retainAll(ALLOWED_METRICS);
-            nodesInfoRequest.addMetrics(metrics);
+            nodesInfoRequest.addMetrics(metrics.toArray(String[]::new));
         }
         return nodesInfoRequest;
     }

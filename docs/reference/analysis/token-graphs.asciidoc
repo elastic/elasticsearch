@@ -42,8 +42,8 @@ image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
 [[token-graphs-token-graphs-search]]
 ===== Using token graphs for search 
 
-<<analysis-index-search-time,Indexing>> does not support token graphs containing
-multi-position tokens.
+<<analysis-index-search-time,Indexing>> ignores the `positionLength` and does
+not support token graphs containing multi-position tokens.
 
 However, queries, such as the <<query-dsl-match-query-phrase,`match_phrase`>>
 query, can use these graphs to generate multiple sub-queries from a single query

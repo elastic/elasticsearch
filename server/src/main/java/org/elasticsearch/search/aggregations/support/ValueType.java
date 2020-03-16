@@ -28,6 +28,7 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.Set;
 
 @Deprecated
 public enum ValueType implements Writeable {
@@ -72,8 +73,26 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
+    private static Set<ValueType> numericValueTypes = Set.of(ValueType.DOUBLE, ValueType.DATE, ValueType.LONG, ValueType.NUMBER,
+        ValueType.NUMERIC, ValueType.BOOLEAN);
+    private static Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
+
+    /**
+     * This is a bit of a hack to mirror the old {@link ValueType} behavior, which would allow a rough compatibility between types.  This
+     * behavior is being phased out in the aggregations framework, in favor of explicitly listing supported types, but we haven't gotten
+     * to fixing composite yet.
+     *
+     * @param valueType The value type the user suggested
+     * @return True iff the two value types are interchangeable
+     */
     public boolean isA(ValueType valueType) {
-        return valueType.valuesSourceType.isCastableTo(valuesSourceType);
+        if (numericValueTypes.contains(this)) {
+            return numericValueTypes.contains(valueType);
+        }
+        if (stringValueTypes.contains(this)) {
+            return stringValueTypes.contains(valueType);
+        }
+        return this.equals(valueType);
     }
 
     public boolean isNotA(ValueType valueType) {
@@ -84,7 +103,7 @@ public enum ValueType implements Writeable {
         return defaultFormat;
     }
 
-    public static ValueType resolveForScript(String type) {
+    public static ValueType lenientParse(String type) {
         switch (type) {
             case "string":  return STRING;
             case "double":

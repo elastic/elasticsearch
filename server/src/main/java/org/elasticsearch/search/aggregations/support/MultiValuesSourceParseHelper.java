@@ -27,12 +27,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 public final class MultiValuesSourceParseHelper {
 
-    public static <VS extends ValuesSource, T> void declareCommon(
+    public static <T> void declareCommon(
             AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
             ValueType expectedValueType) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
+            ValueType valueType = ValueType.lenientParse(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["

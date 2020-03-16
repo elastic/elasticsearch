@@ -42,7 +42,7 @@ import java.util.function.LongSupplier;
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
-    NUMERIC(EquivalenceType.NUMBER) {
+    NUMERIC() {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.Numeric.EMPTY;
@@ -76,7 +76,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
     },
-    BYTES(EquivalenceType.STRING) {
+    BYTES() {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.Bytes.WithOrdinals.EMPTY;
@@ -114,7 +114,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             }
         }
     },
-    GEOPOINT(EquivalenceType.GEO) {
+    GEOPOINT() {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.GeoPoint.EMPTY;
@@ -148,7 +148,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return DocValueFormat.GEOHASH;
         }
     },
-    RANGE(EquivalenceType.RANGE) {
+    RANGE() {
         @Override
         public ValuesSource getEmpty() {
             throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + this.value());
@@ -176,7 +176,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
-    IP(EquivalenceType.STRING) {
+    IP() {
         @Override
         public ValuesSource getEmpty() {
             return BYTES.getEmpty();
@@ -203,7 +203,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return DocValueFormat.IP;
         }
     },
-    DATE(EquivalenceType.NUMBER) {
+    DATE() {
         @Override
         public ValuesSource getEmpty() {
             return NUMERIC.getEmpty();
@@ -235,7 +235,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                 DateFieldMapper.Resolution.MILLISECONDS);
         }
     },
-    BOOLEAN(EquivalenceType.NUMBER) {
+    BOOLEAN() {
         @Override
         public ValuesSource getEmpty() {
             return NUMERIC.getEmpty();
@@ -263,24 +263,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
     }
     ;
-
-    enum EquivalenceType {
-        STRING, NUMBER, GEO, RANGE;
-    }
-
-    EquivalenceType equivalenceType;
-
-    CoreValuesSourceType(EquivalenceType equivalenceType) {
-        this.equivalenceType = equivalenceType;
-    }
-    @Override
-    public boolean isCastableTo(ValuesSourceType valuesSourceType) {
-        if (valuesSourceType instanceof CoreValuesSourceType == false) {
-            return false;
-        }
-        CoreValuesSourceType other = (CoreValuesSourceType) valuesSourceType;
-        return this.equivalenceType == other.equivalenceType;
-    }
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

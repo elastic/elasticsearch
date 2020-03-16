@@ -264,6 +264,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         String pattern = string(ctx.value);
+        if (pattern == null) {
+            throw new ParsingException(source(ctx.value), "Pattern must not be [null]");
+        }
         int pos = pattern.indexOf('*');
         if (pos >= 0) {
             throw new ParsingException(source(ctx.value),

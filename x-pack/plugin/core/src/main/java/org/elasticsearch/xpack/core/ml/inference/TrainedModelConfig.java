@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,6 +61,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
     public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
+    public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -90,6 +92,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             DEFINITION);
         parser.declareString(TrainedModelConfig.Builder::setLazyDefinition, COMPRESSED_DEFINITION);
         parser.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
+        parser.declareObject(TrainedModelConfig.Builder::setDefaultFieldMap, (p, c) -> p.mapStrings(), DEFAULT_FIELD_MAP);
         return parser;
     }
 
@@ -108,6 +111,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final long estimatedHeapMemory;
     private final long estimatedOperations;
     private final License.OperationMode licenseLevel;
+    private final Map<String, String> defaultFieldMap;
 
     private final LazyModelDefinition definition;
 
@@ -122,7 +126,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        TrainedModelInput input,
                        Long estimatedHeapMemory,
                        Long estimatedOperations,
-                       String licenseLevel) {
+                       String licenseLevel,
+                       Map<String, String> defaultFieldMap) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -142,6 +147,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
+        this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -157,6 +163,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         estimatedHeapMemory = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            this.defaultFieldMap = in.readBoolean() ?
+                Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString)) :
+                null;
+        } else {
+            this.defaultFieldMap = null;
+        }
     }
 
     public String getModelId() {
@@ -185,6 +198,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public Map<String, String> getDefaultFieldMap() {
+        return defaultFieldMap;
     }
 
     @Nullable
@@ -249,6 +266,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeVLong(estimatedHeapMemory);
         out.writeVLong(estimatedOperations);
         out.writeString(licenseLevel.description());
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (defaultFieldMap != null) {
+                out.writeBoolean(true);
+                out.writeMap(defaultFieldMap, StreamOutput::writeString, StreamOutput::writeString);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -283,6 +308,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             new ByteSizeValue(estimatedHeapMemory));
         builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
         builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
+        if (defaultFieldMap != null && defaultFieldMap.isEmpty() == false) {
+            builder.field(DEFAULT_FIELD_MAP.getPreferredName(), defaultFieldMap);
+        }
         builder.endObject();
         return builder;
     }
@@ -308,6 +336,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
             Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(licenseLevel, that.licenseLevel) &&
+            Objects.equals(defaultFieldMap, that.defaultFieldMap) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -324,7 +353,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             estimatedHeapMemory,
             estimatedOperations,
             input,
-            licenseLevel);
+            licenseLevel,
+            defaultFieldMap);
     }
 
     public static class Builder {
@@ -341,6 +371,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Long estimatedOperations;
         private LazyModelDefinition definition;
         private String licenseLevel;
+        private Map<String, String> defaultFieldMap;
 
         public Builder() {}
 
@@ -357,6 +388,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.estimatedOperations = config.estimatedOperations;
             this.estimatedHeapMemory = config.estimatedHeapMemory;
             this.licenseLevel = config.licenseLevel.description();
+            this.defaultFieldMap = config.defaultFieldMap == null ? null : new HashMap<>(config.defaultFieldMap);
         }
 
         public Builder setModelId(String modelId) {
@@ -475,6 +507,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setDefaultFieldMap(Map<String, String> defaultFieldMap) {
+            this.defaultFieldMap = defaultFieldMap;
+            return this;
+        }
+
         public Builder validate() {
             return validate(false);
         }
@@ -567,7 +604,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 input,
                 estimatedHeapMemory == null ? 0 : estimatedHeapMemory,
                 estimatedOperations == null ? 0 : estimatedOperations,
-                licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel);
+                licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel,
+                defaultFieldMap);
         }
     }
 

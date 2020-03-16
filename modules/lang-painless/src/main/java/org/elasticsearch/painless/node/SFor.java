@@ -47,7 +47,6 @@ public class SFor extends AStatement {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
         scope = scope.newLocalScope();
 
         Output initializerStatementOutput = null;
@@ -114,6 +113,7 @@ public class SFor extends AStatement {
             afterthought.cast(afterthoughtInput, afterthoughtOutput);
         }
 
+        Output output = new Output();
         Output blockOutput = null;
 
         if (block != null) {

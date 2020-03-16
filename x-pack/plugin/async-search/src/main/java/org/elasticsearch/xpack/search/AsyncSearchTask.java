@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
-class AsyncSearchTask extends SearchTask {
+final class AsyncSearchTask extends SearchTask {
     private final AsyncSearchId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -111,8 +111,7 @@ class AsyncSearchTask extends SearchTask {
         return searchId;
     }
 
-    @Override
-    public SearchProgressActionListener getProgressListener() {
+    Listener getSearchProgressActionListener() {
         return progressListener;
     }
 
@@ -193,7 +192,7 @@ class AsyncSearchTask extends SearchTask {
             if (hasCompleted) {
                 executeImmediately = true;
             } else {
-                completionListeners.put(completionId++, resp -> listener.accept(resp));
+                completionListeners.put(completionId++, listener::accept);
             }
         }
         if (executeImmediately) {
@@ -300,31 +299,31 @@ class AsyncSearchTask extends SearchTask {
         }
     }
 
-    private class Listener extends SearchProgressActionListener {
+    class Listener extends SearchProgressActionListener {
         @Override
-        public void onQueryResult(int shardIndex) {
+        protected void onQueryResult(int shardIndex) {
             checkExpiration();
         }
 
         @Override
-        public void onFetchResult(int shardIndex) {
+        protected void onFetchResult(int shardIndex) {
             checkExpiration();
         }
 
         @Override
-        public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
             checkExpiration();
             searchResponse.get().addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
         }
 
         @Override
-        public void onFetchFailure(int shardIndex, Exception exc) {
+        protected void onFetchFailure(int shardIndex, Exception exc) {
             checkExpiration();
         }
 
         @Override
-        public void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
+        protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkExpiration();
             searchResponse.compareAndSet(null,
@@ -342,7 +341,7 @@ class AsyncSearchTask extends SearchTask {
         }
 
         @Override
-        public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+        public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             // best effort to cancel expired tasks
             checkExpiration();
             searchResponse.get().updatePartialResponse(shards.size(),

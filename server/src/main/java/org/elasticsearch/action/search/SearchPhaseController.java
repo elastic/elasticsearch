@@ -679,8 +679,8 @@ public final class SearchPhaseController {
                     numReducePhases++;
                     index = 1;
                     if (hasAggs || hasTopDocs) {
-                        progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
-                            topDocsStats.getTotalHits(),  hasAggs ? aggsBuffer[0] : null, numReducePhases);
+                        progressListener.notifyPartialReduce(SearchProgressListener.buildSearchShards(processedShards),
+                            topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0] : null, numReducePhases);
                     }
                 }
                 final int i = index++;
@@ -710,7 +710,7 @@ public final class SearchPhaseController {
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(),
                 getRemainingAggs(), getRemainingTopDocs(), topDocsStats, numReducePhases, false,
                 aggReduceContextBuilder, performFinalReduce);
-            progressListener.notifyReduce(progressListener.searchShards(results.asList()),
+            progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
                 reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             return reducePhase;
         }
@@ -767,8 +767,8 @@ public final class SearchPhaseController {
                 List<SearchPhaseResult> resultList = results.asList();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, aggReduceContextBuilder, request.isFinalReduce());
-                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits,
-                    reducePhase.aggregations, reducePhase.numReducePhases);
+                listener.notifyFinalReduce(SearchProgressListener.buildSearchShards(resultList),
+                    reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
                 return reducePhase;
             }
         };

@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     private String indexName;
     private int numShards;
-    private int numDocs;
 
     private int numKeywords;
     private Map<String, AtomicInteger> keywordFreqs;
@@ -140,7 +139,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
                     StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
                     assertThat(terms.getBuckets().size(), lessThanOrEqualTo(numKeywords));
-                    for (InternalTerms.Bucket bucket : terms.getBuckets()) {
+                    for (InternalTerms.Bucket<?> bucket : terms.getBuckets()) {
                         long count = keywordFreqs.getOrDefault(bucket.getKeyAsString(), new AtomicInteger(0)).get();
                         assertThat(bucket.getDocCount(), lessThanOrEqualTo(count));
                     }
@@ -155,7 +154,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
                 StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
                 assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
                 assertThat(terms.getBuckets().size(), lessThanOrEqualTo(numKeywords));
-                for (InternalTerms.Bucket bucket : terms.getBuckets()) {
+                for (InternalTerms.Bucket<?> bucket : terms.getBuckets()) {
                     long count = keywordFreqs.getOrDefault(bucket.getKeyAsString(), new AtomicInteger(0)).get();
                     if (numFailures > 0) {
                         assertThat(bucket.getDocCount(), lessThanOrEqualTo(count));
@@ -236,14 +235,14 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
     }
 
     public void testNoIndex() throws Exception {
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new String[] { "invalid-*" });
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest("invalid-*");
         request.setWaitForCompletion(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(0));
 
-        request = new SubmitAsyncSearchRequest(new String[] { "invalid" });
+        request = new SubmitAsyncSearchRequest("invalid");
         request.setWaitForCompletion(TimeValue.timeValueMillis(1));
         response = submitAsyncSearch(request);
         assertNull(response.getSearchResponse());

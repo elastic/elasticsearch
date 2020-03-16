@@ -847,7 +847,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
 
                 @Override
-                public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+                public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                     totalHitsListener.set(totalHits);
                     finalAggsListener.set(aggs);
                     numReduceListener.incrementAndGet();

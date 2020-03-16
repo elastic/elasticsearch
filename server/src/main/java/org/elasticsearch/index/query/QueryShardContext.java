@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldType;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
@@ -226,8 +226,10 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public MappedFieldType fieldMapper(String name) {
-        if (name.equals(TypeFieldMapper.NAME)) {
+        // TODO wrap this with v7 compatibility
+        if (name.equals(TypeFieldType.NAME)) {
             deprecationLogger.deprecatedAndMaybeLog("query_with_types", TYPES_DEPRECATION_MESSAGE);
+            return TypeFieldType.INSTANCE;
         }
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }

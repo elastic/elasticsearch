@@ -107,6 +107,10 @@ setup:
 
 ---
 "Sorting terms":
+  - skip:
+      version: " - 7.99.99"
+      reason: fixed in 8.0.0 to be backported to 7.7.0
+
   - do:
       bulk:
         refresh: true

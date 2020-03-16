@@ -598,9 +598,8 @@ public class MlJobIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 String aliases = EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/aliases")).getEntity());
-                // TODO: Uncomment these assertions once /_cat/aliases API accepts expand_wildcards parameter
-                //assertThat(aliases, containsString(readAliasName));
-                //assertThat(aliases, containsString(writeAliasName));
+                assertThat(aliases, containsString(readAliasName));
+                assertThat(aliases, containsString(writeAliasName));
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }

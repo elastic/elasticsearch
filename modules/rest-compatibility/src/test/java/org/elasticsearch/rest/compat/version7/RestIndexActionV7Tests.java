@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RestIndexActionV7Test extends RestActionTestCase {
+public class RestIndexActionV7Tests extends RestActionTestCase {
 
     final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with=7");
     final List<String> contentTypeHeader = Collections.singletonList(mimeType);
@@ -69,9 +69,8 @@ public class RestIndexActionV7Test extends RestActionTestCase {
 
     public void testAutoIdWithType() {
         // using CompatibleAutoIdHandler
-
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+            .withMethod(RestRequest.Method.POST)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/")
             .build();

@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RestGetActionV7Test extends RestActionTestCase {
+public class RestGetActionV7Tests extends RestActionTestCase {
     final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with=7");
     final List<String> contentTypeHeader = Collections.singletonList(mimeType);
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
@@ -461,28 +462,27 @@ public class IndexResolver {
     public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, boolean includeFrozen,
             ActionListener<List<EsIndex>> listener) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
-        client.fieldCaps(fieldRequest,
-                ActionListener.wrap(
-                        response -> {
-                            String[] indicesList = response.getIndices();
-                            GetAliasesRequest aliasRequest = new GetAliasesRequest()
-                                    .local(true)
-                                    .aliases("*")
-                                    .indices(indicesList)
-                                    .indicesOptions(IndicesOptions.lenientExpandOpen());
-                            client.admin().indices().getAliases(aliasRequest, wrap(aliases ->
-                                listener.onResponse(separateMappings(typeRegistry, javaRegex, indicesList, response.get(),
-                                        aliases.getAliases())),
-                                ex -> {
-                                    if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                        listener.onResponse(separateMappings(typeRegistry, javaRegex, indicesList, response.get(), null));
-                                    } else {
-                                        listener.onFailure(ex);
-                                    }
-                                }));
-                        },
-                        listener::onFailure));
+        client.fieldCaps(fieldRequest, wrap(response -> {
+            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases ->
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), aliases.getAliases())),
+                ex -> {
+                    if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                        listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), null));
+                    } else {
+                        listener.onFailure(ex);
+                    }
+                }));
+            },
+            listener::onFailure));
 
+    }
+    
+    private GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
+        return new GetAliasesRequest()
+                .local(true)
+                .aliases("*")
+                .indices(response.getIndices())
+                .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
     
     public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry, String javaRegex, String[] indexNames,
@@ -508,7 +508,7 @@ public class IndexResolver {
             return emptyList();
         }
 
-        Set<String> resolvedAliases = new LinkedHashSet<>();
+        Set<String> resolvedAliases = new HashSet<>();
         if (aliases != null) {
             Iterator<ObjectObjectCursor<String, List<AliasMetaData>>> iterator = aliases.iterator();
             while (iterator.hasNext()) {
@@ -519,7 +519,8 @@ public class IndexResolver {
         }
 
         List<String> resolvedIndices = new ArrayList<>(asList(indexNames));
-        Map<String, Fields> indices = new LinkedHashMap<>(resolvedIndices.size() + resolvedAliases.size());
+        int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
+        Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy
@@ -681,7 +682,7 @@ public class IndexResolver {
             return emptyMap();
         }
         Map<String, InvalidMappedField> invalidFields = new HashMap<>();
-        Map<String, Set<String>> typesErrors = new HashMap<>();
+        Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types accross its indices
         Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
         
         Iterator<ObjectObjectCursor<String, List<AliasMetaData>>> iter = aliases.iterator();
@@ -704,7 +705,7 @@ public class IndexResolver {
             // if there is a list of indices where this field type is defined
             if (indices != null) {
                 // Look at all these indices' aliases and add the type of the field to a list (Set) with unique elements.
-                // A valid mapping for a field in an index alias should contain only one type. If it doesn't this means that field
+                // A valid mapping for a field in an index alias should contain only one type. If it doesn't, this means that field
                 // is mapped as different types across the indices in this index alias.
                 for (String index : indices) {
                     List<AliasMetaData> indexAliases = aliases.get(index);

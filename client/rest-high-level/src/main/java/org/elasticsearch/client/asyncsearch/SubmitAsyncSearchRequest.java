@@ -23,9 +23,15 @@ package org.elasticsearch.client.asyncsearch;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.Objects;
 
+/**
+ * A request to track asynchronously the progress of a search against one or more indices.
+ *
+ * @see AsyncSearchResponse
+ */
 public class SubmitAsyncSearchRequest implements Validatable {
 
     private TimeValue waitForCompletion;
@@ -33,34 +39,62 @@ public class SubmitAsyncSearchRequest implements Validatable {
     private TimeValue keepAlive;
     private final SearchRequest searchRequest;
 
+    /**
+     * Create a request to submit an async search.
+     * Target indices, queries and all other search related options should be set on
+     * the input {@link SearchRequest}.
+     * @param searchRequest the actual search request to submit
+     */
     public SubmitAsyncSearchRequest(SearchRequest searchRequest) {
         this.searchRequest = searchRequest;
-}
+    }
 
+
+    /**
+     * Get the {@link SearchRequest} that this submit request wraps
+     */
     public SearchRequest getSearchRequest() {
         return searchRequest;
     }
 
+    /**
+     * Get the minimum time that the request should wait before returning a partial result (defaults to 1 second).
+     */
     public TimeValue getWaitForCompletion() {
         return waitForCompletion;
     }
 
+    /**
+     * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
+     */
     public void setWaitForCompletion(TimeValue waitForCompletion) {
         this.waitForCompletion = waitForCompletion;
     }
 
+    /**
+     * Returns whether the resource resource should be removed on completion or failure (defaults to true).
+     */
     public Boolean isCleanOnCompletion() {
         return cleanOnCompletion;
     }
 
+    /**
+     * Determines if the resource should be removed on completion or failure (defaults to true).
+     */
     public void setCleanOnCompletion(boolean cleanOnCompletion) {
         this.cleanOnCompletion = cleanOnCompletion;
     }
 
+    /**
+     * Get the amount of time after which the result will expire (defaults to 5 days).
+     */
     public TimeValue getKeepAlive() {
         return keepAlive;
     }
 
+    /**
+     * Sets the amount of time after which the result will expire (defaults to 5 days).
+     */
     public void setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
     }

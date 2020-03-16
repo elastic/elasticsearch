@@ -818,18 +818,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
 
                 @Override
-                public void onQueryFailure(int shardIndex, Exception exc) {
+                public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
                     assertThat(shardIndex, lessThan(expectedNumResults));
                     numQueryFailureListener.incrementAndGet();
                 }
 
                 @Override
-                public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int version) {
-                    assertEquals(numReduceListener.incrementAndGet(), version);
+                public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+                    assertEquals(numReduceListener.incrementAndGet(), reducePhase);
                 }
 
                 @Override
-                public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {
+                public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                     totalHitsListener.set(totalHits);
                     finalAggsListener.set(aggs);
                     numReduceListener.incrementAndGet();

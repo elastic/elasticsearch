@@ -44,34 +44,40 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+
         Class<?> rtnType = scope.getReturnType();
         boolean isVoid = rtnType == void.class;
 
-        expression.read = lastSource && !isVoid;
-        expression.analyze(scriptRoot, scope);
+        AExpression.Input expressionInput = new AExpression.Input();
+        expressionInput.read = input.lastSource && !isVoid;
+        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, expressionInput);
 
-        if ((lastSource == false || isVoid) && expression.statement == false) {
+        if ((input.lastSource == false || isVoid) && expressionOutput.statement == false) {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
-        boolean rtn = lastSource && !isVoid && expression.actual != void.class;
+        boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
 
-        expression.expected = rtn ? rtnType : expression.actual;
-        expression.internal = rtn;
+        expression.input.expected = rtn ? rtnType : expressionOutput.actual;
+        expression.input.internal = rtn;
         expression.cast();
 
-        methodEscape = rtn;
-        loopEscape = rtn;
-        allEscape = rtn;
-        statementCount = 1;
+        output = new Output();
+        output.methodEscape = rtn;
+        output.loopEscape = rtn;
+        output.allEscape = rtn;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override
     StatementNode write(ClassNode classNode) {
         ExpressionNode expressionNode = expression.cast(expression.write(classNode));
 
-        if (methodEscape) {
+        if (output.methodEscape) {
             ReturnNode returnNode = new ReturnNode();
 
             returnNode.setExpressionNode(expressionNode);

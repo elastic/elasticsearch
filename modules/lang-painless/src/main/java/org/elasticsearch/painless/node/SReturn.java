@@ -40,7 +40,10 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         if (expression == null) {
             if (scope.getReturnType() != void.class) {
                 throw location.createError(new ClassCastException("Cannot cast from " +
@@ -48,17 +51,20 @@ public final class SReturn extends AStatement {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
-            expression.expected = scope.getReturnType();
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = scope.getReturnType();
+            expressionInput.internal = true;
+            expression.analyze(scriptRoot, scope, expressionInput);
             expression.cast();
         }
 
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
+        output.methodEscape = true;
+        output.loopEscape = true;
+        output.allEscape = true;
 
-        statementCount = 1;
+        output.statementCount = 1;
+
+        return output;
     }
 
     @Override

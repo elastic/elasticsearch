@@ -97,6 +97,11 @@ public final class DateFieldMapper extends FieldMapper {
             public Instant clampToValidRange(Instant instant) {
                 return instant;
             }
+
+            @Override
+            public long parsePointAsMillis(byte[] value) {
+                return LongPoint.decodeDimension(value, 0);
+            }
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
@@ -112,6 +117,11 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public Instant clampToValidRange(Instant instant) {
                 return DateUtils.clampToNanosRange(instant);
+            }
+
+            @Override
+            public long parsePointAsMillis(byte[] value) {
+                return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
             }
         };
 
@@ -141,7 +151,16 @@ public final class DateFieldMapper extends FieldMapper {
          */
         public abstract Instant toInstant(long value);
 
+        /**
+         * Return the instant that this range can represent that is closest to
+         * the provided instant.
+         */
         public abstract Instant clampToValidRange(Instant instant);
+
+        /**
+         * Decode the points representation of this field as milliseconds.
+         */
+        public abstract long parsePointAsMillis(byte[] value);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {

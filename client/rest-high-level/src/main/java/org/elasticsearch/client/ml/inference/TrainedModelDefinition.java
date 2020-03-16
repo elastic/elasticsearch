@@ -43,9 +43,8 @@ public class TrainedModelDefinition implements ToXContentObject {
             true,
             TrainedModelDefinition.Builder::new);
     static {
-        PARSER.declareNamedObjects(TrainedModelDefinition.Builder::setTrainedModel,
+        PARSER.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> p.namedObject(TrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter client side*/ },
             TRAINED_MODEL);
         PARSER.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> p.namedObject(PreProcessor.class, n, null),
@@ -122,11 +121,6 @@ public class TrainedModelDefinition implements ToXContentObject {
         public Builder setTrainedModel(TrainedModel trainedModel) {
             this.trainedModel = trainedModel;
             return this;
-        }
-
-        private Builder setTrainedModel(List<TrainedModel> trainedModel) {
-            assert trainedModel.size() == 1;
-            return setTrainedModel(trainedModel.get(0));
         }
 
         public TrainedModelDefinition build() {

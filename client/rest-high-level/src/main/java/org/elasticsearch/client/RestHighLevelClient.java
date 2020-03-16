@@ -1873,13 +1873,13 @@ public class RestHighLevelClient implements Closeable {
     protected final <Resp> Resp parseResponse(final Response response,
                                               final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
 
-        Optional<String> compressionOfEntity = Optional.ofNullable(response.getHeader(HttpHeaders.CONTENT_ENCODING))
+        Optional<String> compressionWithGzip = Optional.ofNullable(response.getHeader(HttpHeaders.CONTENT_ENCODING))
             .filter("gzip"::equalsIgnoreCase);
 
         HttpEntity httpEntity;
-        if (compressionOfEntity.isPresent()) {
-            String decompressedContent = decompress(EntityUtils.toByteArray(response.getEntity()));
-            httpEntity = new NStringEntity(decompressedContent, ContentType.get(response.getEntity()));
+        if (compressionWithGzip.isPresent()) {
+            String responseBody = decompressWithGzip(EntityUtils.toByteArray(response.getEntity()));
+            httpEntity = new NStringEntity(responseBody, ContentType.get(response.getEntity()));
         } else {
             httpEntity = response.getEntity();
         }
@@ -1887,7 +1887,7 @@ public class RestHighLevelClient implements Closeable {
         return parseEntity(httpEntity, entityParser);
     }
 
-    private static String decompress(byte[] compressedBytes) throws IOException {
+    private static String decompressWithGzip(byte[] compressedBytes) throws IOException {
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(compressedBytes);
              GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
              BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(gzipInputStream, StandardCharsets.ISO_8859_1))) {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -67,7 +68,7 @@ public class PutComponentTemplateRequest extends MasterNodeRequest<PutComponentT
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (name == null) {
+        if (name == null || Strings.hasText(name) == false) {
             validationException = addValidationError("name is missing", validationException);
         }
         if (componentTemplate == null) {

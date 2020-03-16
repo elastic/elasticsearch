@@ -21,12 +21,12 @@
 package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
 
-public class SubmitAsyncSearchRequest extends TimedRequest {
+public class SubmitAsyncSearchRequest implements Validatable {
 
     private TimeValue waitForCompletion;
     private Boolean cleanOnCompletion;

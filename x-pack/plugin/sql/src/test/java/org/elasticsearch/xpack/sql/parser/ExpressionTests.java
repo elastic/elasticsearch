@@ -547,11 +547,10 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("many", c.elseResult().toString());
     }
 
-    public void testLikePatternWithNullParameter() {
-        Expression expr = parser.createExpression("a LIKE ?",
-                Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null)));
-        assertEquals(Like.class, expr.getClass());
-        Like like = (Like) expr;
-        assertNull(like.pattern());
+    public void testLikePatternWithNullParameterNotAllowed() {
+        ParsingException e = expectThrows(ParsingException.class,
+                () -> parser.createExpression("a LIKE ?",
+                    Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null))));
+        assertEquals("line 1:9: Pattern must not be [null]", e.getMessage());
     }
 }

@@ -51,6 +51,11 @@ public class Classification implements DataFrameAnalysis {
     private static final ConstructingObjectParser<Classification, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Classification, Void> STRICT_PARSER = createParser(false);
 
+    /**
+     * The max number of classes classification supports
+     */
+    private static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
+
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Classification, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
@@ -275,7 +280,7 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
-        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, 30));
+        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, MAX_DEPENDENT_VARIABLE_CARDINALITY));
     }
 
     @SuppressWarnings("unchecked")

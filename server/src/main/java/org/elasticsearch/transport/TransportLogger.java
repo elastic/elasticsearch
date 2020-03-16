@@ -154,13 +154,9 @@ public final class TransportLogger {
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
 
-                if (isRequest) {
-                    ThreadContext.readHeadersFromStream(streamInput);
-                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
-                        // discard the features
-                        streamInput.readStringArray();
-                    }
-                    sb.append(", action: ").append(streamInput.readString());
+                // TODO: Maybe Fix for BWC
+                if (header.needsToReadVariableHeader() == false && isRequest) {
+                    sb.append(", action: ").append(header.getActionName());
                 }
                 sb.append(']');
                 sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -42,6 +43,9 @@ import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.instanceOf;
+
+@LuceneTestCase.AwaitsFix(bugUrl = "FIX")
 public class InboundHandlerTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -90,7 +94,7 @@ public class InboundHandlerTests extends ESTestCase {
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
         int headerSize = TcpHeader.headerSize(version);
-        boolean isError = randomBoolean();
+        boolean isError = true;
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
@@ -154,8 +158,8 @@ public class InboundHandlerTests extends ESTestCase {
         handler.inboundMessage(channel, responseMessage);
 
         if (isError) {
-            assertTrue(exceptionCaptor.get() instanceof RemoteTransportException);
-            assertTrue(exceptionCaptor.get().getCause() instanceof ElasticsearchException);
+            assertThat(exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
+            assertThat(exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
             assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
         } else {
             assertEquals(responseValue, responseCaptor.get().value);

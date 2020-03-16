@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[transform-painless-examples]]
-=== Painless snippet examples for {transforms}
+=== Painless examples for {transforms}
 ++++
 <titleabbrev>Painless examples for {transforms}</titleabbrev>
 ++++
@@ -20,7 +20,7 @@ https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.ht
 [[painless-top-hits]]
 ==== Getting top hits by using scripted metric
 
-This example shows how to find the latest document, in other words the document 
+This snippet shows how to find the latest document, in other words the document 
 with the earliest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation which provides a metric output.
@@ -30,9 +30,20 @@ scripted metric aggregation which provides a metric output.
 "latest_doc": { 
   "scripted_metric": {
     "init_script": "state.timestamp_latest = 0L; state.last_doc = ''", <1>
-    "map_script": "def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); if (current_date > state.timestamp_latest) {state.timestamp_latest = current_date;state.last_doc = new HashMap(params['_source']);}", <2>
+    "map_script": """ <2>
+      def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
+      if (current_date > state.timestamp_latest) 
+      {state.timestamp_latest = current_date;
+      state.last_doc = new HashMap(params['_source']);}
+    """,
     "combine_script": "return state", <3>
-    "reduce_script": "def last_doc = '';def timestamp_latest = 0L; for (s in states) {if (s.timestamp_latest > (timestamp_latest)) {timestamp_latest = s.timestamp_latest; last_doc = s.last_doc;}} return last_doc" <4>
+    "reduce_script": """ <4>
+      def last_doc = '';
+      def timestamp_latest = 0L;
+      for (s in states) {if (s.timestamp_latest > (timestamp_latest))
+      {timestamp_latest = s.timestamp_latest; last_doc = s.last_doc;}} 
+      return last_doc
+    """
   }
 }
 --------------------------------------------------
@@ -60,9 +71,20 @@ You can retrieve the last value in a similar way:
 "latest_value": {
   "scripted_metric": {
     "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
-    "map_script": "def current_date = doc['date'].getValue().toInstant().toEpochMilli(); if (current_date > state.timestamp_latest) {state.timestamp_latest = current_date;state.last_value = params['_source']['value'];}",
+    "map_script": """
+      def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
+      if (current_date > state.timestamp_latest) 
+      {state.timestamp_latest = current_date;
+      state.last_value = params['_source']['value'];}
+    """,
     "combine_script": "return state",
-    "reduce_script": "def last_value = '';def timestamp_latest = 0L; for (s in states) {if (s.timestamp_latest > (timestamp_latest)) {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}} return last_value"
+    "reduce_script": """
+      def last_value = '';
+      def timestamp_latest = 0L; 
+      for (s in states) {if (s.timestamp_latest > (timestamp_latest)) 
+      {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}} 
+      return last_value
+    """
   }
 }
 --------------------------------------------------
@@ -73,7 +95,7 @@ You can retrieve the last value in a similar way:
 [[painless-time-features]]
 ==== Getting time features as scripted fields
 
-This example shows how to extract time based features by using Painless. The 
+This snippet shows how to extract time based features by using Painless. The 
 snippet uses an index where `@timestamp` is defined as a `date` type field.
 
 [source,js]

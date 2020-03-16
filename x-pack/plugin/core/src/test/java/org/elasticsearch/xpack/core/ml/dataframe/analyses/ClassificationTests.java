@@ -188,34 +188,45 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetParams() {
-        Map<String, Set<String>> extractedFields = new HashMap<>(3);
-        extractedFields.put("foo", Collections.singleton(BooleanFieldMapper.CONTENT_TYPE));
-        extractedFields.put("bar", Collections.singleton(NumberFieldMapper.NumberType.LONG.typeName()));
-        extractedFields.put("baz", Collections.singleton(KeywordFieldMapper.CONTENT_TYPE));
+        Map<String, Set<String>> fieldTypes = new HashMap<>(3);
+        fieldTypes.put("foo", Collections.singleton(BooleanFieldMapper.CONTENT_TYPE));
+        fieldTypes.put("bar", Collections.singleton(NumberFieldMapper.NumberType.LONG.typeName()));
+        fieldTypes.put("baz", Collections.singleton(KeywordFieldMapper.CONTENT_TYPE));
+
+        Map<String, Long> fieldCardinalities = new HashMap<>();
+        fieldCardinalities.put("foo", 10L);
+        fieldCardinalities.put("bar", 20L);
+        fieldCardinalities.put("baz", 30L);
+
+        DataFrameAnalysis.FieldInfo fieldInfo = new TestFieldInfo(fieldTypes, fieldCardinalities);
+
         assertThat(
-            new Classification("foo").getParams(extractedFields),
+            new Classification("foo").getParams(fieldInfo),
             Matchers.<Map<String, Object>>allOf(
                 hasEntry("dependent_variable", "foo"),
                 hasEntry("class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL),
                 hasEntry("num_top_classes", 2),
                 hasEntry("prediction_field_name", "foo_prediction"),
-                hasEntry("prediction_field_type", "bool")));
+                hasEntry("prediction_field_type", "bool"),
+                hasEntry("num_classes", 10L)));
         assertThat(
-            new Classification("bar").getParams(extractedFields),
+            new Classification("bar").getParams(fieldInfo),
             Matchers.<Map<String, Object>>allOf(
                 hasEntry("dependent_variable", "bar"),
                 hasEntry("class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL),
                 hasEntry("num_top_classes", 2),
                 hasEntry("prediction_field_name", "bar_prediction"),
-                hasEntry("prediction_field_type", "int")));
+                hasEntry("prediction_field_type", "int"),
+                hasEntry("num_classes", 20L)));
         assertThat(
-            new Classification("baz").getParams(extractedFields),
+            new Classification("baz").getParams(fieldInfo),
             Matchers.<Map<String, Object>>allOf(
                 hasEntry("dependent_variable", "baz"),
                 hasEntry("class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL),
                 hasEntry("num_top_classes", 2),
                 hasEntry("prediction_field_name", "baz_prediction"),
-                hasEntry("prediction_field_type", "string")));
+                hasEntry("prediction_field_type", "string"),
+                hasEntry("num_classes", 30L)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {
@@ -229,7 +240,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.size(), equalTo(1));
         assertThat(constraints.get(0).getField(), equalTo(classification.getDependentVariable()));
         assertThat(constraints.get(0).getLowerBound(), equalTo(2L));
-        assertThat(constraints.get(0).getUpperBound(), equalTo(2L));
+        assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
     }
 
     public void testGetExplicitlyMappedFields() {
@@ -327,5 +338,26 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     @Override
     protected Classification mutateInstanceForVersion(Classification instance, Version version) {
         return mutateForVersion(instance, version);
+    }
+
+    private static class TestFieldInfo implements DataFrameAnalysis.FieldInfo {
+
+        private final Map<String, Set<String>> fieldTypes;
+        private final Map<String, Long> fieldCardinalities;
+
+        private TestFieldInfo(Map<String, Set<String>> fieldTypes, Map<String, Long> fieldCardinalities) {
+            this.fieldTypes = fieldTypes;
+            this.fieldCardinalities = fieldCardinalities;
+        }
+
+        @Override
+        public Set<String> getTypes(String field) {
+            return fieldTypes.get(field);
+        }
+
+        @Override
+        public Long getCardinality(String field) {
+            return fieldCardinalities.get(field);
+        }
     }
 }

@@ -38,17 +38,17 @@ public class RestGetActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInPathWithGet() {
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withPath("/some_index/some_type/some_id");
+        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.GET).build());
         assertWarnings(RestGetActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInPathWithHead() {
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withPath("/some_index/some_type/some_id");
+        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.HEAD).build());
         assertWarnings(RestGetActionV7.TYPES_DEPRECATION_MESSAGE);
     }

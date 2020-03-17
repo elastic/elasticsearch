@@ -38,11 +38,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexActionV7 {
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
-        "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
-        "or /{index}/_create/{id}).";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestIndexAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
+        + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
+        + "or /{index}/_create/{id}).";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestIndexAction.class));
 
     private static void logDeprecationMessage() {
         deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -53,9 +52,7 @@ public class RestIndexActionV7 {
         public List<Route> routes() {
             assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
 
-            return List.of(
-                new Route(POST, "/{index}/{type}/{id}"),
-                new Route(PUT, "/{index}/{type}/{id}"));
+            return List.of(new Route(POST, "/{index}/{type}/{id}"), new Route(PUT, "/{index}/{type}/{id}"));
         }
 
         @Override
@@ -64,7 +61,6 @@ public class RestIndexActionV7 {
             request.param("type");
             return super.prepareRequest(request, client);
         }
-
 
         @Override
         public boolean compatibilityRequired() {
@@ -75,9 +71,9 @@ public class RestIndexActionV7 {
     public static class CompatibleCreateHandler extends RestIndexAction.CreateHandler {
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/{type}/{id}/_create"),
-                new Route(PUT, "/{index}/{type}/{id}/_create")));
+            return unmodifiableList(
+                asList(new Route(POST, "/{index}/{type}/{id}/_create"), new Route(PUT, "/{index}/{type}/{id}/_create"))
+            );
         }
 
         @Override

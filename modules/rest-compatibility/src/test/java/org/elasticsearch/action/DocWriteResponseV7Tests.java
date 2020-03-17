@@ -38,18 +38,18 @@ import static org.hamcrest.Matchers.not;
 public class DocWriteResponseV7Tests extends ESTestCase {
 
     public void testTypeWhenCompatible() throws IOException {
-        DocWriteResponse response =
-            new DocWriteResponse(
-                new ShardId("index", "uuid", 0),
-                "id",
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                17,
-                0,
-                DocWriteResponse.Result.CREATED) {
-                // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
-            };
+        DocWriteResponse response = new DocWriteResponse(
+            new ShardId("index", "uuid", 0),
+            "id",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            17,
+            0,
+            DocWriteResponse.Result.CREATED
+        ) {
+            // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+        };
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.setCompatibleMajorVersion((byte)7);
+            builder.setCompatibleMajorVersion((byte) 7);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -58,7 +58,7 @@ public class DocWriteResponseV7Tests extends ESTestCase {
         }
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.setCompatibleMajorVersion((byte)6);
+            builder.setCompatibleMajorVersion((byte) 6);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {

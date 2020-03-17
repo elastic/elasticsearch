@@ -35,7 +35,6 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
     final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with=7");
     final List<String> contentTypeHeader = Collections.singletonList(mimeType);
 
-
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
 
     @Before
@@ -47,8 +46,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
     public void testTypeInPath() {
         // using CompatibleRestIndexAction
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/some_id")
             .build();
@@ -58,8 +56,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
     public void testCreateWithTypeInPath() {
         // using CompatibleCreateHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/some_id/_create")
             .build();
@@ -69,8 +66,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
     public void testAutoIdWithType() {
         // using CompatibleAutoIdHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/")
             .build();

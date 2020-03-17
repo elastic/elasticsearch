@@ -64,8 +64,14 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
         SINGLE_CHANNEL_PROFILE = builder.build();
     }
 
-    public MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                    ClusterSettings clusterSettings, boolean doHandshake, TransportInterceptor interceptor) {
+    public MockTransportService nettyFromThreadPool(
+        Settings settings,
+        ThreadPool threadPool,
+        final Version version,
+        ClusterSettings clusterSettings,
+        boolean doHandshake,
+        TransportInterceptor interceptor
+    ) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder()

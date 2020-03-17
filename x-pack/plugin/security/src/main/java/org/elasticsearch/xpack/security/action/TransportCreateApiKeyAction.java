@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -51,9 +52,20 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
+            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType() && grantsAnyPrivileges(request)) {
+                listener.onFailure(new IllegalArgumentException(
+                    "creating derived api keys requires an explicit role descriptor that is empty (has no privileges)"));
+                return;
+            }
             rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
                 ActionListener.wrap(roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
                     listener::onFailure));
         }
+    }
+
+    private boolean grantsAnyPrivileges(CreateApiKeyRequest request) {
+        return request.getRoleDescriptors() == null
+            || request.getRoleDescriptors().isEmpty()
+            || false == request.getRoleDescriptors().stream().allMatch(RoleDescriptor::isEmpty);
     }
 }

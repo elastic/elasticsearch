@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.flattened.mapper;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -18,8 +18,8 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
-public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
-    private AtomicOrdinalsFieldData delegate;
+public class KeyedFlatObjectLeafFieldDataTests extends ESTestCase {
+    private LeafOrdinalsFieldData delegate;
 
     @Before
     public void setUpDelegate() {
@@ -49,7 +49,7 @@ public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
             }
         }
 
-        delegate = new MockAtomicOrdinalsFieldData(allTerms, documentOrds);
+        delegate = new MockLeafOrdinalsFieldData(allTerms, documentOrds);
     }
 
     private BytesRef prefixedValue(String key, String value) {
@@ -65,11 +65,11 @@ public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
         testFindOrdinalBounds("cantaloupe", delegate, 40, 40);
         testFindOrdinalBounds("cucumber", delegate, 41, 59);
 
-        AtomicOrdinalsFieldData emptyDelegate = new MockAtomicOrdinalsFieldData(new BytesRef[0], new long[0]);
+        LeafOrdinalsFieldData emptyDelegate = new MockLeafOrdinalsFieldData(new BytesRef[0], new long[0]);
         testFindOrdinalBounds("apple", emptyDelegate, -1, -1);
 
         BytesRef[] terms = new BytesRef[] { prefixedValue("prefix", "value") };
-        AtomicOrdinalsFieldData singleValueDelegate = new MockAtomicOrdinalsFieldData(terms, new long[0]);
+        LeafOrdinalsFieldData singleValueDelegate = new MockLeafOrdinalsFieldData(terms, new long[0]);
         testFindOrdinalBounds("prefix", singleValueDelegate, 0, 0);
         testFindOrdinalBounds("prefix1", singleValueDelegate, -1, -1);
 
@@ -78,7 +78,7 @@ public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
             prefixedValue("prefix1", "value1"),
             prefixedValue("prefix2", "value"),
             prefixedValue("prefix3", "value")};
-        AtomicOrdinalsFieldData oddLengthDelegate = new MockAtomicOrdinalsFieldData(terms, new long[0]);
+        LeafOrdinalsFieldData oddLengthDelegate = new MockLeafOrdinalsFieldData(terms, new long[0]);
         testFindOrdinalBounds("prefix", oddLengthDelegate, 0, 0);
         testFindOrdinalBounds("prefix1", oddLengthDelegate, 1, 2);
         testFindOrdinalBounds("prefix2", oddLengthDelegate, 3, 3);
@@ -86,31 +86,31 @@ public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
     }
 
     public void testFindOrdinalBounds(String key,
-                                      AtomicOrdinalsFieldData delegate,
+                                      LeafOrdinalsFieldData delegate,
                                       long expectedMinOrd,
                                       long expectedMacOrd) throws IOException {
         BytesRef bytesKey = new BytesRef(key);
 
-        long actualMinOrd = KeyedFlatObjectAtomicFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
+        long actualMinOrd = KeyedFlatObjectLeafFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMinOrd,  actualMinOrd);
 
-        long actualMaxOrd = KeyedFlatObjectAtomicFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
+        long actualMaxOrd = KeyedFlatObjectLeafFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMacOrd, actualMaxOrd);
     }
 
     public void testAdvanceExact() throws IOException {
-        AtomicOrdinalsFieldData avocadoFieldData = new KeyedFlatObjectAtomicFieldData("avocado", delegate);
+        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlatObjectLeafFieldData("avocado", delegate);
         assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        AtomicOrdinalsFieldData bananaFieldData = new KeyedFlatObjectAtomicFieldData("banana", delegate);
+        LeafOrdinalsFieldData bananaFieldData = new KeyedFlatObjectLeafFieldData("banana", delegate);
         assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        AtomicOrdinalsFieldData nonexistentFieldData = new KeyedFlatObjectAtomicFieldData("berry", delegate);
+        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlatObjectLeafFieldData("berry", delegate);
         assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        AtomicOrdinalsFieldData fieldData = new KeyedFlatObjectAtomicFieldData("banana", delegate);
+        LeafOrdinalsFieldData fieldData = new KeyedFlatObjectLeafFieldData("banana", delegate);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
@@ -128,25 +128,25 @@ public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        AtomicOrdinalsFieldData appleFieldData = new KeyedFlatObjectAtomicFieldData("apple", delegate);
+        LeafOrdinalsFieldData appleFieldData = new KeyedFlatObjectLeafFieldData("apple", delegate);
         SortedSetDocValues appleDocValues = appleFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value0"), appleDocValues.lookupOrd(0));
 
-        AtomicOrdinalsFieldData cantaloupeFieldData = new KeyedFlatObjectAtomicFieldData("cantaloupe", delegate);
+        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlatObjectLeafFieldData("cantaloupe", delegate);
         SortedSetDocValues cantaloupeDocValues = cantaloupeFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value40"), cantaloupeDocValues.lookupOrd(0));
 
-        AtomicOrdinalsFieldData cucumberFieldData = new KeyedFlatObjectAtomicFieldData("cucumber", delegate);
+        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlatObjectLeafFieldData("cucumber", delegate);
         SortedSetDocValues cucumberDocValues = cucumberFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value41"), cucumberDocValues.lookupOrd(0));
     }
 
-    private static class MockAtomicOrdinalsFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class MockLeafOrdinalsFieldData extends AbstractLeafOrdinalsFieldData {
         private final SortedSetDocValues docValues;
 
-        MockAtomicOrdinalsFieldData(BytesRef[] allTerms,
-                                    long[] documentOrds) {
-            super(AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        MockLeafOrdinalsFieldData(BytesRef[] allTerms,
+                                  long[] documentOrds) {
+            super(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
             this.docValues = new MockSortedSetDocValues(allTerms, documentOrds);
         }
 

@@ -11,11 +11,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,13 +30,13 @@ import java.util.Collection;
  * In order to support all usage patterns, the delegate's ordinal values are shifted
  * to range from 0 to the number of total values.
  */
-public class KeyedFlatObjectAtomicFieldData implements AtomicOrdinalsFieldData {
+public class KeyedFlatObjectLeafFieldData implements LeafOrdinalsFieldData {
 
     private final String key;
-    private final AtomicOrdinalsFieldData delegate;
+    private final LeafOrdinalsFieldData delegate;
 
-    KeyedFlatObjectAtomicFieldData(String key,
-                                   AtomicOrdinalsFieldData delegate) {
+    KeyedFlatObjectLeafFieldData(String key,
+                                 LeafOrdinalsFieldData delegate) {
         this.key = key;
         this.delegate = delegate;
     }
@@ -78,7 +78,7 @@ public class KeyedFlatObjectAtomicFieldData implements AtomicOrdinalsFieldData {
 
     @Override
     public ScriptDocValues<?> getScriptValues() {
-        return AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+        return AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
             .apply(getOrdinalsValues());
     }
 

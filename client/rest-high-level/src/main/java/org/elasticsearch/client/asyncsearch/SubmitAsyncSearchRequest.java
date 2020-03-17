@@ -166,6 +166,9 @@ public class SubmitAsyncSearchRequest implements Validatable {
         if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException.addValidationError("[keep_alive] must be greater than 1 minute, got: " + keepAlive.toString());
         }
+        if (validationException.validationErrors().isEmpty()) {
+            return Optional.empty();
+        }
         return Optional.of(validationException);
     }
 

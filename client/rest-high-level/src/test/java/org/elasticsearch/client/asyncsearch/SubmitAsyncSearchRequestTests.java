@@ -31,6 +31,12 @@ public class SubmitAsyncSearchRequestTests extends ESTestCase {
 
     public void testValidation() {
         {
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, "test");
+            Optional<ValidationException> validation = request.validate();
+            assertFalse(validation.isPresent());
+        }
+        {
             SearchSourceBuilder source = new SearchSourceBuilder().suggest(new SuggestBuilder());
             SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, "test");
             Optional<ValidationException> validation = request.validate();

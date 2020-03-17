@@ -31,7 +31,7 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.auditTrails.isEmpty() == false && licenseState.isAuditingAllowed()) {
+        if (compositeAuditTrail.isEmpty() == false && licenseState.isAuditingAllowed()) {
             return compositeAuditTrail;
         } else {
             return NOOP_AUDIT_TRAIL;
@@ -125,10 +125,14 @@ public class AuditTrailService {
 
     private static class CompositeAuditTrail implements AuditTrail {
 
-        private List<AuditTrail> auditTrails;
+        private final List<AuditTrail> auditTrails;
 
         private CompositeAuditTrail(List<AuditTrail> auditTrails) {
             this.auditTrails = auditTrails;
+        }
+
+        boolean isEmpty() {
+            return auditTrails.isEmpty();
         }
 
         @Override

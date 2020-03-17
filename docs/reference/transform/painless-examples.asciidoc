@@ -61,7 +61,7 @@ returned by each shard and returns the document with the latest timestamp
 nested below the `latest_doc` field.
 
 Check the
-{ref}/search-aggregations-metrics-scripted-metric-aggregation.html#_scope_of_scripts[scope of scripts]
+<<scripted-metric-aggregation-scope,scope of scripts>>
 for detailed explanation on the respective scripts.
 
 You can retrieve the last value in a similar way: 

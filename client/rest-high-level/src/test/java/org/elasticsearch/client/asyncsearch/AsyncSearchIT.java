@@ -42,22 +42,12 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(searchRequest);
         // 2 sec should be enough to make sure we always complete right away
         request.setWaitForCompletion(new TimeValue(2, TimeUnit.SECONDS));
+        request.setCleanOnCompletion(false);
         AsyncSearchResponse response = highLevelClient().asyncSearch().submitAsyncSearch(request, RequestOptions.DEFAULT);
-        assertNull(response.getId());
+        assertNotNull(response.getId());
         assertTrue(response.getVersion() >= 0);
         assertFalse(response.isRunning());
         assertFalse(response.isPartial());
-        assertTrue(response.getStartTime() > 0);
-        assertTrue(response.getExpirationTime() > 0);
-        assertNotNull(response.getSearchResponse());
-
-        // try zero wait to force partial response
-        request.setWaitForCompletion(new TimeValue(0, TimeUnit.MILLISECONDS));
-        response = highLevelClient().asyncSearch().submitAsyncSearch(request, RequestOptions.DEFAULT);
-        assertNotNull(response.getId());
-        assertTrue(response.getVersion() >= 0);
-        assertTrue(response.isRunning());
-        assertTrue(response.isPartial());
         assertTrue(response.getStartTime() > 0);
         assertTrue(response.getExpirationTime() > 0);
         assertNotNull(response.getSearchResponse());

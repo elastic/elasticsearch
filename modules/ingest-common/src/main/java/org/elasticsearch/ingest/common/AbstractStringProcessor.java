@@ -76,8 +76,8 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
                 if (value instanceof String) {
                     newList.add(process((String) value));
                 } else {
-                    throw new IllegalArgumentException("field [" + field + "] of type [" + value.getClass().getName() +
-                        "] cannot be cast to [" + String.class.getName() + "]");
+                    throw new IllegalArgumentException("value [" + value + "] of type [" + value.getClass().getName() +
+                        "] in list field [" + field + "] cannot be cast to [" + String.class.getName() + "]");
                 }
             }
             newValue = newList;

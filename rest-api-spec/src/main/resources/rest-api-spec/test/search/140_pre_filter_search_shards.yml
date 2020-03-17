@@ -154,3 +154,4 @@ setup:
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
   - length: { aggregations.idx_terms.buckets: 2 }
+

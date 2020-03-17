@@ -36,7 +36,7 @@ setup:
 
 
 ---
-"pre_filter_shard_size with shards that have no hit":
+"test distributed sort can rewrite query to match no docs":
 
   - skip:
       version:  " - 7.6.99"
@@ -95,6 +95,7 @@ setup:
         pre_filter_shard_size: 1
         body:
           "size": 1
+          "track_total_hits": 1
           "sort": [{ "created_at": { "order": "desc" } }]
 
   - match: { _shards.total: 3 }
@@ -114,6 +115,7 @@ setup:
         pre_filter_shard_size: 1
         body:
           "size": 1
+          "track_total_hits": 1
           "sort": [{ "created_at": { "order": "desc" } }]
           "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } }
 

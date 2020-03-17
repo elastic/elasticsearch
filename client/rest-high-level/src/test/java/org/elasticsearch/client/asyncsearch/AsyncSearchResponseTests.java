@@ -26,16 +26,16 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class SubmitAsyncSearchResponseTests extends AbstractResponseTestCase<AsyncSearchResponse, SubmitAsyncSearchResponse> {
+public class AsyncSearchResponseTests
+        extends AbstractResponseTestCase<org.elasticsearch.xpack.core.search.action.AsyncSearchResponse, AsyncSearchResponse> {
 
     @Override
-    protected AsyncSearchResponse createServerTestInstance(XContentType xContentType) {
+    protected org.elasticsearch.xpack.core.search.action.AsyncSearchResponse createServerTestInstance(XContentType xContentType) {
         int version = randomIntBetween(0, Integer.MAX_VALUE);
         boolean isPartial = randomBoolean();
         boolean isRunning = randomBoolean();
@@ -47,18 +47,19 @@ public class SubmitAsyncSearchResponseTests extends AbstractResponseTestCase<Asy
         SearchResponse searchResponse = randomBoolean() ? null
                 : new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
                         ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);
-        AsyncSearchResponse testResponse = new AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning,
-                startTimeMillis, expirationTimeMillis);
+        org.elasticsearch.xpack.core.search.action.AsyncSearchResponse testResponse =
+                new org.elasticsearch.xpack.core.search.action.AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning,
+                        startTimeMillis, expirationTimeMillis);
         return testResponse;
     }
 
     @Override
-    protected SubmitAsyncSearchResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return SubmitAsyncSearchResponse.fromXContent(parser);
+    protected AsyncSearchResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return AsyncSearchResponse.fromXContent(parser);
     }
 
     @Override
-    protected void assertInstances(AsyncSearchResponse expected, SubmitAsyncSearchResponse parsed) {
+    protected void assertInstances(org.elasticsearch.xpack.core.search.action.AsyncSearchResponse expected, AsyncSearchResponse parsed) {
         assertNotSame(parsed, expected);
         assertEquals(expected.getId(), parsed.getId());
         assertEquals(expected.getVersion(), parsed.getVersion());

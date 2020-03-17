@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
-import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchResponse;
+import org.elasticsearch.client.asyncsearch.AsyncSearchResponse;
 
 import java.io.IOException;
 
@@ -43,9 +43,9 @@ public class AsyncSearchClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public SubmitAsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request, RequestOptions options) throws IOException {
+    public AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, AsyncSearchRequestConverters::submitAsyncSearch, options,
-                SubmitAsyncSearchResponse::fromXContent, emptySet());
+                AsyncSearchResponse::fromXContent, emptySet());
     }
 
     // TODO add docs url
@@ -60,9 +60,9 @@ public class AsyncSearchClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable submitAsyncSearchAsync(SubmitAsyncSearchRequest request, RequestOptions options,
-                                               ActionListener<SubmitAsyncSearchResponse> listener) {
+                                               ActionListener<AsyncSearchResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, AsyncSearchRequestConverters::submitAsyncSearch, options,
-                SubmitAsyncSearchResponse::fromXContent, listener, emptySet());
+                AsyncSearchResponse::fromXContent, listener, emptySet());
     }
 
 }

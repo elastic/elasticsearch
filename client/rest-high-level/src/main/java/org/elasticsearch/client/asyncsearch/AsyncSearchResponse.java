@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response of an async search request.
  */
-public class SubmitAsyncSearchResponse implements ToXContentObject  {
+public class AsyncSearchResponse implements ToXContentObject  {
     @Nullable
     private String id;
     private final int version;
@@ -49,9 +49,9 @@ public class SubmitAsyncSearchResponse implements ToXContentObject  {
     private final long expirationTimeMillis;
 
     /**
-     * Creates an {@link SubmitAsyncSearchResponse} with the arguments that are always present in the server response
+     * Creates an {@link AsyncSearchResponse} with the arguments that are always present in the server response
      */
-    SubmitAsyncSearchResponse(int version,
+    AsyncSearchResponse(int version,
                                boolean isPartial,
                                boolean isRunning,
                                long startTimeMillis,
@@ -184,9 +184,9 @@ public class SubmitAsyncSearchResponse implements ToXContentObject  {
     public static final ParseField RESPONSE_FIELD = new ParseField("response");
     public static final ParseField ERROR_FIELD = new ParseField("error");
 
-    public static final ConstructingObjectParser<SubmitAsyncSearchResponse, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<AsyncSearchResponse, Void> PARSER = new ConstructingObjectParser<>(
             "submit_async_search_response", true,
-            args -> new SubmitAsyncSearchResponse(
+            args -> new AsyncSearchResponse(
                     (int) args[0],
                     (boolean) args[1],
                     (boolean) args[2],
@@ -198,10 +198,10 @@ public class SubmitAsyncSearchResponse implements ToXContentObject  {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_RUNNING_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), START_TIME_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPIRATION_FIELD);
-        PARSER.declareString(SubmitAsyncSearchResponse::setId, ID_FIELD);
-        PARSER.declareObject(SubmitAsyncSearchResponse::setSearchResponse, (p, c) -> SubmitAsyncSearchResponse.parseSearchResponse(p),
+        PARSER.declareString(AsyncSearchResponse::setId, ID_FIELD);
+        PARSER.declareObject(AsyncSearchResponse::setSearchResponse, (p, c) -> AsyncSearchResponse.parseSearchResponse(p),
                 RESPONSE_FIELD);
-        PARSER.declareObject(SubmitAsyncSearchResponse::setFailure, (p, c) -> ElasticsearchException.fromXContent(p), ERROR_FIELD);
+        PARSER.declareObject(AsyncSearchResponse::setFailure, (p, c) -> ElasticsearchException.fromXContent(p), ERROR_FIELD);
     }
 
     private static SearchResponse parseSearchResponse(XContentParser p) throws IOException {
@@ -211,7 +211,7 @@ public class SubmitAsyncSearchResponse implements ToXContentObject  {
         return SearchResponse.innerFromXContent(p);
     }
 
-    public static SubmitAsyncSearchResponse fromXContent(XContentParser parser) throws IOException {
+    public static AsyncSearchResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 

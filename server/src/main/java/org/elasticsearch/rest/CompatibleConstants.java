@@ -20,10 +20,6 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
-
-import java.util.function.Consumer;
 
 public class CompatibleConstants {
 

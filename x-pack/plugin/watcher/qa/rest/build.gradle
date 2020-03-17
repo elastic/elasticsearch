@@ -8,7 +8,6 @@ dependencies {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
-  restXpackTests
 }
 
 task testJar(type: Jar) {

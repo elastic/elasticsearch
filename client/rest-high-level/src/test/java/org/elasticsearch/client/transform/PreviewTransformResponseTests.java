@@ -118,7 +118,7 @@ public class PreviewTransformResponseTests extends ESTestCase {
         int size = randomIntBetween(0, 10);
         List<Map<String, Object>> data = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            data.add(Map.of(randomAlphaOfLength(10), Map.of("value1", randomIntBetween(1, 100))));
+            data.add(Collections.singletonMap(randomAlphaOfLength(10), Collections.singletonMap("value1", randomIntBetween(1, 100))));
         }
 
         return new PreviewTransformResponse(data, randomGeneratedDestIndexSettings());
@@ -132,7 +132,7 @@ public class PreviewTransformResponseTests extends ESTestCase {
             mappings = new HashMap<>(size);
 
             for (int i = 0; i < size; i++) {
-                mappings.put(randomAlphaOfLength(10), Map.of("type", randomAlphaOfLength(10)));
+                mappings.put(randomAlphaOfLength(10), Collections.singletonMap("type", randomAlphaOfLength(10)));
             }
         }
 

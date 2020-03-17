@@ -26,21 +26,21 @@ image::images/analysis/token-graph-qbf-synonym-ex.svg[align="center"]
 [[token-graphs-multi-position-tokens]]
 ==== Multi-position tokens
 
-Each token has a `positionLength` attribute, which indicates the number of
-positions the token spans. By default, a token's `positionLength` is `1`.
+Some token filters can add tokens that span multiple positions. 
 
-However, some token filters can add tokens that span multiple positions. Of
-these filters, some also record an accurate `positionLength` for such tokens.
+To accommodate this, each token has a `positionLength` attribute, which
+indicates the number of positions that token spans. By default, each token has a
+`positionLength` of `1`.
 
-These filters are known as _graph token filters_ and include:
+However, only some token filters, known as _graph token filters_, accurately
+record the `positionLength` for multi-position tokens. This filters include:
 
 * <<analysis-synonym-graph-tokenfilter,`synonym_graph`>>
 * <<analysis-word-delimiter-graph-tokenfilter,`word_delimiter_graph`>>
 
-The following graph was produced by the `synonym_graph` filter. `domain name
-system` and its synonym, `dns`, both have a position of `0`. However, `dns` has
-a `positionLength` of `3`. Other tokens in the graph have a default
-`positionLength` of `1`.
+In the following graph, `domain name system` and its synonym, `dns`, both have a
+position of `0`. However, `dns` has a `positionLength` of `3`. Other tokens in
+the graph have a default `positionLength` of `1`.
 
 image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
 
@@ -84,8 +84,8 @@ This means the query matches documents containing either `dns is fragile` _or_
 [[token-graphs-invalid-token-graphs]]
 ===== Invalid token graphs
 
-The following token filters record a default `positionLength` of `1` for
-multi-position tokens.
+The following token filters can add tokens that span multiple positions but
+record only record a default `positionLength` of `1`:
 
 * <<analysis-synonym-tokenfilter,`synonym`>>
 * <<analysis-word-delimiter-tokenfilter,`word_delimiter`>>
@@ -93,9 +93,9 @@ multi-position tokens.
 This means these filters will produce invalid token graphs for streams
 containing such tokens.
 
-The following graph was produced by the `synonym` filter. `dns` is a
-multi-position synonym for `domain name system`. However, the filter records a
-default `positionLength` of `1` for `dns`. This results in an invalid graph.
+In the following graph, `dns` is a multi-position synonym for `domain name
+system`. However, `dns` has the default `positionLength` value of `1`, resulting
+in an invalid graph.
 
 image::images/analysis/token-graph-dns-invalid-ex.svg[align="center"]
 

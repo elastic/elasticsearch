@@ -36,6 +36,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContextId;
@@ -111,8 +112,17 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             .trackTotalHitsUpTo(2)
             .sort(SortBuilders.fieldSort("timestamp")));
         searchRequest.allowPartialSearchResults(false);
-        SearchPhaseController controller = new SearchPhaseController((b) ->
-            new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
+        SearchPhaseController controller = new SearchPhaseController((b) -> new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public InternalAggregation.ReduceContext forPartialReduction() {
+                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null);
+            }
+
+            public InternalAggregation.ReduceContext forFinalReduction() {
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
+            };
+        });
         SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),

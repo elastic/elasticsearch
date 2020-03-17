@@ -241,7 +241,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
                 // See SAML 2.0 Core 8.3.8 & 1.3.4
                 return samlFactory.secureIdentifier();
             default:
-                throw new IllegalStateException("Invalid NameID Format: " + format);
+                throw new IllegalStateException("Unsupported NameID Format: " + format);
         }
     }
 }

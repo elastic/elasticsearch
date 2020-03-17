@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * SAML 2.0 configuration information about this IdP
@@ -35,6 +36,7 @@ public class SamlIdentityProvider {
     private final String entityId;
     private final Map<String, URL> ssoEndpoints;
     private final Map<String, URL> sloEndpoints;
+    private final Set<String> allowedNameIdFormats;
     private final ServiceProviderDefaults serviceProviderDefaults;
     private final X509Credential signingCredential;
     private final SamlServiceProviderResolver serviceProviderResolver;
@@ -43,13 +45,14 @@ public class SamlIdentityProvider {
     private OrganizationInfo organization;
 
     // Package access - use Builder instead
-    SamlIdentityProvider(String entityId, Map<String, URL> ssoEndpoints, Map<String, URL> sloEndpoints,
+    SamlIdentityProvider(String entityId, Map<String, URL> ssoEndpoints, Map<String, URL> sloEndpoints, Set<String> allowedNameIdFormats,
                          X509Credential signingCredential, X509Credential metadataSigningCredential,
                          ContactInfo technicalContact, OrganizationInfo organization,
                          ServiceProviderDefaults serviceProviderDefaults, SamlServiceProviderResolver serviceProviderResolver) {
         this.entityId = entityId;
         this.ssoEndpoints = ssoEndpoints;
         this.sloEndpoints = sloEndpoints;
+        this.allowedNameIdFormats = allowedNameIdFormats;
         this.signingCredential = signingCredential;
         this.serviceProviderDefaults = serviceProviderDefaults;
         this.metadataSigningCredential = metadataSigningCredential;
@@ -72,6 +75,10 @@ public class SamlIdentityProvider {
 
     public URL getSingleLogoutEndpoint(String binding) {
         return sloEndpoints.get(binding);
+    }
+
+    public Set<String> getAllowedNameIdFormats() {
+        return allowedNameIdFormats;
     }
 
     public X509Credential getSigningCredential() {
@@ -128,6 +135,7 @@ public class SamlIdentityProvider {
         return Objects.equals(entityId, that.entityId) &&
             Objects.equals(ssoEndpoints, that.ssoEndpoints) &&
             Objects.equals(sloEndpoints, that.sloEndpoints) &&
+            Objects.equals(allowedNameIdFormats, that.allowedNameIdFormats) &&
             Objects.equals(signingCredential, that.signingCredential) &&
             Objects.equals(metadataSigningCredential, that.metadataSigningCredential) &&
             Objects.equals(technicalContact, that.technicalContact) &&

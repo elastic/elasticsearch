@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.idp.IdentityProviderPlugin;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.opensaml.saml.saml2.core.NameID;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,6 +46,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
@@ -258,7 +258,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         document.setLastModifiedMillis(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 36)).millis());
 
         if (randomBoolean()) {
-            document.setNameIdFormat(randomFrom(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL));
+            document.setNameIdFormat(TRANSIENT);
         }
         if (randomBoolean()) {
             document.setAuthenticationExpiryMillis(TimeValue.timeValueMinutes(randomIntBetween(1, 15)).millis());

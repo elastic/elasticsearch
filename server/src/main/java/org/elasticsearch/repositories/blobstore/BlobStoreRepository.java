@@ -32,6 +32,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -138,6 +139,7 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 
 /**
@@ -398,7 +400,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        assertSnapshotOrGenericThread();
+        assertUsingPermittedThreadPool();
 
         BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
@@ -419,7 +421,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        assertSnapshotOrGenericThread();
+        assertUsingPermittedThreadPool();
 
         BlobStore store = blobStore.get();
         if (store == null) {
@@ -1024,12 +1026,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
-    protected void assertSnapshotOrGenericThread() {
-        // NORELEASE
-        /*
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.SNAPSHOT)
-            || Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC) :
-            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";*/
+    protected void assertUsingPermittedThreadPool() {
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']')
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SEARCH + ']')
+            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot or generic or search thread.";
     }
 
     @Override
@@ -1841,7 +1842,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
-        assertSnapshotOrGenericThread();
+        assertUsingPermittedThreadPool();
         if (isReadOnly()) {
             try {
                 latestIndexBlobId();
@@ -1951,6 +1952,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Loads information about shard snapshot
      */
     public BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
+        assertUsingPermittedThreadPool();
         try {
             return indexShardSnapshotFormat.read(shardContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {

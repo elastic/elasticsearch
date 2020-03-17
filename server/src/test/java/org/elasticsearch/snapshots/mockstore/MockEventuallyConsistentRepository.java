@@ -98,7 +98,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected void assertSnapshotOrGenericThread() {
+    protected void assertUsingPermittedThreadPool() {
         // eliminate thread name check as we create repo in the test thread
     }
 

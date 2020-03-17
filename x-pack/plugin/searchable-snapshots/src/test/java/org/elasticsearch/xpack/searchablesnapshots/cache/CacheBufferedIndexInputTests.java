@@ -50,14 +50,17 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
                     List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(input.length))), 0L, 0L, 0, 0L);
 
-                BlobContainer blobContainer = singleBlobContainer(blobName, input);
+                BlobContainer singleBlobContainer = singleBlobContainer(blobName, input);
+                final BlobContainer blobContainer;
                 if (input.length <= cacheService.getCacheSize()) {
-                    blobContainer = new CountingBlobContainer(blobContainer, cacheService.getRangeSize());
+                    blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
+                } else {
+                    blobContainer = singleBlobContainer;
                 }
 
                 final Path cacheDir = createTempDir();
-                try (CacheDirectory cacheDirectory
-                         = new CacheDirectory(snapshot, blobContainer, cacheService, cacheDir, snapshotId, indexId, shardId, () -> 0L)) {
+                try (CacheDirectory cacheDirectory = new CacheDirectory(() -> snapshot, () -> blobContainer, cacheService, cacheDir,
+                    snapshotId, indexId, shardId, () -> 0L)) {
                     try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());

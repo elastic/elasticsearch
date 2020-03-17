@@ -443,7 +443,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
         try (CacheService ignored = cacheService;
              CacheDirectory cacheDirectory =
-                 new CacheDirectory(snapshot, blobContainer, cacheService, createTempDir(), snapshotId, indexId, shardId,
+                 new CacheDirectory(() -> snapshot, () -> blobContainer, cacheService, createTempDir(), snapshotId, indexId, shardId,
                      () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS)) {
                      @Override
                      IndexInputStats createIndexInputStats(long fileLength) {

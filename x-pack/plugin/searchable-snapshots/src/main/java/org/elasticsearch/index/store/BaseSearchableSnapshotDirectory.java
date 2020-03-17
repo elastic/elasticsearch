@@ -19,14 +19,15 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public abstract class BaseSearchableSnapshotDirectory extends BaseDirectory {
 
-    protected final BlobStoreIndexShardSnapshot snapshot;
-    protected final BlobContainer blobContainer;
+    protected final Supplier<BlobStoreIndexShardSnapshot> snapshot;
+    protected final Supplier<BlobContainer> blobContainer;
     private final AtomicBoolean closed;
 
-    public BaseSearchableSnapshotDirectory(BlobContainer blobContainer, BlobStoreIndexShardSnapshot snapshot) {
+    public BaseSearchableSnapshotDirectory(Supplier<BlobContainer> blobContainer, Supplier<BlobStoreIndexShardSnapshot> snapshot) {
         super(new SingleInstanceLockFactory());
         this.snapshot = Objects.requireNonNull(snapshot);
         this.blobContainer = Objects.requireNonNull(blobContainer);
@@ -34,11 +35,11 @@ public abstract class BaseSearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public BlobContainer blobContainer() {
-        return blobContainer;
+        return blobContainer.get();
     }
 
     protected final FileInfo fileInfo(final String name) throws FileNotFoundException {
-        return snapshot.indexFiles()
+        return snapshot.get().indexFiles()
             .stream()
             .filter(fileInfo -> fileInfo.physicalName().equals(name))
             .findFirst()
@@ -48,7 +49,7 @@ public abstract class BaseSearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public final String[] listAll() {
         ensureOpen();
-        return snapshot.indexFiles().stream().map(FileInfo::physicalName).sorted(String::compareTo).toArray(String[]::new);
+        return snapshot.get().indexFiles().stream().map(FileInfo::physicalName).sorted(String::compareTo).toArray(String[]::new);
     }
 
     @Override

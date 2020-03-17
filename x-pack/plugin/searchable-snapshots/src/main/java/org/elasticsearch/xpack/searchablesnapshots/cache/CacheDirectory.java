@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * {@link CacheDirectory} uses a {@link CacheService} to cache Lucene files provided by another {@link Directory}.
@@ -39,7 +40,7 @@ public class CacheDirectory extends BaseSearchableSnapshotDirectory {
     private final Path cacheDir;
     private final LongSupplier currentTimeNanosSupplier;
 
-    public CacheDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer,
+    public CacheDirectory(final Supplier<BlobStoreIndexShardSnapshot> snapshot, final Supplier<BlobContainer> blobContainer,
                           CacheService cacheService, Path cacheDir, SnapshotId snapshotId, IndexId indexId, ShardId shardId,
                           LongSupplier currentTimeNanosSupplier)
         throws IOException {

@@ -149,7 +149,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
                                                 NamedXContentRegistry registry, ClusterService clusterService) {
             return new S3Repository(metadata, registry, service, clusterService) {
                 @Override
-                protected void assertSnapshotOrGenericThread() {
+                protected void assertUsingPermittedThreadPool() {
                     // eliminate thread name check as we create repo manually on test/main threads
                 }
             };

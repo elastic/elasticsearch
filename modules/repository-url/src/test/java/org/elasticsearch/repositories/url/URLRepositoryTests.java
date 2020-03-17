@@ -42,7 +42,7 @@ public class URLRepositoryTests extends ESTestCase {
         return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService()) {
             @Override
-            protected void assertSnapshotOrGenericThread() {
+            protected void assertUsingPermittedThreadPool() {
                 // eliminate thread name check as we create repo manually on test/main threads
             }
         };

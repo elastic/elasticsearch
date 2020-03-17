@@ -10,6 +10,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
@@ -44,20 +46,20 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
  */
 public class SearchableSnapshotDirectory extends BaseSearchableSnapshotDirectory {
 
-    SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
+    SearchableSnapshotDirectory(final Supplier<BlobStoreIndexShardSnapshot> snapshot, final Supplier<BlobContainer> blobContainer) {
         super(blobContainer, snapshot);
     }
 
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), context, blobContainer.readBlobPreferredLength(),
+        return new SearchableSnapshotIndexInput(blobContainer.get(), fileInfo(name), context, blobContainer.get().readBlobPreferredLength(),
             BufferedIndexInput.BUFFER_SIZE);
     }
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "@" + snapshot.snapshot() + " lockFactory=" + lockFactory;
+        return this.getClass().getSimpleName() + "@" + snapshot.get().snapshot() + " lockFactory=" + lockFactory;
     }
 
     public static Directory create(RepositoriesService repositories,
@@ -73,19 +75,22 @@ public class SearchableSnapshotDirectory extends BaseSearchableSnapshotDirectory
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
         final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
-        final BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
-
         final SnapshotId snapshotId = new SnapshotId(SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()));
-        final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
+
+        final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer = new LazyInitializable<>(() ->
+            blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id()));
+        final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot = new LazyInitializable<>(() ->
+            blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId));
+        // RuntimeException since these suppliers do not throw any checked exceptions
 
         final Directory directory;
         if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
             final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
-            directory = new CacheDirectory(snapshot, blobContainer, cache, cacheDir, snapshotId, indexId, shardPath.getShardId(),
-                currentTimeNanosSupplier);
+            directory = new CacheDirectory(lazySnapshot::getOrCompute, lazyBlobContainer::getOrCompute, cache, cacheDir, snapshotId,
+                indexId, shardPath.getShardId(), currentTimeNanosSupplier);
         } else {
-            directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
+            directory = new SearchableSnapshotDirectory(lazySnapshot::getOrCompute, lazyBlobContainer::getOrCompute);
         }
         return new InMemoryNoOpCommitDirectory(directory);
     }

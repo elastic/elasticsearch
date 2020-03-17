@@ -1406,7 +1406,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 if (blobStoreContext == null) {
                     return metaData -> new FsRepository(metaData, environment, xContentRegistry(), clusterService) {
                         @Override
-                        protected void assertSnapshotOrGenericThread() {
+                        protected void assertUsingPermittedThreadPool() {
                             // eliminate thread name check as we create repo in the test thread
                         }
                     };

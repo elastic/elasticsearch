@@ -93,8 +93,8 @@ public class CacheDirectoryTests extends ESTestCase {
 
     private CacheDirectory newCacheDirectory(BlobStoreIndexShardSnapshot snapshot, BlobContainer container,
                                              CacheService cacheService, Path cacheDir) throws IOException {
-        return new CacheDirectory(snapshot, container, cacheService, cacheDir, new SnapshotId("_na","_na"), new IndexId("_na", "_na"),
-            new ShardId("_na", "_na", 0), () -> 0L);
+        return new CacheDirectory(() -> snapshot, () -> container, cacheService, cacheDir, new SnapshotId("_na","_na"),
+            new IndexId("_na", "_na"), new ShardId("_na", "_na", 0), () -> 0L);
     }
 
     private void assertListOfFiles(Path cacheDir, Matcher<Integer> matchNumberOfFiles, Matcher<Long> matchSizeOfFiles) throws IOException {

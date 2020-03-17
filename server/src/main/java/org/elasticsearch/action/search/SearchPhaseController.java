@@ -478,7 +478,8 @@ public final class SearchPhaseController {
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
             from = result.from();
-            size = result.size();
+            // sorted queries can set the size to 0 if they have enough competitive hits.
+            size = Math.max(result.size(), size);
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
@@ -724,15 +725,6 @@ public final class SearchPhaseController {
         int getNumReducePhases() { return numReducePhases; }
     }
 
-    private int resolveTrackTotalHits(SearchRequest request) {
-        if (request.scroll() != null) {
-            // no matter what the value of track_total_hits is
-            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-        }
-        return request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo() == null ?
-                SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo();
-    }
-
     /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
@@ -743,7 +735,7 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
+        final int trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder = requestToAggReduceContextBuilder.apply(request);
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...

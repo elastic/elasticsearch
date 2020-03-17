@@ -22,7 +22,7 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
@@ -63,7 +63,7 @@ class FieldDataValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleValues() {
             @Override

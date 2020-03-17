@@ -21,7 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -38,7 +38,7 @@ final class CountMethodValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(ctx);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(ctx);
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
         return new DoubleValues() {
             @Override

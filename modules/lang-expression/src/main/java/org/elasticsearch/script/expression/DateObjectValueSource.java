@@ -21,7 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
@@ -51,7 +51,7 @@ class DateObjectValueSource extends FieldDataValueSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return DoubleValues.withDefault(new DoubleValues() {

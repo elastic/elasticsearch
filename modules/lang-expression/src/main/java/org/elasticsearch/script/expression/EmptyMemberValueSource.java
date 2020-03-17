@@ -21,7 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -40,7 +40,7 @@ final class EmptyMemberValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
         return DoubleValues.withDefault(new DoubleValues() {
             @Override

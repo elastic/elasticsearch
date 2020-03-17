@@ -21,7 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
@@ -38,7 +38,7 @@ final class GeoLongitudeValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
-        AtomicGeoPointFieldData leafData = (AtomicGeoPointFieldData) fieldData.load(leaf);
+        LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
         final MultiGeoPointValues values = leafData.getGeoPointValues();
         return DoubleValues.withDefault(new DoubleValues() {
             @Override

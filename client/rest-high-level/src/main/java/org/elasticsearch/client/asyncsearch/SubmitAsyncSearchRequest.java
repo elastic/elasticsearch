@@ -24,15 +24,19 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A request to track asynchronously the progress of a search against one or more indices.
  */
 public class SubmitAsyncSearchRequest implements Validatable {
+
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
     private TimeValue waitForCompletion;
     private Boolean cleanOnCompletion;
@@ -145,6 +149,24 @@ public class SubmitAsyncSearchRequest implements Validatable {
      */
     public void allowPartialSearchResults(boolean allowPartialSearchResults) {
         this.searchRequest.allowPartialSearchResults(allowPartialSearchResults);
+    }
+
+    @Override
+    public Optional<ValidationException> validate() {
+        final ValidationException validationException = new ValidationException();
+        if (searchRequest.scroll() != null) {
+            validationException.addValidationError("[scroll] queries are not supported");
+        }
+        if (searchRequest.isSuggestOnly()) {
+            validationException.addValidationError("suggest-only queries are not supported");
+        }
+        if (searchRequest.isCcsMinimizeRoundtrips()) {
+            validationException.addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries");
+        }
+        if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            validationException.addValidationError("[keep_alive] must be greater than 1 minute, got: " + keepAlive.toString());
+        }
+        return Optional.of(validationException);
     }
 
     @Override

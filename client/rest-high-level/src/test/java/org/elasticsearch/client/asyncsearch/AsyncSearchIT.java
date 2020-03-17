@@ -37,8 +37,6 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
 
         SearchRequest searchRequest = new SearchRequest(index);
-        // TODO either check that in client request validation already or set it automatically?
-        searchRequest.setCcsMinimizeRoundtrips(false);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
         searchRequest.source(sourceBuilder);
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(searchRequest);

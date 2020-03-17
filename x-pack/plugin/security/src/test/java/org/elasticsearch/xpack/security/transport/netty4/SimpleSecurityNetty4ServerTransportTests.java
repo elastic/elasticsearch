@@ -28,6 +28,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -64,7 +65,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
     }
 
     public MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                    ClusterSettings clusterSettings, boolean doHandshake) {
+                                                    ClusterSettings clusterSettings, boolean doHandshake, TransportInterceptor interceptor) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder()
@@ -86,19 +87,25 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings,
-                Collections.emptySet());
+                Collections.emptySet(), interceptor);
         mockTransportService.start();
         return mockTransportService;
     }
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected MockTransportService build(
+        Settings settings,
+        Version version,
+        ClusterSettings clusterSettings,
+        boolean doHandshake,
+        TransportInterceptor interceptor) {
         if (TransportSettings.PORT.exists(settings) == false) {
             settings = Settings.builder().put(settings)
                 .put(TransportSettings.PORT.getKey(), "0")
                 .build();
         }
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
+        MockTransportService transportService =
+            nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake, interceptor);
         transportService.start();
         return transportService;
     }

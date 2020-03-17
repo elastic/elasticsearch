@@ -114,7 +114,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    private MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected final MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         return build(settings, version, clusterSettings, doHandshake, NOOP_TRANSPORT_INTERCEPTOR);
     }
 

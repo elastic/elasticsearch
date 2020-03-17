@@ -8,7 +8,7 @@
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
 more about the Painless scripting language in the 
-https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html[Painless guide].
+{painless}/painless-guide.html[Painless guide].
 
 * <<painless-top-hits>>
 * <<painless-time-features>>

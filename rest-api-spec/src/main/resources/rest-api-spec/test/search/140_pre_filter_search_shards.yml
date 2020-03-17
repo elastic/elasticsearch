@@ -12,7 +12,7 @@ setup:
                    format: "strict_date"
   - do:
       indices.create:
-          index: index_2
+          index: index_
           body:
             settings:
               number_of_shards: 1
@@ -21,6 +21,7 @@ setup:
                 created_at:
                    type: date_nanos
                    format: "strict_date"
+
   - do:
       indices.create:
           index: index_3

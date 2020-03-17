@@ -34,7 +34,8 @@ import java.util.Collections;
 public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake,
+                                         TransportInterceptor interceptor) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
@@ -49,8 +50,14 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
                 }
             }
         };
-        MockTransportService mockTransportService =
-            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
+        MockTransportService mockTransportService = MockTransportService.createNewService(
+            settings,
+            transport,
+            version,
+            threadPool,
+            clusterSettings,
+            Collections.emptySet(),
+            interceptor);
         mockTransportService.start();
         return mockTransportService;
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
@@ -46,12 +47,14 @@ import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                           ClusterSettings clusterSettings, boolean doHandshake) {
+                                                           ClusterSettings clusterSettings, boolean doHandshake,
+                                                           TransportInterceptor interceptor) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
@@ -66,16 +69,28 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 }
             }
         };
-        MockTransportService mockTransportService =
-            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
+        MockTransportService mockTransportService = MockTransportService.createNewService(
+            settings,
+            transport,
+            version,
+            threadPool,
+            clusterSettings,
+            Collections.emptySet(),
+            interceptor);
         mockTransportService.start();
         return mockTransportService;
     }
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected MockTransportService build(
+        Settings settings,
+        Version version,
+        ClusterSettings clusterSettings,
+        boolean doHandshake,
+        TransportInterceptor interceptor) {
         settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
+        MockTransportService transportService =
+            nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake, interceptor);
         transportService.start();
         return transportService;
     }
@@ -103,7 +118,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
             MockTransportService transportService =
-                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
+                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true, NOOP_TRANSPORT_INTERCEPTOR);
             try {
                 transportService.start();
             } finally {

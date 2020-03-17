@@ -87,12 +87,15 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
@@ -111,7 +114,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+    private MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+        return build(settings, version, clusterSettings, doHandshake, NOOP_TRANSPORT_INTERCEPTOR);
+    }
+
+    protected abstract MockTransportService build(
+        Settings settings,
+        Version version,
+        ClusterSettings clusterSettings,
+        boolean doHandshake,
+        TransportInterceptor interceptor);
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
@@ -165,6 +177,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
+        return buildService(name, version, clusterSettings, settings, acceptRequests, doHandshake, NOOP_TRANSPORT_INTERCEPTOR);
+    }
+
+    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
+                                              Settings settings, boolean acceptRequests, boolean doHandshake,
+                                              TransportInterceptor interceptor) {
         MockTransportService service = build(
                 Settings.builder()
                         .put(settings)
@@ -173,7 +191,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                         .build(),
                 version,
-                clusterSettings, doHandshake);
+                clusterSettings, doHandshake, interceptor);
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -186,7 +204,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
                                                 Settings settings) {
-        return buildService(name, version, clusterSettings, settings, true, true);
+        return buildService(name, version, clusterSettings, settings, true, true, NOOP_TRANSPORT_INTERCEPTOR);
     }
 
     @Override
@@ -2729,6 +2747,80 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
             assertTrue(connectionClosedListenerCalled.get());
         }
+    }
+
+    // test that the response handler is invoked on a failure to send
+    public void testFailToSend() throws InterruptedException {
+        final RuntimeException failToSendException;
+        if (randomBoolean()) {
+            failToSendException = new IllegalStateException("fail to send");
+        } else {
+            failToSendException = new TransportException("fail to send");
+        }
+        final TransportInterceptor interceptor = new TransportInterceptor() {
+            @Override
+            public AsyncSender interceptSender(final AsyncSender sender) {
+                return new AsyncSender() {
+                    @Override
+                    public <T extends TransportResponse> void sendRequest(
+                        final Transport.Connection connection,
+                        final String action,
+                        final TransportRequest request,
+                        final TransportRequestOptions options,
+                        final TransportResponseHandler<T> handler) {
+                        if ("fail-to-send-action".equals(action)) {
+                            throw failToSendException;
+                        } else {
+                            sender.sendRequest(connection, action, request, options, handler);
+                        }
+                    }
+                };
+            }
+        };
+        try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION, null, Settings.EMPTY, true, true, interceptor)) {
+            serviceC.start();
+            serviceC.acceptIncomingRequests();
+            serviceC.connectToNode(serviceA.getLocalDiscoNode(), ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY));
+            final AtomicReference<TransportException> te = new AtomicReference<>();
+            final Transport.Connection connection = serviceC.getConnection(nodeA);
+            serviceC.sendRequest(
+                connection,
+                "fail-to-send-action",
+                TransportRequest.Empty.INSTANCE,
+                TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<TransportResponse>() {
+                    @Override
+                    public void handleResponse(final TransportResponse response) {
+                        fail("handle response should not be invoked");
+                    }
+
+                    @Override
+                    public void handleException(final TransportException exp) {
+                        te.set(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public TransportResponse read(final StreamInput in) {
+                        return TransportResponse.Empty.INSTANCE;
+                    }
+                });
+            assertThat(te.get(), not(nullValue()));
+
+            if (failToSendException instanceof IllegalStateException) {
+                assertThat(te.get().getMessage(), equalTo("failure to send"));
+                assertThat(te.get().getCause(), instanceOf(IllegalStateException.class));
+                assertThat(te.get().getCause().getMessage(), equalTo("fail to send"));
+            } else {
+                assertThat(te.get().getMessage(), equalTo("fail to send"));
+                assertThat(te.get().getCause(), nullValue());
+            }
+        }
+
     }
 
     private void closeConnectionChannel(Transport.Connection connection) {

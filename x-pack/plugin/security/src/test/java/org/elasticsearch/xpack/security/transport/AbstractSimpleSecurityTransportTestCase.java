@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -103,7 +104,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = build(settings, Version.CURRENT, clusterSettings, true);
+            MockTransportService transportService = build(settings, Version.CURRENT, clusterSettings, true, NOOP_TRANSPORT_INTERCEPTOR);
             try {
                 transportService.start();
             } finally {

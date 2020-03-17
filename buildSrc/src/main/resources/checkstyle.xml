@@ -26,7 +26,7 @@
   -->
   <module name="RegexpMultiline">
     <property name="id" value="SnippetLength"/>
-    <property name="format" value="^( *)\/\/\s*tag(.+)\s*\n(.*\n)*\1.{77,}\n(.*\n)*\1\/\/\s*end\2\s*$"/>
+    <property name="format" value="^( *?)//\s*?tag(.+?)\s*?\n(.*?\n)*?\1.{77,}?\n(.*?\n)*?\1//\s*?end\2\s*$"/>
     <property name="fileExtensions" value="java"/>
     <property name="message" value="Code snippets longer than 76 characters get cut off when rendered in the docs"/>
   </module>

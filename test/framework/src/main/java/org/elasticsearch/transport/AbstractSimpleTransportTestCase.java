@@ -28,6 +28,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -2790,7 +2791,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.connectToNode(
                 serviceA.getLocalDiscoNode(),
                 ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY),
-                new ActionListener<>() {
+                new ActionListener<Void>() {
                     @Override
                     public void onResponse(final Void v) {
                         latch.countDown();

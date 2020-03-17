@@ -23,7 +23,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -31,11 +31,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
+final class BytesBinaryDVLeafFieldData implements LeafFieldData {
 
     private final BinaryDocValues values;
 
-    BytesBinaryDVAtomicFieldData(BinaryDocValues values) {
+    BytesBinaryDVLeafFieldData(BinaryDocValues values) {
         super();
         this.values = values;
     }

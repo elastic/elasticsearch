@@ -85,7 +85,7 @@ This means the query matches documents containing either `dns is fragile` _or_
 ===== Invalid token graphs
 
 The following token filters can add tokens that span multiple positions but
-record only record a default `positionLength` of `1`:
+only record a default `positionLength` of `1`:
 
 * <<analysis-synonym-tokenfilter,`synonym`>>
 * <<analysis-word-delimiter-tokenfilter,`word_delimiter`>>

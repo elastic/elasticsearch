@@ -79,6 +79,7 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -1084,9 +1085,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 }
                 dir.close();
             }
-            InternalAggregation.ReduceContext ctx =
-                new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
-                    new NoneCircuitBreakerService()), null, true);
+            InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
+                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                    null, b -> {}, PipelineTree.EMPTY);
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);

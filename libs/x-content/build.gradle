@@ -49,7 +49,6 @@ forbiddenApisMain {
 thirdPartyAudit.ignoreMissingClasses(
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
-  'com.fasterxml.jackson.databind.cfg.MapperBuilder'
 )
 
 dependencyLicenses {

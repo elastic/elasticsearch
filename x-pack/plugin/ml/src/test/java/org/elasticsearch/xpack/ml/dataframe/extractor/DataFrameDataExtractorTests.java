@@ -81,7 +81,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         query = QueryBuilders.matchAllQuery();
         extractedFields = new ExtractedFields(Arrays.asList(
             new DocValueField("field_1", Collections.singleton("keyword")),
-            new DocValueField("field_2", Collections.singleton("keyword"))));
+            new DocValueField("field_2", Collections.singleton("keyword"))), Collections.emptyMap());
         scrollSize = 1000;
         headers = Collections.emptyMap();
 
@@ -299,7 +299,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
             (ExtractedField) new DocValueField("field_1", Collections.singleton("keyword")),
-            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))));
+            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))), Collections.emptyMap());
 
         TestExtractor dataExtractor = createExtractor(false, false);
 
@@ -404,7 +404,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             (ExtractedField) new DocValueField("field_integer", Collections.singleton("integer")),
             (ExtractedField) new DocValueField("field_long", Collections.singleton("long")),
             (ExtractedField) new DocValueField("field_keyword", Collections.singleton("keyword")),
-            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))));
+            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))), Collections.emptyMap());
         TestExtractor dataExtractor = createExtractor(true, true);
 
         assertThat(dataExtractor.getCategoricalFields(OutlierDetectionTests.createRandom()), empty());

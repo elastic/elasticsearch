@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 
@@ -61,25 +62,7 @@ class S3RetryingInputStream extends InputStream {
         this.blobStore = blobStore;
         this.blobKey = blobKey;
         this.maxAttempts = blobStore.getMaxRetries() + 1;
-        currentStream = openStream();
-    }
-
-    private InputStream openStream() throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            if (currentOffset > 0) {
-                getObjectRequest.setRange(currentOffset);
-            }
-            final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-            return s3Object.getObjectContent();
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception) {
-                if (404 == ((AmazonS3Exception) e).getStatusCode()) {
-                    throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
-                }
-            }
-            throw addSuppressedExceptions(e);
-        }
+        ensureOpenStreamOrFail(null);
     }
 
     @Override
@@ -91,7 +74,7 @@ class S3RetryingInputStream extends InputStream {
                 currentOffset += 1;
                 return result;
             } catch (IOException e) {
-                reopenStreamOrFail(e);
+                ensureOpenStreamOrFail(e);
             }
         }
     }
@@ -108,7 +91,7 @@ class S3RetryingInputStream extends InputStream {
                 currentOffset += bytesRead;
                 return bytesRead;
             } catch (IOException e) {
-                reopenStreamOrFail(e);
+                ensureOpenStreamOrFail(e);
             }
         }
     }
@@ -120,18 +103,40 @@ class S3RetryingInputStream extends InputStream {
         }
     }
 
-    private void reopenStreamOrFail(IOException e) throws IOException {
-        if (attempt >= maxAttempts) {
-            throw addSuppressedExceptions(e);
+    private void ensureOpenStreamOrFail(@Nullable IOException e) throws IOException {
+        while (e == null || attempt < maxAttempts) {
+            if (e != null) {
+                logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
+                    blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
+                attempt += 1;
+                if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
+                    failures.add(e);
+                }
+                IOUtils.closeWhileHandlingException(currentStream);
+            }
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
+                if (currentOffset > 0) {
+                    getObjectRequest.setRange(currentOffset);
+                }
+                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                currentStream = s3Object.getObjectContent();
+                return;
+            } catch (AmazonClientException ex) {
+                if (ex instanceof AmazonS3Exception) {
+                    if (404 == ((AmazonS3Exception) ex).getStatusCode()) {
+                        throw new NoSuchFileException("Blob object [" + blobKey + "] not found: " + ex.getMessage());
+                    }
+                }
+                final Throwable cause = ex.getCause();
+                if (cause instanceof IOException) {
+                    e = (IOException) cause;
+                } else {
+                    throw ex;
+                }
+            }
         }
-        logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
-            blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
-        attempt += 1;
-        if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
-            failures.add(e);
-        }
-        IOUtils.closeWhileHandlingException(currentStream);
-        currentStream = openStream();
+        throw addSuppressedExceptions(e);
     }
 
     @Override

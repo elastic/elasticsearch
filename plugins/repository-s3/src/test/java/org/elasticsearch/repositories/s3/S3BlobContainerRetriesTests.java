@@ -69,6 +69,7 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTIN
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -186,9 +187,8 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         // HTTP server does not send a response
         httpServer.createContext("/bucket/read_blob_unresponsive", exchange -> {});
 
-        Exception exception = expectThrows(SdkClientException.class, () -> blobContainer.readBlob("read_blob_unresponsive"));
+        Exception exception = expectThrows(SocketTimeoutException.class, () -> blobContainer.readBlob("read_blob_unresponsive"));
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
-        assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent();
@@ -204,15 +204,15 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testReadBlobWithNoHttpResponse() {
-        final BlobContainer blobContainer = createBlobContainer(randomInt(5), null, null, null);
+        final int retryCount = randomInt(5);
+        final BlobContainer blobContainer = createBlobContainer(retryCount, null, null, null);
 
         // HTTP server closes connection immediately
         httpServer.createContext("/bucket/read_blob_no_response", HttpExchange::close);
 
-        Exception exception = expectThrows(SdkClientException.class, () -> blobContainer.readBlob("read_blob_no_response"));
+        Exception exception = expectThrows(NoHttpResponseException.class, () -> blobContainer.readBlob("read_blob_no_response"));
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("the target server failed to respond"));
-        assertThat(exception.getCause(), instanceOf(NoHttpResponseException.class));
-        assertThat(exception.getSuppressed().length, equalTo(0));
+        assertThat(exception.getSuppressed(), arrayWithSize(retryCount));
     }
 
     public void testReadBlobWithPrematureConnectionClose() {

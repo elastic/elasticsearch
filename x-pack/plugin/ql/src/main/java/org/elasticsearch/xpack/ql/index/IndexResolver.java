@@ -527,7 +527,7 @@ public class IndexResolver {
         if (aliases != null) {
             Iterator<ObjectObjectCursor<String, List<AliasMetaData>>> iterator = aliases.iterator();
             while (iterator.hasNext()) {
-                for(AliasMetaData alias : iterator.next().value) {
+                for (AliasMetaData alias : iterator.next().value) {
                     resolvedAliases.add(alias.getAlias());
                 }
             }
@@ -705,7 +705,7 @@ public class IndexResolver {
             ObjectObjectCursor<String, List<AliasMetaData>> index = iter.next();
             for (AliasMetaData aliasMetaData : index.value) {
                 String aliasName = aliasMetaData.alias();
-                aliasToIndices.putIfAbsent(aliasName, new HashSet<String>());
+                aliasToIndices.putIfAbsent(aliasName, new HashSet<>());
                 aliasToIndices.get(aliasName).add(index.key);
             }
         }

@@ -2691,7 +2691,7 @@ SELECT DATE_TRUNC('hours', INTERVAL '17 22:13:12' DAY TO SECONDS) AS hour;
 
       hour
 ------------------
-+17 22:00:00.0
++17 22:00:00
 // end::truncateIntervalHour
 ;
 
@@ -2701,7 +2701,7 @@ SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
 
       day
 ------------------
-+19 00:00:00.0
++19 00:00:00
 // end::truncateIntervalDay
 ;
 

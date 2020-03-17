@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -52,7 +53,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     void assertFieldNames(Set<String> expected, ParsedDocument doc) {
-        String[] got = doc.rootDoc().getValues("_field_names");
+        String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
         assertEquals(expected, set(got));
     }
 

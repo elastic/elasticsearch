@@ -1,0 +1,60 @@
+[[eql-function-ref]]
+== EQL function reference
+++++
+<titleabbrev>Function reference</titleabbrev>
+++++
+
+experimental::[]
+
+{es} supports the following EQL functions:
+
+* <<eql-substring-fn>>
+
+[discrete]
+[[eql-substring-fn]]
+=== `substring`
+Extracts a substring from a source string at provided start and end positions.
+
+If no end position is provided, the function extracts only the character in the
+start position.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+substring("quick brown fox", 0, 5)      // returns "quick"
+substring("quick brown fox", 6, 11)     // returns "brown"
+substring("quick brown fox", 6)         // returns "b"
+substring("quick brown fox", -3, -1)    // returns "fo"
+substring("quick brown fox", -3)        // returns "f"
+----
+
+*Syntax*
+
+[source,txt]
+----
+substring(<source>, <start_pos>[, <end_pos>])
+----
+
+*Arguments*
+
+`<source>`::
+(Required, string)
+Source string used for extraction.
+
+`<start_pos>`::
+(Required, integer)
+Starting position for extraction.
++
+Positions are zero-indexed. Negative offsets are supported.
+
+`<end_pos>`::
+(Optional, integer)
+End position for extraction. If this position is not provided, the function only
+extracts the character in the `<start_pos>` position.
++
+Positions are zero-indexed. Negative offsets are supported.
+
+*Returns:* string
+====

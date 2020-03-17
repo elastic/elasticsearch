@@ -45,8 +45,7 @@ public class RestPutSamlServiceProviderAction extends BaseRestHandler {
         final WriteRequest.RefreshPolicy refreshPolicy = restRequest.hasParam("refresh")
             ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : PutSamlServiceProviderRequest.DEFAULT_REFRESH_POLICY;
         try (XContentParser parser = restRequest.contentParser()) {
-            final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, parser);
-            request.setRefreshPolicy(refreshPolicy);
+            final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, refreshPolicy, parser);
             return channel -> client.execute(PutSamlServiceProviderAction.INSTANCE, request,
                 new RestBuilderListener<>(channel) {
                     @Override

@@ -92,4 +92,8 @@ public class DeleteSamlServiceProviderResponse extends ActionResponse implements
 
         return builder.endObject();
     }
+
+    public boolean found() {
+        return docId != null;
+    }
 }

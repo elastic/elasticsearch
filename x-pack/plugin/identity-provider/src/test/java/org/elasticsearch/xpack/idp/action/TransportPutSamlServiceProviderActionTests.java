@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -69,7 +70,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
         final AtomicReference<DocWriteResponse> writeResponse = mockWriteResponse(document, true);
 
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document, randomFrom(RefreshPolicy.values()));
         final PlainActionFuture<PutSamlServiceProviderResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
 
@@ -96,7 +97,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
         final AtomicReference<DocWriteResponse> writeResponse = mockWriteResponse(document, false);
 
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document, randomFrom(RefreshPolicy.values()));
         final PlainActionFuture<PutSamlServiceProviderResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
 

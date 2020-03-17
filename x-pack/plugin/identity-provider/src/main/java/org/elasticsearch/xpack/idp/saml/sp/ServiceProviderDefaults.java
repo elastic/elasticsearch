@@ -41,17 +41,16 @@ public final class ServiceProviderDefaults {
 
     public static ServiceProviderDefaults forSettings(Settings settings) {
         final String appplication = require(settings, APPLICATION_NAME_SETTING);
-        final String nameId = require(settings, NAMEID_FORMAT_SETTING);
-        final TimeValue expiry = require(settings, AUTHN_EXPIRY_SETTING);
+        final String nameId = NAMEID_FORMAT_SETTING.get(settings);
+        final TimeValue expiry = AUTHN_EXPIRY_SETTING.get(settings);
         return new ServiceProviderDefaults(appplication, nameId, Duration.millis(expiry.millis()));
     }
 
     private static <T> T require(Settings settings, Setting<T> setting) {
-        final T value = setting.get(settings);
-        if (value == null) {
-            throw new IllegalStateException("Setting [" + setting.getKey() + "] must be configured");
+        if (setting.exists(settings)) {
+            return setting.get(settings);
         }
-        return value;
+        throw new IllegalStateException("Setting [" + setting.getKey() + "] must be configured");
     }
 
     public static List<Setting<?>> getSettings() {

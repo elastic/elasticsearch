@@ -51,8 +51,8 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         // some properties of theSearchRequest are always overwritten in the submit request,
         // so we need to adapt the expected parameters accordingly for tests to pass
         expectedParams.put("ccs_minimize_roundtrips", "false");
-        expectedParams.put("request_cache", "true");
-        expectedParams.put("batched_reduce_size", "5");
+        expectedParams.putIfAbsent("request_cache", "true");
+        expectedParams.putIfAbsent("batched_reduce_size", "5");
         expectedParams.put("pre_filter_shard_size", "1");
 
         if (randomBoolean()) {
@@ -102,6 +102,14 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
             searchRequest.allowPartialSearchResults(randomBoolean());
             expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
         }
+        if (randomBoolean()) {
+            searchRequest.requestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
+        }
+        if (randomBoolean()) {
+            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
     }
 
 }

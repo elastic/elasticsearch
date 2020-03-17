@@ -151,6 +151,23 @@ public class SubmitAsyncSearchRequest implements Validatable {
         this.searchRequest.allowPartialSearchResults(allowPartialSearchResults);
     }
 
+    /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public void setBatchedReduceSize(int batchedReduceSize) {
+        this.searchRequest.setBatchedReduceSize(batchedReduceSize);
+    }
+
+    /**
+     * Sets if this request should use the request cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if request cache is enabled or not).
+     */
+    public void requestCache(Boolean requestCache) {
+        this.searchRequest.requestCache(requestCache);
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         final ValidationException validationException = new ValidationException();

@@ -315,8 +315,8 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public static List<EsIndex> separate(EsIndex... indices) {
-        return IndexResolver.separateMappings("*", null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
-                fromMappings(indices));
+        return IndexResolver.separateMappings(null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
+                fromMappings(indices), null);
     }
 
     public static Map<String, Map<String, FieldCapabilities>> fromMappings(EsIndex... indices) {

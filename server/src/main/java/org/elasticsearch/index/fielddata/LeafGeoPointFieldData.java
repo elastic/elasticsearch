@@ -20,9 +20,9 @@ package org.elasticsearch.index.fielddata;
 
 
 /**
- * {@link AtomicFieldData} specialization for geo points.
+ * {@link LeafFieldData} specialization for geo points.
  */
-public interface AtomicGeoPointFieldData extends AtomicFieldData {
+public interface LeafGeoPointFieldData extends LeafFieldData {
 
     /**
      * Return geo-point values.

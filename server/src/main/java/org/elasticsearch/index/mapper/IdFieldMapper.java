@@ -35,7 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -186,7 +186,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     deprecationLogger.deprecatedAndMaybeLog("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
                         breakerService, mapperService);
-                    return new IndexFieldData<AtomicFieldData>() {
+                    return new IndexFieldData<LeafFieldData>() {
 
                         @Override
                         public Index index() {
@@ -199,12 +199,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                         }
 
                         @Override
-                        public AtomicFieldData load(LeafReaderContext context) {
+                        public LeafFieldData load(LeafReaderContext context) {
                             return wrap(fieldData.load(context));
                         }
 
                         @Override
-                        public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+                        public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
                             return wrap(fieldData.loadDirect(context));
                         }
 
@@ -232,8 +232,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static AtomicFieldData wrap(AtomicFieldData in) {
-        return new AtomicFieldData() {
+    private static LeafFieldData wrap(LeafFieldData in) {
+        return new LeafFieldData() {
 
             @Override
             public void close() {

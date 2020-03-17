@@ -28,7 +28,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
@@ -37,7 +37,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<AtomicOrdinalsFieldData>
+public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<LeafOrdinalsFieldData>
         implements IndexOrdinalsFieldData {
 
     private final double minFrequency, maxFrequency;
@@ -108,12 +108,12 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger,
-                AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     @Override
-    protected AtomicOrdinalsFieldData empty(int maxDoc) {
-        return AbstractAtomicOrdinalsFieldData.empty();
+    protected LeafOrdinalsFieldData empty(int maxDoc) {
+        return AbstractLeafOrdinalsFieldData.empty();
     }
 
     protected TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {

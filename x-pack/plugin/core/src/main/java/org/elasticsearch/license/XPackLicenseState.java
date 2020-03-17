@@ -613,6 +613,16 @@ public class XPackLicenseState {
     public boolean isVectorsAllowed() {
         return allowForAllLicenses();
     }
+    
+
+    /**
+     * Determine if Wildcard support should be enabled.
+     * <p>
+     *  Wildcard is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isWildcardAllowed() {
+        return status.active;
+    }    
 
     public boolean isOdbcAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);

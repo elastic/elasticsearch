@@ -430,7 +430,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 // Consider this a failure.
                 exception = new ElasticsearchStatusException(
                     "Could not start transform, allocation explanation [" + assignment.getExplanation() + "]",
-                    RestStatus.TOO_MANY_REQUESTS
+                    RestStatus.CONFLICT
                 );
                 return true;
             }

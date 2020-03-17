@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSetti
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -181,7 +180,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (int i = 0; i < size; i++) {
                 this.docs.add(in.readMap());
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
             } else if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 Map<String, Object> objectMap = in.readMap();
@@ -205,7 +204,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (Map<String, Object> doc : docs) {
                 out.writeMapWithConsistentOrder(doc);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_7_0
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 generatedDestIndexSettings.writeTo(out);
             } else if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeMap(generatedDestIndexSettings.getMappings());

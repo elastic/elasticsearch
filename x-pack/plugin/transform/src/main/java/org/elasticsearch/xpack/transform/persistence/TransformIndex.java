@@ -16,12 +16,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -44,11 +46,10 @@ public final class TransformIndex {
         CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
 
         request.settings(destIndexSettings.getSettings());
-        request.mapping(destIndexSettings.getMappings());
+        request.mapping(MapperService.SINGLE_MAPPING_NAME, destIndexSettings.getMappings());
         for (Alias alias : destIndexSettings.getAliases()) {
             request.alias(alias);
         }
-        );
 
         client.execute(
             CreateIndexAction.INSTANCE,
@@ -98,7 +99,7 @@ public final class TransformIndex {
 
         Map<String, Object> transformMetaData = new HashMap<>();
         transformMetaData.put(TransformField.CREATION_DATE_MILLIS, clock.millis());
-        transformMetaData.put(TransformField.VERSION.getPreferredName(), Map.of(TransformField.CREATED, Version.CURRENT));
+        transformMetaData.put(TransformField.VERSION.getPreferredName(), Collections.singletonMap(TransformField.CREATED, Version.CURRENT));
         transformMetaData.put(TransformField.TRANSFORM, id);
 
         metaData.put(TransformField.META_FIELDNAME, transformMetaData);
@@ -138,7 +139,7 @@ public final class TransformIndex {
      */
     private static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
         Map<String, Object> fieldMappings = new HashMap<>();
-        mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
+        mappings.forEach((k, v) -> fieldMappings.put(k, Collections.singletonMap("type", v)));
 
         return fieldMappings;
     }

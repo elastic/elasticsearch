@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -28,7 +29,7 @@ public class TransformDestIndexSettingsTests extends AbstractSerializingTransfor
             mappings = new HashMap<>(size);
 
             for (int i = 0; i < size; i++) {
-                mappings.put(randomAlphaOfLength(10), Map.of("type", randomAlphaOfLength(10)));
+                mappings.put(randomAlphaOfLength(10), Collections.singletonMap("type", randomAlphaOfLength(10)));
             }
         }
 

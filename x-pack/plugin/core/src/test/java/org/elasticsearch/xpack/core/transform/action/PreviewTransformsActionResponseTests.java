@@ -24,7 +24,8 @@ public class PreviewTransformsActionResponseTests extends AbstractSerializingTes
         int size = randomIntBetween(0, 10);
         List<Map<String, Object>> data = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            data.add(Map.of(randomAlphaOfLength(10), Map.of("value1", randomIntBetween(1, 100))));
+            data.add(Collections.singletonMap(randomAlphaOfLength(10),
+                     Collections.singletonMap("value1", randomIntBetween(1, 100))));
         }
 
         return new Response(data, TransformDestIndexSettingsTests.randomDestIndexSettings());

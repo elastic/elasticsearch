@@ -149,7 +149,7 @@ Let's assume that you have an index with a date field and custom format
 ////
 [source,console]
 --------------------------------------------------
-PUT /my_index_1
+PUT my_index_1
 {
     "mappings" : {
       "properties" : {
@@ -165,8 +165,9 @@ PUT /my_index_1
 
 [source,console]
 --------------------------------------------------
-GET /my_index_1/_mapping
+GET my_index_1/_mapping
 --------------------------------------------------
+// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -295,7 +296,13 @@ PUT _template/template_1
 }
 --------------------------------------------------
 
+////
 
+[source,console]
+--------------------------------------------------
+DELETE /_template/template_1
+--------------------------------------------------
+// TEST[continued]
 * Upgrade to 7.x
 
 ===== External templates

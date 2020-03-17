@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.datastream;
+package org.elasticsearch.action.admin.cluster.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Response;
+import org.elasticsearch.action.admin.cluster.datastream.GetDataStreamsAction.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;

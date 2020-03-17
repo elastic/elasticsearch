@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.datastream;
+package org.elasticsearch.action.admin.cluster.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
+import org.elasticsearch.action.admin.cluster.datastream.CreateDataStreamAction.Request;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
@@ -31,6 +31,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(8));
+        Request request = new Request(randomAlphaOfLength(8));
+        request.setTimestampFieldName(randomAlphaOfLength(8));
+        return request;
     }
 }

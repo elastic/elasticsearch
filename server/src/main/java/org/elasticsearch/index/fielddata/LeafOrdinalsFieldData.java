@@ -19,25 +19,17 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 
 /**
- * Specialization of {@link AtomicFieldData} for numeric data.
+ * Specialization of {@link LeafFieldData} for data that is indexed with
+ * ordinals.
  */
-public interface AtomicNumericFieldData extends AtomicFieldData {
+public interface LeafOrdinalsFieldData extends LeafFieldData {
 
     /**
-     * Get an integer view of the values of this segment. If the implementation
-     * stores floating-point numbers then these values will return the same
-     * values but casted to longs.
+     * Return the ordinals values for the current atomic reader.
      */
-    SortedNumericDocValues getLongValues();
-
-    /**
-     * Return a floating-point view of the values in this segment. If the
-     * implementation stored integers then the returned doubles would be the
-     * same ones as you would get from casting to a double.
-     */
-    SortedNumericDoubleValues getDoubleValues();
+    SortedSetDocValues getOrdinalsValues();
 
 }

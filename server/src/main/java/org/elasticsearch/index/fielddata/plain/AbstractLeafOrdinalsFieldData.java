@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -32,7 +32,7 @@ import java.util.Collections;
 import java.util.function.Function;
 
 
-public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsFieldData {
+public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
     public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION =
             ((Function<SortedSetDocValues, SortedBinaryDocValues>) FieldData::toString)
@@ -40,7 +40,7 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
 
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
-    protected AbstractAtomicOrdinalsFieldData(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+    protected AbstractLeafOrdinalsFieldData(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         this.scriptFunction = scriptFunction;
     }
 
@@ -54,14 +54,14 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
         return FieldData.toString(getOrdinalsValues());
     }
 
-    public static AtomicOrdinalsFieldData empty() {
-        return new AbstractAtomicOrdinalsFieldData(DEFAULT_SCRIPT_FUNCTION) {
+    public static LeafOrdinalsFieldData empty() {
+        return new AbstractLeafOrdinalsFieldData(DEFAULT_SCRIPT_FUNCTION) {
 
             @Override
             public long ramBytesUsed() {
                 return 0;
             }
-            
+
             @Override
             public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();

@@ -143,7 +143,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     repo.patternLayout(layout -> layout.artifact(artifactPattern));
                 });
                 repositories.exclusiveContent(exclusiveContentRepository -> {
-                    exclusiveContentRepository.filter(config -> config.includeGroup(jdk.getVendor()));
+                    exclusiveContentRepository.filter(config -> config.includeGroup(groupName(jdk)));
                     exclusiveContentRepository.forRepositories(ivyRepo);
                 });
             }
@@ -254,7 +254,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 
-        return jdk.getVendor() + ":" + platformDep + ":" + jdk.getBaseVersion() + "@" + extension;
+        return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + "@" + extension;
+    }
+
+    private static String groupName(Jdk jdk) {
+        return jdk.getVendor() + "_" + jdk.getMajor();
     }
 
     private static String configName(String... parts) {

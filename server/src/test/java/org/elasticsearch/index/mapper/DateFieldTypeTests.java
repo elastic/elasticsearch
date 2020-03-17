@@ -41,7 +41,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -304,7 +304,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);
         assertTrue(reader.leaves().size() > 0);
-        AtomicNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
+        LeafNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
         SortedNumericDocValues docValues = a.getLongValues();
         assertEquals(0, docValues.nextDoc());
         assertEquals(1, docValues.nextDoc());

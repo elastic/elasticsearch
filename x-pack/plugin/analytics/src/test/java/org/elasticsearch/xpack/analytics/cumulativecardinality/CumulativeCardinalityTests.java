@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -13,14 +14,30 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<CumulativeCardinalityPipelineAggregationBuilder> {
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return singletonList(new SearchPlugin() {
+            @Override
+            public List<PipelineAggregationSpec> getPipelineAggregations() {
+                return singletonList(new PipelineAggregationSpec(
+                        CumulativeCardinalityPipelineAggregationBuilder.NAME,
+                        CumulativeCardinalityPipelineAggregationBuilder::new,
+                        CumulativeCardinalityPipelineAggregator::new,
+                        CumulativeCardinalityPipelineAggregationBuilder.PARSER));
+            }
+        });
+    }
+
     @Override
     protected CumulativeCardinalityPipelineAggregationBuilder createTestAggregatorFactory() {
         String name = randomAlphaOfLengthBetween(3, 20);
@@ -51,6 +68,6 @@ public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<
 
         assertThat(validate(emptyList(), builder), equalTo(
                 "Validation Failed: 1: cumulative_cardinality aggregation [name] must have a histogram, "
-                + "date_histogram or auto_date_histogram as parent but didn't have a parent;"));
+                + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"));
     }
 }

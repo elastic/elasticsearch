@@ -98,6 +98,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder
         if (format != null) {
             builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
         }
+        builder.field(BUCKETS_PATH_FIELD.getPreferredName(), bucketsPaths[0]);
         return builder;
     }
 
@@ -118,5 +119,10 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected boolean overrideBucketsPath() {
+        return true;
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder.ValidationContext;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -77,7 +78,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             .put("node.name", AbstractQueryTestCase.class.toString())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
-        SearchModule searchModule = new SearchModule(settings, emptyList());
+        SearchModule searchModule = new SearchModule(settings, plugins());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
@@ -89,6 +90,13 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
+    }
+
+    /**
+     * Plugins to add to the test.
+     */
+    protected List<SearchPlugin> plugins() {
+        return emptyList();
     }
 
     /**

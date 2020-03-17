@@ -152,3 +152,4 @@ integTest.enabled = false
 task internalClusterTest(type: Test) {
   include "**/*IT.class"
 }
+check.dependsOn internalClusterTest

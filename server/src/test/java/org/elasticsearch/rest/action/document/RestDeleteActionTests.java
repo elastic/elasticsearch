@@ -29,7 +29,7 @@ public class RestDeleteActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestDeleteAction(controller());
+        controller().registerHandler(new RestDeleteAction());
     }
 
     public void testTypeInPath() {

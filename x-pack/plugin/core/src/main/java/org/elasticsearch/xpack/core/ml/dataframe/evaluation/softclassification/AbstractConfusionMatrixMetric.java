@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -66,7 +67,9 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
     }
 
     @Override
-    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedProbabilityField) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
+                                                                                  String actualField,
+                                                                                  String predictedProbabilityField) {
         if (result != null) {
             return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }

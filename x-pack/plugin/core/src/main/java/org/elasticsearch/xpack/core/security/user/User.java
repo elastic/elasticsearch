@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An authenticated user
@@ -50,7 +51,7 @@ public class User implements ToXContentObject {
 
     private User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled,
                 User authenticatedUser) {
-        this.username = username;
+        this.username = Objects.requireNonNull(username);
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.fullName = fullName;

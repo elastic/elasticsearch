@@ -35,7 +35,8 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestDeleteByQueryAction(controller());
+        action = new RestDeleteByQueryAction();
+        controller().registerHandler(action);
     }
 
     public void testTypeInPath() throws IOException {

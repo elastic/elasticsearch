@@ -32,7 +32,7 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestMultiSearchTemplateAction(Settings.EMPTY, controller());
+        controller().registerHandler(new RestMultiSearchTemplateAction(Settings.EMPTY));
     }
 
     public void testTypeInPath() {

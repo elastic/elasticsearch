@@ -62,7 +62,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -241,7 +241,7 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type1", "1")
+        assertFutureThrows(client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(false)
                 .setFetchSource(true)

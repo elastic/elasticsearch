@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -65,7 +66,7 @@ public class RealmsTests extends ESTestCase {
         factories.put(FileRealmSettings.TYPE, config -> new DummyRealm(FileRealmSettings.TYPE, config));
         factories.put(NativeRealmSettings.TYPE, config -> new DummyRealm(NativeRealmSettings.TYPE, config));
         factories.put(KerberosRealmSettings.TYPE, config -> new DummyRealm(KerberosRealmSettings.TYPE, config));
-        randomRealmTypesCount = randomIntBetween(1, 5);
+        randomRealmTypesCount = randomIntBetween(2, 5);
         for (int i = 0; i < randomRealmTypesCount; i++) {
             String name = "type_" + i;
             factories.put(name, config -> new DummyRealm(name, config));
@@ -154,6 +155,13 @@ public class RealmsTests extends ESTestCase {
 
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
+
+        assertWarnings("Found multiple realms configured with the same order: [1: "
+            + nameToRealmId.entrySet().stream()
+                .map(e -> "xpack.security.authc.realms.type_" + e.getValue() + "." + e.getKey() + ".order")
+                .sorted().collect(Collectors.joining(","))
+            + "]. "
+            + "In next major release, node will fail to start with duplicated realm order.");
     }
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
@@ -612,6 +620,20 @@ public class RealmsTests extends ESTestCase {
                 () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
         assertThat(iae.getMessage(), is(equalTo(
                 "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
+    }
+
+    public void testWarningForMissingRealmOrder() throws Exception {
+        final int realmTypeId = randomIntBetween(0, randomRealmTypesCount - 1);
+        final String realmName = randomAlphaOfLengthBetween(4, 12);
+        final Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("xpack.security.authc.realms.type_" + realmTypeId + ".realm_" + realmName + ".enabled", true)
+                .build();
+
+        new Realms(settings, TestEnvironment.newEnvironment(settings), factories, licenseState, threadContext, reservedRealm);
+        assertWarnings("Found realms without order config: [xpack.security.authc.realms.type_"
+            + realmTypeId + ".realm_" + realmName + ".order]. "
+            + "In next major release, node will fail to start with missing realm order.");
     }
 
     static class DummyRealm extends Realm {

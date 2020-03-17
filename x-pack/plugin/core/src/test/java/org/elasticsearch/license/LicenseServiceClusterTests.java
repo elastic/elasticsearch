@@ -23,7 +23,6 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
@@ -78,14 +77,14 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
         logger.info("--> remove licenses");
         licensingClient.prepareDeleteLicense().get();
-        assertOperationMode(License.OperationMode.MISSING);
+        assertOperationMode(License.OperationMode.BASIC);
 
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
         licensingClient = new LicensingClient(client());
         ensureYellow();
-        assertThat(licensingClient.prepareGetLicense().get().license(), nullValue());
-        assertOperationMode(License.OperationMode.MISSING);
+        assertTrue(License.LicenseType.isBasic(licensingClient.prepareGetLicense().get().license().type()));
+        assertOperationMode(License.OperationMode.BASIC);
 
 
         wipeAllLicenses();

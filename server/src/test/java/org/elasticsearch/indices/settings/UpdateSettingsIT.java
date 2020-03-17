@@ -45,7 +45,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -452,7 +452,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
         client().prepareDelete("test", "type", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
         // delete is still in cache this should fail
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
+        assertRequestBuilderThrows(
+            client().prepareIndex("test", "type", "1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
             VersionConflictEngineException.class);
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 

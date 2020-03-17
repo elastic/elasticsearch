@@ -169,6 +169,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.META_DATA_VERIFICATION;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
@@ -221,6 +222,7 @@ public class IndicesService extends AbstractLifecycleComponent
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
+    private volatile boolean allowExpensiveQueries;
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -317,6 +319,9 @@ public class IndicesService extends AbstractLifecycleComponent
             0, TimeUnit.MILLISECONDS,
             daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
             threadPool.getThreadContext()) : null;
+
+        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -592,7 +597,8 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             indexCreationContext);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), directoryFactories);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -661,7 +667,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), directoryFactories);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
@@ -1572,6 +1579,10 @@ public class IndicesService extends AbstractLifecycleComponent
         } else {
             logger.trace("dangling indices update already pending for {}", index);
         }
+    }
+
+    private void setAllowExpensiveQueries(Boolean allowExpensiveQueries) {
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     // visible for testing

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -60,7 +61,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
-        jobResultsProvider = new JobResultsProvider(client(), settings);
+        jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver());
         jobResultsPersister = new JobResultsPersister(
             originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node"));
     }

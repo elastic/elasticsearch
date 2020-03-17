@@ -231,7 +231,7 @@ public class MlJobIT extends ESRestTestCase {
                 jobId1, "1236", 1));
             client().performRequest(createResultRequest);
 
-            client().performRequest(new Request("POST", "/_refresh"));
+            refreshAllIndices();
 
             responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1 + "/results/buckets")).getEntity());
@@ -256,7 +256,7 @@ public class MlJobIT extends ESRestTestCase {
                 jobId2, "1236", 1));
             client().performRequest(createResultRequest);
 
-            client().performRequest(new Request("POST", "/_refresh"));
+            refreshAllIndices();
 
             responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2 + "/results/buckets")).getEntity());
@@ -278,7 +278,7 @@ public class MlJobIT extends ESRestTestCase {
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "/_count")).getEntity());
@@ -289,7 +289,7 @@ public class MlJobIT extends ESRestTestCase {
         responseAsString = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
         responseAsString = EntityUtils.toString(client().performRequest(
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName)));
@@ -396,6 +396,42 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(e.getMessage(),
                 containsString("This job would cause a mapping clash with existing field [response] - " +
                         "avoid the clash by assigning a dedicated results index"));
+    }
+
+    public void testOpenJobFailsWhenPersistentTaskAssignmentDisabled() throws Exception {
+        String jobId = "open-job-with-persistent-task-assignment-disabled";
+        createFarequoteJob(jobId);
+
+        Request disablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
+        disablePersistentTaskAssignmentRequest.setJsonEntity("{\n" +
+            "  \"transient\": {\n" +
+            "    \"cluster.persistent_tasks.allocation.enable\": \"none\"\n" +
+            "  }\n" +
+            "}");
+        Response disablePersistentTaskAssignmentResponse = client().performRequest(disablePersistentTaskAssignmentRequest);
+        assertThat(entityAsMap(disablePersistentTaskAssignmentResponse), hasEntry("acknowledged", true));
+
+        try {
+            ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(
+                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open")));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+            assertThat(EntityUtils.toString(exception.getResponse().getEntity()),
+                containsString("Cannot open jobs because persistent task assignment is disabled by the " +
+                    "[cluster.persistent_tasks.allocation.enable] setting"));
+        } finally {
+            // Try to revert the cluster setting change even if the test fails,
+            // because otherwise this setting will cause many other tests to fail
+            Request enablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
+            enablePersistentTaskAssignmentRequest.setJsonEntity("{\n" +
+                "  \"transient\": {\n" +
+                "    \"cluster.persistent_tasks.allocation.enable\": \"all\"\n" +
+                "  }\n" +
+                "}");
+            Response enablePersistentTaskAssignmentResponse = client().performRequest(disablePersistentTaskAssignmentRequest);
+            assertThat(entityAsMap(enablePersistentTaskAssignmentResponse), hasEntry("acknowledged", true));
+        }
     }
 
     public void testDeleteJob() throws Exception {
@@ -634,7 +670,7 @@ public class MlJobIT extends ESRestTestCase {
         createDoc3.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc3);
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         // check for the documents
         assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "/_count")).getEntity()),
@@ -647,7 +683,7 @@ public class MlJobIT extends ESRestTestCase {
         // Delete
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         // check that the indices still exist but are empty
         String indicesAfterDelete = EntityUtils.toString(client().performRequest(

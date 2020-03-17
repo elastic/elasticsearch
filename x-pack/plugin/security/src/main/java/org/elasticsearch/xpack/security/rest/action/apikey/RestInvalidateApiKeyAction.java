@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +23,10 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest action to invalidate one or more API keys
@@ -43,9 +46,13 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
     }
 
-    public RestInvalidateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestInvalidateApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_security/api_key", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(DELETE, "/_security/api_key"));
     }
 
     @Override

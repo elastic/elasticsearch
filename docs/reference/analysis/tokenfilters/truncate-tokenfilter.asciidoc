@@ -11,7 +11,7 @@ For example, you can use the `truncate` filter to shorten all tokens to
 `3` characters or fewer, changing `jumping fox` to `jum fox`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/TruncateTokenFilter.html[TruncateTokenFilter].
+{lucene-analysis-docs}/miscellaneous/TruncateTokenFilter.html[TruncateTokenFilter].
 
 [[analysis-truncate-tokenfilter-analyze-ex]]
 ==== Example

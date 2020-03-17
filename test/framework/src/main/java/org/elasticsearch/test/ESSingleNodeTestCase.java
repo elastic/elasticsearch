@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -49,7 +50,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
@@ -126,13 +127,20 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
-        assertAcked(client().admin().indices().prepareDelete("*").get());
+        assertAcked(
+            client().admin().indices().prepareDelete("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
-        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices("*").get();
+        GetIndexResponse indices =
+            client().admin().indices().prepareGetIndex()
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .addIndices("*")
+                .get();
         assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
             indices.indices(), equalTo(Strings.EMPTY_ARRAY));
         if (resetNodeAfterTest()) {
@@ -196,7 +204,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
@@ -222,6 +229,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
+        plugins.add(MockScriptService.TestPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             node.start();

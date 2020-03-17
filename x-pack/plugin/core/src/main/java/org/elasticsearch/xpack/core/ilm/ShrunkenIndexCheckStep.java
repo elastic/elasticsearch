@@ -25,7 +25,7 @@ import java.util.Objects;
  */
 public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public static final String NAME = "is-shrunken-index";
-    private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
+    private static final Logger logger = LogManager.getLogger(ShrunkenIndexCheckStep.class);
     private String shrunkIndexPrefix;
 
     public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {

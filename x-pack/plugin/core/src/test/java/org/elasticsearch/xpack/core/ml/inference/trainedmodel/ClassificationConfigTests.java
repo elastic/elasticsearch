@@ -30,11 +30,12 @@ public class ClassificationConfigTests extends AbstractSerializingTestCase<Class
         ClassificationConfig expected = ClassificationConfig.EMPTY_PARAMS;
         assertThat(ClassificationConfig.fromMap(Collections.emptyMap()), equalTo(expected));
 
-        expected = new ClassificationConfig(3, "foo", "bar");
+        expected = new ClassificationConfig(3, "foo", "bar", 2);
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
         configMap.put(ClassificationConfig.RESULTS_FIELD.getPreferredName(), "foo");
         configMap.put(ClassificationConfig.TOP_CLASSES_RESULTS_FIELD.getPreferredName(), "bar");
+        configMap.put(ClassificationConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 2);
         assertThat(ClassificationConfig.fromMap(configMap), equalTo(expected));
     }
 

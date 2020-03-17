@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -88,6 +90,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -112,6 +115,14 @@ public class MetaDataCreateIndexService {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
+
+    /**
+     * These index patterns will be converted to hidden indices, at which point they should be removed from this list.
+     */
+    private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
+        ".data-frame-notifications-*",
+        ".transform-notifications-*"
+    ));
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -153,17 +164,41 @@ public class MetaDataCreateIndexService {
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
-    public void validateIndexName(String index, ClusterState state, @Nullable Boolean isHidden) {
+    public void validateIndexName(String index, ClusterState state) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
 
+        // NOTE: dot-prefixed index names are validated after template application, not here
+
+        if (state.routingTable().hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
+        }
+        if (state.metaData().hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
+        }
+        if (state.metaData().hasAlias(index)) {
+            throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+    }
+
+    /**
+     * Validates (if this index has a dot-prefixed name) whether it follows the rules for dot-prefixed indices.
+     * @param index The name of the index in question
+     * @param state The current cluster state
+     * @param isHidden Whether or not this is a hidden index
+     */
+    public void validateDotIndex(String index, ClusterState state, @Nullable Boolean isHidden) {
         if (index.charAt(0) == '.') {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
-            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
+            if (DOT_INDICES_EXCLUSIONS.run(index)) {
+                assert Objects.isNull(isHidden) || Boolean.FALSE.equals(isHidden) : "when converting a special-cased index to be a " +
+                    "hidden index, it must be removed from the exclusions list";
+                logger.debug("not emitting deprecation warning about index [{}] because it is in the exclusions list", index);
+            } else if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
                 DEPRECATION_LOGGER.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {
@@ -179,15 +214,6 @@ public class MetaDataCreateIndexService {
                 assert false : errorMessage.toString();
                 throw new IllegalStateException(errorMessage.toString());
             }
-        }
-        if (state.routingTable().hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
-        }
-        if (state.metaData().hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
-        }
-        if (state.metaData().hasAlias(index)) {
-            throw new InvalidIndexNameException(index, "already exists as alias");
         }
     }
 
@@ -302,10 +328,12 @@ public class MetaDataCreateIndexService {
 
         // we only find a template when its an API call (a new index)
         // find templates, highest order are better matching
-        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+        final Boolean isHiddenFromRequest = IndexMetaData.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
             IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
         final List<IndexTemplateMetaData> templates = sourceMetaData == null ?
-            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index(), isHidden)) :
+            Collections.unmodifiableList(MetaDataIndexTemplateService.findTemplates(currentState.metaData(),
+                request.index(),
+                isHiddenFromRequest)) :
             Collections.emptyList();
 
         final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(), templates,
@@ -314,6 +342,9 @@ public class MetaDataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, templates, mappings, sourceMetaData, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetaData);
+
+        final boolean isHiddenAfterTemplates = IndexMetaData.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
+        validateDotIndex(request.index(), currentState, isHiddenAfterTemplates);
 
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
@@ -493,6 +524,7 @@ public class MetaDataCreateIndexService {
                 "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
                 "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
+        validateTranslogRetentionSettings(indexSettings);
         return indexSettings;
     }
 
@@ -555,7 +587,8 @@ public class MetaDataCreateIndexService {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
             }
             AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
+                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
+                .isHidden(alias.isHidden()).build();
             resolvedAliases.add(aliasMetaData);
         }
 
@@ -721,8 +754,7 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(request.settings());
-        validateIndexName(request.index(), state, isHidden);
+        validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
@@ -973,6 +1005,15 @@ public class MetaDataCreateIndexService {
             return numShards * 1 << numSplits;
         } else {
             return numShards;
+        }
+    }
+
+    public static void validateTranslogRetentionSettings(Settings indexSettings) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
+            (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("translog_retention", "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         }
     }
 }

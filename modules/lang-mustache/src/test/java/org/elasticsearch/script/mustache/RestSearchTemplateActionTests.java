@@ -31,7 +31,7 @@ public class RestSearchTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestSearchTemplateAction(controller());
+        controller().registerHandler(new RestSearchTemplateAction());
     }
 
     public void testTypeInPath() {

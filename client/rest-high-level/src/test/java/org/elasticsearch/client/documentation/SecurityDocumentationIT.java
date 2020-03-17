@@ -150,7 +150,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48440")
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         String[] usernames = new String[] {"user1", "user2", "user3"};
@@ -241,7 +240,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
         }
     }
-
 
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();

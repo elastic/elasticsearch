@@ -208,7 +208,7 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 
@@ -229,6 +229,26 @@ public class DateUtils {
                 "stored in nanosecond resolution");
         }
         return instant.getEpochSecond() * 1_000_000_000 + instant.getNano();
+    }
+
+    /**
+     * Returns an instant that is with valid nanosecond resolution. If
+     * the parameter is before the valid nanosecond range then this returns
+     * the minimum {@linkplain Instant} valid for nanosecond resultion. If
+     * the parameter is after the valid nanosecond range then this returns
+     * the maximum {@linkplain Instant} valid for nanosecond resolution.
+     * <p>
+     * Useful for checking if all values for the field are within some range,
+     * even if the range's endpoints are not valid nanosecond resolution.
+     */
+    public static Instant clampToNanosRange(Instant instant) {
+        if (instant.isBefore(Instant.EPOCH)) {
+            return Instant.EPOCH;
+        }
+        if (instant.isAfter(MAX_NANOSECOND_INSTANT)) {
+            return MAX_NANOSECOND_INSTANT;
+        }
+        return instant;
     }
 
     /**

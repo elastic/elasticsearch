@@ -20,15 +20,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -38,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -56,8 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -125,7 +120,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
     }
 
-
     private void compareFields(Set<String> expected, Set<String> reserved) {
         if (reserved.size() != expected.size()) {
             Set<String> diff = new HashSet<>(reserved);
@@ -145,32 +139,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             assertEquals(s, reservedField);
         }
     }
-
-    @SuppressWarnings("unchecked")
-    public void testTermFieldMapping() throws IOException {
-
-        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(Arrays.asList("apple", "strawberry",
-                AnomalyRecord.BUCKET_SPAN.getPreferredName()));
-
-        XContentParser parser = createParser(builder);
-        Map<String, Object> mapping = (Map<String, Object>) parser.map().get(SINGLE_MAPPING_NAME);
-        Map<String, Object> properties = (Map<String, Object>) mapping.get(ElasticsearchMappings.PROPERTIES);
-
-        Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("apple");
-        assertNotNull(instanceMapping);
-        String dataType = (String)instanceMapping.get(ElasticsearchMappings.TYPE);
-        assertEquals(ElasticsearchMappings.KEYWORD, dataType);
-
-        instanceMapping = (Map<String, Object>) properties.get("strawberry");
-        assertNotNull(instanceMapping);
-        dataType = (String)instanceMapping.get(ElasticsearchMappings.TYPE);
-        assertEquals(ElasticsearchMappings.KEYWORD, dataType);
-
-        // check no mapping for the reserved field
-        instanceMapping = (Map<String, Object>) properties.get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
-        assertNull(instanceMapping);
-    }
-
 
     public void testMappingRequiresUpdateNoMapping() throws IOException {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
@@ -240,7 +208,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         ClusterState clusterState = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("index-name", "0.0"));
         ElasticsearchMappings.addDocMappingIfMissing(
             "index-name",
-            ElasticsearchMappingsTests::fakeMapping,
+            mappingType -> "{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}",
             client,
             clusterState,
             ActionListener.wrap(
@@ -258,19 +226,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         assertThat(request.type(), equalTo("_doc"));
         assertThat(request.indices(), equalTo(new String[] { "index-name" }));
         assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
-    }
-
-    private static XContentBuilder fakeMapping(String mappingType) throws IOException {
-        return jsonBuilder()
-            .startObject()
-                .startObject(mappingType)
-                    .startObject(ElasticsearchMappings.PROPERTIES)
-                        .startObject("some-field")
-                            .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.LONG)
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
     }
 
     private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {
@@ -311,17 +266,17 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
+        return collectFieldNames(AnomalyDetectorsIndex.resultsMapping());
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {
         // Only the mappings for the config index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.configMapping());
+        return collectFieldNames(MlConfigIndex.mapping());
     }
 
-    private Set<String> collectFieldNames(XContentBuilder mapping) throws IOException {
+    private Set<String> collectFieldNames(String mapping) throws IOException {
         BufferedInputStream inputStream =
-                new BufferedInputStream(new ByteArrayInputStream(Strings.toString(mapping).getBytes(StandardCharsets.UTF_8)));
+                new BufferedInputStream(new ByteArrayInputStream(mapping.getBytes(StandardCharsets.UTF_8)));
         JsonParser parser = new JsonFactory().createParser(inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;

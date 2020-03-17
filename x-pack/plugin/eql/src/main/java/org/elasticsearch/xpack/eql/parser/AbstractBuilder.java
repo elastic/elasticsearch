@@ -10,18 +10,22 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Base parsing visitor class offering utility methods.
  */
 abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
+
+    private static final Pattern slashPattern = Pattern.compile("\\\\.");
 
     @Override
     public Object visit(ParseTree tree) {
@@ -42,12 +46,12 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                         type.getSimpleName(), (result != null ? result.getClass().getSimpleName() : "null"));
     }
 
-    protected Expression expression(ParseTree ctx) {
-        return typedParsing(ctx, Expression.class);
+    protected LogicalPlan plan(ParseTree ctx) {
+        return typedParsing(ctx, LogicalPlan.class);
     }
 
-    protected List<Expression> expressions(List<? extends ParserRuleContext> ctxs) {
-        return visitList(ctxs, Expression.class);
+    protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
+        return visitList(ctxs, LogicalPlan.class);
     }
 
     protected <T> List<T> visitList(List<? extends ParserRuleContext> contexts, Class<T> clazz) {
@@ -111,16 +115,62 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         return node == null ? null : node.getText();
     }
 
-    /**
-     * Extracts the actual unescaped string (literal) value of a terminal node.
-     */
-    static String string(TerminalNode node) {
-        return node == null ? null : unquoteString(node.getText());
-    }
-
-    static String unquoteString(String text) {
+    public static String unquoteString(String text) {
         // remove leading and trailing ' for strings and also eliminate escaped single quotes
-        return text == null ? null : text.substring(1, text.length() - 1).replace("''", "'");
+        if (text == null) {
+            return null;
+        }
+
+        // unescaped strings can be interpreted directly
+        if (text.startsWith("?")) {
+            return text.substring(2, text.length() - 1);
+        }
+
+        text = text.substring(1, text.length() - 1);
+        StringBuffer resultString = new StringBuffer();
+        Matcher regexMatcher = slashPattern.matcher(text);
+
+        while (regexMatcher.find()) {
+            String source = regexMatcher.group();
+            String replacement;
+
+            switch (source) {
+                case "\\t":
+                    replacement = "\t";
+                    break;
+                case "\\b":
+                    replacement = "\b";
+                    break;
+                case "\\f":
+                    replacement = "\f";
+                    break;
+                case "\\n":
+                    replacement = "\n";
+                    break;
+                case "\\r":
+                    replacement = "\r";
+                    break;
+                case "\\\"":
+                    replacement = "\"";
+                    break;
+                case "\\'":
+                    replacement = "'";
+                    break;
+                case "\\\\":
+                    // will be interpreted as regex, so we have to escape it
+                    replacement = "\\\\";
+                    break;
+                default:
+                    // unknown escape sequence, pass through as-is
+                    replacement = source;
+            }
+
+            regexMatcher.appendReplacement(resultString, replacement);
+
+        }
+        regexMatcher.appendTail(resultString);
+
+        return resultString.toString();
     }
 
     @Override
@@ -128,4 +178,5 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         Source source = source(node);
         throw new ParsingException(source, "Does not know how to handle {}", source.text());
     }
+
 }

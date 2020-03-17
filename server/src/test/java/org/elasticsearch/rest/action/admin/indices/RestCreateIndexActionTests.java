@@ -41,7 +41,8 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
 
     @Before
     public void setupAction() {
-        action = new RestCreateIndexAction(controller());
+        action = new RestCreateIndexAction();
+        controller().registerHandler(action);
     }
 
     public void testIncludeTypeName() throws IOException {

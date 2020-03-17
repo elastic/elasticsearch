@@ -29,7 +29,7 @@ teardown:
 
   - do:
       license.get:
-        accept_enterprise: "true"
+        accept_enterprise: true
 
   ## a v5 license object has 12 attributes
   - length: { license: 12 }
@@ -41,7 +41,7 @@ teardown:
 
   - do:
       license.get:
-        accept_enterprise: "false"
+        accept_enterprise: false
 
   ## a v4 license object has 11 attributes
   - length: { license: 11 }

@@ -29,6 +29,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
@@ -192,7 +193,17 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+        if (inFipsJvm()) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {

@@ -379,8 +379,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
-        // Some tests make use of scripting quite a bit, so increase the limit for integration tests
-        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m");
         builder.put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), random.nextBoolean());
         if (TEST_NIGHTLY) {
             builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
@@ -700,7 +698,7 @@ public final class InternalTestCluster extends TestCluster {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
             return nodeAndClient;
         }
-        assert reuseExisting == true || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
+        assert reuseExisting || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
 
         SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {
@@ -1113,11 +1111,13 @@ public final class InternalTestCluster extends TestCluster {
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
-            if (inFipsJvm()) {
-                builder.put("xpack.security.ssl.diagnose.trust", false);
-            }
+
             if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
-                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+                String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transportType);
+                if (inFipsJvm() && transportType.equals("security4")) {
+                    builder.put("xpack.security.ssl.diagnose.trust", false);
+                }
             } else {
                 builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
             }

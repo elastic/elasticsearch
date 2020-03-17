@@ -77,7 +77,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(1230, pointField.numericValue().longValue());
         IndexableField dvField = fields[1];
@@ -151,7 +151,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().longValue());
     }
 
@@ -175,7 +175,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -204,7 +204,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().longValue());
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -319,7 +319,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(25, pointField.numericValue().longValue());
         IndexableField dvField = fields[1];

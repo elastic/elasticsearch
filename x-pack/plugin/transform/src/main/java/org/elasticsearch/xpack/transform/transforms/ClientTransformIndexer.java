@@ -174,7 +174,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     // Determine whether the failure is irrecoverable (transform should go into failed state) or not (transform increments
                     // the indexing failure counter
                     // and possibly retries)
-                    Exception irrecoverableException = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(
+                    Throwable irrecoverableException = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(
                         deduplicatedFailures.values()
                     );
                     if (irrecoverableException == null) {
@@ -373,7 +373,7 @@ class ClientTransformIndexer extends TransformIndexer {
         return failureMessage;
     }
 
-    private static Exception decorateBulkIndexException(Exception irrecoverableException) {
+    private static Throwable decorateBulkIndexException(Throwable irrecoverableException) {
         if (irrecoverableException instanceof MapperParsingException) {
             return new TransformException(
                 "Destination index mappings are incompatible with the transform configuration.",

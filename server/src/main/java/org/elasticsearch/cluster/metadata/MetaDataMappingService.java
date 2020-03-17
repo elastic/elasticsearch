@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
@@ -371,7 +372,7 @@ public class MetaDataMappingService {
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("put-mapping",
+        clusterService.submitStateUpdateTask("put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
                 putMappingExecutor,

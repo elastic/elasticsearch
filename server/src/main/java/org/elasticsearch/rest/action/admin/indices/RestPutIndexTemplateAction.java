@@ -26,14 +26,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
@@ -43,9 +48,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             " Specifying include_type_name in put index template requests is deprecated."+
             " The parameter will be removed in the next major version.";
 
-    public RestPutIndexTemplateAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_template/{name}"),
+            new Route(PUT, "/_template/{name}")));
     }
 
     @Override

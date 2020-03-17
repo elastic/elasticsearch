@@ -74,7 +74,7 @@ public class SecurityContextTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
-        assertEquals("authentication is already present in the context", e.getMessage());
+        assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
 
     public void testExecuteAsUser() throws IOException {

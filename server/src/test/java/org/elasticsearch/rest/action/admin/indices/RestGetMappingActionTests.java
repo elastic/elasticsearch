@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -40,7 +39,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetMappingAction(controller());
+        controller().registerHandler(new RestGetMappingAction());
     }
 
     public void testTypeExistsDeprecation() throws Exception {
@@ -51,7 +50,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetMappingAction handler = new RestGetMappingAction(mock(RestController.class));
+        RestGetMappingAction handler = new RestGetMappingAction();
         handler.prepareRequest(request, mock(NodeClient.class));
 
         assertWarnings("Type exists requests are deprecated, as types have been deprecated.");

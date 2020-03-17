@@ -294,10 +294,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(SOURCE_INDEX,
-            buildClassificationConfig("some_keyword"), 100, fieldCapabilities, Collections.singletonMap("some_keyword", 3L));
+            buildClassificationConfig("some_keyword"), 100, fieldCapabilities, Collections.singletonMap("some_keyword", 31L));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [2] distinct values but there were at least [3]"));
+        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [30] distinct values but there were at least [31]"));
     }
 
     public void testDetect_GivenIgnoredField() {
@@ -968,7 +968,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         private MockFieldCapsResponseBuilder addField(String field, boolean isAggregatable, String... types) {
             Map<String, FieldCapabilities> caps = new HashMap<>();
             for (String type : types) {
-                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, Collections.emptyMap()));
+                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, null, null, null, Collections.emptyMap()));
             }
             fieldCaps.put(field, caps);
             return this;

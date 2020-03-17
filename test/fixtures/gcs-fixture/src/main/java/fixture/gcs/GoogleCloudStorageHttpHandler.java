@@ -88,7 +88,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
         try {
             // Request body is closed in the finally block
-            final InputStream wrappedRequest = Streams.noCloseStream(exchange.getRequestBody());
+            final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
             if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
                 final Map<String, String> params = new HashMap<>();
@@ -142,9 +142,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     if (matcher.find() == false) {
                         throw new AssertionError("Range bytes header does not match expected format: " + range);
                     }
-
-                    BytesReference response = Integer.parseInt(matcher.group(1)) == 0 ? blob : BytesArray.EMPTY;
+                    final int offset = Integer.parseInt(matcher.group(1));
+                    final int end = Integer.parseInt(matcher.group(2));
+                    BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    final int bufferedLength = response.length();
+                    if (offset > 0 || bufferedLength > end) {
+                        response = response.slice(offset, Math.min(end + 1 - offset, bufferedLength - offset));
+                    }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());
                 } else {
@@ -155,7 +160,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Batch https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
                 final String uri = "/storage/v1/b/" + bucket + "/o/";
                 final StringBuilder batch = new StringBuilder();
-                for (String line : Streams.readAllLines(wrappedRequest)) {
+                for (String line : Streams.readAllLines(requestBody.streamInput())) {
                     if (line.length() == 0 || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
                         batch.append(line).append('\n');
                     } else if (line.startsWith("DELETE")) {
@@ -174,7 +179,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
                 // Multipart upload
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(wrappedRequest);
+                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(requestBody.streamInput());
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
 
@@ -194,7 +199,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String blobName = params.get("name");
                 blobs.put(blobName, BytesArray.EMPTY);
 
-                byte[] response = Streams.readFully(wrappedRequest).utf8ToString().getBytes(UTF_8);
+                byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders().add("Location", httpServerUrl(exchange) + "/upload/storage/v1/b/" + bucket + "/o?"
                     + "uploadType=resumable"
@@ -219,7 +224,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final int start = getContentRangeStart(range);
                 final int end = getContentRangeEnd(range);
 
-                blob = new CompositeBytesReference(blob, Streams.readFully(wrappedRequest));
+                blob = new CompositeBytesReference(blob, requestBody);
                 blobs.put(blobName, blob);
 
                 if (limit == null) {
@@ -293,9 +298,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 skippedEmptyLine = markAndContinue && endPos == startPos;
                 startPos = endPos;
             } else {
-                // removes the trailing end "\r\n--__END_OF_PART__--\r\n" which is 23 bytes long
-                int len = fullRequestBody.length() - startPos - 23;
-                content = Tuple.tuple(name, fullRequestBody.slice(startPos, len));
+                while (isEndOfPart(fullRequestBody, endPos) == false) {
+                    endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
+                }
+                content = Tuple.tuple(name, fullRequestBody.slice(startPos, endPos - startPos));
                 break;
             }
         }
@@ -305,6 +311,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))));
         }
         return Optional.ofNullable(content);
+    }
+
+    private static final byte[] END_OF_PARTS_MARKER = "\r\n--__END_OF_PART__".getBytes(UTF_8);
+
+    private static boolean isEndOfPart(BytesReference fullRequestBody, int endPos) {
+        for (int i = 0; i < END_OF_PARTS_MARKER.length; i++) {
+            final byte b = END_OF_PARTS_MARKER[i];
+            if (fullRequestBody.get(endPos + i) != b) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static final Pattern PATTERN_CONTENT_RANGE = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)");

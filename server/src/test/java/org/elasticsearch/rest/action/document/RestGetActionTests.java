@@ -28,7 +28,7 @@ public class RestGetActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetAction(controller());
+        controller().registerHandler(new RestGetAction());
     }
 
     public void testTypeInPathWithGet() {

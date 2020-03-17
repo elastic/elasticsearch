@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -94,7 +95,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 

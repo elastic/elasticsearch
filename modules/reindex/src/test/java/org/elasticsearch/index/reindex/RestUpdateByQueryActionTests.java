@@ -36,7 +36,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateByQueryAction(controller());
+        action = new RestUpdateByQueryAction();
+        controller().registerHandler(action);
     }
 
     public void testTypeInPath() throws IOException  {

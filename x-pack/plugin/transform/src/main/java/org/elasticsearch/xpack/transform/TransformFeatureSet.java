@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,7 +67,10 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
         TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
         TransformIndexerStats.INDEX_FAILURES.getPreferredName(),
-        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), };
+        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
+        TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
+        TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(),
+        TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
     public TransformFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
@@ -166,29 +169,32 @@ public class TransformFeatureSet implements XPackFeatureSet {
     }
 
     static TransformIndexerStats parseSearchAggs(SearchResponse searchResponse) {
-        List<Long> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
+        List<Double> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
 
         for (String statName : PROVIDED_STATS) {
             Aggregation agg = searchResponse.getAggregations().get(statName);
 
             if (agg instanceof NumericMetricsAggregation.SingleValue) {
-                statisticsList.add((long) ((NumericMetricsAggregation.SingleValue) agg).value());
+                statisticsList.add(((NumericMetricsAggregation.SingleValue) agg).value());
             } else {
-                statisticsList.add(0L);
+                statisticsList.add(0.0);
             }
         }
         return new TransformIndexerStats(
-            statisticsList.get(0),  // numPages
-            statisticsList.get(1),  // numInputDocuments
-            statisticsList.get(2),  // numOutputDocuments
-            statisticsList.get(3),  // numInvocations
-            statisticsList.get(4),  // indexTime
-            statisticsList.get(5),  // searchTime
-            statisticsList.get(6),  // indexTotal
-            statisticsList.get(7),  // searchTotal
-            statisticsList.get(8),  // indexFailures
-            statisticsList.get(9)
-        ); // searchFailures
+            statisticsList.get(0).longValue(),  // numPages
+            statisticsList.get(1).longValue(),  // numInputDocuments
+            statisticsList.get(2).longValue(),  // numOutputDocuments
+            statisticsList.get(3).longValue(),  // numInvocations
+            statisticsList.get(4).longValue(),  // indexTime
+            statisticsList.get(5).longValue(),  // searchTime
+            statisticsList.get(6).longValue(),  // indexTotal
+            statisticsList.get(7).longValue(),  // searchTotal
+            statisticsList.get(8).longValue(),  // indexFailures
+            statisticsList.get(9).longValue(),  // searchFailures
+            statisticsList.get(10), // exponential_avg_checkpoint_duration_ms
+            statisticsList.get(11), // exponential_avg_documents_indexed
+            statisticsList.get(12)  // exponential_avg_documents_processed
+        );
     }
 
     static void getStatisticSummations(Client client, ActionListener<TransformIndexerStats> statsListener) {

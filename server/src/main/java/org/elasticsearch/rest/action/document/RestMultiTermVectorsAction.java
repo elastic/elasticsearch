@@ -27,12 +27,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -42,15 +44,16 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in multi term vector requests is deprecated.";
 
-    public RestMultiTermVectorsAction(RestController controller) {
-        controller.registerHandler(GET, "/_mtermvectors", this);
-        controller.registerHandler(POST, "/_mtermvectors", this);
-        controller.registerHandler(GET, "/{index}/_mtermvectors", this);
-        controller.registerHandler(POST, "/{index}/_mtermvectors", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_mtermvectors"),
+            new Route(POST, "/_mtermvectors"),
+            new Route(GET, "/{index}/_mtermvectors"),
+            new Route(POST, "/{index}/_mtermvectors"),
+            // Deprecated typed endpoints.
+            new Route(GET, "/{index}/{type}/_mtermvectors"),
+            new Route(POST, "/{index}/{type}/_mtermvectors")));
     }
 
     @Override

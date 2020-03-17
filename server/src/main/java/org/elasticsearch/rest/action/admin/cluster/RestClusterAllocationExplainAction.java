@@ -27,22 +27,29 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Class handling cluster allocation explanation at the REST level
  */
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
-    public RestClusterAllocationExplainAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/allocation/explain", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/allocation/explain", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_cluster/allocation/explain"),
+            new Route(POST, "/_cluster/allocation/explain")));
     }
 
     @Override

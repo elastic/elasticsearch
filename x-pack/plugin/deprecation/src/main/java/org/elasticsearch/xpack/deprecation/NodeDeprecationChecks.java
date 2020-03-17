@@ -11,9 +11,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 class NodeDeprecationChecks {
 
@@ -33,6 +40,81 @@ class NodeDeprecationChecks {
             EsExecutors.PROCESSORS_SETTING,
             EsExecutors.NODE_PROCESSORS_SETTING,
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-processors");
+    }
+
+    static DeprecationIssue checkMissingRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
+                .stream()
+                .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
+                .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
+                .collect(Collectors.toSet());
+
+        if (orderNotConfiguredRealms.isEmpty()) {
+            return null;
+        }
+
+        final String details = String.format(
+            Locale.ROOT,
+            "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order.",
+            String.join("; ", orderNotConfiguredRealms));
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Realm order will be required in next major release.",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-missing-realm-order",
+            details
+        );
+    }
+
+    static DeprecationIssue checkUniqueRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        final Map<String, List<String>> orderToRealmSettings =
+            RealmSettings.getRealmSettings(settings).entrySet()
+                .stream()
+                .filter(e -> e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
+                .collect(Collectors.groupingBy(
+                    e -> e.getValue().get(RealmSettings.ORDER_SETTING_KEY),
+                    Collectors.mapping(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY,
+                        Collectors.toList())));
+
+        Set<String> duplicateOrders = orderToRealmSettings.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.toSet());
+
+        if (duplicateOrders.isEmpty()) {
+            return null;
+        }
+
+        final String details = String.format(
+            Locale.ROOT,
+            "Found multiple realms configured with the same order: [%s]. " +
+                "In next major release, node will fail to start with duplicated realm order.",
+            String.join("; ", duplicateOrders));
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Realm orders must be unique in next major release.",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
+            details
+        );
+    }
+
+    static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.queue_size", settings);
+    }
+
+    static DeprecationIssue checkThreadPoolListenerSize(final Settings settings) {
+        return checkThreadPoolListenerSetting("thread_pool.listener.size", settings);
+    }
+
+    private static DeprecationIssue checkThreadPoolListenerSetting(final String name, final Settings settings) {
+        final FixedExecutorBuilder builder = new FixedExecutorBuilder(settings, "listener", 1, -1, "thread_pool.listener", true);
+        final List<Setting<?>> listenerSettings = builder.getRegisteredSettings();
+        final Optional<Setting<?>> setting = listenerSettings.stream().filter(s -> s.getKey().equals(name)).findFirst();
+        assert setting.isPresent();
+        return checkRemovedSetting(
+            settings,
+            setting.get(),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool");
     }
 
     private static DeprecationIssue checkDeprecatedSetting(
@@ -60,6 +142,19 @@ class NodeDeprecationChecks {
             value,
             replacementSettingKey,
             value);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
+        if (removedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String removedSettingKey = removedSetting.getKey();
+        final String value = removedSetting.get(settings).toString();
+        final String message =
+            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
+        final String details =
+            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 

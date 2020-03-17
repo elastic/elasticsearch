@@ -28,14 +28,17 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestCreateIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
@@ -43,8 +46,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in create " +
         "index requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestCreateIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(PUT, "/{index}"));
     }
 
     @Override
@@ -93,7 +97,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
                 "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
         }
 
-        newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
+        newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
     }
 }

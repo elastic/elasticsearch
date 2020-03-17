@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,22 +22,30 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAuthenticateAction.class));
 
-    public RestAuthenticateAction(Settings settings, RestController controller, SecurityContext securityContext,
-                                  XPackLicenseState licenseState) {
+    public RestAuthenticateAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/_authenticate", this,
-            GET, "/_xpack/security/_authenticate", deprecationLogger);
+        return Collections.singletonList(new ReplacedRoute(GET, "/_security/_authenticate", GET,
+            "/_xpack/security/_authenticate"));
     }
 
     @Override

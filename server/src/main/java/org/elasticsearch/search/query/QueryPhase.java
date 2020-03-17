@@ -45,17 +45,17 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -110,7 +110,24 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess(true);
+        final Runnable cancellation;
+        if (context.lowLevelCancellation()) {
+            SearchShardTask task = context.getTask();
+            cancellation = context.searcher().addQueryCancellation(() -> {
+                if (task.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+            });
+        } else {
+            cancellation = null;
+        }
+        try {
+            context.preProcess(true);
+        } finally {
+            if (cancellation != null) {
+                context.searcher().removeQueryCancellation(cancellation);
+            }
+        }
     }
 
     @Override
@@ -254,60 +271,54 @@ public class QueryPhase implements SearchPhase {
                 final long startTime = searchContext.getRelativeTimeInMillis();
                 final long timeout = searchContext.timeout().millis();
                 final long maxTime = startTime + timeout;
-                timeoutRunnable = () -> {
+                timeoutRunnable = searcher.addQueryCancellation(() -> {
                     final long time = searchContext.getRelativeTimeInMillis();
                     if (time > maxTime) {
                         throw new TimeExceededException();
                     }
-                };
+                });
             } else {
                 timeoutRunnable = null;
             }
 
-            final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
                 SearchShardTask task = searchContext.getTask();
-                cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
-            } else {
-                cancellationRunnable = null;
+                searcher.addQueryCancellation(() -> {
+                    if (task.isCancelled()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
+                });
             }
 
-            final Runnable checkCancelled;
-            if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> {
-                    timeoutRunnable.run();
-                    cancellationRunnable.run();
-                };
-            } else if (timeoutRunnable != null) {
-                checkCancelled = timeoutRunnable;
-            } else if (cancellationRunnable != null) {
-                checkCancelled = cancellationRunnable;
-            } else {
-                checkCancelled = null;
-            }
-            searcher.setCheckCancelled(checkCancelled);
+            try {
+                boolean shouldRescore;
+                // if we are optimizing sort and there are no other collectors
+                if (sortAndFormatsForRewrittenNumericSort!=null && collectors.size()==0 && searchContext.getProfilers()==null) {
+                    shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
+                } else {
+                    shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                }
 
-            boolean shouldRescore;
-            // if we are optimizing sort and there are no other collectors
-            if (sortAndFormatsForRewrittenNumericSort != null && collectors.size() == 0 && searchContext.getProfilers() == null) {
-                shouldRescore = searchWithCollectorManager(searchContext, searcher, query, leafSorter, timeoutSet);
-            } else {
-                shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
-            }
+                // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
+                if (sortAndFormatsForRewrittenNumericSort!=null) {
+                    searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
+                    restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
+                }
 
-            // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
-            if (sortAndFormatsForRewrittenNumericSort != null) {
-                searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
-                restoreTopFieldDocs(queryResult, sortAndFormatsForRewrittenNumericSort);
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                if (executor instanceof QueueResizingEsThreadPoolExecutor) {
+                    QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
+                return shouldRescore;
+            } finally {
+                // Search phase has finished, no longer need to check for timeout
+                // otherwise aggregation phase might get cancelled.
+                if (timeoutRunnable!=null) {
+                    searcher.removeQueryCancellation(timeoutRunnable);
+                }
             }
-
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
-                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
-            }
-            return shouldRescore;
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
@@ -421,7 +432,7 @@ public class QueryPhase implements SearchPhase {
         String fieldName = sortField.getField();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
         if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fullName(fieldName);
+        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
@@ -436,7 +447,7 @@ public class QueryPhase implements SearchPhase {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fullName(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchContext.mapperService().fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
             }
         }
 

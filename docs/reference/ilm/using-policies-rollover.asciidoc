@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[using-policies-rollover]]
-== Using policies to manage index rollover
+== Roll over automatically
 
 The rollover action enables you to automatically roll over to a new index based
 on the index size, document count, or age. When a rollover is triggered, a new

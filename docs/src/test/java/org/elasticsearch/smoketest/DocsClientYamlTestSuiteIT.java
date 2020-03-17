@@ -143,14 +143,14 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     protected boolean isSLMTest() {
         String testName = getTestName();
-        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\") ||
+        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\") || (testName.contains("\\slm/")) ||
             // TODO: Remove after backport of https://github.com/elastic/elasticsearch/pull/48705 which moves SLM docs to correct folder
-            testName.contains("/ilm/") || testName.contains("\\ilm\\"));
+            testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
     }
 
     protected boolean isILMTest() {
         String testName = getTestName();
-        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\"));
+        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
     }
 
     protected boolean isMachineLearningTest() {

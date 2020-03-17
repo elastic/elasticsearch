@@ -11,7 +11,7 @@ import com.google.common.jimfs.Jimfs;
 import joptsimple.OptionSet;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.DLSequence;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -606,7 +606,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final Attribute[] extensionAttributes = csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
         assertThat(extensionAttributes, arrayWithSize(1));
         assertThat(extensionAttributes[0].getAttributeValues(), arrayWithSize(1));
-        assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DERSequence.class));
+        assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DLSequence.class));
 
         // We register 1 extension - the subject alternative names
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);

@@ -22,19 +22,21 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.verifyRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestVerifyRepositoryAction extends BaseRestHandler {
 
-    public RestVerifyRepositoryAction(RestController controller) {
-        controller.registerHandler(POST, "/_snapshot/{repository}/_verify", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(POST, "/_snapshot/{repository}/_verify"));
     }
 
     @Override

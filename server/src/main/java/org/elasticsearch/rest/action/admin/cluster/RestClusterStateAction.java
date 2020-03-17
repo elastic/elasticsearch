@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -41,23 +40,32 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    public RestClusterStateAction(RestController controller, SettingsFilter settingsFilter) {
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
-
+    public RestClusterStateAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
     }
 
     @Override
     public String getName() {
         return "cluster_state_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_cluster/state"),
+            new Route(GET, "/_cluster/state/{metric}"),
+            new Route(GET, "/_cluster/state/{metric}/{indices}")));
     }
 
     @Override

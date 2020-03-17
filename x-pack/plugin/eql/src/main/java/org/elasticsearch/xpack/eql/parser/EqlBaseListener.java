@@ -48,6 +48,16 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitQuery(EqlBaseParser.QueryContext ctx);
   /**
+   * Enter a parse tree produced by {@link EqlBaseParser#sequenceParams}.
+   * @param ctx the parse tree
+   */
+  void enterSequenceParams(EqlBaseParser.SequenceParamsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#sequenceParams}.
+   * @param ctx the parse tree
+   */
+  void exitSequenceParams(EqlBaseParser.SequenceParamsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EqlBaseParser#sequence}.
    * @param ctx the parse tree
    */
@@ -88,35 +98,45 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitJoinKeys(EqlBaseParser.JoinKeysContext ctx);
   /**
-   * Enter a parse tree produced by {@link EqlBaseParser#span}.
+   * Enter a parse tree produced by {@link EqlBaseParser#joinTerm}.
    * @param ctx the parse tree
    */
-  void enterSpan(EqlBaseParser.SpanContext ctx);
+  void enterJoinTerm(EqlBaseParser.JoinTermContext ctx);
   /**
-   * Exit a parse tree produced by {@link EqlBaseParser#span}.
+   * Exit a parse tree produced by {@link EqlBaseParser#joinTerm}.
    * @param ctx the parse tree
    */
-  void exitSpan(EqlBaseParser.SpanContext ctx);
+  void exitJoinTerm(EqlBaseParser.JoinTermContext ctx);
   /**
-   * Enter a parse tree produced by {@link EqlBaseParser#match}.
+   * Enter a parse tree produced by {@link EqlBaseParser#sequenceTerm}.
    * @param ctx the parse tree
    */
-  void enterMatch(EqlBaseParser.MatchContext ctx);
+  void enterSequenceTerm(EqlBaseParser.SequenceTermContext ctx);
   /**
-   * Exit a parse tree produced by {@link EqlBaseParser#match}.
+   * Exit a parse tree produced by {@link EqlBaseParser#sequenceTerm}.
    * @param ctx the parse tree
    */
-  void exitMatch(EqlBaseParser.MatchContext ctx);
+  void exitSequenceTerm(EqlBaseParser.SequenceTermContext ctx);
   /**
-   * Enter a parse tree produced by {@link EqlBaseParser#condition}.
+   * Enter a parse tree produced by {@link EqlBaseParser#subquery}.
    * @param ctx the parse tree
    */
-  void enterCondition(EqlBaseParser.ConditionContext ctx);
+  void enterSubquery(EqlBaseParser.SubqueryContext ctx);
   /**
-   * Exit a parse tree produced by {@link EqlBaseParser#condition}.
+   * Exit a parse tree produced by {@link EqlBaseParser#subquery}.
    * @param ctx the parse tree
    */
-  void exitCondition(EqlBaseParser.ConditionContext ctx);
+  void exitSubquery(EqlBaseParser.SubqueryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EqlBaseParser#eventQuery}.
+   * @param ctx the parse tree
+   */
+  void enterEventQuery(EqlBaseParser.EventQueryContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#eventQuery}.
+   * @param ctx the parse tree
+   */
+  void exitEventQuery(EqlBaseParser.EventQueryContext ctx);
   /**
    * Enter a parse tree produced by {@link EqlBaseParser#expression}.
    * @param ctx the parse tree
@@ -152,6 +172,18 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitBooleanDefault(EqlBaseParser.BooleanDefaultContext ctx);
   /**
+   * Enter a parse tree produced by the {@code processCheck}
+   * labeled alternative in {@link EqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterProcessCheck(EqlBaseParser.ProcessCheckContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code processCheck}
+   * labeled alternative in {@link EqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitProcessCheck(EqlBaseParser.ProcessCheckContext ctx);
+  /**
    * Enter a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -163,26 +195,6 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLogicalBinary(EqlBaseParser.LogicalBinaryContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EqlBaseParser#predicated}.
-   * @param ctx the parse tree
-   */
-  void enterPredicated(EqlBaseParser.PredicatedContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EqlBaseParser#predicated}.
-   * @param ctx the parse tree
-   */
-  void exitPredicated(EqlBaseParser.PredicatedContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EqlBaseParser#predicate}.
-   * @param ctx the parse tree
-   */
-  void enterPredicate(EqlBaseParser.PredicateContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EqlBaseParser#predicate}.
-   * @param ctx the parse tree
-   */
-  void exitPredicate(EqlBaseParser.PredicateContext ctx);
   /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EqlBaseParser#valueExpression}.
@@ -231,6 +243,16 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void enterPredicate(EqlBaseParser.PredicateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void exitPredicate(EqlBaseParser.PredicateContext ctx);
   /**
    * Enter a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link EqlBaseParser#primaryExpression}.
@@ -358,16 +380,6 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitBooleanValue(EqlBaseParser.BooleanValueContext ctx);
   /**
-   * Enter a parse tree produced by {@link EqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   */
-  void enterQualifiedNames(EqlBaseParser.QualifiedNamesContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   */
-  void exitQualifiedNames(EqlBaseParser.QualifiedNamesContext ctx);
-  /**
    * Enter a parse tree produced by {@link EqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
    */
@@ -388,41 +400,15 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitIdentifier(EqlBaseParser.IdentifierContext ctx);
   /**
-   * Enter a parse tree produced by the {@code quotedIdentifier}
-   * labeled alternative in {@link EqlBaseParser#quoteIdentifier}.
+   * Enter a parse tree produced by {@link EqlBaseParser#timeUnit}.
    * @param ctx the parse tree
    */
-  void enterQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext ctx);
+  void enterTimeUnit(EqlBaseParser.TimeUnitContext ctx);
   /**
-   * Exit a parse tree produced by the {@code quotedIdentifier}
-   * labeled alternative in {@link EqlBaseParser#quoteIdentifier}.
+   * Exit a parse tree produced by {@link EqlBaseParser#timeUnit}.
    * @param ctx the parse tree
    */
-  void exitQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code unquotedIdentifier}
-   * labeled alternative in {@link EqlBaseParser#unquoteIdentifier}.
-   * @param ctx the parse tree
-   */
-  void enterUnquotedIdentifier(EqlBaseParser.UnquotedIdentifierContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code unquotedIdentifier}
-   * labeled alternative in {@link EqlBaseParser#unquoteIdentifier}.
-   * @param ctx the parse tree
-   */
-  void exitUnquotedIdentifier(EqlBaseParser.UnquotedIdentifierContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code digitIdentifier}
-   * labeled alternative in {@link EqlBaseParser#unquoteIdentifier}.
-   * @param ctx the parse tree
-   */
-  void enterDigitIdentifier(EqlBaseParser.DigitIdentifierContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code digitIdentifier}
-   * labeled alternative in {@link EqlBaseParser#unquoteIdentifier}.
-   * @param ctx the parse tree
-   */
-  void exitDigitIdentifier(EqlBaseParser.DigitIdentifierContext ctx);
+  void exitTimeUnit(EqlBaseParser.TimeUnitContext ctx);
   /**
    * Enter a parse tree produced by the {@code decimalLiteral}
    * labeled alternative in {@link EqlBaseParser#number}.

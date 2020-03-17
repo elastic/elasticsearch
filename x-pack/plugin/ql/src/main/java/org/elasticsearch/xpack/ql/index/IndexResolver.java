@@ -289,7 +289,7 @@ public class IndexResolver {
     public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
 
-        if (fieldCaps == null || fieldCaps.isEmpty()) {
+        if (indexNames.length == 0) {
             return IndexResolution.notFound(indexPattern);
         }
 
@@ -529,7 +529,7 @@ public class IndexResolver {
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;
                 if (capIndices != null) {
-                    if (unmappedIndices.isEmpty() == true) {
+                    if (unmappedIndices.isEmpty()) {
                         concreteIndices = asList(capIndices);
                     } else {
                         concreteIndices = new ArrayList<>(capIndices.length);

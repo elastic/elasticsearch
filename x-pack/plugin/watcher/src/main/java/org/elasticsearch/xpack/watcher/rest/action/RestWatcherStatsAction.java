@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
@@ -18,22 +17,28 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestWatcherStatsAction extends WatcherRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    public RestWatcherStatsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/stats", this,
-            GET, URI_BASE + "/watcher/stats", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/stats/{metric}", this,
-            GET, URI_BASE + "/watcher/stats/{metric}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return unmodifiableList(asList(
+            new ReplacedRoute(GET, "/_watcher/stats", GET, URI_BASE + "/watcher/stats"),
+            new ReplacedRoute(GET, "/_watcher/stats/{metric}", GET, URI_BASE + "/watcher/stats/{metric}")));
     }
 
     @Override

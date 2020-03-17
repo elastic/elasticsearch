@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-with-existing-indices]]
-== Using {ilm-init} with existing indices
+== Manage existing indices
 
 While it is recommended to use {ilm-init} to manage the index lifecycle from
 start to finish, it may be useful to use {ilm-init} with existing indices,
@@ -253,7 +253,7 @@ phases required. For simplicity, we'll just use rollover:
 
 [source,console]
 -----------------------
-PUT _ilm/policy/sample_policy
+PUT _ilm/policy/mylogs_condensed_policy
 {
   "policy": {
     "phases": {

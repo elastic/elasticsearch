@@ -33,6 +33,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -299,7 +300,8 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
             loggingFilter.set(new LoggingFilter(threadPool));
             return Collections.emptyList();
         }

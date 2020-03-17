@@ -78,6 +78,6 @@ public class IndexFieldTypeTests extends FieldTypeTestCase {
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
         return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, indexNameMatcher);
+            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true);
     }
 }

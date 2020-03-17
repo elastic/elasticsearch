@@ -23,12 +23,14 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.Requests.putRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -38,9 +40,11 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutRepositoryAction extends BaseRestHandler {
 
-    public RestPutRepositoryAction(RestController controller) {
-        controller.registerHandler(PUT, "/_snapshot/{repository}", this);
-        controller.registerHandler(POST, "/_snapshot/{repository}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_snapshot/{repository}"),
+            new Route(PUT, "/_snapshot/{repository}")));
     }
 
     @Override

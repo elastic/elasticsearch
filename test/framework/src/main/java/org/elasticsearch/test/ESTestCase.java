@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1191,6 +1192,26 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
                                                         Writeable.Reader<T> reader, Version version) throws IOException {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
+    }
+
+    /**
+     * Create a copy of an original {@link NamedWriteable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}.
+     */
+    public static <T extends NamedWriteable> T copyNamedWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+            Class<T> categoryClass) throws IOException {
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+    }
+
+    /**
+     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
+     * a {@link Version} argument which will be used to write and read back the object.
+     */
+    public static <T extends NamedWriteable> T copyNamedWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+                                                        Class<T> categoryClass, Version version) throws IOException {
+        return copyInstance(original, namedWriteableRegistry,
+                (out, value) -> out.writeNamedWriteable(value),
+                in -> in.readNamedWriteable(categoryClass), version);
     }
 
     protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,

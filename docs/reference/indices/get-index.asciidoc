@@ -40,6 +40,8 @@ Use a value of `_all` to retrieve information for all indices in the cluster.
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +

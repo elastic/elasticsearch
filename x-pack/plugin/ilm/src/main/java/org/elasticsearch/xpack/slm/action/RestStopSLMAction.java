@@ -8,15 +8,20 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestStopSLMAction extends BaseRestHandler {
 
-    public RestStopSLMAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/_slm/stop", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(POST, "/_slm/stop"));
     }
 
     @Override

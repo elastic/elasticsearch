@@ -30,3 +30,43 @@ This lets {es} skip non-competitive hits, which often improves query speed.
 In benchmarking tests, this sped up sorts on `long` fields by 10x.
 
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Simplifying and operationalizing machine learning
+
+With the release of 7.6 the {stack} delivers an end-to-end {ml} pipeline
+providing the path from raw data to building, testing, and deploying {ml} models
+in production. Up to this point {ml} in the {stack} had primarily focused on 
+unsupervised techniques by using sophisticated pattern recognition that builds
+time series models used for {anomaly-detect}. With the new {dfanalytics}, you
+can now use labelled data to train and test your own models, store those models
+as {es} indices, and use {ml-docs}/ml-inference.html[inference] to add predicted 
+values to the indices based on your trained models.
+
+One packaged model that we are releasing in 7.6 is
+{ml-docs}/ml-lang-ident.html[{lang-ident}]. If you have documents or sources
+that come in a variety of languages, {lang-ident} can be used to determine the 
+language of text so you can improve the overall search relevance.
+{lang-ident-cap} is a trained model that can provide a prediction of the
+language of any text field.
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== {ccs-cap} in {transforms}
+
+{ref}/transforms.html[{transforms-cap}] can now use {ccs} (CCS) for the source
+index. Now you can have separate clusters (for example, project clusters) build 
+entity-centric or feature indices against a primary cluster.
+
+// end::notable-highlights[]
+
+[float]
+=== Learn more
+
+Get more details on these features in the
+https://www.elastic.co/blog/elasticsearch-7-6-0-released[{es} 7.6 release blog].
+For a complete list of enhancements and other changes, check out the
+<<release-notes-7.6.0,{es} 7.6 release notes>>.
+

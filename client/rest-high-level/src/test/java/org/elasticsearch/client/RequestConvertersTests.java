@@ -83,6 +83,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
@@ -165,22 +166,22 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExists() throws IOException {
-        doTestSourceExists((index, id) -> new GetRequest(index, id));
+        doTestSourceExists((index, id) -> new GetSourceRequest(index, id));
     }
 
     public void testSourceExistsWithType() throws IOException {
         String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
-        doTestSourceExists((index, id) -> new GetRequest(index, type, id));
+        doTestSourceExists((index, id) -> new GetSourceRequest(index, id).type(type));
     }
 
     public void testGetSource() throws IOException {
         doTestGetSource((index, id) -> new GetSourceRequest(index, id));
     }
 
-    private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
+    private static void doTestSourceExists(BiFunction<String, String, GetSourceRequest> requestFunction) throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        final GetRequest getRequest = requestFunction.apply(index, id);
+        final GetSourceRequest getRequest = requestFunction.apply(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -210,7 +211,7 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.sourceExists(getRequest);
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         String type = getRequest.type();
-        if (type.equals(MapperService.SINGLE_MAPPING_NAME)) {
+        if (type == null) {
             assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
         } else {
             assertEquals("/" + index + "/" + type + "/" + id + "/_source", request.getEndpoint());
@@ -497,9 +498,13 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
         if (randomBoolean()) {
-            int slices = randomInt(100);
+            int slices = randomIntBetween(0,4);
             reindexRequest.setSlices(slices);
-            expectedParams.put("slices", String.valueOf(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
         } else {
             expectedParams.put("slices", "1");
         }
@@ -567,7 +572,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int slices = randomIntBetween(0, 4);
-            expectedParams.put("slices", Integer.toString(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
             updateByQueryRequest.setSlices(slices);
         } else {
             expectedParams.put("slices", "1");
@@ -632,7 +641,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int slices = randomIntBetween(0, 4);
-            expectedParams.put("slices", Integer.toString(slices));
+            if (slices == 0) {
+                expectedParams.put("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
+            } else {
+                expectedParams.put("slices", Integer.toString(slices));
+            }
             deleteByQueryRequest.setSlices(slices);
         } else {
             expectedParams.put("slices", "1");
@@ -1575,11 +1588,6 @@ public class RequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
-        if (hasFields) {
-            assertThat(request.getParameters(), hasKey("fields"));
-            String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
-            assertArrayEquals(tvRequest.getFields(), requestFields);
-        }
         for (Map.Entry<String, String> param : expectedParams.entrySet()) {
             assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
         }

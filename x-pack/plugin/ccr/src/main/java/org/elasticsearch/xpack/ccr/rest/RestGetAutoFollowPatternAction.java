@@ -7,18 +7,24 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.Request;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.INSTANCE;
 
 public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
-    public RestGetAutoFollowPatternAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/{name}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_ccr/auto_follow/{name}"),
+            new Route(GET, "/_ccr/auto_follow")));
     }
 
     @Override

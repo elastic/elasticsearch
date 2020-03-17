@@ -9,7 +9,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -26,7 +25,6 @@ import static org.mockito.Mockito.when;
 
 public class RestExecuteWatchActionTests extends ESTestCase {
 
-    private RestController restController = mock(RestController.class);
     private Client client = mock(Client.class);
     private WatcherClient watcherClient = mock(WatcherClient.class);
 
@@ -38,7 +36,7 @@ public class RestExecuteWatchActionTests extends ESTestCase {
                     ExecuteWatchRequestBuilder builder = new ExecuteWatchRequestBuilder(client);
                     when(watcherClient.prepareExecuteWatch()).thenReturn(builder);
 
-                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(restController);
+                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction();
                     restExecuteWatchAction.doPrepareRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
                             debugCondition), watcherClient);
 

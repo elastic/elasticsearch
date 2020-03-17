@@ -6,11 +6,8 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -22,6 +19,11 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -30,22 +32,22 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestAckWatchAction extends WatcherRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAckWatchAction.class));
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
 
-    public RestAckWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_ack", this,
-            POST, URI_BASE + "/watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_ack", this,
-            PUT, URI_BASE + "/watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_ack/{actions}", this,
-            POST, URI_BASE + "/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_ack/{actions}", this,
-            PUT, URI_BASE + "/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return unmodifiableList(asList(
+            new ReplacedRoute(POST, "/_watcher/watch/{id}/_ack", POST, URI_BASE + "/watcher/watch/{id}/_ack"),
+            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_ack", PUT, URI_BASE + "/watcher/watch/{id}/_ack"),
+            new ReplacedRoute(
+                POST, "/_watcher/watch/{id}/_ack/{actions}",
+                POST, URI_BASE + "/watcher/watch/{id}/_ack/{actions}"),
+            new ReplacedRoute(
+                PUT, "/_watcher/watch/{id}/_ack/{actions}",
+                PUT, URI_BASE + "/watcher/watch/{id}/_ack/{actions}")));
     }
 
     @Override

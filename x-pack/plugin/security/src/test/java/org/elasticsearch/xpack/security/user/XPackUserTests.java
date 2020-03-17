@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.user;
 
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -17,24 +18,33 @@ import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
+import java.util.Arrays;
 import java.util.function.Predicate;
 
 public class XPackUserTests extends ESTestCase {
 
     public void testXPackUserCanAccessNonSecurityIndices() {
-        final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
-        final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
-        final String index = randomBoolean() ? randomAlphaOfLengthBetween(3, 12) : "." + randomAlphaOfLength(8);
-        assertThat(predicate.test(index), Matchers.is(true));
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
+            String index = randomAlphaOfLengthBetween(3, 12);
+            if (false == RestrictedIndicesNames.isRestricted(index)) {
+                assertThat(predicate.test(index), Matchers.is(true));
+            }
+            index = "." + randomAlphaOfLengthBetween(3, 12);
+            if (false == RestrictedIndicesNames.isRestricted(index)) {
+                assertThat(predicate.test(index), Matchers.is(true));
+            }
+        }
     }
 
     public void testXPackUserCannotAccessRestrictedIndices() {
-        final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
-        final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
-        for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
-            assertThat(predicate.test(index), Matchers.is(false));
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
+            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+                assertThat(predicate.test(index), Matchers.is(false));
+            }
+            assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), Matchers.is(false));
         }
-        assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2)), Matchers.is(false));
     }
 
     public void testXPackUserCanReadAuditTrail() {

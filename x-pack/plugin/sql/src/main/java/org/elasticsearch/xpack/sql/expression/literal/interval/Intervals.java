@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.sql.expression.literal.interval;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.expression.Foldables;
 
 import java.time.Duration;
 import java.time.Period;
@@ -340,6 +340,10 @@ public final class Intervals {
                                     invalidIntervalMessage(string)
                                             + ": negative value [{}] not allowed (negate the entire interval instead)",
                                     v);
+                        }
+                        if (units.get(unitIndex) == TimeUnit.MILLISECOND && number.length() < 3) {
+                            // normalize the number past DOT to millis
+                            v *= number.length() < 2 ? 100 : 10;
                         }
                         values[unitIndex++] = v;
                     } catch (QlIllegalArgumentException siae) {

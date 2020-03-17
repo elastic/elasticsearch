@@ -1,37 +1,13 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   testCompile project(':x-pack:qa')
 }
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  dependsOn configurations.restSpec
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
-    include 'rest-api-spec/api/**'
-  }
-}
-
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
@@ -48,7 +24,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.license.self_generated.type', 'basic'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -100,24 +75,9 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn("${baseName}#bwcTest")
-  }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-check.dependsOn(bwcTestSnapshots)
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
-test.enabled = false

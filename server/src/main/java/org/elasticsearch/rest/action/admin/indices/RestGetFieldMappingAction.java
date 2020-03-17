@@ -30,15 +30,17 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -50,12 +52,14 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetFieldMappingAction(RestController controller) {
-        controller.registerHandler(GET, "/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_mapping/field/{fields}"),
+            new Route(GET, "/_mapping/{type}/field/{fields}"),
+            new Route(GET, "/{index}/_mapping/field/{fields}"),
+            new Route(GET, "/{index}/{type}/_mapping/field/{fields}"),
+            new Route(GET, "/{index}/_mapping/{type}/field/{fields}")));
     }
 
     @Override

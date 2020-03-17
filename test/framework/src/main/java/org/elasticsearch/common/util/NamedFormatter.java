@@ -56,7 +56,6 @@ public class NamedFormatter {
         final Matcher matcher = PARAM_REGEX.matcher(fmt);
 
         boolean result = matcher.find();
-
         if (result) {
             final StringBuffer sb = new StringBuffer();
             do {

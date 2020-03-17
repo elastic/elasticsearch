@@ -1,6 +1,6 @@
 [Unit]
 Description=Elasticsearch
-Documentation=http://www.elastic.co
+Documentation=https://www.elastic.co
 Wants=network-online.target
 After=network-online.target
 

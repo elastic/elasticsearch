@@ -20,7 +20,11 @@
 package org.elasticsearch.painless;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.stream.IntStream;
+
+import static java.util.stream.Collectors.joining;
 
 public class ConditionalTests extends ScriptTestCase {
     public void testBasic() {
@@ -85,5 +89,17 @@ public class ConditionalTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> {
             exec("boolean x = false; int y = 2; byte z = x ? y : 7; return z;");
         });
+    }
+
+    public void testNested() {
+        for (int i = 0; i < 100; i++) {
+            String scriptPart = IntStream.range(0, i).mapToObj(j -> "field == '" + j + "' ? '" + j + "' :").collect(joining("\n"));
+            assertEquals("z", exec("def field = params.a;\n" +
+                "\n" +
+                "return (\n" +
+                scriptPart +
+                "field == '' ? 'unknown' :\n" +
+                "field);", Collections.singletonMap("a", "z"), true));
+        }
     }
 }

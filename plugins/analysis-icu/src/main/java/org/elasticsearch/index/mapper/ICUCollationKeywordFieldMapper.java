@@ -158,7 +158,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions) {
+                                boolean transpositions, QueryShardContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 

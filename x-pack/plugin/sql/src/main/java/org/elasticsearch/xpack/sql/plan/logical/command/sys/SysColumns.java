@@ -141,7 +141,7 @@ public class SysColumns extends Command {
             session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, ActionListener.wrap(r -> {
                 List<List<?>> rows = new ArrayList<>();
                 // populate the data only when a target is found
-                if (r.isValid() == true) {
+                if (r.isValid()) {
                     EsIndex esIndex = r.get();
                     fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
                 }

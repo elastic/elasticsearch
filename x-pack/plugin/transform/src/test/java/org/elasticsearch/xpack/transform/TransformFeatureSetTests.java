@@ -135,8 +135,11 @@ public class TransformFeatureSetTests extends ESTestCase {
             7,  // indexTotal
             8,  // searchTotal
             9,  // indexFailures
-            10
-        ); // searchFailures
+            10, // searchFailures
+            11.0,  // exponential_avg_checkpoint_duration_ms
+            12.0,  // exponential_avg_documents_indexed
+            13.0   // exponential_avg_documents_processed
+        );
 
         int currentStat = 1;
         List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);

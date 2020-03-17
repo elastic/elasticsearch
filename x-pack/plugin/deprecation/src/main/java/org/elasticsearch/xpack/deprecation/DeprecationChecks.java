@@ -43,7 +43,11 @@ public class DeprecationChecks {
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             NodeDeprecationChecks::checkPidfile,
-            NodeDeprecationChecks::checkProcessors
+            NodeDeprecationChecks::checkProcessors,
+            NodeDeprecationChecks::checkMissingRealmOrders,
+            NodeDeprecationChecks::checkUniqueRealmOrders,
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings)
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

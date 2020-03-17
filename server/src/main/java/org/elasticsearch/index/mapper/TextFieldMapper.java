@@ -33,7 +33,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.AutomatonQuery;
@@ -427,7 +426,7 @@ public class TextFieldMapper extends FieldMapper {
 
         public IntervalsSource intervals(BytesRef term) {
             if (term.length > maxChars) {
-                return XIntervals.prefix(term);
+                return Intervals.prefix(term);
             }
             if (term.length >= minChars) {
                 return Intervals.fixField(name(), Intervals.term(term));
@@ -437,7 +436,7 @@ public class TextFieldMapper extends FieldMapper {
                 sb.append("?");
             }
             String wildcardTerm = sb.toString();
-            return Intervals.or(Intervals.fixField(name(), XIntervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
+            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
         }
 
         @Override
@@ -681,7 +680,7 @@ public class TextFieldMapper extends FieldMapper {
                 if (prefixFieldType != null) {
                     return prefixFieldType.intervals(normalizedTerm);
                 }
-                return XIntervals.prefix(normalizedTerm);
+                return Intervals.prefix(normalizedTerm);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);
@@ -757,9 +756,10 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (fielddata == false) {
-                throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
-                        + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
-                                + "use significant memory. Alternatively use a keyword field instead.");
+                throw new IllegalArgumentException("Text fields are not optimised for operations that require per-document "
+                    + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
+                    + "keyword field instead. Alternatively, set fielddata=true on [" + name() + "] in order to load "
+                    + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }

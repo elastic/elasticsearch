@@ -25,18 +25,21 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
-import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.escapePath;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -48,6 +51,9 @@ public class CertGenCliTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
+        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
+        Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"));
+
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
     }
@@ -61,17 +67,18 @@ public class CertGenCliTests extends PackagingTestCase {
         install();
     }
 
-    public void test20Help() throws Exception {
+    public void test20Help() {
         Shell.Result result = installation.executables().certgenTool.run("--help");
         assertThat(result.stdout, containsString("Simplifies certificate creation"));
     }
 
     public void test30Generate() throws Exception {
-        Files.write(instancesFile, Arrays.asList(
-            "instances:",
-            "  - name: \"mynode\"",
-            "    ip:",
-            "      - \"127.0.0.1\""));
+        final List<String> yaml = new ArrayList<>();
+        yaml.add("instances:");
+        yaml.add("  - name: \"mynode\"");
+        yaml.add("    ip:");
+        yaml.add("      - \"127.0.0.1\"");
+        Files.write(instancesFile, yaml, CREATE, APPEND);
 
         installation.executables().certgenTool.run("--in " + instancesFile + " --out " + certificatesFile);
 
@@ -100,20 +107,26 @@ public class CertGenCliTests extends PackagingTestCase {
     public void test40RunWithCert() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
-        
-        append(installation.config("elasticsearch.yml"), String.join("\n",
-            "node.name: mynode",
-            "xpack.security.transport.ssl.key: " + escapePath(installation.config("certs/mynode/mynode.key")),
-            "xpack.security.transport.ssl.certificate: " + escapePath(installation.config("certs/mynode/mynode.crt")),
-            "xpack.security.transport.ssl.certificate_authorities: [\"" + escapePath(installation.config("certs/ca/ca.crt")) + "\"]",
-            "xpack.security.http.ssl.key: " + escapePath(installation.config("certs/mynode/mynode.key")),
-            "xpack.security.http.ssl.certificate: "+ escapePath(installation.config("certs/mynode/mynode.crt")),
-            "xpack.security.http.ssl.certificate_authorities: [\"" + escapePath(installation.config("certs/ca/ca.crt")) + "\"]",
-            "xpack.security.transport.ssl.enabled: true",
-            "xpack.security.http.ssl.enabled: true"));
 
-        assertWhileRunning(() -> {
-            ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), null, null, installation.config("certs/ca/ca.crt"));
-        });
+        final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
+        final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
+        final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
+
+        List<String> yaml = new ArrayList<>();
+        yaml.add("node.name: mynode");
+        yaml.add("xpack.security.transport.ssl.key: " + keyPath);
+        yaml.add("xpack.security.transport.ssl.certificate: " + certPath);
+        yaml.add("xpack.security.transport.ssl.certificate_authorities: [\"" + caCertPath + "\"]");
+        yaml.add("xpack.security.http.ssl.key: " + keyPath);
+        yaml.add("xpack.security.http.ssl.certificate: " + certPath);
+        yaml.add("xpack.security.http.ssl.certificate_authorities: [\"" + caCertPath + "\"]");
+        yaml.add("xpack.security.transport.ssl.enabled: true");
+        yaml.add("xpack.security.http.ssl.enabled: true");
+
+        Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+
+        assertWhileRunning(
+            () -> ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), null, null, installation.config("certs/ca/ca.crt"))
+        );
     }
 }

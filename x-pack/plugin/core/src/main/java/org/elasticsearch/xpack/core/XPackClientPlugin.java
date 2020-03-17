@@ -39,11 +39,14 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
+import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSet;
+import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
@@ -65,9 +68,9 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -252,7 +255,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
-import org.elasticsearch.xpack.oss.IndexFeatureSetUsage;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -466,7 +468,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteEnrichPolicyAction.INSTANCE,
                 ExecuteEnrichPolicyAction.INSTANCE,
                 GetEnrichPolicyAction.INSTANCE,
-                PutEnrichPolicyAction.INSTANCE
+                PutEnrichPolicyAction.INSTANCE,
+                // Async Search
+                SubmitAsyncSearchAction.INSTANCE,
+                GetAsyncSearchAction.INSTANCE,
+                DeleteAsyncSearchAction.INSTANCE
             );
     }
 
@@ -478,8 +484,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
                 // logstash
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
-                // beats
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.BEATS, BeatsFeatureSetUsage::new),
                 // ML - Custom metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
@@ -546,6 +550,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+                // eql
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.EQL, EqlFeatureSetUsage::new),
                 // sql
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
                 // watcher
@@ -611,8 +617,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // analytics
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
                 // Enrich
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSet.Usage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX, IndexFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSet.Usage::new)
             ).stream(),
             MlEvaluationNamedXContentProvider.getNamedWriteables().stream()
         ).collect(toList());

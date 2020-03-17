@@ -29,8 +29,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -69,7 +70,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.FilterScript;
@@ -84,9 +84,12 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -560,8 +563,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
-            try (RAMDirectory ramDirectory = new RAMDirectory()) {
-                try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
+            try (Directory directory = new ByteBuffersDirectory()) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
                     String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
@@ -584,9 +587,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(RestController controller) {
-            controller.registerHandler(GET, "/_scripts/painless/_execute", this);
-            controller.registerHandler(POST, "/_scripts/painless/_execute", this);
+        @Override
+        public List<Route> routes() {
+            return unmodifiableList(asList(
+                new Route(GET, "/_scripts/painless/_execute"),
+                new Route(POST, "/_scripts/painless/_execute")));
         }
 
         @Override

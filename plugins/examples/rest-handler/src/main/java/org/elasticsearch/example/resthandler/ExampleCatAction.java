@@ -21,11 +21,14 @@ package org.elasticsearch.example.resthandler;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -34,9 +37,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class ExampleCatAction extends AbstractCatAction {
 
-    ExampleCatAction(final RestController controller) {
-        controller.registerHandler(GET, "/_cat/example", this);
-        controller.registerHandler(POST, "/_cat/example", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_cat/example"),
+            new Route(POST, "/_cat/example")));
     }
 
     @Override

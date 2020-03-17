@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -114,11 +115,13 @@ public abstract class Plugin implements Closeable {
      * @param environment the environment for path and setting configurations
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         return Collections.emptyList();
     }
 

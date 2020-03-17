@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.logstash;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
 import static org.mockito.Mockito.mock;
@@ -21,10 +23,7 @@ public class LogstashFeatureSetTests extends ESTestCase {
 
     public void testEnabledSetting() throws Exception {
         boolean enabled = randomBoolean();
-        Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("xpack.logstash.enabled", enabled)
-            .build();
+        Settings settings = Settings.builder().put("path.home", createTempDir()).put("xpack.logstash.enabled", enabled).build();
         LogstashFeatureSet featureSet = new LogstashFeatureSet(settings, null);
         assertThat(featureSet.enabled(), is(enabled));
 
@@ -36,6 +35,8 @@ public class LogstashFeatureSetTests extends ESTestCase {
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(enabled));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.LOGSTASH_ENABLED });
     }
 
     public void testEnabledDefault() throws Exception {

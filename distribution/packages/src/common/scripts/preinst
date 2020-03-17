@@ -18,9 +18,9 @@ err_exit() {
 # source the default env file
 if [ -f "${path.env}" ]; then
     . "${path.env}"
-else
-  ES_PATH_CONF="${path.conf}"
 fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
 
 case "$1" in
 

@@ -34,7 +34,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestMultiGetAction(Settings.EMPTY, controller());
+        controller().registerHandler(new RestMultiGetAction(Settings.EMPTY));
     }
 
     public void testTypeInPath() {

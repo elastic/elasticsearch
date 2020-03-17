@@ -562,7 +562,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
-                for (Long value : dataset) {
+                List<Long> shuffledDataset = new ArrayList<>(dataset);
+                Collections.shuffle(shuffledDataset, random());
+                for (Long value : shuffledDataset) {
                     if (frequently()) {
                         indexWriter.commit();
                     }

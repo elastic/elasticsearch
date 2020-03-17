@@ -27,7 +27,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
@@ -35,13 +34,19 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCountAction extends AbstractCatAction {
-    public RestCountAction(RestController restController) {
-        restController.registerHandler(GET, "/_cat/count", this);
-        restController.registerHandler(GET, "/_cat/count/{index}", this);
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_cat/count"),
+            new Route(GET, "/_cat/count/{index}")));
     }
 
     @Override

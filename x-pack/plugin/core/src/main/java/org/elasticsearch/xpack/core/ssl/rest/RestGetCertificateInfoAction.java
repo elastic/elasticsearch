@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ssl.rest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -19,6 +16,10 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction.Response;
 
+import java.util.Collections;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -27,14 +28,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetCertificateInfoAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetCertificateInfoAction.class));
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-    public RestGetCertificateInfoAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_ssl/certificates", this,
-            GET, "/_xpack/ssl/certificates", deprecationLogger);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(new ReplacedRoute(GET, "/_ssl/certificates", GET, "/_xpack/ssl/certificates"));
     }
 
     @Override

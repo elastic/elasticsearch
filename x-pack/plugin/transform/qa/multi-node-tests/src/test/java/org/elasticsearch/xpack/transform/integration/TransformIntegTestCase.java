@@ -6,11 +6,14 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -48,12 +51,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -62,6 +70,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -73,8 +82,34 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     private Map<String, TransformConfig> transformConfigs = new HashMap<>();
 
     protected void cleanUp() throws IOException {
+        logAudits();
         cleanUpTransforms();
         waitForPendingTasks();
+    }
+
+    private void logAudits() throws IOException {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+
+        // using '*' to make this lenient and do not fail if the audit index does not exist
+        SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
+
+        restClient.indices().refresh(new RefreshRequest(searchRequest.indices()), RequestOptions.DEFAULT);
+
+        SearchResponse searchResponse = restClient.search(searchRequest, RequestOptions.DEFAULT);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            String level = (String) source.getOrDefault("level", "info");
+            logger.log(
+                Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                "Transform audit: [{}] [{}] [{}] [{}]",
+                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                source.getOrDefault("transform_id", "n/a"),
+                source.getOrDefault("message", "n/a"),
+                source.getOrDefault("node_name", "n/a")
+            );
+        }
     }
 
     protected void cleanUpTransforms() throws IOException {

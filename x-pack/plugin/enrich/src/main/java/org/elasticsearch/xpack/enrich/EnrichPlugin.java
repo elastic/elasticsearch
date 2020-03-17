@@ -180,11 +180,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         }
 
         return Arrays.asList(
-            new RestGetEnrichPolicyAction(restController),
-            new RestDeleteEnrichPolicyAction(restController),
-            new RestPutEnrichPolicyAction(restController),
-            new RestExecuteEnrichPolicyAction(restController),
-            new RestEnrichStatsAction(restController)
+            new RestGetEnrichPolicyAction(),
+            new RestDeleteEnrichPolicyAction(),
+            new RestPutEnrichPolicyAction(),
+            new RestExecuteEnrichPolicyAction(),
+            new RestEnrichStatsAction()
         );
     }
 
@@ -198,7 +198,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver
     ) {
         if (enabled == false || transportClientMode) {
             return emptyList();
@@ -262,7 +263,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );

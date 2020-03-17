@@ -55,7 +55,7 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -81,7 +81,7 @@ public class FetchPhase implements SearchPhase {
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
+        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
     @Override

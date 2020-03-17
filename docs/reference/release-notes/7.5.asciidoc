@@ -254,9 +254,6 @@ Network::
 * Introduce simple remote connection strategy {pull}47480[#47480]
 * Enhanced logging when transport is misconfigured to talk to HTTP port {pull}45964[#45964] (issue: {issue}32688[#32688])
 
-Ranking::
-* Add vector functions to the Sort Script Context {pull}45244[#45244] (issue: {issue}45243[#45243])
-
 Recovery::
 * Do not send recovery requests with CancellableThreads {pull}46287[#46287] (issue: {issue}46178[#46178])
 

@@ -9,16 +9,23 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestGetLifecycleAction extends BaseRestHandler {
 
-    public RestGetLifecycleAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, "/_ilm/policy", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ilm/policy/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_ilm/policy"),
+            new Route(GET, "/_ilm/policy/{name}")));
     }
 
     @Override

@@ -45,6 +45,6 @@ public class Deprecation extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
 
-        return Collections.singletonList(new RestDeprecationInfoAction(restController));
+        return Collections.singletonList(new RestDeprecationInfoAction());
     }
 }

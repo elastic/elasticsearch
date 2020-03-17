@@ -41,7 +41,8 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestPutIndexTemplateAction(controller());
+        action = new RestPutIndexTemplateAction();
+        controller().registerHandler(action);
     }
 
     public void testIncludeTypeName() throws IOException {

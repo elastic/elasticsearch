@@ -10,25 +10,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
-import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.authc.Realms;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -40,9 +41,13 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
 
     protected Logger logger = LogManager.getLogger(RestDelegatePkiAuthenticationAction.class);
 
-    public RestDelegatePkiAuthenticationAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+    public RestDelegatePkiAuthenticationAction(Settings settings, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
-        controller.registerHandler(POST, "/_security/delegate_pki", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(POST, "/_security/delegate_pki"));
     }
 
     @Override

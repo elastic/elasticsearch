@@ -9,6 +9,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
@@ -195,9 +196,17 @@ public class TypesTests extends ESTestCase {
     }
 
     public static Map<String, EsField> loadMapping(DataTypeRegistry registry, String name, Boolean ordered) {
-        boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
         InputStream stream = TypesTests.class.getResourceAsStream("/" + name);
         assertNotNull("Could not find mapping resource:" + name, stream);
-        return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, stream, order));
+        return loadMapping(registry, stream, ordered);
+    }
+
+    public static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
+        boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
+        try (InputStream in = stream) {
+            return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order));
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

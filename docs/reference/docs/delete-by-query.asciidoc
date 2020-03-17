@@ -162,6 +162,8 @@ or omit to search all indices.
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
 

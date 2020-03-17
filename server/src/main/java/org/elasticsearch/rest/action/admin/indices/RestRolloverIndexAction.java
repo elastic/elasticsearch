@@ -25,21 +25,28 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRolloverIndexAction extends BaseRestHandler {
+
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestRolloverIndexAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in rollover " +
         "index requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestRolloverIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/{index}/_rollover"),
+            new Route(POST, "/{index}/_rollover/{new_index}")));
     }
 
     @Override

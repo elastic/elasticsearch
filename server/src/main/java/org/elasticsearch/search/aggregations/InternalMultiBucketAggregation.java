@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
             B extends InternalMultiBucketAggregation.InternalBucket>
@@ -152,6 +153,23 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         assert reduceContext.isFinalReduce();
         List<B> materializedBuckets = reducePipelineBuckets(reduceContext);
         return super.reducePipelines(create(materializedBuckets), reduceContext);
+    }
+
+    @Override
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        boolean modified = false;
+        List<B> newBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
+            if (rewritten == null) {
+                newBuckets.add(bucket);
+                continue;
+            }
+            modified = true;
+            B newBucket = createBucket(rewritten, bucket);
+            newBuckets.add(newBucket);
+        }
+        return modified ? create(newBuckets) : this;
     }
 
     private List<B> reducePipelineBuckets(ReduceContext reduceContext) {

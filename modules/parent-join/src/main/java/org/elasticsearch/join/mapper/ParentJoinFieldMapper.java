@@ -83,7 +83,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
      */
     public static ParentJoinFieldMapper getMapper(MapperService service) {
         MetaJoinFieldMapper.MetaJoinFieldType fieldType =
-            (MetaJoinFieldMapper.MetaJoinFieldType) service.fullName(MetaJoinFieldMapper.NAME);
+            (MetaJoinFieldMapper.MetaJoinFieldType) service.fieldType(MetaJoinFieldMapper.NAME);
         return fieldType == null ? null : fieldType.getMapper();
     }
 

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -23,15 +22,22 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestExplainDataFrameAnalyticsAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain", this);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain", this);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/{"
-            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain", this);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/{"
-            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain"),
+            new Route(
+                GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain"),
+            new Route(POST,
+                MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain")));
     }
 
     @Override

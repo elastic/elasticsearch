@@ -66,6 +66,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
@@ -250,6 +252,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         final String snapshotPrefix = "test-snap-";
@@ -287,16 +291,18 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
-            is(true));
+            ActionRunnable.supply(f, () ->
+                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repository), null)))),
+            is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
-            is(false));
+            ActionRunnable.supply(f, () ->
+                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repository), null)))),
+            is(Version.CURRENT));
         final RepositoryData finalRepositoryData = getRepositoryData(repository);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
             assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
@@ -313,6 +319,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("compress", false)));
 
         final String snapshot = "test-snap";

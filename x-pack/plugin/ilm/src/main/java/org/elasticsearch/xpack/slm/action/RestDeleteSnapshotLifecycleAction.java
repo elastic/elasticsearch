@@ -8,15 +8,20 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
 
-    public RestDeleteSnapshotLifecycleAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE, "/_slm/policy/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(DELETE, "/_slm/policy/{name}"));
     }
 
     @Override

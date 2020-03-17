@@ -23,16 +23,19 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.util.List;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
-    public RestRemoteClusterInfoAction(RestController controller) {
-        controller.registerHandler(GET, "_remote/info", this);
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "_remote/info"));
     }
 
     @Override

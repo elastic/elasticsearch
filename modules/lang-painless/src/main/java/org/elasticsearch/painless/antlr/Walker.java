@@ -519,8 +519,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBinary(BinaryContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
         final Operation operation;
 
         if (ctx.MUL() != null) {
@@ -558,8 +558,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitComp(CompContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
         final Operation operation;
 
         if (ctx.LT() != null) {
@@ -587,7 +587,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitInstanceof(InstanceofContext ctx) {
-        AExpression expr = (AExpression)visit(ctx.expression());
+        AExpression expr = (AExpression)visit(ctx.noncondexpression());
         String type = ctx.decltype().getText();
 
         return new EInstanceof(location(ctx), expr, type);
@@ -595,8 +595,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBool(BoolContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
         final Operation operation;
 
         if (ctx.BOOLAND() != null) {
@@ -612,25 +612,25 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitConditional(ConditionalContext ctx) {
-        AExpression condition = (AExpression)visit(ctx.expression(0));
-        AExpression left = (AExpression)visit(ctx.expression(1));
-        AExpression right = (AExpression)visit(ctx.expression(2));
+        AExpression condition = (AExpression)visit(ctx.noncondexpression());
+        AExpression left = (AExpression)visit(ctx.expression(0));
+        AExpression right = (AExpression)visit(ctx.expression(1));
 
         return new EConditional(location(ctx), condition, left, right);
     }
 
     @Override
     public ANode visitElvis(ElvisContext ctx) {
-        AExpression left = (AExpression)visit(ctx.expression(0));
-        AExpression right = (AExpression)visit(ctx.expression(1));
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
 
         return new EElvis(location(ctx), left, right);
     }
 
     @Override
     public ANode visitAssignment(AssignmentContext ctx) {
-        AExpression lhs = (AExpression)visit(ctx.expression(0));
-        AExpression rhs = (AExpression)visit(ctx.expression(1));
+        AExpression lhs = (AExpression)visit(ctx.noncondexpression());
+        AExpression rhs = (AExpression)visit(ctx.expression());
 
         final Operation operation;
 

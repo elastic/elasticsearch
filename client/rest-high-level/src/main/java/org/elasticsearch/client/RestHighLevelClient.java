@@ -54,6 +54,10 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.analytics.ParsedStringStats;
+import org.elasticsearch.client.analytics.ParsedTopMetrics;
+import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
+import org.elasticsearch.client.analytics.TopMetricsAggregationBuilder;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.GetSourceRequest;
@@ -260,6 +264,7 @@ public class RestHighLevelClient implements Closeable {
     private final CcrClient ccrClient = new CcrClient(this);
     private final TransformClient transformClient = new TransformClient(this);
     private final EnrichClient enrichClient = new EnrichClient(this);
+    private final EqlClient eqlClient = new EqlClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -486,6 +491,20 @@ public class RestHighLevelClient implements Closeable {
 
     public EnrichClient enrich() {
         return enrichClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic EQL APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/eql.html">
+     *     EQL APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Data Frame API calls
+     */
+    public final EqlClient eql() {
+        return eqlClient;
     }
 
     /**
@@ -843,9 +862,13 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
+     * @deprecated use {@link #existsSource(GetSourceRequest, RequestOptions)} instead
      */
+    @Deprecated
     public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequest(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, emptySet());
+        GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
+        return performRequest(getSourceRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -856,9 +879,40 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
+     * @deprecated use {@link #existsSourceAsync(GetSourceRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        return performRequestAsync(getRequest, RequestConverters::sourceExists, options,
+        GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
+        return performRequestAsync(getSourceRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
+     * on elastic.co</a>
+     * @param getSourceRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
+     */
+    public boolean existsSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
+        return performRequest(getSourceRequest, RequestConverters::sourceExists, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
+     * on elastic.co</a>
+     * @param getSourceRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable existsSourceAsync(GetSourceRequest getSourceRequest, RequestOptions options,
+                                               ActionListener<Boolean> listener) {
+        return performRequestAsync(getSourceRequest, RequestConverters::sourceExists, options,
             RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
@@ -866,12 +920,12 @@ public class RestHighLevelClient implements Closeable {
      * Retrieves the source field only of a document using GetSource API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
      * on elastic.co</a>
-     * @param getRequest the request
+     * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      */
-    public GetSourceResponse getSource(GetSourceRequest getRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(getRequest, RequestConverters::getSource, options,
+    public GetSourceResponse getSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(getSourceRequest, RequestConverters::getSource, options,
             GetSourceResponse::fromXContent, emptySet());
     }
 
@@ -879,14 +933,14 @@ public class RestHighLevelClient implements Closeable {
      * Asynchronously retrieves the source field only of a document using GetSource API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
      * on elastic.co</a>
-     * @param getRequest the request
+     * @param getSourceRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable getSourceAsync(GetSourceRequest getRequest, RequestOptions options,
+    public final Cancellable getSourceAsync(GetSourceRequest getSourceRequest, RequestOptions options,
                                             ActionListener<GetSourceResponse> listener) {
-        return performRequestAsyncAndParseEntity(getRequest, RequestConverters::getSource, options,
+        return performRequestAsyncAndParseEntity(getSourceRequest, RequestConverters::getSource, options,
             GetSourceResponse::fromXContent, listener, emptySet());
     }
 
@@ -1891,6 +1945,8 @@ public class RestHighLevelClient implements Closeable {
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
+        map.put(StringStatsAggregationBuilder.NAME, (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c));
+        map.put(TopMetricsAggregationBuilder.NAME, (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());

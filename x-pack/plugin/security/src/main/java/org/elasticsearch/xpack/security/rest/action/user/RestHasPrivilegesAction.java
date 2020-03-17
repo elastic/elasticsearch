@@ -5,19 +5,16 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -31,6 +28,9 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -42,25 +42,30 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestHasPrivilegesAction.class));
 
-    public RestHasPrivilegesAction(Settings settings, RestController controller, SecurityContext securityContext,
-                                   XPackLicenseState licenseState) {
+    public RestHasPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/{username}/_has_privileges", this,
-            GET, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/{username}/_has_privileges", this,
-            POST, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/_has_privileges", this,
-            GET, "/_xpack/security/user/_has_privileges", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/_has_privileges", this,
-            POST, "/_xpack/security/user/_has_privileges", deprecationLogger);
+        return Collections.unmodifiableList(Arrays.asList(
+            new ReplacedRoute(GET, "/_security/user/{username}/_has_privileges",
+                GET, "/_xpack/security/user/{username}/_has_privileges"),
+            new ReplacedRoute(POST, "/_security/user/{username}/_has_privileges",
+                POST, "/_xpack/security/user/{username}/_has_privileges"),
+            new ReplacedRoute(GET, "/_security/user/_has_privileges",
+                GET, "/_xpack/security/user/_has_privileges"),
+            new ReplacedRoute(POST, "/_security/user/_has_privileges",
+                POST, "/_xpack/security/user/_has_privileges")
+        ));
     }
 
     @Override

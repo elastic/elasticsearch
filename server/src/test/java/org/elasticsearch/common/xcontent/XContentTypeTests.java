@@ -105,7 +105,7 @@ public class XContentTypeTests extends ESTestCase {
 
 
     public void testVersionParsing() {
-        byte version = randomByte();
+        String version = String.valueOf(Math.abs(randomByte()));
         assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
             equalTo(version));
         assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),

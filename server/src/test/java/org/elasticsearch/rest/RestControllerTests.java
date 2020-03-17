@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -624,7 +625,9 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchCompatibleHandler() {
-        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with=7");
+        final byte version = (byte) (Version.CURRENT.major - 1);
+
+        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with="+version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> contentTypeHeader = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -632,7 +635,6 @@ public class RestControllerTests extends ESTestCase {
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
-        final byte version = randomByte();
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

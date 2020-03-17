@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.HttpHeaders;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -215,12 +216,12 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     public void testCompatibleParamIsSet() {
-        final byte version = randomByte();
+        String version = String.valueOf(Version.CURRENT.major-1);
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(HttpHeaders.ACCEPT, List.of("application/vnd.elasticsearch+json;compatible-with=" + version));
         final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
 
-        assertEquals("" + version, request.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY));
+        assertEquals(version, request.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY));
     }
 
     public void testCookiesSet() {

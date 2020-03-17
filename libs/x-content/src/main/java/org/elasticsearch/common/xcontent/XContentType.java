@@ -179,7 +179,7 @@ public enum XContentType {
     public static String parseVersion(String mediaType){
         if(mediaType != null){
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
-            if (matcher.find() && "vnd.elasticsearch+".equals(matcher.group(1))) {
+            if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(1))) {
 
                 return matcher.group(4);
             }

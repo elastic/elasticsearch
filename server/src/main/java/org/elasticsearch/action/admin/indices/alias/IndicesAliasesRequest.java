@@ -536,7 +536,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
                     + ",writeIndex=" + writeIndex
-                    + ",isHidden=" + isHidden
                     + "]";
         }
 
@@ -554,13 +553,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(routing, other.routing)
                     && Objects.equals(indexRouting, other.indexRouting)
                     && Objects.equals(searchRouting, other.searchRouting)
-                    && Objects.equals(writeIndex, other.writeIndex)
-                    && Objects.equals(isHidden, other.isHidden);
+                    && Objects.equals(writeIndex, other.writeIndex);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex);
         }
     }
 

@@ -114,7 +114,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
-        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS))));
+        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS).isHidden(true))));
     }
 
     private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) {
@@ -205,7 +205,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
-        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS))));
+        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS).isHidden(true))));
     }
 
     public void testIndexNameComparator() {

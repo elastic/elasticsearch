@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -298,8 +299,14 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(client, Clock.systemUTC(), config, mappings, listener),
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                mappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+            TransformIndex.createDestinationIndex(client, config, generateddestIndexSettings, listener);
+        },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )

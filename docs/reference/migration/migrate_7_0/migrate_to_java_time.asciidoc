@@ -154,6 +154,7 @@ todo make this test response??
 
 
 * Create my_index_2 with mappings changed with the format set to 8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis
+
 [source,console]
 --------------------------------------------------
 PUT my_index_2
@@ -171,6 +172,7 @@ PUT my_index_2
 
 
 * Reindex the deprecated format index to new_index_1
+
 [source,console]
 --------------------------------------------------
 POST _reindex
@@ -185,6 +187,7 @@ POST _reindex
 --------------------------------------------------
 
 * If you were using aliases, update them to a new index
+
 [source,console]
 --------------------------------------------------
 POST /_aliases
@@ -201,6 +204,7 @@ POST /_aliases
 * update pipeline
 If your pipelines were using a joda style patterns, they also have to be updated. There is no need to create a new pipeline.
 Just update the already existing one.
+
 [source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/mypipeline
@@ -227,7 +231,8 @@ PUT _ingest/pipeline/mypipeline
 
 
 * upgrade template
-If your tempalte was using joda date pattern it also should be updated before upgrading to ES7.
+If your template was using joda date pattern it also should be updated before upgrading to ES7.
+
 [source,console]
 --------------------------------------------------
 PUT _template/template_1
@@ -249,7 +254,7 @@ PUT _template/template_1
       },
       "created_at": {
         "type": "date",
-        "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        "format": "8EEE MMM dd HH:mm:ss Z yyyy"
       }
     }
   }

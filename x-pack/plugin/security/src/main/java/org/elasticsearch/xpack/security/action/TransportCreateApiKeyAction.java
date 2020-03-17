@@ -54,6 +54,11 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
+            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType() && grantsAnyPrivileges(request)) {
+                listener.onFailure(new IllegalArgumentException(
+                    "creating derived api keys requires an explicit role descriptor that is empty (has no privileges)"));
+                return;
+            }
             rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
                 ActionListener.wrap(roleDescriptors -> {
                         for (RoleDescriptor rd : roleDescriptors) {
@@ -68,5 +73,11 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
                     },
                     listener::onFailure));
         }
+    }
+
+    private boolean grantsAnyPrivileges(CreateApiKeyRequest request) {
+        return request.getRoleDescriptors() == null
+            || request.getRoleDescriptors().isEmpty()
+            || false == request.getRoleDescriptors().stream().allMatch(RoleDescriptor::isEmpty);
     }
 }

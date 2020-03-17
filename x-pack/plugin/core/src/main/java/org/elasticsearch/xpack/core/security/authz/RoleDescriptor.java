@@ -219,7 +219,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public boolean isEmpty() {
         return clusterPrivileges.length == 0
-            && configurableClusterPrivileges.length == 0
+            && conditionalClusterPrivileges.length == 0
             && indicesPrivileges.length == 0
             && applicationPrivileges.length == 0
             && runAs.length == 0

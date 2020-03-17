@@ -54,6 +54,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -529,7 +530,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .prepareCreateApiKey()
             .setName("key-1")
             .setRoleDescriptors(Collections.singletonList(
-                new RoleDescriptor("role", new String[] { "manage_api_key" }, null, null)))
+                new RoleDescriptor("role", new String[] { "manage_security" }, null, null)))
             .get();
 
         assertEquals("key-1", response.getName());
@@ -556,14 +557,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
             () -> clientKey1.prepareCreateApiKey().setName("key-4")
                 .setRoleDescriptors(Collections.singletonList(
-                    new RoleDescriptor("role", new String[] {"manage_own_api_key"}, null, null)
+                    new RoleDescriptor("role", new String[] {"manage_security"}, null, null)
                 )).get());
         assertThat(e3.getMessage(), containsString(expectedMessage));
 
-        final List<RoleDescriptor> roleDescriptors = randomList(2, 10,
-            () -> new RoleDescriptor("role", null, null, null));
+        final int nDescriptors = randomIntBetween(2, 10);
+        final List<RoleDescriptor> roleDescriptors = new ArrayList<>(nDescriptors);
+        for (int i = 0; i < nDescriptors; i++) {
+            roleDescriptors.set(i, new RoleDescriptor("role", null, null, null));
+        }
         roleDescriptors.set(randomInt(roleDescriptors.size() - 1),
-            new RoleDescriptor("role", new String[] {"manage_own_api_key"}, null, null));
+            new RoleDescriptor("role", new String[] {"manage_security"}, null, null));
 
         final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class,
             () -> clientKey1.prepareCreateApiKey().setName("key-5")
@@ -587,10 +591,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {
-        new RefreshRequestBuilder(client, RefreshAction.INSTANCE).setIndices(SECURITY_MAIN_ALIAS).execute().get();
+        new RefreshRequestBuilder(client, RefreshAction.INSTANCE).setIndices(SECURITY_INDEX_NAME).execute().get();
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
         new SecurityClient(client).getApiKey(
-            GetApiKeyRequest.usingApiKeyName(keyName, false), getApiKeyResponseListener);
+            GetApiKeyRequest.usingApiKeyName(keyName), getApiKeyResponseListener);
         assertEquals(0, getApiKeyResponseListener.get().getApiKeyInfos().length);
     }
 

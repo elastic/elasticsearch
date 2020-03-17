@@ -290,7 +290,7 @@ public class RoleDescriptorTests extends ESTestCase {
             new String[0],
             new RoleDescriptor.IndicesPrivileges[0],
             new RoleDescriptor.ApplicationResourcePrivileges[0],
-            new ConfigurableClusterPrivilege[0],
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges[0],
             new String[0],
             new HashMap<>(),
             new HashMap<>())
@@ -317,9 +317,9 @@ public class RoleDescriptorTests extends ESTestCase {
                     RoleDescriptor.ApplicationResourcePrivileges.builder()
                         .application("app").privileges("foo").resources("res").build() },
             booleans.get(3) ?
-                new ConfigurableClusterPrivilege[0] :
-                new ConfigurableClusterPrivilege[] {
-                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
+                new ConditionalClusterPrivileges.ManageApplicationPrivileges[0] :
+                new ConditionalClusterPrivileges.ManageApplicationPrivileges[] {
+                    new ConditionalClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
             booleans.get(4) ? new String[0] : new String[] { "foo" },
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
             Collections.singletonMap("foo", "bar"));

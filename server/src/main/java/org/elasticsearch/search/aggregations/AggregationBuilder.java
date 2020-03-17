@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -142,6 +144,14 @@ public abstract class AggregationBuilder
             builder = rewrittenBuilder;
         }
         return builder;
+    }
+
+    /**
+     * Build a tree of {@link PipelineAggregator}s to modify the tree of
+     * aggregation results after the final reduction.
+     */
+    public PipelineTree buildPipelineTree() {
+        return factoriesBuilder.buildPipelineTree();
     }
 
     /** Common xcontent fields shared among aggregator builders */

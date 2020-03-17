@@ -108,13 +108,14 @@ public class Realms implements Iterable<Realm> {
      * Returns a list of realms that are configured, but are not permitted under the current license.
      */
     public List<Realm> getUnlicensedRealms() {
+        final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         // If auth is not allowed, then everything is unlicensed
-        if (licenseState.isAuthAllowed() == false) {
+        if (licenseStateSnapshot.isAuthAllowed() == false) {
             return Collections.unmodifiableList(realms);
         }
 
         // If all realms are allowed, then nothing is unlicensed
-        if (licenseState.areAllRealmsAllowed()) {
+        if (licenseStateSnapshot.areAllRealmsAllowed()) {
             return Collections.emptyList();
         }
 
@@ -134,12 +135,13 @@ public class Realms implements Iterable<Realm> {
     }
 
     public List<Realm> asList() {
-        if (licenseState.isAuthAllowed() == false) {
+        final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
+        if (licenseStateSnapshot.isAuthAllowed() == false) {
             return Collections.emptyList();
         }
-        if (licenseState.areAllRealmsAllowed()) {
+        if (licenseStateSnapshot.areAllRealmsAllowed()) {
             return realms;
-        } else if (licenseState.areStandardRealmsAllowed()) {
+        } else if (licenseStateSnapshot.areStandardRealmsAllowed()) {
             return standardRealmsOnly;
         } else {
             // native realms are basic licensed, and always allowed, even for an expired license
@@ -225,6 +227,7 @@ public class Realms implements Iterable<Realm> {
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
+        final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
         final List<Realm> realmList = asList().stream()
@@ -241,7 +244,7 @@ public class Realms implements Iterable<Realm> {
                         if (value == null) {
                             return MapBuilder.<String, Object>newMapBuilder()
                                 .put("enabled", false)
-                                .put("available", isRealmTypeAvailable(licenseState, type))
+                                .put("available", isRealmTypeAvailable(licenseStateSnapshot, type))
                                 .map();
                         }
 

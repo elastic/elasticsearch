@@ -146,6 +146,23 @@ If you specified a custom date format there, then you need to update it too.
 
 ===== Example migration procedure
 Let's assume that you have an index with a date field and custom format
+////
+[source,console]
+--------------------------------------------------
+PUT /my_index_1
+{
+    "mappings" : {
+      "properties" : {
+         "datetime": {
+           "type": "date",
+           "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+         }
+      }
+    }
+}
+--------------------------------------------------
+
+
 [source,console]
 --------------------------------------------------
 GET /my_index_1/_mapping
@@ -166,7 +183,7 @@ GET /my_index_1/_mapping
   }
 }
 --------------------------------------------------
-todo make this test response?? and others?
+// NOTCONSOLE
 
 
 * Create my_index_2 with mappings changed with the format set to 8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis
@@ -185,7 +202,7 @@ PUT my_index_2
   }
 }
 --------------------------------------------------
-
+// TEST[continued]
 
 * Reindex the deprecated format index to new_index_1
 
@@ -201,6 +218,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 * If you were using aliases, update them to a new index
 
@@ -214,7 +232,7 @@ POST /_aliases
     ]
 }
 --------------------------------------------------
-
+// TEST[continued]
 
 ===== Update before upgrading to ES7.
 * update pipeline

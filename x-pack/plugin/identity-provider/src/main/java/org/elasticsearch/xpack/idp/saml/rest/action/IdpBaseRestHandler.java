@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
@@ -37,8 +42,7 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
     /**
      * Implementers should implement this method as they normally would for
      * {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)} and ensure that all request
-     * parameters are consumed prior to returning a value. The returned value is not guaranteed to
-     * be executed unless security is licensed and all request parameters are known
+     * parameters are consumed prior to returning a value.
      */
     protected abstract RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException;
 }

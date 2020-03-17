@@ -561,10 +561,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 )).get());
         assertThat(e3.getMessage(), containsString(expectedMessage));
 
-        final int nDescriptors = randomIntBetween(2, 10);
-        final List<RoleDescriptor> roleDescriptors = new ArrayList<>(nDescriptors);
-        for (int i = 0; i < nDescriptors; i++) {
-            roleDescriptors.set(i, new RoleDescriptor("role", null, null, null));
+        final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(2, 10); i++) {
+            roleDescriptors.add(new RoleDescriptor("role", null, null, null));
         }
         roleDescriptors.set(randomInt(roleDescriptors.size() - 1),
             new RoleDescriptor("role", new String[] {"manage_security"}, null, null));

@@ -30,11 +30,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
+final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonPointDVAtomicFieldData(LeafReader reader, String fieldName) {
+    LatLonPointDVLeafFieldData(LeafReader reader, String fieldName) {
         super();
         this.reader = reader;
         this.fieldName = fieldName;

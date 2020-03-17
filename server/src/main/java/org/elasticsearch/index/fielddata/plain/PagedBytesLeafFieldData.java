@@ -31,13 +31,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
 
     private final PagedBytes.Reader bytes;
     private final PackedLongValues termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
+    public PagedBytesLeafFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
         super(DEFAULT_SCRIPT_FUNCTION);
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;

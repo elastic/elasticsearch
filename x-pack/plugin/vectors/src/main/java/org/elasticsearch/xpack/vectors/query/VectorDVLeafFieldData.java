@@ -12,7 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -20,13 +20,13 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class VectorDVAtomicFieldData implements AtomicFieldData {
+final class VectorDVLeafFieldData implements LeafFieldData {
 
     private final LeafReader reader;
     private final String field;
     private final boolean isDense;
 
-    VectorDVAtomicFieldData(LeafReader reader, String field, boolean isDense) {
+    VectorDVLeafFieldData(LeafReader reader, String field, boolean isDense) {
         this.reader = reader;
         this.field = field;
         this.isDense = isDense;

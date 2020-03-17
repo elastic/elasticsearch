@@ -1,0 +1,20 @@
+[role="xpack"]
+[testenv="basic"]
+[[async-search-intro]]
+== Long running searches
+
+{es} generally allows to quickly search across big amounts of data. There are
+situations where a search executes on many many shards, possibly against
+<<frozen-indices>> and spanning multiple <<modules-remote-clusters>>, for which
+results are not expected to be returned in milliseconds. When needing to
+execute long running searches, sending a search request and synchronously
+waiting for its results to be returned is not ideal. Async Search allows
+instead to submit a search request that gets executed asynchronously and
+monitor its progress as well as retrieve its results at a later stage.
+Also, partial results can be retrieved as they become available, before
+the search has completed.
+
+An async search request can be submitted using the <<submit-async-search>> API.
+The <<get-async-search>> API allows to monitor the progress of an async search
+request and retrieve its results. An async search can be deleted through the
+<<delete-async-search>> API.

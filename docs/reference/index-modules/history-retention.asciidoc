@@ -54,7 +54,7 @@ reasonable recovery scenarios.
 
 `index.soft_deletes.enabled`::
 
-  deprecated[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.]
+  deprecated:[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.]
   Whether or not soft deletes are enabled on the index. Soft deletes can only be
   configured at index creation and only on indices created on or after 6.5.0.
   The default value is `true`.

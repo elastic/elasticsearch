@@ -91,6 +91,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50358")
     public void testFullPolicySnapshot() throws Exception {
         final String indexName = "test";
         final String policyName = "full-policy";

@@ -1,5 +1,9 @@
 ---
 "Test stubs":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+
   - do:
       indices.create_data_stream:
         name: data-stream2

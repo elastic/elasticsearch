@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -105,6 +106,9 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
+        public static final ParseField NAME = new ParseField("name");
+        public static final ParseField COMPONENT_TEMPLATES = new ParseField("component_templates");
+        public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
 
         private final Map<String, ComponentTemplate> componentTemplates;
 
@@ -150,9 +154,14 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.startArray(COMPONENT_TEMPLATES.getPreferredName());
             for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
-                builder.field(componentTemplate.getKey(), componentTemplate.getValue());
+                builder.startObject();
+                builder.field(NAME.getPreferredName(), componentTemplate.getKey());
+                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue());
+                builder.endObject();
             }
+            builder.endArray();
             builder.endObject();
             return builder;
         }

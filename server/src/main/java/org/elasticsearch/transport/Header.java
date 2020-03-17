@@ -80,10 +80,6 @@ public class Header {
         return TransportStatus.isHandshake(status);
     }
 
-    boolean isCompress() {
-        return TransportStatus.isCompress(status);
-    }
-
     boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }

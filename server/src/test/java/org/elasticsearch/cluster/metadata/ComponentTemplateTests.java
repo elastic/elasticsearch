@@ -76,7 +76,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        ComponentTemplate.Template template = new ComponentTemplate.Template(settings, mappings, aliases);
+        Template template = new Template(settings, mappings, aliases);
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
@@ -130,21 +130,21 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
             case 0:
                 switch (randomIntBetween(0, 2)) {
                     case 0:
-                        ComponentTemplate.Template ot = orig.template();
+                        Template ot = orig.template();
                         return new ComponentTemplate(
-                            new ComponentTemplate.Template(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
+                            new Template(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
                                 ot.mappings(), ot.aliases()),
                             orig.version(), orig.metadata());
                     case 1:
-                        ComponentTemplate.Template ot2 = orig.template();
+                        Template ot2 = orig.template();
                         return new ComponentTemplate(
-                            new ComponentTemplate.Template(ot2.settings(),
+                            new Template(ot2.settings(),
                                 randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings), ot2.aliases()),
                             orig.version(), orig.metadata());
                     case 2:
-                        ComponentTemplate.Template ot3 = orig.template();
+                        Template ot3 = orig.template();
                         return new ComponentTemplate(
-                            new ComponentTemplate.Template(ot3.settings(), ot3.mappings(),
+                            new Template(ot3.settings(), ot3.mappings(),
                                 randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)),
                             orig.version(), orig.metadata());
                     default:

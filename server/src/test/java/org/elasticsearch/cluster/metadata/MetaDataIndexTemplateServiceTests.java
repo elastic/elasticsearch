@@ -17,15 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.template.put;
+package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasValidator;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -200,6 +195,23 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .patterns(singletonList("*")).settings(Settings.builder().put("index.hidden", true).build()));
         assertThat(errors.size(), is(1));
         assertThat(errors.get(0).getMessage(), containsString("global templates may not specify the setting index.hidden"));
+    }
+
+    public void testAddComponentTemplate() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        ComponentTemplate template = ComponentTemplateTests.randomInstance();
+        state = MetaDataIndexTemplateService.addComponentTemplate(state, false, "foo", template);
+
+        assertNotNull(state.metaData().componentTemplates().get("foo"));
+        assertThat(state.metaData().componentTemplates().get("foo"), equalTo(template));
+
+        final ClusterState throwState = ClusterState.builder(state).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo", template));
+        assertThat(e.getMessage(), containsString("component template [foo] already exists"));
+
+        state = MetaDataIndexTemplateService.addComponentTemplate(state, randomBoolean(), "bar", template);
+        assertNotNull(state.metaData().componentTemplates().get("bar"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

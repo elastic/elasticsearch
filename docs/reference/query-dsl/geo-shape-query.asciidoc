@@ -167,6 +167,15 @@ querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
 
+==== Shape Types supported for Geo-Point
+
+When searching a field of type `geo_point` the following shape types are not supported:
+
+* `POINT`
+* `LINE`
+* `MULTIPOINT`
+* `MULTILINE`
+
 ==== Notes
 Geo-shape queries on geo-shapes implemented with <<prefix-trees, `PrefixTrees`>> will not be executed if
 <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.

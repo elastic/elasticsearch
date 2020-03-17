@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.idp.saml.rest.action;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -26,7 +27,11 @@ import java.util.List;
 /**
  * Rest endpoint to remove a service provider (by Entity ID) from the IdP.
  */
-public class RestDeleteSamlServiceProviderAction extends BaseRestHandler {
+public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
+
+    public RestDeleteSamlServiceProviderAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -39,7 +44,7 @@ public class RestDeleteSamlServiceProviderAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String entityId = restRequest.param("sp_entity_id");
         final WriteRequest.RefreshPolicy refresh = restRequest.hasParam("refresh")
             ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : WriteRequest.RefreshPolicy.NONE;

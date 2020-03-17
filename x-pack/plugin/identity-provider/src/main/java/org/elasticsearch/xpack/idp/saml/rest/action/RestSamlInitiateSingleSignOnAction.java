@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -28,7 +29,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestSamlInitiateSingleSignOnAction extends BaseRestHandler {
+public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
     static final ObjectParser<SamlInitiateSingleSignOnRequest, Void> PARSER = new ObjectParser<>("idp_init_sso",
         SamlInitiateSingleSignOnRequest::new);
 
@@ -38,8 +39,12 @@ public class RestSamlInitiateSingleSignOnAction extends BaseRestHandler {
             new ParseField("authn_state"));
     }
 
+    public RestSamlInitiateSingleSignOnAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
+
     @Override
-    public List<Route> routes(){
+    public List<Route> routes() {
         return Collections.singletonList(
             new Route(POST, "/_idp/saml/init")
         );
@@ -51,7 +56,7 @@ public class RestSamlInitiateSingleSignOnAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final SamlInitiateSingleSignOnRequest initRequest = PARSER.parse(parser, null);
             return channel -> client.execute(SamlInitiateSingleSignOnAction.INSTANCE, initRequest,

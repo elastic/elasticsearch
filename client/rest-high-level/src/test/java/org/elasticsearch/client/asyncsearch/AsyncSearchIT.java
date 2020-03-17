@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.asyncsearch;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.Settings;
@@ -36,10 +35,8 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         String index = "test-index";
         createIndex(index, Settings.EMPTY);
 
-        SearchRequest searchRequest = new SearchRequest(index);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
-        searchRequest.source(sourceBuilder);
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(searchRequest);
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(sourceBuilder, index);
         // 2 sec should be enough to make sure we always complete right away
         request.setWaitForCompletion(new TimeValue(2, TimeUnit.SECONDS));
         request.setCleanOnCompletion(false);

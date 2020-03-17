@@ -1043,6 +1043,12 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomSearchParams(searchRequest, expectedParams);
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
+        SearchSourceBuilder searchSourceBuilder = createTestSearchSourceBuilder();
+        searchRequest.source(searchSourceBuilder);
+        return searchRequest;
+    }
+
+    public static SearchSourceBuilder createTestSearchSourceBuilder() {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         // rarely skip setting the search source completely
         if (frequently()) {
@@ -1086,9 +1092,8 @@ public class RequestConvertersTests extends ESTestCase {
                     searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
                 }
             }
-            searchRequest.source(searchSourceBuilder);
         }
-        return searchRequest;
+        return searchSourceBuilder;
     }
 
 
@@ -1870,7 +1875,7 @@ public class RequestConvertersTests extends ESTestCase {
         expectedParams.put("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
     }
 
-    static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+    public static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
                                         Map<String, String> expectedParams) {
 
         if (randomBoolean()) {

@@ -21,31 +21,33 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
-public class AsyncSearchRequestConvertersTests extends ESTestCase {
+import static org.elasticsearch.client.RequestConvertersTests.createTestSearchSourceBuilder;
+import static org.elasticsearch.client.RequestConvertersTests.setRandomIndicesOptions;
 
-    public void testSubmitAsyncSearchNullSource() throws IOException {
-        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(new SearchRequest());
-        Request request = AsyncSearchRequestConverters.submitAsyncSearch(submitRequest);
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_async_search", request.getEndpoint());
-        assertNull(request.getEntity());
-    }
+public class AsyncSearchRequestConvertersTests extends ESTestCase {
 
     public void testSubmitAsyncSearch() throws Exception {
         String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
         Map<String, String> expectedParams = new HashMap<>();
-        SearchRequest searchRequest = RequestConvertersTests.createTestSearchRequest(indices, expectedParams);
-        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(searchRequest);
+        SearchSourceBuilder searchSourceBuilder = createTestSearchSourceBuilder();
+        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(searchSourceBuilder, indices);
+
+        setRandomSearchParams(submitRequest.getSearchRequest(), expectedParams);
+        setRandomIndicesOptions(submitRequest.getSearchRequest()::indicesOptions,
+                submitRequest.getSearchRequest()::indicesOptions, expectedParams);
         // some properties of theSearchRequest are always overwritten in the submit request,
         // so we need to adapt the expected parameters accordingly for tests to pass
         expectedParams.put("ccs_minimize_roundtrips", "false");
@@ -79,6 +81,27 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        RequestConvertersTests.assertToXContentBody(searchRequest.source(), request.getEntity());
+        RequestConvertersTests.assertToXContentBody(searchSourceBuilder, request.getEntity());
     }
+
+    private static void setRandomSearchParams(SearchRequest searchRequest, Map<String, String> expectedParams) {
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (randomBoolean()) {
+            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", searchRequest.routing());
+        }
+        if (randomBoolean()) {
+            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", searchRequest.preference());
+        }
+        if (randomBoolean()) {
+            searchRequest.searchType(randomFrom(SearchType.CURRENTLY_SUPPORTED));
+        }
+        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        if (randomBoolean()) {
+            searchRequest.allowPartialSearchResults(randomBoolean());
+            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
+    }
+
 }

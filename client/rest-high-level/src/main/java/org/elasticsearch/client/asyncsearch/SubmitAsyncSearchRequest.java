@@ -21,8 +21,11 @@
 package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.Objects;
 
@@ -37,17 +40,14 @@ public class SubmitAsyncSearchRequest implements Validatable {
     private final SearchRequest searchRequest;
 
     /**
-     * Create a request to submit an async search.
-     * Target indices, queries and all other search related options should be set on
-     * the input {@link SearchRequest}.
-     * @param searchRequest the actual search request to submit
+     * Creates a new request
      */
-    public SubmitAsyncSearchRequest(SearchRequest searchRequest) {
-        this.searchRequest = new SearchRequest(searchRequest);
-        this.searchRequest.setCcsMinimizeRoundtrips(false);
-        this.searchRequest.setPreFilterShardSize(1);
-        this.searchRequest.setBatchedReduceSize(5);
-        this.searchRequest.requestCache(true);
+    public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
+        this.searchRequest = new SearchRequest(indices, source);
+        searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.setPreFilterShardSize(1);
+        searchRequest.setBatchedReduceSize(5);
+        searchRequest.requestCache(true);
     }
 
 
@@ -98,6 +98,53 @@ public class SubmitAsyncSearchRequest implements Validatable {
      */
     public void setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+    }
+
+    // setters for request parameters of the wrapped SearchRequest
+    /**
+     * Set the routing values to control the shards that the search will be executed on.
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public void routing(String routing) {
+        this.searchRequest.routing(routing);
+    }
+
+    /**
+     * Set the routing values to control the shards that the search will be executed on.
+     */
+    public void routing(String... routings) {
+        this.searchRequest.routing(routings);
+    }
+
+    /**
+     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
+     */
+    public void preference(String preference) {
+        this.searchRequest.preference(preference);
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and how to deal with indices wildcard expressions.
+     */
+    public void indicesOptions(IndicesOptions indicesOptions) {
+        this.searchRequest.indicesOptions(indicesOptions);
+    }
+
+    /**
+     * The search type to execute, defaults to {@link SearchType#DEFAULT}.
+     */
+    public void searchType(SearchType searchType) {
+        this.searchRequest.searchType(searchType);
+    }
+
+    /**
+     * Sets if this request should allow partial results. (If method is not called,
+     * will default to the cluster level setting).
+     */
+    public void allowPartialSearchResults(boolean allowPartialSearchResults) {
+        this.searchRequest.allowPartialSearchResults(allowPartialSearchResults);
     }
 
     @Override

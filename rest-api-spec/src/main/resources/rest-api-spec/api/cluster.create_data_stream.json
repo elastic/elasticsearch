@@ -1,33 +1,31 @@
 {
-  "indices.get_data_streams":{
+  "cluster.create_data_stream":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Returns data streams."
+      "description":"Creates or updates a data stream"
     },
     "stability":"experimental",
     "url":{
       "paths":[
         {
-          "path":"/_data_streams",
+          "path":"/_data_stream/{name}",
           "methods":[
-            "GET"
-          ]
-        },
-        {
-          "path":"/_data_streams/{name}",
-          "methods":[
-            "GET"
+            "PUT"
           ],
           "parts":{
             "name":{
-              "type":"list",
-              "description":"The comma separated names of data streams"
+              "type":"string",
+              "description":"The name of the data stream"
             }
           }
         }
       ]
     },
     "params":{
+    },
+    "body":{
+      "description":"The data stream definition",
+      "required":true
     }
   }
 }

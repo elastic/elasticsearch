@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -27,9 +27,9 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 /**
- * Specialization of {@link AtomicNumericFieldData} for integers.
+ * Specialization of {@link LeafNumericFieldData} for integers.
  */
-abstract class AtomicLongFieldData implements AtomicNumericFieldData {
+abstract class LeafLongFieldData implements LeafNumericFieldData {
 
     private final long ramBytesUsed;
     /**
@@ -37,7 +37,7 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
      */
     private final NumericType numericType;
 
-    AtomicLongFieldData(long ramBytesUsed, NumericType numericType) {
+    LeafLongFieldData(long ramBytesUsed, NumericType numericType) {
         this.ramBytesUsed = ramBytesUsed;
         this.numericType = numericType;
     }

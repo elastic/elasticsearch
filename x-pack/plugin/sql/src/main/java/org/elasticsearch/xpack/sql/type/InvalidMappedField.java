@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Objects;
 
@@ -23,6 +24,11 @@ public class InvalidMappedField extends EsField {
     public InvalidMappedField(String name, String errorMessage) {
         super(name, DataType.UNSUPPORTED, emptyMap(), false);
         this.errorMessage = errorMessage;
+    }
+
+    public InvalidMappedField(String name) {
+        super(name, DataType.UNSUPPORTED, emptyMap(), false);
+        this.errorMessage = StringUtils.EMPTY;
     }
 
     public String errorMessage() {

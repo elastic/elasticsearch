@@ -118,7 +118,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
                         .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
                 .put("component_template", new ComponentTemplate(
-                    new ComponentTemplate.Template(Settings.builder().put("setting", "value").build(),
+                    new Template(Settings.builder().put("setting", "value").build(),
                         new CompressedXContent("{\"baz\":\"eggplant\"}"),
                         Collections.singletonMap("alias", AliasMetaData.builder("alias").build())),
                     5L, Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar"))))
@@ -298,7 +298,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(parsedMetaData.componentTemplates().get("component_template").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar"))));
         assertThat(parsedMetaData.componentTemplates().get("component_template").template(),
-            equalTo(new ComponentTemplate.Template(Settings.builder().put("setting", "value").build(),
+            equalTo(new Template(Settings.builder().put("setting", "value").build(),
                 new CompressedXContent("{\"baz\":\"eggplant\"}"),
                 Collections.singletonMap("alias", AliasMetaData.builder("alias").build()))));
     }

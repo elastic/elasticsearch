@@ -27,7 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -46,7 +46,7 @@ final class CountMethodValueSource extends ValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
 
         return new DoubleDocValues(this) {

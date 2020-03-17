@@ -337,7 +337,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** list of content types this shape query is compatible with */
-    protected abstract List validContentTypes();
+    protected abstract List<String> validContentTypes();
     /** builds the appropriate lucene shape query */
     protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType);
     /** writes the xcontent specific to this shape query */

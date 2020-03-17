@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -34,6 +35,9 @@ import java.util.function.Supplier;
  */
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
+
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(Arrays.asList(ShapeFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -103,7 +107,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     @Override
     @SuppressWarnings({ "rawtypes" })
     protected List<String> validContentTypes(){
-        return Arrays.asList(ShapeFieldMapper.CONTENT_TYPE);
+        return validContentTypes;
     }
 
     @Override

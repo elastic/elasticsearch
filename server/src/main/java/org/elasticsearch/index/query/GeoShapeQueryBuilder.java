@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -56,6 +57,12 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 
     private SpatialStrategy strategy;
+
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(
+            Arrays.asList(
+                GeoShapeFieldMapper.CONTENT_TYPE,
+                GeoPointFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -169,8 +176,8 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    protected List validContentTypes() {
-        return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.CONTENT_TYPE);
+    protected List<String> validContentTypes() {
+        return validContentTypes;
     }
 
     @Override

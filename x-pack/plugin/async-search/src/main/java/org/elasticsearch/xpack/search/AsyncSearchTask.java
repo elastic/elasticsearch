@@ -21,7 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
@@ -45,7 +45,7 @@ final class AsyncSearchTask extends SearchTask {
     private final AsyncSearchId searchId;
     private final Client client;
     private final ThreadPool threadPool;
-    private final Supplier<ReduceContext> reduceContextSupplier;
+    private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
     private final Listener progressListener;
 
     private final Map<String, String> originHeaders;
@@ -72,7 +72,7 @@ final class AsyncSearchTask extends SearchTask {
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncSearchId} of the task.
      * @param threadPool The threadPool to schedule runnable.
-     * @param reduceContextSupplier A supplier to create final reduce contexts.
+     * @param aggReduceContextSupplier A supplier to create final reduce contexts.
      */
     AsyncSearchTask(long id,
                     String type,
@@ -84,14 +84,14 @@ final class AsyncSearchTask extends SearchTask {
                     AsyncSearchId searchId,
                     Client client,
                     ThreadPool threadPool,
-                    Supplier<ReduceContext> reduceContextSupplier) {
+                    Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
         super(id, type, action, "async_search", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
         this.threadPool = threadPool;
-        this.reduceContextSupplier = reduceContextSupplier;
+        this.aggReduceContextSupplier = aggReduceContextSupplier;
         this.progressListener = new Listener();
         this.searchResponse = new AtomicReference<>();
         setProgressListener(progressListener);
@@ -327,7 +327,7 @@ final class AsyncSearchTask extends SearchTask {
             // best effort to cancel expired tasks
             checkExpiration();
             searchResponse.compareAndSet(null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, reduceContextSupplier));
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, aggReduceContextSupplier));
             executeInitListeners();
         }
 
@@ -360,7 +360,7 @@ final class AsyncSearchTask extends SearchTask {
             if (searchResponse.get() == null) {
                 // if the failure occurred before calling onListShards
                 searchResponse.compareAndSet(null,
-                    new MutableSearchResponse(-1, -1, null, reduceContextSupplier));
+                    new MutableSearchResponse(-1, -1, null, aggReduceContextSupplier));
             }
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();

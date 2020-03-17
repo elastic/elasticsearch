@@ -54,8 +54,8 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -87,15 +87,15 @@ public class FunctionScoreTests extends ESTestCase {
     /**
      * Stub for IndexFieldData. Needed by some score functions. Returns 1 as count always.
      */
-    private static class IndexFieldDataStub implements IndexFieldData<AtomicFieldData> {
+    private static class IndexFieldDataStub implements IndexFieldData<LeafFieldData> {
         @Override
         public String getFieldName() {
             return "test";
         }
 
         @Override
-        public AtomicFieldData load(LeafReaderContext context) {
-            return new AtomicFieldData() {
+        public LeafFieldData load(LeafReaderContext context) {
+            return new LeafFieldData() {
 
                 @Override
                 public ScriptDocValues getScriptValues() {
@@ -139,7 +139,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -182,8 +182,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public AtomicNumericFieldData load(LeafReaderContext context) {
-            return new AtomicNumericFieldData() {
+        public LeafNumericFieldData load(LeafReaderContext context) {
+            return new LeafNumericFieldData() {
                 @Override
                 public SortedNumericDocValues getLongValues() {
                     throw new UnsupportedOperationException(UNSUPPORTED);
@@ -236,7 +236,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 

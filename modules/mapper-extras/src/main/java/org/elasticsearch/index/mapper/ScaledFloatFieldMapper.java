@@ -43,7 +43,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -517,12 +517,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AtomicNumericFieldData load(LeafReaderContext context) {
+        public LeafNumericFieldData load(LeafReaderContext context) {
             return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor);
         }
 
         @Override
-        public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
             return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor);
         }
 
@@ -559,12 +559,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     }
 
-    private static class ScaledFloatLeafFieldData implements AtomicNumericFieldData {
+    private static class ScaledFloatLeafFieldData implements LeafNumericFieldData {
 
-        private final AtomicNumericFieldData scaledFieldData;
+        private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
 
-        ScaledFloatLeafFieldData(AtomicNumericFieldData scaledFieldData, double scalingFactor) {
+        ScaledFloatLeafFieldData(LeafNumericFieldData scaledFieldData, double scalingFactor) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
         }

@@ -268,7 +268,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (input.getVersion().onOrAfter(Version.V_7_7_0)) {
                 serverName = input.readString();
             } else {
                 serverName = null;
@@ -289,7 +289,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeString(serverName);
             }
             out.writeVInt(maxSocketConnections);

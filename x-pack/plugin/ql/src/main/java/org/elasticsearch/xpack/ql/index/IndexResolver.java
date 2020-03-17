@@ -519,7 +519,7 @@ public class IndexResolver {
             Function<String, String> indexNameProcessor,
             BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier) {
 
-        if ((indexNames == null || indexNames.length == 0) && (aliases == null || aliases.size() == 0)) {
+        if ((indexNames == null || indexNames.length == 0) && (aliases == null || aliases.isEmpty())) {
             return emptyList();
         }
 
@@ -697,7 +697,7 @@ public class IndexResolver {
             return emptyMap();
         }
         Map<String, InvalidMappedField> invalidFields = new HashMap<>();
-        Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types accross its indices
+        Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types across its indices
         Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
         
         Iterator<ObjectObjectCursor<String, List<AliasMetaData>>> iter = aliases.iterator();

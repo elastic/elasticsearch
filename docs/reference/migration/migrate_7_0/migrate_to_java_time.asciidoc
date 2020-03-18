@@ -197,7 +197,7 @@ GET my_index_1/_mapping
 // NOTCONSOLE
 
 
-* Create my_index_2 with mappings changed with the format set to 8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis
+* Create my_index_2 with mappings changed with the format set to `8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`
 
 [source,console]
 --------------------------------------------------

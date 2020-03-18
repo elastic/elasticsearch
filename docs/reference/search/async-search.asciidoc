@@ -90,7 +90,7 @@ timeout by providing the `wait_for_completion` parameter, which defaults to
 The submit async search API supports the same <<search-search-api-query-params,parameters>>
 as the search API, though some have different default values:
 
-* `pre_filter_shard_size` defaults to `1
+* `pre_filter_shard_size` defaults to `1`
 * `batched_reduce_size` defaults to `5`
 * `request_cache` defaults to `true`
 * `ccs_minimize_roundtrips` defaults to `false`.
@@ -98,7 +98,7 @@ as the search API, though some have different default values:
 You can also specify how long the async search needs to be
 available through the `keep_alive` parameter, which defaults to `5d` (five days).
 Ongoing async searches and any saved search results are deleted after this
-period 
+period
 
 WARNING: Async search does not support scroll searches, nor search requests that
 only include the `suggest` section. Cross cluster searches can be executed using

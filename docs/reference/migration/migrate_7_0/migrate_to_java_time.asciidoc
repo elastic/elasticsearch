@@ -5,7 +5,7 @@ With 7.0, {es} switch to java time from joda time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
-==== Identifying if you are affected
+==== Impacted features
 You are only affected if you have used any custom date formats in your mappings, pipelines or templates.
 Most of the custom date formats are compatible, but with some there is a change of meaning or missing. More on that below.
 A custom format is specified on a date field like this:

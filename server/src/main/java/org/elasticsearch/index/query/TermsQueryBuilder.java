@@ -64,8 +64,6 @@ import java.util.stream.IntStream;
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TermsQueryBuilder.class));
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated " +
         "in [terms] lookup queries.";
 
@@ -402,15 +400,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     "followed by array of terms or a document lookup specification");
         }
 
-        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup)
+        return new TermsQueryBuilder(fieldName, values, termsLookup)
             .boost(boost)
             .queryName(queryName);
-
-        if (builder.isTypeless() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("terms_lookup_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
-        return builder;
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {

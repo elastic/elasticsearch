@@ -45,13 +45,13 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
             },
             {"inFilter", "process where process_name in (\"python.exe\", \"SMSS.exe\", \"explorer.exe\")",
                     new Object[]{
-                            "{\"terms\":{\"process_name\":[\"python.exe\",\"SMSS.exe\",\"explorer.exe\"],\"boost\":1.0}}],\"boost\":1.0}}",
+                            "{\"terms\":{\"process_name\":[\"python.exe\",\"SMSS.exe\",\"explorer.exe\"],",
                     }
             },
             {"equalsAndInFilter", "process where process_path == \"*\\\\red_ttp\\\\wininit.*\" and opcode in (0,1,2,3)",
                     new Object[]{
                             "\"wildcard\":{\"process_path\":{\"wildcard\":\"*\\\\\\\\red_ttp\\\\\\\\wininit.*\"",
-                            "{\"terms\":{\"opcode\":[0,1,2,3],\"boost\":1.0}}],\"boost\":1.0}}",
+                            "{\"terms\":{\"opcode\":[0,1,2,3]",
                     }
             },
     };

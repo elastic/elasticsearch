@@ -46,7 +46,8 @@ This index has date fields with deprecated formats: [[type: doc, field: param2, 
 
 
 ==== Incompatible formats
-If a pattern contains literals below, that means the pattern is incompatible and needs to be changed.
+Custom date formats containing the following joda time literals should be
+changed before upgrading.
 
 ===== Y - in 6.8 meaning Year of era. It should be replaced to y in 7.0 This is a big change because in 7.0 'Y' means week-based-year.
 If you don't update your date pattern, you will have problems with search results, parsing and date calculations.

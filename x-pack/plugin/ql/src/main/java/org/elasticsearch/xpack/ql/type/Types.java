@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -89,6 +90,8 @@ public abstract class Types {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
+            } else if (esDataType == CONSTANT_KEYWORD) {
+                field = new ConstantKeywordEsField(name);
             } else if (esDataType == DATETIME) {
                 field = new DateEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {

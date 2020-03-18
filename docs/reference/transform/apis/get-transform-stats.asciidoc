@@ -104,6 +104,10 @@ upper bound of data that is included in the checkpoint.
 `checkpointing`.`next`.`timestamp_millis`::::
 (date) The timestamp of the checkpoint, which indicates when the checkpoint was
 created.
+`checkpointing`.`operations_behind`:::
+(integer) The number of operations that have occurred on the source index but
+have not been applied to the destination index yet. A high number can indicate
+that the {transform} is failing to keep up. 
 
 `id`::
 (string)

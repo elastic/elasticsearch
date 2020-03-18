@@ -56,8 +56,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(Percentile.class, Percentiles.class, PercentileRanks.class,
-            Iif.class, IfConditional.class, IfNull.class, In.class, InPipe.class);
-
+            Iif.class, IfConditional.class, IfNull.class, In.class, InPipe.class,
+            org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In.class);
 
     public SqlNodeSubclassTests(Class<T> subclass) {
         super(subclass);

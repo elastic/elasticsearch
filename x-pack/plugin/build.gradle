@@ -105,6 +105,8 @@ testClusters.integTest {
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }

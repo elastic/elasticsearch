@@ -102,6 +102,9 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(bq.build()).size(), equalTo(2));
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(bq.build()),
             containsInAnyOrder(sameInstance(percolateQuery), sameInstance(percolateQuery2)));
+
+        assertNotNull(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(null));
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(null).size(), equalTo(0));
     }
 
 }

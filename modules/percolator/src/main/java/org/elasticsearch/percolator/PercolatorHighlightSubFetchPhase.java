@@ -134,6 +134,9 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     static List<PercolateQuery> locatePercolatorQuery(Query query) {
+        if (query == null) {
+            return Collections.emptyList();
+        }
         List<PercolateQuery> queries = new ArrayList<>();
         query.visit(new QueryVisitor() {
             @Override

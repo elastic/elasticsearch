@@ -45,10 +45,10 @@ Network::
 * Invoke response handler on failure to send {pull}53631[#53631]
 
 SQL::
-* SQL: Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])
-* SQL: add support for index aliases for SYS COLUMNS command {pull}53525[#53525] (issue: {issue}31609[#31609])
-* SQL: Fix issue with LIKE/RLIKE as painless script {pull}53495[#53495] (issue: {issue}53486[#53486])
-* SQL: Fix column size for IP data type {pull}53056[#53056] (issue: {issue}52762[#52762])
+* Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])
+* Add support for index aliases for SYS COLUMNS command {pull}53525[#53525] (issue: {issue}31609[#31609])
+* Fix issue with LIKE/RLIKE as painless script {pull}53495[#53495] (issue: {issue}53486[#53486])
+* Fix column size for IP data type {pull}53056[#53056] (issue: {issue}52762[#52762])
 
 Search::
 * Fix Term Vectors with artificial docs and keyword fields {pull}53504[#53504] (issue: {issue}53494[#53494])

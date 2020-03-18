@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -23,7 +23,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestSamlMetadataAction extends BaseRestHandler {
+public class RestSamlMetadataAction extends IdpBaseRestHandler {
+
+    public RestSamlMetadataAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -36,7 +40,7 @@ public class RestSamlMetadataAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String spEntityId = request.param("sp_entity_id");
         final SamlMetadataRequest metadataRequest = new SamlMetadataRequest(spEntityId);
         return channel -> client.execute(SamlMetadataAction.INSTANCE, metadataRequest,

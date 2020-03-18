@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -30,6 +31,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderAction;
@@ -132,11 +134,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
         return List.of(
-            new RestSamlInitiateSingleSignOnAction(),
-            new RestSamlValidateAuthenticationRequestAction(),
-            new RestSamlMetadataAction(),
-            new RestPutSamlServiceProviderAction(),
-            new RestDeleteSamlServiceProviderAction()
+            new RestSamlInitiateSingleSignOnAction(getLicenseState()),
+            new RestSamlValidateAuthenticationRequestAction(getLicenseState()),
+            new RestSamlMetadataAction(getLicenseState()),
+            new RestPutSamlServiceProviderAction(getLicenseState()),
+            new RestDeleteSamlServiceProviderAction(getLicenseState())
         );
     }
 
@@ -149,6 +151,10 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 
 }

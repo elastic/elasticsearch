@@ -10,7 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -26,13 +26,17 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestSamlValidateAuthenticationRequestAction extends BaseRestHandler {
+public class RestSamlValidateAuthenticationRequestAction extends IdpBaseRestHandler {
 
     static final ObjectParser<SamlValidateAuthnRequestRequest, Void> PARSER =
         new ObjectParser<>("idp_validate_authn_request", SamlValidateAuthnRequestRequest::new);
 
     static {
         PARSER.declareString(SamlValidateAuthnRequestRequest::setQueryString, new ParseField("authn_request_query"));
+    }
+
+    public RestSamlValidateAuthenticationRequestAction(XPackLicenseState licenseState) {
+        super(licenseState);
     }
 
     @Override
@@ -46,7 +50,7 @@ public class RestSamlValidateAuthenticationRequestAction extends BaseRestHandler
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final SamlValidateAuthnRequestRequest validateRequest = PARSER.parse(parser, null);
             return channel -> client.execute(SamlValidateAuthnRequestAction.INSTANCE, validateRequest,

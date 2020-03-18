@@ -73,8 +73,8 @@ public class SamlServiceProviderIndex implements Closeable {
     private volatile boolean aliasExists;
     private volatile boolean templateInstalled;
 
-    static final String ALIAS_NAME = "saml-service-provider";
-    static final String INDEX_NAME = "saml-service-provider-v1";
+    public static final String ALIAS_NAME = "saml-service-provider";
+    public static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
     private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
@@ -239,7 +239,6 @@ public class SamlServiceProviderIndex implements Closeable {
 
         if (templateInstalled) {
             _writeDocument(document, opType, refreshPolicy, listener);
-
         } else {
             installIndexTemplate(ActionListener.wrap(installed ->
                 _writeDocument(document, opType, refreshPolicy, listener), listener::onFailure));

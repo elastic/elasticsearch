@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,14 +41,14 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
 
     public void testValidateSuccessfully() {
         final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, randomFrom(RefreshPolicy.values()));
         assertThat(request.validate(), nullValue());
     }
 
     public void testValidateAcs() {
         final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
         doc.acs = "this is not a URL";
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, randomFrom(RefreshPolicy.values()));
         final ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.validationErrors(), hasSize(1));
@@ -65,7 +66,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         doc.attributeNames.principal = null;
         doc.privileges.resource = null;
 
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, randomFrom(RefreshPolicy.values()));
         final ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.validationErrors(), hasSize(7));
@@ -80,7 +81,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
         SerializationTestUtils.assertRoundTrip(request, PutSamlServiceProviderRequest::new, version);
     }
@@ -140,7 +141,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.map(fields);
             try (XContentParser parser = createParser(shuffleXContent(builder))) {
-                return PutSamlServiceProviderRequest.fromXContent(entityId, parser);
+                return PutSamlServiceProviderRequest.fromXContent(entityId, randomFrom(RefreshPolicy.values()), parser);
             }
         }
     }

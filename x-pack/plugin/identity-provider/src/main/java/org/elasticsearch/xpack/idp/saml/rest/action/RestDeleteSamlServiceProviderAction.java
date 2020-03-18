@@ -53,7 +53,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
                 @Override
                 public RestResponse buildResponse(DeleteSamlServiceProviderResponse response, XContentBuilder builder) throws Exception {
                     response.toXContent(builder, restRequest);
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND, builder);
                 }
             });
     }

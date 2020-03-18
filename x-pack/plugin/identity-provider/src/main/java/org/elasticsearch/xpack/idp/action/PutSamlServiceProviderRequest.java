@@ -28,9 +28,10 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
     public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.NONE;
 
     private final SamlServiceProviderDocument document;
-    private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
+    private final WriteRequest.RefreshPolicy refreshPolicy;
 
-    public static PutSamlServiceProviderRequest fromXContent(String entityId, XContentParser parser) throws IOException {
+    public static PutSamlServiceProviderRequest fromXContent(String entityId, WriteRequest.RefreshPolicy refreshPolicy,
+                                                             XContentParser parser) throws IOException {
         final SamlServiceProviderDocument document = SamlServiceProviderDocument.fromXContent(null, parser);
         if (document.entityId == null) {
             document.setEntityId(entityId);
@@ -50,11 +51,12 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
         }
         document.setCreatedMillis(System.currentTimeMillis());
         document.setLastModifiedMillis(System.currentTimeMillis());
-        return new PutSamlServiceProviderRequest(document);
+        return new PutSamlServiceProviderRequest(document, refreshPolicy);
     }
 
-    public PutSamlServiceProviderRequest(SamlServiceProviderDocument document) {
+    public PutSamlServiceProviderRequest(SamlServiceProviderDocument document, WriteRequest.RefreshPolicy refreshPolicy) {
         this.document = document;
+        this.refreshPolicy = refreshPolicy;
     }
 
     public PutSamlServiceProviderRequest(StreamInput in) throws IOException {
@@ -64,10 +66,6 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
-    }
-
-    public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy must be provided");
     }
 
     @Override

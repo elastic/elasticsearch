@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
+import org.hamcrest.Matchers;
 import org.joda.time.Duration;
 import org.mockito.Mockito;
-import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 
 import java.nio.file.Files;
@@ -29,6 +29,7 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ALLOWED_NAMEID_FORMATS;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_EMAIL;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_GIVEN_NAME;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_CONTACT_SURNAME;
@@ -42,10 +43,13 @@ import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.I
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
+import static org.opensaml.saml.saml2.core.NameIDType.PERSISTENT;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
 
@@ -67,6 +71,7 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_SSO_POST_ENDPOINT.getKey(), "https://idp.org/sso/post")
             .put(IDP_SLO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/slo/redirect")
             .put(IDP_SLO_POST_ENDPOINT.getKey(), "https://idp.org/slo/post")
+            .putList(IDP_ALLOWED_NAMEID_FORMATS.getKey(), TRANSIENT)
             .put(IDP_ORGANIZATION_NAME.getKey(), "organization_name")
             .put(IDP_ORGANIZATION_DISPLAY_NAME.getKey(), "organization_display_name")
             .put(IDP_ORGANIZATION_URL.getKey(), "https://idp.org")
@@ -74,7 +79,7 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_CONTACT_SURNAME.getKey(), "Stark")
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
             .put(ServiceProviderDefaults.APPLICATION_NAME_SETTING.getKey(), "my_super_idp")
-            .put(ServiceProviderDefaults.NAMEID_FORMAT_SETTING.getKey(), NameID.PERSISTENT)
+            .put(ServiceProviderDefaults.NAMEID_FORMAT_SETTING.getKey(), PERSISTENT)
             .put(ServiceProviderDefaults.AUTHN_EXPIRY_SETTING.getKey(), "2m")
             .put("xpack.idp.signing.key", destSigningKeyPath)
             .put("xpack.idp.signing.certificate", destSigningCertPath)
@@ -88,10 +93,12 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         assertThat(idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/sso/post"));
         assertThat(idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI).toString(), equalTo("https://idp.org/slo/redirect"));
         assertThat(idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI).toString(), equalTo("https://idp.org/slo/post"));
+        assertThat(idp.getAllowedNameIdFormats(), hasSize(1));
+        assertThat(idp.getAllowedNameIdFormats(), Matchers.contains(TRANSIENT));
         assertThat(idp.getOrganization(), equalTo(new SamlIdentityProvider.OrganizationInfo("organization_name",
             "organization_display_name", "https://idp.org")));
         assertThat(idp.getServiceProviderDefaults().applicationName, equalTo("my_super_idp"));
-        assertThat(idp.getServiceProviderDefaults().nameIdFormat, equalTo(NameID.PERSISTENT));
+        assertThat(idp.getServiceProviderDefaults().nameIdFormat, equalTo(PERSISTENT));
         assertThat(idp.getServiceProviderDefaults().authenticationExpiry, equalTo(Duration.standardMinutes(2)));
         assertThat(idp.getSigningCredential().getEntityCertificate(), equalTo(signingCert));
         assertThat(idp.getSigningCredential().getPrivateKey(), equalTo(signingKey));
@@ -105,6 +112,7 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             .put(IDP_SSO_POST_ENDPOINT.getKey(), "https://idp.org/sso/post")
             .put(IDP_SLO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/slo/redirect")
             .put(IDP_SLO_POST_ENDPOINT.getKey(), "https://idp.org/slo/post")
+            .put(IDP_ALLOWED_NAMEID_FORMATS.getKey(), TRANSIENT)
             .put(IDP_ORGANIZATION_NAME.getKey(), "organization_name")
             .put(IDP_ORGANIZATION_DISPLAY_NAME.getKey(), "organization_display_name")
             .put(IDP_ORGANIZATION_URL.getKey(), "https://idp.org")
@@ -115,12 +123,87 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            randomAlphaOfLengthBetween(4, 8), randomFrom(NameID.TRANSIENT, NameID.PERSISTENT),
+            randomAlphaOfLengthBetween(4, 8), randomFrom(TRANSIENT, PERSISTENT),
             Duration.standardMinutes(randomIntBetween(2, 90)));
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
             () -> SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build());
         assertThat(e, instanceOf(ValidationException.class));
         assertThat(e.getMessage(), containsString("Signing credential must be specified"));
+    }
+
+    public void testDefaultAllowedNameIdFormats() throws Exception {
+        final Path dir = LuceneTestCase.createTempDir("signing");
+        final Path signingKeyPath = getDataPath("signing1.key");
+        final Path destSigningKeyPath = dir.resolve("signing1.key");
+        final Path signingCertPath = getDataPath("signing1.crt");
+        final Path destSigningCertPath = dir.resolve("signing1.crt");
+        Files.copy(signingKeyPath, destSigningKeyPath);
+        Files.copy(signingCertPath, destSigningCertPath);
+
+        Settings settings = Settings.builder()
+            .put("path.home", LuceneTestCase.createTempDir())
+            .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
+            .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/sso/redirect")
+            .put(IDP_SSO_POST_ENDPOINT.getKey(), "https://idp.org/sso/post")
+            .put(IDP_SLO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/slo/redirect")
+            .put(IDP_SLO_POST_ENDPOINT.getKey(), "https://idp.org/slo/post")
+            .put(IDP_ALLOWED_NAMEID_FORMATS.getKey(), TRANSIENT)
+            .put(IDP_ORGANIZATION_NAME.getKey(), "organization_name")
+            .put(IDP_ORGANIZATION_DISPLAY_NAME.getKey(), "organization_display_name")
+            .put(IDP_ORGANIZATION_URL.getKey(), "https://idp.org")
+            .put(IDP_CONTACT_GIVEN_NAME.getKey(), "Tony")
+            .put(IDP_CONTACT_SURNAME.getKey(), "Stark")
+            .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
+            .put(ServiceProviderDefaults.APPLICATION_NAME_SETTING.getKey(), "my_super_idp")
+            .put(ServiceProviderDefaults.NAMEID_FORMAT_SETTING.getKey(), PERSISTENT)
+            .put(ServiceProviderDefaults.AUTHN_EXPIRY_SETTING.getKey(), "2m")
+            .put("xpack.idp.signing.key", destSigningKeyPath)
+            .put("xpack.idp.signing.certificate", destSigningCertPath)
+            .build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final ServiceProviderDefaults defaults = ServiceProviderDefaults.forSettings(settings);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(resolver).fromSettings(env).serviceProviderDefaults(defaults).build();
+        assertThat(idp.getAllowedNameIdFormats(), hasSize(1));
+        assertThat(idp.getAllowedNameIdFormats(), Matchers.contains(TRANSIENT));
+    }
+
+    public void testConfigurationWithForbiddenAllowedNameIdFormats() throws Exception {
+        final Path dir = LuceneTestCase.createTempDir("signing");
+        final Path signingKeyPath = getDataPath("signing1.key");
+        final Path destSigningKeyPath = dir.resolve("signing1.key");
+        final Path signingCertPath = getDataPath("signing1.crt");
+        final Path destSigningCertPath = dir.resolve("signing1.crt");
+        Files.copy(signingKeyPath, destSigningKeyPath);
+        Files.copy(signingCertPath, destSigningCertPath);
+
+        Settings settings = Settings.builder()
+            .put("path.home", LuceneTestCase.createTempDir())
+            .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
+            .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/sso/redirect")
+            .put(IDP_SSO_POST_ENDPOINT.getKey(), "https://idp.org/sso/post")
+            .put(IDP_SLO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/slo/redirect")
+            .put(IDP_SLO_POST_ENDPOINT.getKey(), "https://idp.org/slo/post")
+            .putList(IDP_ALLOWED_NAMEID_FORMATS.getKey(), TRANSIENT, PERSISTENT)
+            .put(IDP_ORGANIZATION_NAME.getKey(), "organization_name")
+            .put(IDP_ORGANIZATION_DISPLAY_NAME.getKey(), "organization_display_name")
+            .put(IDP_ORGANIZATION_URL.getKey(), "https://idp.org")
+            .put(IDP_CONTACT_GIVEN_NAME.getKey(), "Tony")
+            .put(IDP_CONTACT_SURNAME.getKey(), "Stark")
+            .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
+            .put(ServiceProviderDefaults.APPLICATION_NAME_SETTING.getKey(), "my_super_idp")
+            .put(ServiceProviderDefaults.NAMEID_FORMAT_SETTING.getKey(), PERSISTENT)
+            .put(ServiceProviderDefaults.AUTHN_EXPIRY_SETTING.getKey(), "2m")
+            .put("xpack.idp.signing.key", destSigningKeyPath)
+            .put("xpack.idp.signing.certificate", destSigningCertPath)
+            .build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        final SamlServiceProviderResolver resolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final ServiceProviderDefaults defaults = ServiceProviderDefaults.forSettings(settings);
+        IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
+            () -> SamlIdentityProvider.builder(resolver).fromSettings(env).build());
+        assertThat(e.getMessage(), containsString("are not valid NameID formats. Allowed values are"));
+        assertThat(e.getMessage(), containsString(PERSISTENT));
     }
 
     public void testInvalidSsoEndpoint() {

@@ -1,4 +1,7 @@
 "Ensure that we fetch the document only once":
+  - skip:
+      version: "- 7.0.0"
+      reason: "TermsLookups in 6.0 require a _type, which emits warnings beyond 7.7"
   - do:
       indices.create:
           index: search_index
@@ -31,14 +34,11 @@
       indices.refresh: {}
 
   - do:
-      skip:
-        version: " + 7.6.99"
-        reason: "Emits warnings after 7.7.0"
       catch: /no such index/
       search:
         rest_total_hits_as_int: true
         index: "search_index"
-        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "_doc", "id": "1", "path": "followers"} } } }
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
   - do:
       indices.create:
           index: lookup_index
@@ -58,13 +58,10 @@
       indices.refresh: {}
 
   - do:
-      skip:
-        version: " + 7.6.99"
-        reason: "Emits warnings after 7.7.0"
       search:
         rest_total_hits_as_int: true
         index: "search_index"
-        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "_doc", "id": "1", "path": "followers"} } } }
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
 
   - match: { _shards.total: 5 }
   - match: { _shards.successful: 5 }

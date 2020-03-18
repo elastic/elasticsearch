@@ -369,7 +369,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // everything should have been loaded
         modules.add(b -> {
             if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-                b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
+                b.bind(AuditTrailService.class).to(AuditTrailService.class); // interface used by some actions...
             }
         });
         return modules;

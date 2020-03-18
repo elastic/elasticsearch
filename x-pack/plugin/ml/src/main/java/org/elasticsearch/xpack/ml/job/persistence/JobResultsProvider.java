@@ -282,9 +282,16 @@ public class JobResultsProvider {
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
-            final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                    .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
-                    .addAlias(indexName, writeAliasName).request();
+            final IndicesAliasesRequest request =
+                client.admin().indices().prepareAliases()
+                    .addAliasAction(
+                        IndicesAliasesRequest.AliasActions.add()
+                            .index(indexName)
+                            .alias(readAliasName)
+                            .isHidden(true)
+                            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId())))
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true))
+                    .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                     ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),
                     client.admin().indices()::aliases);

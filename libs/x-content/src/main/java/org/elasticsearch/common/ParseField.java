@@ -34,6 +34,7 @@ public class ParseField {
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
     private final String[] allNames;
+    private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
@@ -97,6 +98,15 @@ public class ParseField {
     }
 
     /**
+     * Return a new ParseField where all field names are deprecated with no replacement
+     */
+    public ParseField withAllDeprecated() {
+        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
+        parseField.fullyDeprecated = true;
+        return parseField;
+    }
+
+    /**
      * Does {@code fieldName} match this field?
      * @param fieldName
      *            the field name to match against this {@link ParseField}
@@ -108,7 +118,7 @@ public class ParseField {
         Objects.requireNonNull(fieldName, "fieldName cannot be null");
         // if this parse field has not been completely deprecated then try to
         // match the preferred name
-        if (allReplacedWith == null && fieldName.equals(name)) {
+        if (fullyDeprecated == false && allReplacedWith == null && fieldName.equals(name)) {
             return true;
         }
         // Now try to match against one of the deprecated names. Note that if
@@ -116,7 +126,9 @@ public class ParseField {
         // fields will be in the deprecatedNames array
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
-                if (allReplacedWith == null) {
+                if (fullyDeprecated) {
+                    deprecationHandler.usedDeprecatedField(fieldName);
+                } else if (allReplacedWith == null) {
                     deprecationHandler.usedDeprecatedName(fieldName, name);
                 } else {
                     deprecationHandler.usedDeprecatedField(fieldName, allReplacedWith);

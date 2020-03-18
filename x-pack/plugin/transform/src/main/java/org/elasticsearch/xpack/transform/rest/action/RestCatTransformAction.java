@@ -9,6 +9,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -32,6 +34,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestCatTransformAction extends AbstractCatAction {
+
+    private static final Integer DEFAULT_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
+    private static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
 
     @Override
     public List<Route> routes() {
@@ -58,6 +63,13 @@ public class RestCatTransformAction extends AbstractCatAction {
         GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id);
         statsRequest.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
+        if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
+            PageParams pageParams = new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                                                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE));
+            request.setPageParams(pageParams);
+            statsRequest.setPageParams(pageParams);
+        }
+
         return channel -> client.execute(GetTransformAction.INSTANCE, request, new RestActionListener<>(channel) {
             @Override
             public void processResponse(GetTransformAction.Response response) {
@@ -74,7 +86,7 @@ public class RestCatTransformAction extends AbstractCatAction {
     @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/transform\n");
-        sb.append("_cat/transform/{" + TransformField.TRANSFORM_ID + "}\n");
+        sb.append("/_cat/transform/{" + TransformField.TRANSFORM_ID + "}\n");
     }
 
     @Override
@@ -103,17 +115,25 @@ public class RestCatTransformAction extends AbstractCatAction {
                 TableColumnAttributeBuilder.builder("destination index")
                     .setAliases("di", "destIndex")
                     .build())
+            .addCell("pipeline",
+                TableColumnAttributeBuilder.builder("transform pipeline")
+                    .setAliases("p")
+                    .build())
             .addCell("description",
                 TableColumnAttributeBuilder.builder("description")
                     .setAliases("d")
                     .build())
             .addCell("transform_type",
-                TableColumnAttributeBuilder.builder("batch or continues transform")
-                    .setAliases("sc")
+                TableColumnAttributeBuilder.builder("batch or continuous transform")
+                    .setAliases("tt")
                     .build())
             .addCell("frequency",
                 TableColumnAttributeBuilder.builder("frequency of transform")
                     .setAliases("f")
+                    .build())
+            .addCell("max_page_search_size",
+                TableColumnAttributeBuilder.builder("max page search size ")
+                    .setAliases("mpsz")
                     .build())
 
             // Transform stats info
@@ -202,19 +222,22 @@ public class RestCatTransformAction extends AbstractCatAction {
                 .addCell(config.getVersion())
                 .addCell(String.join(",", config.getSource().getIndex()))
                 .addCell(config.getDestination().getIndex())
+                .addCell(config.getDestination().getPipeline())
                 .addCell(config.getDescription())
                 .addCell(config.getSyncConfig() == null ? "batch" : "continuous")
-                .addCell(config.getFrequency() == null ? "one-time" : config.getFrequency())
+                .addCell(config.getFrequency() == null ? DEFAULT_TRANSFORM_FREQUENCY : config.getFrequency())
+                .addCell(config.getPivotConfig() == null || config.getPivotConfig().getMaxPageSearchSize() == null ?
+                            DEFAULT_MAX_PAGE_SEARCH_SIZE : config.getPivotConfig().getMaxPageSearchSize())
                 .addCell(stats == null ? null : stats.getState())
                 .addCell(stats == null ? null : stats.getReason())
                 .addCell(checkpointingInfo == null ? null : checkpointingInfo.getChangesLastDetectedAt())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getSearchTotal())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getSearchFailures())
-                .addCell(transformIndexerStats == null ? null : transformIndexerStats.getSearchTime())
+                .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getSearchTime()))
 
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getIndexTotal())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getIndexFailures())
-                .addCell(transformIndexerStats == null ? null : transformIndexerStats.getIndexTime())
+                .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getIndexTime()))
 
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumDocuments())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumInvocations())

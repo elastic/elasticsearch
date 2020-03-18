@@ -27,6 +27,16 @@
       ]
     },
     "params":{
+      "from":{
+        "type":"int",
+        "required":false,
+        "description":"skips a number of transform configs, defaults to 0"
+      },
+      "size":{
+        "type":"int",
+        "required":false,
+        "description":"specifies a max number of transforms to get, defaults to 100"
+      },
       "allow_no_match":{
         "type":"boolean",
         "required":false,

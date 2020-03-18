@@ -50,6 +50,13 @@ there must be at least one {ml} node in your cluster. For more information about
 IMPORTANT: If you use the {oss-dist}, do not set `node.ml`. Otherwise, the node
 fails to start.
 
+<<transform-node,{transform-cap} node>>::
+
+A node that has `xpack.transform.enabled` and `node.transform` set to `true`. If
+you want to use {transforms}, there must be at least one {transform} node in
+your cluster. For more information, see <<transform-settings>> and
+<<transforms>>.
+
 [NOTE]
 [[coordinating-node]]
 .Coordinating node
@@ -96,7 +103,7 @@ restarts.
 ==== Dedicated master-eligible node
 
 It is important for the health of the cluster that the elected master node has 
-the resources it needs to fulfil its responsibilities. If the elected master 
+the resources it needs to fulfill its responsibilities. If the elected master 
 node is overloaded with other tasks then the cluster may not operate well. In 
 particular, indexing and searching your data can be very resource-intensive, so 
 in large or high-throughput clusters it is a good idea to avoid using the 
@@ -118,7 +125,9 @@ node.data: false <3>
 node.ingest: false <4>
 node.ml: false <5>
 xpack.ml.enabled: true <6>
-cluster.remote.connect: false <7>
+node.transform: false <7>
+xpack.transform.enabled: true <8>
+cluster.remote.connect: false <9>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> The `node.voting_only` role is disabled by default.
@@ -126,7 +135,9 @@ cluster.remote.connect: false <7>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable remote cluster connections (enabled by default).
+<7> Disable the `node.transform` role.
+<8> The `xpack.transform.enabled` setting is enabled by default.
+<9> Disable remote cluster connections (enabled by default).
 
 To create a dedicated master-eligible node in the {oss-dist}, set:
 
@@ -197,7 +208,9 @@ node.data: false <3>
 node.ingest: false <4>
 node.ml: false <5>
 xpack.ml.enabled: true <6>
-cluster.remote.connect: false <7>
+node.transform: false <7>
+xpack.transform.enabled: true <8>
+cluster.remote.connect: false <9>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Enable the `node.voting_only` role (disabled by default).
@@ -205,11 +218,13 @@ cluster.remote.connect: false <7>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable remote cluster connections (enabled by default).
+<7> Disable the `node.transform` role.
+<8> The `xpack.transform.enabled` setting is enabled by default.
+<9> Disable remote cluster connections (enabled by default).
 
 [float]
 [[data-node]]
-=== Data Node
+=== Data node
 
 Data nodes hold the shards that contain the documents you have indexed. Data
 nodes handle data related operations like CRUD, search, and aggregations.
@@ -227,14 +242,16 @@ node.voting_only: false <2>
 node.data: true <3>
 node.ingest: false <4>
 node.ml: false <5>
-cluster.remote.connect: false <6>
+node.transform: false <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
 <3> The `node.data` role is enabled by default.
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable remote cluster connections (enabled by default).
+<6> Disable the `node.transform` role.
+<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
@@ -251,7 +268,7 @@ cluster.remote.connect: false <4>
 
 [float]
 [[node-ingest-node]]
-=== Ingest Node
+=== Ingest node
 
 Ingest nodes can execute pre-processing pipelines, composed of one or more
 ingest processors. Depending on the type of operations performed by the ingest
@@ -267,14 +284,16 @@ node.voting_only: false <2>
 node.data: false <3>
 node.ingest: true <4>
 node.ml: false <5>
-cluster.remote.connect: false <6>
+node.transform: false <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
 <3> Disable the `node.data` role (enabled by default).
 <4> The `node.ingest` role is enabled by default.
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable remote cluster connections (enabled by default).
+<6> Disable the `node.transform` role.
+<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated ingest node in the {oss-dist}, set:
 
@@ -320,14 +339,16 @@ node.voting_only: false <2>
 node.data: false <3>
 node.ingest: false <4>
 node.ml: false <5>
-cluster.remote.connect: false <6>
+node.transform: false <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
 <3> Disable the `node.data` role (enabled by default).
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable remote cluster connections (enabled by default).
+<6> Disable the `node.transform` role.
+<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated coordinating node in the {oss-dist}, set:
 
@@ -348,7 +369,7 @@ cluster.remote.connect: false <4>
 === [xpack]#Machine learning node#
 
 The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
-requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
+requests. If `xpack.ml.enabled` is set to `true` and `node.ml` is set to `false`,
 the node can service API requests but it cannot run jobs.
 
 If you want to use {ml-features} in your cluster, you must enable {ml}
@@ -367,7 +388,9 @@ node.data: false <3>
 node.ingest: false <4>
 node.ml: true <5>
 xpack.ml.enabled: true <6>
-cluster.remote.connect: false <7>
+node.transform: false <7>
+xpack.transform.enabled: true <8>
+cluster.remote.connect: false <9>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
@@ -375,7 +398,42 @@ cluster.remote.connect: false <7>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> The `node.ml` role is enabled by default.
 <6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable remote cluster connections (enabled by default).
+<7> Disable the `node.transform` role.
+<8> The `xpack.transform.enabled` setting is enabled by default.
+<9> Disable remote cluster connections (enabled by default).
+
+[discrete]
+[[transform-node]]
+=== [xpack]#{transform-cap} node#
+
+{transform-cap} nodes run {transforms} and handle {transform} API requests.
+
+If you want to use {transforms} in your cluster, you must have
+`xpack.transform.enabled` set to `true` on all master-eligible nodes and all
+data nodes. You must also have `node.transform` set to `true` on at least one
+node. This is the default behavior. If you have the {oss-dist}, do not use these
+settings. For more information, see <<transform-settings>>.
+
+To create a dedicated {transform} node in the {default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: false <1>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+node.transform: true <6>
+xpack.transform.enabled: true <7>
+cluster.remote.connect: false <8>
+-------------------
+<1> Disable the `node.master` role.
+<2> Disable the `node.voting_only`.
+<3> Disable the `node.data` role.
+<4> Disable the `node.ingest` role.
+<5> Enable the `node.ml` role.
+<6> Enable the `xpack.ml.enabled` setting.
+<7> Disable remote cluster connections.
 
 [float]
 [[change-node-role]]

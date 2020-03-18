@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
@@ -40,9 +42,9 @@ public class RestCatTransformAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return unmodifiableList(asList(
             new Route(GET, "_cat/transform"),
-            new Route(GET, "_cat/transform/{" + TransformField.TRANSFORM_ID + "}"));
+            new Route(GET, "_cat/transform/{" + TransformField.TRANSFORM_ID + "}")));
     }
 
     @Override
@@ -70,10 +72,14 @@ public class RestCatTransformAction extends AbstractCatAction {
             statsRequest.setPageParams(pageParams);
         }
 
-        return channel -> client.execute(GetTransformAction.INSTANCE, request, new RestActionListener<>(channel) {
+        return channel -> client.execute(GetTransformAction.INSTANCE,
+            request,
+            new RestActionListener<GetTransformAction.Response>(channel) {
             @Override
             public void processResponse(GetTransformAction.Response response) {
-                client.execute(GetTransformStatsAction.INSTANCE, statsRequest, new RestResponseListener<>(channel) {
+                client.execute(GetTransformStatsAction.INSTANCE,
+                    statsRequest,
+                    new RestResponseListener<GetTransformStatsAction.Response>(channel) {
                     @Override
                     public RestResponse buildResponse(GetTransformStatsAction.Response statsResponse) throws Exception {
                         return RestTable.buildResponse(buildTable(response, statsResponse), channel);

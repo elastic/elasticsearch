@@ -329,7 +329,7 @@ public final class ExpressionTranslators {
             return doTranslate(in, handler);
         }
 
-        protected Query doTranslate(In in, TranslatorHandler handler) {
+        public static Query doTranslate(In in, TranslatorHandler handler) {
             Query q;
             if (in.value() instanceof FieldAttribute) {
                 // equality should always be against an exact match (which is important for strings)

@@ -7,9 +7,6 @@ Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 [float]
 === Bug fixes
 
-Analysis::
-* Mask wildcard query special characters on keyword queries {pull}53127[#53127] (issue: {issue}46300[#46300])
-
 Authentication::
 * Fix potential bug in concurrent token refresh support {pull}53668[#53668]
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -28,6 +29,9 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
@@ -35,10 +39,17 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
-final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
+import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
+
+class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
     private final SearchProgressListener progressListener;
+
+    // informations to track the best bottom top doc globally.
+    private final int topDocsSize;
+    private final int trackTotalHitsUpTo;
+    private volatile BottomSortValuesCollector bottomSortCollector;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
                                     final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -53,9 +64,10 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
+        this.topDocsSize = getTopDocsSize(request);
+        this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
-        final SearchProgressListener progressListener = task.getProgressListener();
         final SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
@@ -63,8 +75,9 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
+        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
         getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
-            buildShardSearchRequest(shardIt), getTask(), listener);
+            request, getTask(), listener);
     }
 
     @Override
@@ -73,7 +86,42 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
     }
 
     @Override
+    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+        QuerySearchResult queryResult = result.queryResult();
+        if (queryResult.isNull() == false && queryResult.topDocs().topDocs instanceof TopFieldDocs) {
+            TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
+            if (bottomSortCollector == null) {
+                synchronized (this) {
+                    if (bottomSortCollector == null) {
+                        bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+                    }
+                }
+            }
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+        }
+        super.onShardResult(result, shardIt);
+    }
+
+    @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
         return new FetchSearchPhase(results, searchPhaseController, context, clusterState());
+    }
+
+    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+        if (bottomSortCollector == null) {
+            return request;
+        }
+
+        // disable tracking total hits if we already reached the required estimation.
+        if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
+            request.source(request.source().shallowCopy().trackTotalHits(false));
+        }
+
+        // set the current best bottom field doc
+        if (bottomSortCollector.getBottomSortValues() != null) {
+            request.setBottomSortValues(bottomSortCollector.getBottomSortValues());
+        }
+        return request;
     }
 }

@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="x-pack" pattern="file[elasticsearch.x-pack]:*/||file[elasticsearch.x-pack*]:*//*" />
+</component>

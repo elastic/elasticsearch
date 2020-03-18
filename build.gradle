@@ -43,6 +43,7 @@ apply plugin: 'nebula.info-scm'
 apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
+apply from: 'gradle/ide.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -180,7 +181,6 @@ allprojects {
       System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
       gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
       gradle.startParameter.taskNames.contains('cleanEclipse')
-    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
     bwcVersions = versions
@@ -353,36 +353,6 @@ gradle.projectsEvaluated {
         }
       }
     }
-  }
-}
-
-// intellij configuration
-allprojects {
-  apply plugin: 'idea'
-
-  if (isIdea) {
-    project.buildDir = file('build-idea')
-  }
-  idea {
-    module {
-      inheritOutputDirs = false
-      outputDir = file('build-idea/classes/main')
-      testOutputDir = file('build-idea/classes/test')
-
-      // also ignore other possible build dirs
-      excludeDirs += file('build')
-      excludeDirs += file('build-eclipse')
-    }
-  }
-
-  tasks.named('cleanIdea') {
-    delete 'build-idea'
-  }
-}
-
-idea {
-  project {
-    vcs = 'Git'
   }
 }
 

@@ -32,6 +32,12 @@ dependencies {
   testCompile project(':test:fixtures:azure-fixture')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 dependencyLicenses {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'

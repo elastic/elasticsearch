@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -26,6 +28,10 @@ integTest {
 }
 
 testClusters.integTest {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.datastreams_feature_flag_registered', 'true'
+  }
+
   testDistribution = 'DEFAULT'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

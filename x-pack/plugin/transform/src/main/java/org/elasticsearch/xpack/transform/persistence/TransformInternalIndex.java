@@ -101,9 +101,10 @@ public final class TransformInternalIndex {
                     // the audits are expected to be small
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetaData.SETTING_INDEX_HIDDEN, true)
             )
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
-            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))
+            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS).isHidden(true))
             .build();
         return transformTemplate;
     }

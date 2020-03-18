@@ -41,7 +41,7 @@ public class TransformIndexerStats extends IndexerJobStats {
         true,
         args -> new TransformIndexerStats((long) args[0], (long) args[1], (long) args[2],
             (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9],
-            (Double) args[10], (Double) args[11], (Double) args[12]));
+            (long) args[10], (long) args[11], (Double) args[12], (Double) args[13], (Double) args[14]));
 
     static {
         LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -50,8 +50,10 @@ public class TransformIndexerStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(constructorArg(), PROCESSING_TIME_IN_MS);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+        LENIENT_PARSER.declareLong(constructorArg(), PROCESSING_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS);
@@ -68,12 +70,12 @@ public class TransformIndexerStats extends IndexerJobStats {
     private final double expAvgDocumentsProcessed;
 
     public TransformIndexerStats(long numPages, long numInputDocuments, long numOuputDocuments,
-                                 long numInvocations, long indexTime, long searchTime,
-                                 long indexTotal, long searchTotal, long indexFailures, long searchFailures,
+                                 long numInvocations, long indexTime, long searchTime, long processingTime,
+                                 long indexTotal, long searchTotal, long processingTotal, long indexFailures, long searchFailures,
                                  Double expAvgCheckpointDurationMs, Double expAvgDocumentsIndexed,
                                  Double expAvgDocumentsProcessed) {
-        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime,
-                indexTotal, searchTotal, indexFailures, searchFailures);
+        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime, processingTime,
+                indexTotal, searchTotal, processingTotal, indexFailures, searchFailures);
         this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs == null ? 0.0 : expAvgCheckpointDurationMs;
         this.expAvgDocumentsIndexed = expAvgDocumentsIndexed == null ? 0.0 : expAvgDocumentsIndexed;
         this.expAvgDocumentsProcessed = expAvgDocumentsProcessed == null ? 0.0 : expAvgDocumentsProcessed;
@@ -109,10 +111,12 @@ public class TransformIndexerStats extends IndexerJobStats {
             && Objects.equals(this.numInvocations, that.numInvocations)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
+            && Objects.equals(this.processingTime, that.processingTime)
             && Objects.equals(this.indexFailures, that.indexFailures)
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
             && Objects.equals(this.searchTotal, that.searchTotal)
+            && Objects.equals(this.processingTotal, that.processingTotal)
             && Objects.equals(this.expAvgCheckpointDurationMs, that.expAvgCheckpointDurationMs)
             && Objects.equals(this.expAvgDocumentsIndexed, that.expAvgDocumentsIndexed)
             && Objects.equals(this.expAvgDocumentsProcessed, that.expAvgDocumentsProcessed);
@@ -121,7 +125,7 @@ public class TransformIndexerStats extends IndexerJobStats {
     @Override
     public int hashCode() {
         return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal,
-            expAvgCheckpointDurationMs, expAvgDocumentsIndexed, expAvgDocumentsProcessed);
+            indexTime, searchTime, processingTime, indexFailures, searchFailures, indexTotal, searchTotal,
+            processingTotal, expAvgCheckpointDurationMs, expAvgDocumentsIndexed, expAvgDocumentsProcessed);
     }
 }

@@ -42,6 +42,8 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomDouble() : null

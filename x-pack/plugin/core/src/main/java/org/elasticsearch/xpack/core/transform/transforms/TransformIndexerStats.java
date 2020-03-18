@@ -33,8 +33,10 @@ public class TransformIndexerStats extends IndexerJobStats {
     public static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
     public static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
     public static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    public static ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
     public static ParseField INDEX_TOTAL = new ParseField("index_total");
     public static ParseField SEARCH_TOTAL = new ParseField("search_total");
+    public static ParseField PROCESSING_TOTAL = new ParseField("processing_total");
     public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
     public static ParseField INDEX_FAILURES = new ParseField("index_failures");
     public static ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
@@ -60,9 +62,11 @@ public class TransformIndexerStats extends IndexerJobStats {
             (long) args[7],
             (long) args[8],
             (long) args[9],
-            (Double) args[10],
-            (Double) args[11],
-            (Double) args[12]
+            (long) args[10],
+            (long) args[11],
+            (Double) args[12],
+            (Double) args[13],
+            (Double) args[14]
         )
     );
 
@@ -73,8 +77,10 @@ public class TransformIndexerStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(constructorArg(), PROCESSING_TIME_IN_MS);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+        LENIENT_PARSER.declareLong(constructorArg(), PROCESSING_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS);
@@ -100,8 +106,10 @@ public class TransformIndexerStats extends IndexerJobStats {
         long numInvocations,
         long indexTime,
         long searchTime,
+        long processingTime,
         long indexTotal,
         long searchTotal,
+        long processingTotal,
         long indexFailures,
         long searchFailures,
         Double expAvgCheckpointDurationMs,
@@ -115,8 +123,10 @@ public class TransformIndexerStats extends IndexerJobStats {
             numInvocations,
             indexTime,
             searchTime,
+            processingTime,
             indexTotal,
             searchTotal,
+            processingTotal,
             indexFailures,
             searchFailures
         );
@@ -133,8 +143,10 @@ public class TransformIndexerStats extends IndexerJobStats {
             other.numInvocations,
             other.indexTime,
             other.searchTime,
+            other.processingTime,
             other.indexTotal,
             other.searchTotal,
+            other.processingTotal,
             other.indexFailures,
             other.searchFailures,
             other.expAvgCheckpointDurationMs,
@@ -181,6 +193,8 @@ public class TransformIndexerStats extends IndexerJobStats {
         builder.field(SEARCH_TIME_IN_MS.getPreferredName(), searchTime);
         builder.field(SEARCH_TOTAL.getPreferredName(), searchTotal);
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
+        builder.field(PROCESSING_TIME_IN_MS.getPreferredName(), processingTime);
+        builder.field(PROCESSING_TOTAL.getPreferredName(), processingTotal);
         builder.field(EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(), this.expAvgCheckpointDurationMs);
         builder.field(EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(), this.expAvgDocumentsIndexed);
         builder.field(EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), this.expAvgDocumentsProcessed);
@@ -238,10 +252,12 @@ public class TransformIndexerStats extends IndexerJobStats {
             && Objects.equals(this.numInvocations, that.numInvocations)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
+            && Objects.equals(this.processingTime, that.processingTime)
             && Objects.equals(this.indexFailures, that.indexFailures)
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
             && Objects.equals(this.searchTotal, that.searchTotal)
+            && Objects.equals(this.processingTotal, that.processingTotal)
             && Objects.equals(this.expAvgCheckpointDurationMs, that.expAvgCheckpointDurationMs)
             && Objects.equals(this.expAvgDocumentsIndexed, that.expAvgDocumentsIndexed)
             && Objects.equals(this.expAvgDocumentsProcessed, that.expAvgDocumentsProcessed);
@@ -256,10 +272,12 @@ public class TransformIndexerStats extends IndexerJobStats {
             numInvocations,
             indexTime,
             searchTime,
+            processingTime,
             indexFailures,
             searchFailures,
             indexTotal,
             searchTotal,
+            processingTotal,
             expAvgCheckpointDurationMs,
             expAvgDocumentsIndexed,
             expAvgDocumentsProcessed

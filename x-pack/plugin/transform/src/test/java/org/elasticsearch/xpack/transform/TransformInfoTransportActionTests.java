@@ -98,13 +98,15 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             4,  // numInvocations
             5,  // indexTime
             6,  // searchTime
-            7,  // indexTotal
-            8,  // searchTotal
-            9,  // indexFailures
-            10, // searchFailures
-            11.0,  // exponential_avg_checkpoint_duration_ms
-            12.0,  // exponential_avg_documents_indexed
-            13.0   // exponential_avg_documents_processed
+            7,  // processingTime
+            8,  // indexTotal
+            9,  // searchTotal
+            10, // processingTotal
+            11, // indexFailures
+            12, // searchFailures
+            13.0,  // exponential_avg_checkpoint_duration_ms
+            14.0,  // exponential_avg_documents_indexed
+            15.0   // exponential_avg_documents_processed
         );
 
         int currentStat = 1;

@@ -41,8 +41,9 @@ public class TransformIndexerStatsTests extends ESTestCase {
 
     public static TransformIndexerStats randomStats() {
         return new TransformIndexerStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                randomNonNegativeLong(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble());
@@ -59,6 +60,8 @@ public class TransformIndexerStatsTests extends ESTestCase {
         builder.field(IndexerJobStats.INDEX_FAILURES.getPreferredName(), stats.getIndexFailures());
         builder.field(IndexerJobStats.SEARCH_TIME_IN_MS.getPreferredName(), stats.getSearchTime());
         builder.field(IndexerJobStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
+        builder.field(IndexerJobStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
+        builder.field(IndexerJobStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
         builder.field(IndexerJobStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
         builder.field(TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
             stats.getExpAvgCheckpointDurationMs());

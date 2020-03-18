@@ -64,8 +64,9 @@ public class GetRollupJobResponseTests extends ESTestCase {
 
     private RollupIndexerJobStats randomStats() {
         return new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     private RollupJobStatus randomStatus() {

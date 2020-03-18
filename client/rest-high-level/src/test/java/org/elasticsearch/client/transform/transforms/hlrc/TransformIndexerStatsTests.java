@@ -37,7 +37,7 @@ public class TransformIndexerStatsTests extends AbstractResponseTestCase<
         return new org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble());

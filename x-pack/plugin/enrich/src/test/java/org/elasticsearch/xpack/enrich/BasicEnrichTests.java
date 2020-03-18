@@ -19,11 +19,11 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
-import org.elasticsearch.spatial.SpatialExtrasPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -57,7 +57,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             ReindexPlugin.class,
             IngestCommonPlugin.class,
             MustachePlugin.class,
-            SpatialExtrasPlugin.class
+            GeoPlugin.class
         );
     }
 

@@ -16,13 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.spatial;
 
-import org.elasticsearch.test.ESTestCase;
+package org.elasticsearch.geo;
 
-public class SpatialExtrasTests extends ESTestCase {
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-    public void testStub() {
-        // the build expects unit tests to exist in a module, so here one is.
+/** Runs yaml rest tests */
+public class GeoClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public GeoClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }
+

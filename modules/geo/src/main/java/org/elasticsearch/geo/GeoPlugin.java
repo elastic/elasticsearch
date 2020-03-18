@@ -17,7 +17,21 @@
  * under the License.
  */
 
-esplugin {
-  description 'Placeholder plugin for spatial features in ES. only registers geo-shape field mapper for now'
-  classname 'org.elasticsearch.spatial.SpatialExtrasPlugin'
+package org.elasticsearch.geo;
+
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
+
+import java.util.Collections;
+import java.util.Map;
+
+public class GeoPlugin extends Plugin implements MapperPlugin {
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new AbstractGeometryFieldMapper.TypeParser());
+    }
 }

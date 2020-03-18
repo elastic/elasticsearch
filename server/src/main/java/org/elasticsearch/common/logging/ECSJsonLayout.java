@@ -37,9 +37,6 @@ import java.nio.charset.StandardCharsets;
 @Plugin(name = "ECSJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ECSJsonLayout  {
 
-    public ECSJsonLayout() {
-    }
-
     @PluginBuilderFactory
     public static ECSJsonLayout.Builder newBuilder() {
         return new ECSJsonLayout.Builder().asBuilder();
@@ -50,7 +47,6 @@ public class ECSJsonLayout  {
 
         @PluginAttribute("type_name")
         String type;
-
 
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
@@ -77,7 +73,6 @@ public class ECSJsonLayout  {
             };
         }
 
-
         public String getType() {
             return type;
         }
@@ -87,5 +82,4 @@ public class ECSJsonLayout  {
             return asBuilder();
         }
     }
-
 }

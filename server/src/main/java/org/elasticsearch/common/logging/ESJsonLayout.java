@@ -66,7 +66,9 @@ import java.util.Set;
  * Once an appender is defined to be overriding a field, all the log events should contain this field.
  * <p>
  * The value taken from ESLogMessage has to be a simple escaped JSON value.
+ * @deprecated ECSJsonlayout should be used as JSON logs layout
  */
+@Deprecated(since = "v8")
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ESJsonLayout extends AbstractStringLayout {
 

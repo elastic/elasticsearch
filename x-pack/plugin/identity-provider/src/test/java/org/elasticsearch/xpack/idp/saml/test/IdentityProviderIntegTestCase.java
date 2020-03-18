@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults.APPLIC
 import static org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults.NAMEID_FORMAT_SETTING;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
-public class IdentityProviderIntegTestCase extends ESIntegTestCase {
+public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     public static final String TEST_USER_NAME = "idp_user";
     public static final String TEST_PASSWORD = "idp_user_password";

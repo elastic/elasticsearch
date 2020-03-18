@@ -333,7 +333,9 @@ class BuildPlugin implements Plugin<Project> {
                 repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
             repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
-                exclusiveRepo.filter { it.includeGroup('org.apache.lucene') }
+                exclusiveRepo.filter {
+                    it.includeVersionByRegex('org\\.apache\\.lucene', '.*', ".*-snapshot-${revision}")
+                }
                 exclusiveRepo.forRepositories(luceneRepo)
             }
         }

@@ -180,10 +180,10 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 0)));
         },  (Consumer<InternalBoxplot>) boxplot -> {
             assertEquals(0, boxplot.getMin(), 0);
-            assertEquals(0, boxplot.getMax(), 0);
-            assertEquals(0, boxplot.getQ1(), 0);
-            assertEquals(0, boxplot.getQ2(), 0);
-            assertEquals(0, boxplot.getQ3(), 0);
+            assertEquals(10, boxplot.getMax(), 0);
+            assertEquals(10, boxplot.getQ1(), 0);
+            assertEquals(10, boxplot.getQ2(), 0);
+            assertEquals(10, boxplot.getQ3(), 0);
         }, fieldType);
     }
 

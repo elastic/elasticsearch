@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
@@ -26,12 +27,10 @@ import org.opensaml.saml.saml2.core.Audience;
 import org.opensaml.saml.saml2.core.AudienceRestriction;
 import org.opensaml.saml.saml2.core.AuthnContext;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.AuthnStatement;
 import org.opensaml.saml.saml2.core.Conditions;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.NameID;
-import org.opensaml.saml.saml2.core.NameIDType;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.Status;
 import org.opensaml.saml.saml2.core.StatusCode;
@@ -40,8 +39,12 @@ import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
+
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 /**
  * Builds SAML 2.0 {@link Response} objects for successful authentication results.
@@ -59,14 +62,14 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         this.idp = idp;
     }
 
-    public Response build(UserServiceAuthentication user, @Nullable AuthnRequest request) {
+    public Response build(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
         final DateTime now = now();
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
         final Response response = samlFactory.object(Response.class, Response.DEFAULT_ELEMENT_NAME);
         response.setID(samlFactory.secureIdentifier());
-        if (request != null) {
-            response.setInResponseTo(request.getID());
+        if (authnState != null && authnState.getAuthnRequestId() != null) {
+            response.setInResponseTo(authnState.getAuthnRequestId());
         }
         response.setIssuer(buildIssuer());
         response.setIssueInstant(now);
@@ -78,7 +81,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         assertion.setIssuer(buildIssuer());
         assertion.setIssueInstant(now);
         assertion.setConditions(buildConditions(now, serviceProvider));
-        assertion.setSubject(buildSubject(now, user, request));
+        assertion.setSubject(buildSubject(now, user, authnState));
         assertion.getAuthnStatements().add(buildAuthnStatement(now, user));
         final AttributeStatement attributes = buildAttributes(user);
         if (attributes != null) {
@@ -111,20 +114,18 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return new DateTime(clock.millis(), DateTimeZone.UTC);
     }
 
-    private Subject buildSubject(DateTime now, UserServiceAuthentication user, AuthnRequest request) {
+    private Subject buildSubject(DateTime now, UserServiceAuthentication user, SamlAuthenticationState authnState) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
-        final NameID nameID = samlFactory.object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
-        nameID.setFormat(NameIDType.PERSISTENT);
-        nameID.setValue(user.getPrincipal());
+        final NameID nameID = buildNameId(user, authnState);
 
         final Subject subject = samlFactory.object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
         subject.setNameID(nameID);
 
         final SubjectConfirmationData data = samlFactory.object(SubjectConfirmationData.class,
             SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
-        if (request != null) {
-            data.setInResponseTo(request.getID());
+        if (authnState != null && authnState.getAuthnRequestId() != null) {
+            data.setInResponseTo(authnState.getAuthnRequestId());
         }
         data.setNotBefore(now);
         data.setNotOnOrAfter(now.plus(serviceProvider.getAuthnExpiry()));
@@ -178,15 +179,35 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     private AttributeStatement buildAttributes(UserServiceAuthentication user) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
-        // TODO Add principal, email, name
+        final List<Attribute> attributes = new ArrayList<>();
         final Attribute roles = buildAttribute(serviceProvider.getAttributeNames().roles, "roles", user.getRoles());
         if (roles != null) {
-            statement.getAttributes().add(roles);
+            attributes.add(roles);
         }
-        if (statement.getAttributes().isEmpty()) {
+        final Attribute principal = buildAttribute(serviceProvider.getAttributeNames().principal, "principal", user.getPrincipal());
+        if (principal != null) {
+            attributes.add(principal);
+        }
+        final Attribute email = buildAttribute(serviceProvider.getAttributeNames().email, "email", user.getEmail());
+        if (email != null) {
+            attributes.add(email);
+        }
+        final Attribute name = buildAttribute(serviceProvider.getAttributeNames().name, "name", user.getName());
+        if (name != null) {
+            attributes.add(name);
+        }
+        if (attributes.isEmpty()) {
             return null;
         }
+        statement.getAttributes().addAll(attributes);
         return statement;
+    }
+
+    private Attribute buildAttribute(String formalName, String friendlyName, String value) {
+        if (Strings.isNullOrEmpty(value)) {
+            return null;
+        }
+        return buildAttribute(formalName, friendlyName, List.of(value));
     }
 
     private Attribute buildAttribute(String formalName, String friendlyName, Collection<String> values) {
@@ -219,5 +240,30 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         status.setStatusCode(code);
 
         return status;
+    }
+
+    private NameID buildNameId(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
+        final SamlServiceProvider serviceProvider = user.getServiceProvider();
+        final NameID nameID = samlFactory.object(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
+        final String nameIdFormat;
+        if (authnState != null && authnState.getRequestedNameidFormat() != null) {
+            nameIdFormat = authnState.getRequestedNameidFormat();
+        } else {
+            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
+                idp.getServiceProviderDefaults().nameIdFormat;
+        }
+        nameID.setFormat(nameIdFormat);
+        nameID.setValue(getNameIdValueForFormat(nameIdFormat, user));
+        return nameID;
+    }
+
+    private String getNameIdValueForFormat(String format, UserServiceAuthentication user) {
+        switch (format) {
+            case TRANSIENT:
+                // See SAML 2.0 Core 8.3.8 & 1.3.4
+                return samlFactory.secureIdentifier();
+            default:
+                throw new IllegalStateException("Unsupported NameID Format: " + format);
+        }
     }
 }

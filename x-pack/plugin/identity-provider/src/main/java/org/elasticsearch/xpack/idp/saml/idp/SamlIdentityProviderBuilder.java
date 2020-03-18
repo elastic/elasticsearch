@@ -33,16 +33,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 /**
  * Builds a {@link SamlIdentityProvider} instance, from either direct properties, or defined node {@link Settings}.
  */
 public class SamlIdentityProviderBuilder {
 
+    private static final List<String> ALLOWED_NAMEID_FORMATS = List.of(TRANSIENT);
     public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
 
     public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "https:",
@@ -53,6 +57,8 @@ public class SamlIdentityProviderBuilder {
         value -> parseUrl("xpack.idp.slo_endpoint.redirect", value), Setting.Property.NodeScope);
     public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "https:",
         value -> parseUrl("xpack.idp.slo_endpoint.post", value), Setting.Property.NodeScope);
+    public static final Setting<List<String>> IDP_ALLOWED_NAMEID_FORMATS = Setting.listSetting("xpack.idp.allowed_nameid_formats",
+        List.of(TRANSIENT), Function.identity(), SamlIdentityProviderBuilder::validateNameIDs, Setting.Property.NodeScope);
 
     public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
         Setting.Property.NodeScope);
@@ -77,6 +83,7 @@ public class SamlIdentityProviderBuilder {
     private String entityId;
     private Map<String, URL> ssoEndpoints;
     private Map<String, URL> sloEndpoints;
+    private Set<String> allowedNameIdFormats;
     private X509Credential signingCredential;
     private X509Credential metadataSigningCredential;
     private SamlIdentityProvider.ContactInfo technicalContact;
@@ -130,6 +137,7 @@ public class SamlIdentityProviderBuilder {
             entityId,
             Map.copyOf(ssoEndpoints),
             sloEndpoints == null ? Map.of() : Map.copyOf(sloEndpoints),
+            Set.copyOf(allowedNameIdFormats),
             signingCredential, metadataSigningCredential,
             technicalContact, organization,
             serviceProviderDefaults,
@@ -151,6 +159,7 @@ public class SamlIdentityProviderBuilder {
         if (IDP_SLO_REDIRECT_ENDPOINT.exists(settings)) {
             this.sloEndpoints.put(SAML2_REDIRECT_BINDING_URI, IDP_SLO_REDIRECT_ENDPOINT.get(settings));
         }
+        this.allowedNameIdFormats = new HashSet<>(IDP_ALLOWED_NAMEID_FORMATS.get(settings));
         this.signingCredential = buildSigningCredential(env, settings, "xpack.idp.signing.");
         this.metadataSigningCredential = buildSigningCredential(env, settings, "xpack.idp.metadata_signing.");
         this.technicalContact = buildContactInfo(settings);
@@ -165,6 +174,7 @@ public class SamlIdentityProviderBuilder {
             IDP_SLO_POST_ENDPOINT,
             IDP_SSO_REDIRECT_ENDPOINT,
             IDP_SSO_POST_ENDPOINT,
+            IDP_ALLOWED_NAMEID_FORMATS,
             IDP_SIGNING_KEY_ALIAS,
             IDP_METADATA_SIGNING_KEY_ALIAS,
             IDP_ORGANIZATION_NAME,
@@ -205,6 +215,11 @@ public class SamlIdentityProviderBuilder {
         return this;
     }
 
+    public SamlIdentityProviderBuilder allowedNameIdFormat(String nameIdFormat) {
+        this.allowedNameIdFormats.add(nameIdFormat);
+        return this;
+    }
+
     public SamlIdentityProviderBuilder signingCredential(X509Credential signingCredential) {
         this.signingCredential = signingCredential;
         return this;
@@ -230,6 +245,15 @@ public class SamlIdentityProviderBuilder {
             return new URL(value);
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Not a valid URL", e);
+        }
+    }
+
+    private static void validateNameIDs(List<String> values) {
+        final Set<String> invalidFormats =
+            values.stream().distinct().filter(e -> ALLOWED_NAMEID_FORMATS.contains(e) == false).collect(Collectors.toSet());
+        if (invalidFormats.size() > 0) {
+            throw new IllegalArgumentException(
+                invalidFormats + " are not valid NameID formats. Allowed values are " + ALLOWED_NAMEID_FORMATS);
         }
     }
 

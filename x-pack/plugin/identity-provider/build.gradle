@@ -358,12 +358,11 @@ test {
 integTest.enabled = false
 
 // add all sub-projects of the qa sub-project
-// DISABLED for now because we have no QA sub-projects
-//gradle.projectsEvaluated {
-//  project.subprojects
-//    .find { it.path == project.path + ":qa" }
-//    .subprojects
-//    .findAll { it.path.startsWith(project.path + ":qa") }
-//    .each { check.dependsOn it.check }
-//}
+gradle.projectsEvaluated {
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
+}
 

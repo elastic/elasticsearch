@@ -1101,9 +1101,10 @@ public final class TokenService {
             if (decryptedTokens.length != 2) {
                 logger.warn("Decrypted tokens string is not correctly formatted");
                 listener.onFailure(invalidGrantException("could not refresh the requested token"));
+            } else {
+                listener.onResponse(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
+                    prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])));
             }
-            listener.onResponse(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
-                prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])));
         } catch (GeneralSecurityException | IOException e) {
             logger.warn("Could not get stored superseding token values", e);
             listener.onFailure(invalidGrantException("could not refresh the requested token"));

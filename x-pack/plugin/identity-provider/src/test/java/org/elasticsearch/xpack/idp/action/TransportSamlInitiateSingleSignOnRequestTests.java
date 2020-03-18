@@ -35,6 +35,7 @@ import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -57,9 +58,13 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
         action.doExecute(mock(Task.class), request, future);
 
         final SamlInitiateSingleSignOnResponse response = future.get();
-        assertThat(response.getSpEntityId(), equalTo("https://sp.some.org"));
-        assertThat(response.getRedirectUrl(), equalTo("https://sp.some.org/api/security/v1/saml"));
-        assertThat(response.getResponseBody(), containsString("saml_enduser"));
+        assertThat(response.getEntityId(), equalTo("https://sp.some.org"));
+        assertThat(response.getPostUrl(), equalTo("https://sp.some.org/api/security/v1/saml"));
+        assertThat(response.getSamlResponse(), containsString(TRANSIENT));
+        assertContainsAttributeWithValue(response.getSamlResponse(), "email", "samlenduser@elastic.co");
+        assertContainsAttributeWithValue(response.getSamlResponse(), "name", "Saml Enduser");
+        assertContainsAttributeWithValue(response.getSamlResponse(), "principal", "saml_enduser");
+        assertThat(response.getSamlResponse(), containsString("https://saml.elasticsearch.org/attributes/roles"));
     }
 
     public void testGetResponseWithoutSecondaryAuthentication() throws Exception {
@@ -111,7 +116,9 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             .writeToContext(threadContext);
         if (withSecondaryAuth) {
             new SecondaryAuthentication(securityContext,
-                new Authentication(new User("saml_enduser", "saml_enduser_role"),
+                new Authentication(
+                    new User("saml_enduser", new String[]{"saml_enduser_role"}, "Saml Enduser", "samlenduser@elastic.co",
+                        new HashMap<>(), true),
                     new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
                     new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name")))
                 .writeToContext(threadContext);
@@ -122,14 +129,14 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             "test sp",
             true,
             new URL("https://sp.some.org/api/security/v1/saml"),
-            Set.of(TRANSIENT),
+            TRANSIENT,
             Duration.standardMinutes(5),
             null,
             new SamlServiceProvider.AttributeNames(
                 "https://saml.elasticsearch.org/attributes/principal",
                 "https://saml.elasticsearch.org/attributes/name",
                 "https://saml.elasticsearch.org/attributes/email",
-                "https://saml.elasticsearch.org/attributes/groups"),
+                "https://saml.elasticsearch.org/attributes/roles"),
             null, false, false);
         mockRegisteredServiceProvider(resolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(resolver, "https://sp2.other.org", null);
@@ -157,5 +164,12 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
         }).when(privilegeResolver).resolve(any(ServiceProviderPrivileges.class), any(ActionListener.class));
         return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext,
             idp, factory, privilegeResolver);
+    }
+
+    private void assertContainsAttributeWithValue(String message, String attribute, String value) {
+        assertThat(message, containsString("<saml2:Attribute FriendlyName=\"" + attribute + "\" Name=\"https://saml.elasticsearch" +
+            ".org/attributes/" + attribute + "\" NameFormat=\"urn:oasis:names:tc:SAML:2.0:attrname-format:uri\"><saml2:AttributeValue " +
+            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"xsd:string\">" + value + "</saml2:AttributeValue></saml2" +
+            ":Attribute>"));
     }
 }

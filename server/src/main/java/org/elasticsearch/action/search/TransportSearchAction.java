@@ -212,9 +212,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
                 if (shouldMinimizeRoundtrips(searchRequest)) {
-                    ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider, searchService::createReduceContext,
-                        remoteClusterService, threadPool, listener,
-                        (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
+                    ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider,
+                            searchService.aggReduceContextBuilder(searchRequest),
+                            remoteClusterService, threadPool, listener,
+                            (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
@@ -260,7 +261,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void ccsRemoteReduce(SearchRequest searchRequest, OriginalIndices localIndices, Map<String, OriginalIndices> remoteIndices,
-                                SearchTimeProvider timeProvider, Function<Boolean, InternalAggregation.ReduceContext> reduceContext,
+                                SearchTimeProvider timeProvider, InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                 RemoteClusterService remoteClusterService, ThreadPool threadPool, ActionListener<SearchResponse> listener,
                                 BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer) {
 
@@ -298,7 +299,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });
         } else {
-            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(searchRequest.source(), timeProvider, reduceContext);
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
+                    searchRequest.source(), timeProvider, aggReduceContextBuilder);
             AtomicInteger skippedClusters = new AtomicInteger(0);
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
@@ -325,7 +327,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static SearchResponseMerger createSearchResponseMerger(SearchSourceBuilder source, SearchTimeProvider timeProvider,
-                                                           Function<Boolean, InternalAggregation.ReduceContext> reduceContextFunction) {
+                                                           InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
         final int from;
         final int size;
         final int trackTotalHitsUpTo;
@@ -342,7 +344,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, reduceContextFunction);
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
     }
 
     static void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing, AtomicInteger skippedClusters,

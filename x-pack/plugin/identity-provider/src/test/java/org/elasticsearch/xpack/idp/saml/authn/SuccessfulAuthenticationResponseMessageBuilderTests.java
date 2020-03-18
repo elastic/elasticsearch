@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
+import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
@@ -23,6 +24,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSamlTestCase {
 
@@ -39,6 +41,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
+        when(idp.getServiceProviderDefaults())
+            .thenReturn(new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.standardMinutes(5)));
     }
 
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {
@@ -62,6 +66,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);
         when(user.getPrincipal()).thenReturn(randomAlphaOfLengthBetween(4, 12));
         when(user.getRoles()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
+        when(user.getEmail()).thenReturn(randomAlphaOfLength(8) + "@elastic.co");
+        when(user.getName()).thenReturn(randomAlphaOfLength(6) + " " + randomAlphaOfLength(8));
         when(user.getServiceProvider()).thenReturn(sp);
 
         final SuccessfulAuthenticationResponseMessageBuilder builder =

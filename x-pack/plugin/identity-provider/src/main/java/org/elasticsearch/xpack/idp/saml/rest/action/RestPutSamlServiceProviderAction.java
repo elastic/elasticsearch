@@ -6,10 +6,11 @@
 
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -23,7 +24,11 @@ import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderResponse;
 import java.io.IOException;
 import java.util.List;
 
-public class RestPutSamlServiceProviderAction extends BaseRestHandler {
+public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
+
+    public RestPutSamlServiceProviderAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -39,10 +44,12 @@ public class RestPutSamlServiceProviderAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String entityId = restRequest.param("sp_entity_id");
+        final WriteRequest.RefreshPolicy refreshPolicy = restRequest.hasParam("refresh")
+            ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : PutSamlServiceProviderRequest.DEFAULT_REFRESH_POLICY;
         try (XContentParser parser = restRequest.contentParser()) {
-            final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, parser);
+            final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, refreshPolicy, parser);
             return channel -> client.execute(PutSamlServiceProviderAction.INSTANCE, request,
                 new RestBuilderListener<>(channel) {
                     @Override

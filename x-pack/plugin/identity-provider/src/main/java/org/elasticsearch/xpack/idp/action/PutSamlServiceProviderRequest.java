@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,10 +25,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutSamlServiceProviderRequest extends ActionRequest {
+    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.NONE;
 
     private final SamlServiceProviderDocument document;
+    private final WriteRequest.RefreshPolicy refreshPolicy;
 
-    public static PutSamlServiceProviderRequest fromXContent(String entityId, XContentParser parser) throws IOException {
+    public static PutSamlServiceProviderRequest fromXContent(String entityId, WriteRequest.RefreshPolicy refreshPolicy,
+                                                             XContentParser parser) throws IOException {
         final SamlServiceProviderDocument document = SamlServiceProviderDocument.fromXContent(null, parser);
         if (document.entityId == null) {
             document.setEntityId(entityId);
@@ -47,20 +51,27 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
         }
         document.setCreatedMillis(System.currentTimeMillis());
         document.setLastModifiedMillis(System.currentTimeMillis());
-        return new PutSamlServiceProviderRequest(document);
+        return new PutSamlServiceProviderRequest(document, refreshPolicy);
     }
 
-    public PutSamlServiceProviderRequest(SamlServiceProviderDocument document) {
+    public PutSamlServiceProviderRequest(SamlServiceProviderDocument document, WriteRequest.RefreshPolicy refreshPolicy) {
         this.document = document;
+        this.refreshPolicy = refreshPolicy;
     }
 
     public PutSamlServiceProviderRequest(StreamInput in) throws IOException {
         this.document = new SamlServiceProviderDocument(in);
+        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
+    }
+
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         document.writeTo(out);
+        refreshPolicy.writeTo(out);
     }
 
     public SamlServiceProviderDocument getDocument() {

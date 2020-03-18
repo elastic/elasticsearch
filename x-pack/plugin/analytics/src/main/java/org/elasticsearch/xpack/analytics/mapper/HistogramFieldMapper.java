@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicHistogramFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -204,8 +204,8 @@ public class HistogramFieldMapper extends FieldMapper {
                     return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
 
                         @Override
-                        public AtomicHistogramFieldData load(LeafReaderContext context) {
-                            return new AtomicHistogramFieldData() {
+                        public LeafHistogramFieldData load(LeafReaderContext context) {
+                            return new LeafHistogramFieldData() {
                                 @Override
                                 public HistogramValues getHistogramValues() throws IOException {
                                     try {
@@ -258,7 +258,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public AtomicHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
+                        public LeafHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
                             return load(context);
                         }
 

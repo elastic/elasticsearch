@@ -12,12 +12,14 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
@@ -32,18 +34,20 @@ public class TransportPutSamlServiceProviderAction
 
     private final Logger logger = LogManager.getLogger();
     private final SamlServiceProviderIndex index;
+    private final SamlIdentityProvider identityProvider;
     private final Clock clock;
 
     @Inject
     public TransportPutSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                                 SamlServiceProviderIndex index) {
-        this(transportService, actionFilters, index, Clock.systemUTC());
+                                                 SamlServiceProviderIndex index, SamlIdentityProvider identityProvider) {
+        this(transportService, actionFilters, index, identityProvider, Clock.systemUTC());
     }
 
     TransportPutSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                                 SamlServiceProviderIndex index, Clock clock) {
+                                          SamlServiceProviderIndex index, SamlIdentityProvider identityProvider, Clock clock) {
         super(PutSamlServiceProviderAction.NAME, transportService, actionFilters, PutSamlServiceProviderRequest::new);
         this.index = index;
+        this.identityProvider = identityProvider;
         this.clock = clock;
     }
 
@@ -55,20 +59,24 @@ public class TransportPutSamlServiceProviderAction
             listener.onFailure(new IllegalArgumentException("request document must not have an id [" + document.docId + "]"));
             return;
         }
+        if (document.nameIdFormat != null && identityProvider.getAllowedNameIdFormats().contains(document.nameIdFormat) == false) {
+            listener.onFailure(new IllegalArgumentException("NameID format [" + document.nameIdFormat + "] is not supported."));
+            return;
+        }
         index.findByEntityId(document.entityId, ActionListener.wrap(matchingDocuments -> {
             if (matchingDocuments.isEmpty()) {
                 // derive a document id from the entity id so that don't accidentally create duplicate entities due to a race condition
                 document.docId = deriveDocumentId(document);
                 // force a create in case there are concurrent requests. This way, if two nodes/threads are trying to create the SP at
                 // the same time, one will fail. That's not ideal, but it's better than having 1 silently overwrite the other.
-                writeDocument(document, DocWriteRequest.OpType.CREATE, listener);
+                writeDocument(document, DocWriteRequest.OpType.CREATE, request.getRefreshPolicy(), listener);
             } else if (matchingDocuments.size() == 1) {
                 final SamlServiceProviderDocument existingDoc = Iterables.get(matchingDocuments, 0).getDocument();
                 assert existingDoc.docId != null : "Loaded document with no doc id";
                 assert existingDoc.entityId.equals(document.entityId) : "Loaded document with non-matching entity-id";
                 document.setDocId(existingDoc.docId);
                 document.setCreated(existingDoc.created);
-                writeDocument(document, DocWriteRequest.OpType.INDEX, listener);
+                writeDocument(document, DocWriteRequest.OpType.INDEX, request.getRefreshPolicy(), listener);
             } else {
                 logger.warn("Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
                     index, document.entityId, matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(",")));
@@ -79,7 +87,8 @@ public class TransportPutSamlServiceProviderAction
     }
 
     private void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
-                               ActionListener<PutSamlServiceProviderResponse> listener) {
+                               WriteRequest.RefreshPolicy refreshPolicy, ActionListener<PutSamlServiceProviderResponse> listener) {
+
         final Instant now = clock.instant();
         if (document.created == null || opType == DocWriteRequest.OpType.CREATE) {
             document.created = now;
@@ -91,7 +100,7 @@ public class TransportPutSamlServiceProviderAction
             return;
         }
         logger.debug("[{}] service provider [{}] in document [{}] of [{}]", opType, document.entityId, document.docId, index);
-        index.writeDocument(document, opType, ActionListener.wrap(
+        index.writeDocument(document, opType, refreshPolicy, ActionListener.wrap(
             response -> listener.onResponse(new PutSamlServiceProviderResponse(
                 response.getId(),
                 response.getResult() == DocWriteResponse.Result.CREATED,

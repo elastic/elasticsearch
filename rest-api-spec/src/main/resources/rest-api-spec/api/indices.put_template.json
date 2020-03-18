@@ -35,7 +35,7 @@
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"
-      },
+      }
     },
     "body":{
       "description":"The template definition",

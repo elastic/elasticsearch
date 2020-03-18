@@ -1,0 +1,28 @@
+[[cat-transforms]]
+=== cat {transforms} API
+++++
+<titleabbrev>cat transforms</titleabbrev>
+++++
+
+Returns configuration and usage information about {transforms}.
+
+
+[[cat-transforms-api-request]]
+==== {api-request-title}
+
+`GET /_cat/transforms`
+
+
+//[[cat-transforms-api-desc]]
+//==== {api-description-title}
+
+
+//[[cat-transforms-api-query-params]]
+//==== {api-query-parms-title}
+
+
+//[[cat-transforms-api-response-codes]]
+//==== {api-response-codes-title}
+
+//[[cat-transforms-api-examples]]
+//==== {api-examples-title}

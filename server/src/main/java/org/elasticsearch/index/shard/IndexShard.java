@@ -335,7 +335,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
-                new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
+                new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.replicationTracker = new ReplicationTracker(
                 shardId,
                 aId,
@@ -1117,7 +1117,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         Engine engine = getEngine();
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
-            forceMerge.onlyExpungeDeletes(), false, false);
+            forceMerge.onlyExpungeDeletes(), false, false, forceMerge.forceMergeUUID());
     }
 
     /**
@@ -1133,7 +1133,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine engine = getEngine();
         engine.forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
             Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
-            false, true, upgrade.upgradeOnlyAncientSegments());
+            false, true, upgrade.upgradeOnlyAncientSegments(), null);
         org.apache.lucene.util.Version version = minimumCompatibleVersion();
         if (logger.isTraceEnabled()) {
             logger.trace("upgraded segments for {} from version {} to version {}", shardId, previousVersion, version);
@@ -3179,7 +3179,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
-            threadPool.executor(ThreadPool.Names.LISTENER),
             logger, threadPool.getThreadContext(),
             externalRefreshMetric);
     }

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -263,7 +264,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
                 return;
             }
-            transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
+            transformTaskHolder.set(
+                createTransform(config.getId(), config.getVersion(), config.getFrequency(), config.getSource().requiresRemoteCluster())
+            );
             transformConfigHolder.set(config);
             if (config.getDestination().getPipeline() != null) {
                 if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
@@ -294,8 +297,14 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(client, Clock.systemUTC(), config, mappings, listener),
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                mappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+            TransformIndex.createDestinationIndex(client, config, generateddestIndexSettings, listener);
+        },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )
@@ -309,8 +318,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static TransformTaskParams createTransform(String transformId, Version transformVersion, TimeValue frequency) {
-        return new TransformTaskParams(transformId, transformVersion, frequency);
+    private static TransformTaskParams createTransform(
+        String transformId,
+        Version transformVersion,
+        TimeValue frequency,
+        Boolean requiresRemoteCluster
+    ) {
+        return new TransformTaskParams(transformId, transformVersion, frequency, requiresRemoteCluster);
     }
 
     @SuppressWarnings("unchecked")

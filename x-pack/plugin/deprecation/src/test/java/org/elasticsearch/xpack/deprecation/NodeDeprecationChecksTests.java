@@ -23,7 +23,9 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
@@ -143,4 +145,59 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertEquals(0, deprecationIssues.size());
     }
+
+    public void testThreadPoolListenerQueueSize() {
+        final int size = randomIntBetween(1, 4);
+        final Settings settings = Settings.builder().put("thread_pool.listener.queue_size", size).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [thread_pool.listener.queue_size] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
+            "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
+    }
+
+    public void testThreadPoolListenerSize() {
+        final int size = randomIntBetween(1, 4);
+        final Settings settings = Settings.builder().put("thread_pool.listener.size", size).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [thread_pool.listener.size] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
+            "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+    }
+
+    public void testRemovedSettingNotSet() {
+        final Settings settings = Settings.EMPTY;
+        final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "http://removed-setting.example.com");
+        assertThat(issue, nullValue());
+    }
+
+    public void testRemovedSetting() {
+        final Settings settings = Settings.builder().put("node.removed_setting", "value").build();
+        final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "https://removed-setting.example.com");
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(
+            issue.getMessage(),
+            equalTo("setting [node.removed_setting] is deprecated and will be removed in the next major version"));
+        assertThat(
+            issue.getDetails(),
+            equalTo("the setting [node.removed_setting] is currently set to [value], remove this setting"));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
 }

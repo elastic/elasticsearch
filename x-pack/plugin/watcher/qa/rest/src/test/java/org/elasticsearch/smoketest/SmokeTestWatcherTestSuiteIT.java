@@ -46,6 +46,7 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52453")
     public void testMonitorClusterHealth() throws Exception {
         final String watchId = "cluster_health_watch";
 

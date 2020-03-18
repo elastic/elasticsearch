@@ -1365,7 +1365,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(threadPool, transportService, searchService,
-                        searchTransportService, new SearchPhaseController(searchService::createReduceContext), clusterService,
+                        searchTransportService, new SearchPhaseController(searchService::aggReduceContextBuilder), clusterService,
                         actionFilters, indexNameExpressionResolver));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
@@ -1404,8 +1404,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService, clusterService, threadPool,
                         snapshotsService, actionFilters, indexNameExpressionResolver
                     ));
-                client.initialize(actions, transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+                client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
             }
 
             private Repository.Factory getRepoFactory(Environment environment) {

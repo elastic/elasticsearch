@@ -65,3 +65,21 @@ for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
 do this. The behavior is now the same for both field types like documented in
 <<range-query-date-math-rounding>>.
 
+[float]
+[[deprecate-listener-thread-pool]]
+==== `thread_pool.listener.size` and `thread_pool.listener.queue_size` have been deprecated
+
+The listener thread pool is no longer used internally by Elasticsearch.
+Therefore, these settings have been deprecated. You can safely remove these
+settings from the configuration of your nodes.
+
+[discrete]
+[[breaking_77_highlighters_changes]]
+=== Highlighters changes
+
+[discrete]
+==== Ignored keyword values are no longer highlighted
+If a keyword value was ignored during indexing because of its length
+(`ignore_above` parameter was applied), {es} doesn't attempt to
+highlight it anymore, which means no highlights are produced for
+ignored values.

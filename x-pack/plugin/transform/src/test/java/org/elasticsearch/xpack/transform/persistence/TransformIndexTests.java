@@ -51,9 +51,8 @@ public class TransformIndexTests extends ESTestCase {
 
         TransformIndex.createDestinationIndex(
             client,
-            clock,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
-            new HashMap<>(),
+            TransformIndex.createTransformDestIndexSettings(new HashMap<>(), TRANSFORM_ID, clock),
             ActionListener.wrap(value -> assertTrue(value), e -> fail(e.getMessage()))
         );
 

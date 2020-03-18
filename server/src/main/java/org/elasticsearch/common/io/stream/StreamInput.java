@@ -315,6 +315,14 @@ public abstract class StreamInput extends InputStream {
         return i;
     }
 
+    @Nullable
+    public Long readOptionalVLong() throws IOException {
+        if (readBoolean()) {
+            return readVLong();
+        }
+        return null;
+    }
+
     public long readZLong() throws IOException {
         long accumulator = 0L;
         int i = 0;
@@ -1143,6 +1151,23 @@ public abstract class StreamInput extends InputStream {
      */
     public List<String> readStringList() throws IOException {
         return readList(StreamInput::readString);
+    }
+
+    /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readOptionalStringList() throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(StreamInput::readString);
+        } else {
+            return null;
+        }
     }
 
     /**

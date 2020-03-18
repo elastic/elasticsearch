@@ -20,6 +20,7 @@
 package org.elasticsearch.common.joda;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
@@ -335,6 +336,18 @@ public class Joda {
                 new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
         }
     };
+
+    /**
+     * Checks if a pattern is Joda-style.
+     * Joda style patterns are not always compatible with java.time patterns.
+     * @param version - creation version of the index where pattern was used
+     * @param pattern - the pattern to check
+     * @return - true if pattern is joda style, otherwise false
+     */
+    public static boolean isJodaPattern(Version version, String pattern) {
+        return version.before(Version.V_7_0_0)
+            && pattern.startsWith("8") == false;
+    }
 
     public static class EpochTimeParser implements DateTimeParser {
 

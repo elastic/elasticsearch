@@ -263,7 +263,7 @@ public class DiscoveryUpgradeService {
                             if (isRunning()) {
                                 final MasterCandidate electedMaster = electMasterService.electMaster(masterCandidates);
                                 logger.debug("elected {}, sending join", electedMaster);
-                                joinHelper.sendJoinRequest(electedMaster.getNode(), Optional.empty(),
+                                joinHelper.sendJoinRequest(electedMaster.getNode(), 0L, Optional.empty(),
                                     JoiningRound.this::scheduleNextAttempt);
                             }
                         }

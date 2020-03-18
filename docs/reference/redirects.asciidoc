@@ -375,3 +375,8 @@ See <<slm-api-stop>>.
 === How {ccs} works
 
 See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
+
+[role="exclude",id="async-search"]
+=== Asynchronous search
+
+coming::[7.x]

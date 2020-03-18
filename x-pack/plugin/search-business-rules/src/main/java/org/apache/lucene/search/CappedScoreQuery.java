@@ -34,6 +34,11 @@ public final class CappedScoreQuery extends Query {
     }
 
     @Override
+    public void visit(QueryVisitor visitor) {
+        query.visit(visitor);
+    }
+
+    @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = query.rewrite(reader);
 

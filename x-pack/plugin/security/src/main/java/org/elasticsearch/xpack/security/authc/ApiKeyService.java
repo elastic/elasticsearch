@@ -574,7 +574,7 @@ public class ApiKeyService {
         return enabled && licenseState.isApiKeyServiceAllowed();
     }
 
-    private void ensureEnabled() {
+    public void ensureEnabled() {
         if (licenseState.isApiKeyServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
@@ -627,6 +627,12 @@ public class ApiKeyService {
         public void usedDeprecatedField(String usedName, String replacedWith) {
             deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
                 usedName, apiKeyId, replacedWith);
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], which has been removed entirely",
+                usedName);
         }
     }
 

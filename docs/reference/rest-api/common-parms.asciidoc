@@ -922,7 +922,7 @@ end::segment-version[]
 tag::version_type[]
 `version_type`::
 (Optional, enum) Specific version type: `internal`, `external`,
-`external_gte`, `force`.
+`external_gte`.
 end::version_type[]
 
 tag::wait_for_active_shards[]

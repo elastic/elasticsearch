@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
+public class AsyncSearchSecurityIT extends ESRestTestCase {
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
      */

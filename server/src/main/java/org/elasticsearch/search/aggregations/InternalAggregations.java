@@ -139,13 +139,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.reducePipelines(agg, context))
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
                 .collect(Collectors.toList());
 
-            List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
-            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
-                InternalAggregation newAgg
-                    = pipelineAggregator.doReduce(new InternalAggregations(reducedInternalAggs), context);
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+                SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+                InternalAggregation newAgg = sib.doReduce(new InternalAggregations(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
             return new InternalAggregations(reducedInternalAggs);

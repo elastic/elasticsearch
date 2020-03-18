@@ -115,6 +115,39 @@
   - match: { aggregations.cluster.buckets.0.key: "local_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 5 }
 
+  # once more, this time with a pipeline agg
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index,my_remote_cluster:test_index
+        body:
+          seq_no_primary_term: true
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+              aggs:
+                s:
+                  sum:
+                    field: filter_field
+            average_sum:
+              avg_bucket:
+                buckets_path: cluster.s
+
+  - match: { num_reduce_phases: 3 }
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 11 }
+  - length: { aggregations.cluster.buckets: 2 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { aggregations.cluster.buckets.0.s.value: 2 }
+  - match: { aggregations.cluster.buckets.1.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.0.s.value: 2 }
+  - match: { aggregations.average_sum.value: 2 }
+
 ---
 "Add transient remote cluster based on the preset cluster":
   - do:

@@ -1,5 +1,5 @@
 [[migrate_to_java_time]]
-=== Java Time Migration Guide
+=== Java time migration guide
 
 Since version 7.0 Elasticsearch is using java.time as an underlying implementation of dates parsing, formatting and calculations.
 java.time is in many aspects very similar to joda-time which we previously used. However there are some differences and this guide is meant to

@@ -22,7 +22,6 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -41,7 +40,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
 public class GeoPointShapeQueryTests extends GeoQueryTests {
@@ -67,8 +65,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     }
 
     public void testProcessRelationSupport() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).get();
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
         Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
@@ -90,8 +88,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     }
 
     public void testQueryLine() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).get();
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
         Line line = new Line(new double[]{-25, -25}, new double[]{-35, -35});
@@ -107,8 +105,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     }
 
     public void testQueryLinearRing() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).get();
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
         LinearRing linearRing = new LinearRing(new double[]{-25,-35,-25}, new double[]{-25,-35,-25});
@@ -128,8 +126,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     }
 
     public void testQueryMultiLine() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).get();
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
         CoordinatesBuilder coords1 = new CoordinatesBuilder()
@@ -153,8 +151,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     }
 
     public void testQueryMultiPoint() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).get();
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
         MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35,-25).coordinate(-15,-5);
@@ -170,8 +168,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
     }
 
     public void testQueryPoint() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).get();
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
         PointBuilder pb = new PointBuilder().coordinate(-35, -25);

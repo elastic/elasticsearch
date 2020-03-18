@@ -403,7 +403,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
-        XContentBuilder mapping = createTypedMapping();
+        XContentBuilder mapping = createDefaultMapping();
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
@@ -417,7 +417,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             client().prepareSearch("test")
                 .setQuery(geoIntersectionQuery("geo", "Big_Rectangle")).get();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getCause().getMessage(),
+            assertThat(e.getMessage(),
                 containsString("source disabled"));
         }
     }
@@ -597,7 +597,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = Strings.toString(createTypedMapping());
+        String mapping = Strings.toString(createDefaultMapping());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
         createIndex("shapes");
         ensureGreen();

@@ -334,7 +334,7 @@ class BuildPlugin implements Plugin<Project> {
             }
             repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
                 exclusiveRepo.filter {
-                    it.includeVersionByRegex('org\\.apache\\.lucene', '.*', ".*-snapshot-${revision}")
+                    it.includeVersionByRegex(/org\.apache\.lucene/, '.*', ".*-snapshot-${revision}")
                 }
                 exclusiveRepo.forRepositories(luceneRepo)
             }

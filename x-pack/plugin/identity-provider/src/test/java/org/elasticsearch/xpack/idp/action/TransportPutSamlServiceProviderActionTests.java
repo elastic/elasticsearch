@@ -120,7 +120,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
         final String invalidFormat = randomFrom(PERSISTENT, EMAIL, randomAlphaOfLength(12));
         document.setNameIdFormat(invalidFormat);
 
-        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document);
+        final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(document, randomFrom(RefreshPolicy.values()));
         final PlainActionFuture<PutSamlServiceProviderResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);

@@ -41,8 +41,8 @@ public class Substring extends ScalarFunction implements OptionalArgument {
     public Substring(Source source, Expression src, Expression start, Expression end) {
         super(source, end != null ? Arrays.asList(src, start, end) : Arrays.asList(src, new Literal(source, 0, DataTypes.INTEGER), start));
         this.source = src;
-        this.start = end == null ? new Literal(source, 0, DataTypes.INTEGER) : start;
-        this.end = end == null ? start : end;
+        this.start = start;
+        this.end = new Literal(source, null, DataTypes.NULL);
     }
 
     @Override
@@ -88,20 +88,21 @@ public class Substring extends ScalarFunction implements OptionalArgument {
     public ScriptTemplate asScript() {
         ScriptTemplate sourceScript = asScript(source);
         ScriptTemplate startScript = asScript(start);
-        ScriptTemplate lengthScript = asScript(end);
+        ScriptTemplate endScript = asScript(end);
 
-        return asScriptFrom(sourceScript, startScript, lengthScript);
+        return asScriptFrom(sourceScript, startScript, endScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript, ScriptTemplate lengthScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript, ScriptTemplate endScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "substring",
                 sourceScript.template(),
                 startScript.template(),
-                lengthScript.template()),
+                endScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params()).script(startScript.params())
-                    .script(lengthScript.params())
+                    .script(sourceScript.params())
+                    .script(startScript.params())
+                    .script(endScript.params())
                     .build(), dataType());
     }
 

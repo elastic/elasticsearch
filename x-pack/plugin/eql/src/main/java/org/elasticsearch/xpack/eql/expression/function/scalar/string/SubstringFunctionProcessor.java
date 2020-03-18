@@ -50,22 +50,21 @@ public class SubstringFunctionProcessor implements Processor {
         if (!(source instanceof String || source instanceof Character)) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
         }
-        if (start == null || end == null) {
+        if (start == null) {
             return source;
         }
-        if (!(start instanceof Number)) {
+        if ((start instanceof Number) == false) {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", start);
         }
-        if (!(end instanceof Number)) {
+        if (end != null && (end instanceof Number) == false) {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", end);
         }
-        if (((Number) end).intValue() < 0) {
-            throw new EqlIllegalArgumentException("A positive number is required for [length]; received [{}]", end);
-        }
 
-        return StringUtils.substringSlice(source instanceof Character ? source.toString() : (String) source,
-                ((Number) start).intValue(),
-                ((Number) end).intValue());
+        String str = source.toString();
+        int startIndex = ((Number) start).intValue();
+        int endIndex = end == null ? str.length() : ((Number) end).intValue();
+                
+        return StringUtils.substringSlice(str, startIndex, endIndex);
     }
     
     protected Processor source() {

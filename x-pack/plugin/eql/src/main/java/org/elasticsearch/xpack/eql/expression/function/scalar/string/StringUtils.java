@@ -26,19 +26,20 @@ final class StringUtils {
         int length = string.length();
         
         // handle first negative values
-        while (start < 0) {
+        if (start < 0) {
             start += length;
         }
-        while (end < 0) {
+        if (start < 0) {
+            start = 0;
+        }
+        if (end < 0) {
             end += length;
         }
-        int validEndIndex = length;
-
-        if (start > validEndIndex) {
-            start = validEndIndex;
+        if (end < 0) {
+            end = 0;
         }
-        if (end > validEndIndex) {
-            end = validEndIndex;
+        if (end > length) {
+            end = length;
         }
 
         if (start >= end) {

@@ -18,7 +18,6 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
 
-
     public static String substring(String s, Number start, Number length) {
         return (String) SubstringFunctionProcessor.doProcess(s, start, length);
     }

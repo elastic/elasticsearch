@@ -1,8 +1,8 @@
 ---
 "Basic CRUD":
   - skip:
-      version: " - 7.99.99"
-      reason: not backported yet
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/53708"
 
   - do:
       cluster.put_component_template:

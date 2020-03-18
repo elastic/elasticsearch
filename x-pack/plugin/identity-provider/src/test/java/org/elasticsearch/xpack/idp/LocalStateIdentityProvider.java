@@ -30,5 +30,12 @@ public class LocalStateIdentityProvider extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
+
+        plugins.add(new IdentityProviderPlugin() {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
+        });
     }
 }

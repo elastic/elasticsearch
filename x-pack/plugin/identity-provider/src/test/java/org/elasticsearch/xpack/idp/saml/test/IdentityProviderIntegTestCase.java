@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.idp.IdentityProviderPlugin;
 import org.elasticsearch.xpack.idp.LocalStateIdentityProvider;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -75,6 +74,7 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
         new String(Hasher.resolve("bcrypt9").hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "idp_user_role";
     public static final String TEST_SUPERUSER = "test_superuser";
+    public static final String SP_ENTITY_ID = "ec:abcdef:123456";
     public static final RequestOptions IDP_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .addHeader("Authorization", basicAuthHeaderValue(TEST_SUPERUSER,
             new SecureString(TEST_PASSWORD.toCharArray())))
@@ -141,7 +141,7 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
             .put(IDP_CONTACT_GIVEN_NAME.getKey(), "Tony")
             .put(IDP_CONTACT_SURNAME.getKey(), "Stark")
             .put(IDP_CONTACT_EMAIL.getKey(), "tony@starkindustries.com")
-            .put(APPLICATION_NAME_SETTING.getKey(), "application")
+            .put(APPLICATION_NAME_SETTING.getKey(), "elastic-cloud")
             .put(NAMEID_FORMAT_SETTING.getKey(), TRANSIENT)
             .put("xpack.idp.signing.key", resolveResourcePath("/keypair/keypair_RSA_2048.key"))
             .put("xpack.idp.signing.certificate", resolveResourcePath("/keypair/keypair_RSA_2048.crt"))
@@ -154,7 +154,7 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateIdentityProvider.class, IdentityProviderPlugin.class, Netty4Plugin.class, CommonAnalysisPlugin.class);
+        return List.of(LocalStateIdentityProvider.class, Netty4Plugin.class, CommonAnalysisPlugin.class);
     }
 
     @Override
@@ -190,7 +190,12 @@ public class IdentityProviderIntegTestCase extends ESIntegTestCase {
             "  indices:\n" +
             "    - names: '*'\n" +
             "      allow_restricted_indices: true\n" +
-            "      privileges: [ ALL ]\n";
+            "      privileges: [ ALL ]\n" +
+            "  applications:\n " +
+            "    - application: elastic-cloud\n" +
+            "       resources: [ '" + SP_ENTITY_ID + "' ]\n" +
+            "       privileges: [ role:superuser ]\n";
+
     }
 
     private String configUsers() {

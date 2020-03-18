@@ -52,13 +52,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(
-            LocalStateEnrich.class,
-            ReindexPlugin.class,
-            IngestCommonPlugin.class,
-            MustachePlugin.class,
-            GeoPlugin.class
-        );
+        return Arrays.asList(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class, MustachePlugin.class, GeoPlugin.class);
     }
 
     @Override

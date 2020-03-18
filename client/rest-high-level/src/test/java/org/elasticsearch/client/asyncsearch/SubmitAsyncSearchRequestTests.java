@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.asyncsearch;
 
-import org.elasticsearch.client.SubmitAsyncSearchRequest;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;

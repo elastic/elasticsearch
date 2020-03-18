@@ -24,6 +24,7 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -64,7 +65,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return geometry.visit(new GeometryVisitor<>() {
             @Override
             public Geometry visit(Circle circle) {
-                throw new UnsupportedOperationException("CIRCLE geometry is not supported");
+                throw new UnsupportedOperationException(GeoShapeType.CIRCLE + " geometry is not supported");
             }
 
             @Override

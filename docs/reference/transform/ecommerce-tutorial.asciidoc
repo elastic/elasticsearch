@@ -270,5 +270,5 @@ you delete a {transform}, its destination index and {kib} index
 patterns remain.
 
 Now that you've created a simple {transform} for {kib} sample data, consider
-possible use cases for your own data. For more information, see
+possible use cases for your own data. For more ideas, see
 <<transform-usage>> and <<transform-examples>>.

@@ -128,10 +128,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             key -> Setting.positiveTimeSetting(key, SCRIPT_GENERAL_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(0),
                                                Property.NodeScope, Property.Dynamic));
 
+    // Unlimited compilation rate for context-specific script caches
+    static final String UNLIMITED_COMPILATION_RATE_KEY = "unlimited";
+
     public static final Setting.AffixSetting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
             "max_compilations_rate",
-            key -> new Setting<>(key, "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.NodeScope, Property.Dynamic));
+            key -> new Setting<>(key, "75/5m",
+                (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY) ? ScriptCache.UNLIMITED_COMPILATION_RATE:
+                                                                                 MAX_COMPILATION_RATE_FUNCTION.apply(value),
+                Property.NodeScope, Property.Dynamic));
 
     private static final Tuple<Integer, TimeValue> SCRIPT_COMPILATION_RATE_ZERO = new Tuple<>(0, TimeValue.ZERO);
 

@@ -179,7 +179,7 @@ GET my_index_1/_mapping
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_index_1" : {

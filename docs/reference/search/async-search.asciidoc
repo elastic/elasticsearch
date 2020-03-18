@@ -1,17 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[async-search]]
-=== Async Search
+=== Async search
 
-Async search consists of a set of API that allow to asynchronously execute a
-search request, monitor its progress as well as retrieve its partial results
-as soon as they become available.
+The async search API let you asynchronously execute a
+search request, monitor its progress, and retrieve  partial results
+as they become available.
 
 [[submit-async-search]]
-==== Submit Async Search
+==== Submit async search API
 
-Submits a search request that gets executed asynchronously. It accepts the same
-request as the  <<search-search,search API>>.
+Executes a search request asynchronously. It accepts the same
+parameters and request body as the <<search-search,search API>>.
 
 [source,console,id=submit-async-search-date-histogram-example]
 --------------------------------------------------
@@ -33,8 +33,9 @@ POST /sales*/_async_search?size=0
 // TEST[setup:sales]
 // TEST[s/size=0/size=0&wait_for_completion=0/]
 
-The response contains the identifier of the search being executed, to be used
-to retrieve the results at a later stage. Also, the currently available search
+The response contains an identifier of the search being executed.
+You can use this ID to later retrieve the search's final results.
+The currently available search
 results are returned as part of the <<search-api-response-body,`response`>> object.
 
 [source,console-result]
@@ -86,25 +87,27 @@ It is possible to block and wait until the search is completed up to a certain
 timeout by providing the `wait_for_completion` parameter, which defaults to
 `1` second.
 
-The Submit Async Search API supports the same <<search-search-api-query-params,parameters>>
+The submit async search API supports the same <<search-search-api-query-params,parameters>>
 as the search API, though some have different default values:
-`pre_filter_shard_size` defaults to `1`, `batched_reduce_size` defaults to
-`5`, `request_cache` defaults to `true` and `ccs_minimize_roundtrips`
-defaults to `false`.
 
-It is also possible to specify how long the async search needs to be
+* `pre_filter_shard_size` defaults to `1
+* `batched_reduce_size` defaults to `5`
+* `request_cache` defaults to `true`
+* `ccs_minimize_roundtrips` defaults to `false`.
+
+You can also specify how long the async search needs to be
 available through the `keep_alive` parameter, which defaults to `5d` (five days).
-Running async searches as well as saved search results are cleared once their
-corresponding `keep_alive` expires.
+Ongoing async searches and any saved search results are deleted after this
+period 
 
 WARNING: Async search does not support scroll searches, nor search requests that
 only include the `suggest` section. Cross cluster searches can be executed using
 async search but only with `ccs_minimize_roundtrips` disabled.
 
 [[get-async-search]]
-==== Get Async Search
+==== Get async search
 
-The Get Async Search API can be used to retrieve the results of a previously
+The get async search API retrieves the results of a previously
 submitted async search request given its id.
 
 [source,console,id=get-async-search-date-histogram-example]
@@ -178,17 +181,17 @@ completed up until the provided timeout. Final results will be returned if
 available before the timeout expires, otherwise the currently available results
 will be returned once the timeout expires.
 
-The `keep_alive` parameter, which defaults to `5d` (five days) can be provided
-to specify how long the async search should be available in the cluster. Once
-an async search expires, it is cancelled if still running and its saved results
-are deleted if already completed.
+The `keep_alive` parameter, which defaults to `5d` (five days), specifies
+how long the async search should be available in the cluster. When this
+period expires, the search, if still running, is cancelled. If the search is
+completed, its saved results are deleted.
 
 [[delete-async-search]]
-==== Delete Async Search
+==== Delete async search
 
-The Delete Async Search API can be used to manually delete a specific async
-search given its id. The corresponding async search will be cancelled if it's
-still running, otherwise its saved results will be deleted.
+You can use the delete async search API to manually delete an async search
+by ID. If the search is still running, the search request will be cancelled.
+Otherwise, the saved search results are deleted.
 
 [source,console,id=delete-async-search-date-histogram-example]
 --------------------------------------------------

@@ -58,6 +58,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -96,7 +97,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(realms.asList()).thenReturn(Collections.singletonList(realm));
         when(realms.getUnlicensedRealms()).thenReturn(Collections.emptyList());
 
-        final AuditTrailService auditTrail = mock(AuditTrailService.class);
+        final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 

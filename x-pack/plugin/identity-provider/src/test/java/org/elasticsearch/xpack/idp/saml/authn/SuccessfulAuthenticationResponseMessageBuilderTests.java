@@ -66,6 +66,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);
         when(user.getPrincipal()).thenReturn(randomAlphaOfLengthBetween(4, 12));
         when(user.getRoles()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
+        when(user.getEmail()).thenReturn(randomAlphaOfLength(8) + "@elastic.co");
+        when(user.getName()).thenReturn(randomAlphaOfLength(6) + " " + randomAlphaOfLength(8));
         when(user.getServiceProvider()).thenReturn(sp);
 
         final SuccessfulAuthenticationResponseMessageBuilder builder =

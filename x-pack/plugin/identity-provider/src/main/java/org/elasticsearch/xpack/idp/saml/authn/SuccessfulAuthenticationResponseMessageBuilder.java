@@ -39,7 +39,9 @@ import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
@@ -177,15 +179,35 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
     private AttributeStatement buildAttributes(UserServiceAuthentication user) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
-        // TODO Add principal, email, name
+        final List<Attribute> attributes = new ArrayList<>();
         final Attribute roles = buildAttribute(serviceProvider.getAttributeNames().roles, "roles", user.getRoles());
         if (roles != null) {
-            statement.getAttributes().add(roles);
+            attributes.add(roles);
         }
-        if (statement.getAttributes().isEmpty()) {
+        final Attribute principal = buildAttribute(serviceProvider.getAttributeNames().principal, "principal", user.getPrincipal());
+        if (principal != null) {
+            attributes.add(principal);
+        }
+        final Attribute email = buildAttribute(serviceProvider.getAttributeNames().email, "email", user.getEmail());
+        if (email != null) {
+            attributes.add(email);
+        }
+        final Attribute name = buildAttribute(serviceProvider.getAttributeNames().name, "name", user.getName());
+        if (name != null) {
+            attributes.add(name);
+        }
+        if (attributes.isEmpty()) {
             return null;
         }
+        statement.getAttributes().addAll(attributes);
         return statement;
+    }
+
+    private Attribute buildAttribute(String formalName, String friendlyName, String value) {
+        if (Strings.isNullOrEmpty(value)) {
+            return null;
+        }
+        return buildAttribute(formalName, friendlyName, List.of(value));
     }
 
     private Attribute buildAttribute(String formalName, String friendlyName, Collection<String> values) {

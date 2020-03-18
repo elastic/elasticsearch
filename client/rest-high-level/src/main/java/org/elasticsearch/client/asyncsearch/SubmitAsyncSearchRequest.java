@@ -242,14 +242,8 @@ public class SubmitAsyncSearchRequest implements Validatable {
     @Override
     public Optional<ValidationException> validate() {
         final ValidationException validationException = new ValidationException();
-        if (searchRequest.scroll() != null) {
-            validationException.addValidationError("[scroll] queries are not supported");
-        }
         if (searchRequest.isSuggestOnly()) {
             validationException.addValidationError("suggest-only queries are not supported");
-        }
-        if (searchRequest.isCcsMinimizeRoundtrips()) {
-            validationException.addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries");
         }
         if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException.addValidationError("[keep_alive] must be greater than 1 minute, got: " + keepAlive.toString());

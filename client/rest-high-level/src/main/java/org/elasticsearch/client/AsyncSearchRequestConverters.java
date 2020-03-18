@@ -69,7 +69,5 @@ final class AsyncSearchRequestConverters {
             params.putParam("allow_partial_search_results", Boolean.toString(request.getAllowPartialSearchResults()));
         }
         params.putParam("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
-        params.putParam("pre_filter_shard_size", Integer.toString(SubmitAsyncSearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
-        params.putParam("ccs_minimize_roundtrips", Boolean.toString(SubmitAsyncSearchRequest.DEFAULT_CCS_MINIMIZE_ROUNDTRIPS));
     }
 }

@@ -29,7 +29,9 @@ image::images/analysis/token-graph-qbf-synonym-ex.svg[align="center"]
 [[token-graphs-multi-position-tokens]]
 ==== Multi-position tokens
 
-Some token filters can add tokens that span multiple positions. 
+Some token filters can add tokens that span multiple positions. These can
+include tokens for multi-word synonyms, such as using "atm" as a synonym for
+"automatic teller machine."
 
 However, only some token filters, known as _graph token filters_, accurately
 record the `positionLength` for multi-position tokens. This filters include:

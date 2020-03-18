@@ -25,9 +25,10 @@ public class IdpBaseRestHandlerTests extends ESTestCase {
     }
 
     public void testIdpNotAvailableOnOtherLicenses() {
-        final IdpBaseRestHandler handler = buildHandler(randomFrom(
-            License.OperationMode.BASIC, License.OperationMode.GOLD, License.OperationMode.MISSING, License.OperationMode.MISSING,
-            License.OperationMode.PLATINUM, License.OperationMode.STANDARD));
+        License.OperationMode mode =
+            randomValueOtherThanMany(m -> m == License.OperationMode.ENTERPRISE || m == License.OperationMode.TRIAL,
+                () -> randomFrom(License.OperationMode.values()));
+        final IdpBaseRestHandler handler = buildHandler(mode);
         assertThat(handler.isIdpFeatureAllowed(), equalTo(false));
     }
 

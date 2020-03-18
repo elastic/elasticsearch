@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 class DataFrameRowsJoiner implements AutoCloseable {
 
@@ -37,12 +38,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private final String analyticsId;
     private final DataFrameDataExtractor dataExtractor;
     private final ResultsPersisterService resultsPersisterService;
+    private Supplier<Boolean> shouldRetryPersistence = () -> true;
     private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
     private LinkedList<RowResults> currentResults;
     private volatile String failure;
 
-    DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor,
-                        ResultsPersisterService resultsPersisterService) {
+    DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor, ResultsPersisterService resultsPersisterService) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
@@ -70,6 +71,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
     }
 
+    DataFrameRowsJoiner setShouldRetryPersistence(Supplier<Boolean> shouldRetryPersistence) {
+        this.shouldRetryPersistence = shouldRetryPersistence;
+        return this;
+    }
+
     private void addResultAndJoinIfEndOfBatch(RowResults rowResults) {
         currentResults.add(rowResults);
         if (currentResults.size() == RESULTS_BATCH_SIZE) {
@@ -87,7 +93,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
         if (bulkRequest.numberOfActions() > 0) {
             resultsPersisterService.bulkIndexWithHeadersWithRetry(
-                dataExtractor.getHeaders(), bulkRequest, analyticsId, () -> true, errorMsg -> {});
+                dataExtractor.getHeaders(),
+                bulkRequest,
+                analyticsId,
+                shouldRetryPersistence,
+                errorMsg -> {});
         }
         currentResults = new LinkedList<>();
     }

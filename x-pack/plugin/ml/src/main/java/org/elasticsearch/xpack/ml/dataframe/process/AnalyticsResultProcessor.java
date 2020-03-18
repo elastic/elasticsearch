@@ -85,7 +85,7 @@ public class AnalyticsResultProcessor {
                                     DataFrameAnalyticsAuditor auditor, ResultsPersisterService resultsPersisterService,
                                     List<ExtractedField> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
-        this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
+        this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner).setShouldRetryPersistence(() -> isCancelled == false);
         this.statsHolder = Objects.requireNonNull(statsHolder);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
@@ -265,12 +265,12 @@ public class AnalyticsResultProcessor {
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 WriteRequest.RefreshPolicy.IMMEDIATE,
                 docIdSupplier.apply(analytics.getId()),
-                () -> true,
+                () -> isCancelled == false,
                 errorMsg -> auditor.error(analytics.getId(),
                     "failed to persist result with id [" + docIdSupplier.apply(analytics.getId()) + "]; " + errorMsg)
             );
         } catch (IOException ioe) {
-            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", analytics.getId()), ioe);
+            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", analytics.getId()), ioe);
         } catch (Exception e) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", analytics.getId()), e);
         }

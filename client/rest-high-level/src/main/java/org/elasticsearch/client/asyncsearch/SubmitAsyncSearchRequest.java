@@ -38,8 +38,8 @@ public class SubmitAsyncSearchRequest implements Validatable {
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 1;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 5;
-    public static final boolean DEFAULT_CCS_MINIMIZE_ROUNDTRIPS = false;
-    public static final boolean DEFAULT_REQUEST_CACHE_VALUE = true;
+    private static final boolean DEFAULT_CCS_MINIMIZE_ROUNDTRIPS = false;
+    private static final boolean DEFAULT_REQUEST_CACHE_VALUE = true;
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
@@ -58,14 +58,6 @@ public class SubmitAsyncSearchRequest implements Validatable {
         searchRequest.setBatchedReduceSize(DEFAULT_BATCHED_REDUCE_SIZE);
         searchRequest.requestCache(DEFAULT_REQUEST_CACHE_VALUE);
     }
-
-
-//    /**
-//     * Get the {@link SearchRequest} that this submit request wraps
-//     */
-//    public SearchRequest getSearchRequest() {
-//        return searchRequest;
-//    }
 
     /**
      * Get the target indices
@@ -230,6 +222,22 @@ public class SubmitAsyncSearchRequest implements Validatable {
      */
     public Boolean getRequestCache() {
         return this.searchRequest.requestCache();
+    }
+
+    /**
+     * Returns the number of shard requests that should be executed concurrently on a single node.
+     * The default is {@code 5}.
+     */
+    public int getMaxConcurrentShardRequests() {
+        return this.searchRequest.getMaxConcurrentShardRequests();
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently on a single node.
+     * The default is {@code 5}.
+     */
+    public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
     }
 
     /**

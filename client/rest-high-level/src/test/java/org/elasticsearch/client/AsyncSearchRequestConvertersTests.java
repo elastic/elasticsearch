@@ -106,6 +106,10 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
             request.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
         }
         expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
+        if (randomBoolean()) {
+            request.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        expectedParams.put("max_concurrent_shard_requests", Integer.toString(request.getMaxConcurrentShardRequests()));
     }
 
 }

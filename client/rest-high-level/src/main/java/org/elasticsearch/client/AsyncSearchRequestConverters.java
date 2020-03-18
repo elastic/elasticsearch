@@ -62,6 +62,7 @@ final class AsyncSearchRequestConverters {
         params.withPreference(request.getPreference());
         params.withIndicesOptions(request.getIndicesOptions());
         params.putParam("search_type", request.getSearchType().name().toLowerCase(Locale.ROOT));
+        params.putParam("max_concurrent_shard_requests", Integer.toString(request.getMaxConcurrentShardRequests()));
         if (request.getRequestCache() != null) {
             params.putParam("request_cache", Boolean.toString(request.getRequestCache()));
         }

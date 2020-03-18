@@ -344,11 +344,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 
         final Map<Index, List<ShardRouting>> shardRoutingsByIndex =
-            shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index));
-        assert shardsByIndex.size() == shardRoutingsByIndex.size();
-        assert shardsByIndex.keySet().containsAll(shardRoutingsByIndex.keySet());
-        assert shardsByIndex.entrySet().stream().allMatch(e -> e.getValue().size() == shardRoutingsByIndex.get(e.getKey()).size());
-        assert shardsByIndex.entrySet().stream().allMatch(e -> e.getValue().containsAll(shardRoutingsByIndex.get(e.getKey())));
+            shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
+        assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;
     }

@@ -33,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -343,7 +344,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 
-        final Map<Index, List<ShardRouting>> shardRoutingsByIndex =
+        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex =
             shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
         assert shardRoutingsByIndex.equals(shardsByIndex);
 

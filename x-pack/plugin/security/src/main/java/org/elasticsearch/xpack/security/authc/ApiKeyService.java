@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -618,21 +619,38 @@ public class ApiKeyService {
         }
 
         @Override
-        public void usedDeprecatedName(String usedName, String modernName) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
-                usedName, apiKeyId, modernName);
+        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+            if (parserName != null) {
+                deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                    parserName, location.get(), usedName, apiKeyId, modernName);
+            } else {
+                deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                    usedName, apiKeyId, modernName);
+            }
         }
 
         @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
-                usedName, apiKeyId, replacedWith);
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+            if (parserName != null) {
+                deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                    parserName, location.get(), usedName, apiKeyId, replacedWith);
+            } else {
+                deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                    usedName, apiKeyId, replacedWith);
+            }
         }
 
         @Override
-        public void usedDeprecatedField(String usedName) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], which has been removed entirely",
-                usedName);
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+            if (parserName != null) {
+                deprecationLogger.deprecated(
+                    "[{}][{}] Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                    parserName, location.get(), usedName);
+            } else {
+                deprecationLogger.deprecated(
+                    "[{}][{}] Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                    usedName);
+            }
         }
     }
 

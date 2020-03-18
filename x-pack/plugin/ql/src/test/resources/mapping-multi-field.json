@@ -9,6 +9,10 @@
                 "english" : {
                     "type" : "text",
                     "analyzer" : "english"
+                },
+                "constant" : {
+                    "type" : "constant_keyword",
+                    "value" : "some constant value"
                 }
             }
         }

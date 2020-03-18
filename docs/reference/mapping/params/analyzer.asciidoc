@@ -6,7 +6,7 @@
 Only <<text,`text`>> fields support the `analyzer` mapping parameter.
 ====
 
-Analyzer used for <<analysis,text analysis>> when indexing or searching
+Analyzers are used for <<analysis,text analysis>> when indexing or searching
 a `text` field.
 
 Unless overridden with the <<search-analyzer,`search_analyzer`>> mapping

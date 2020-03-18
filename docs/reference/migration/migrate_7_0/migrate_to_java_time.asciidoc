@@ -6,7 +6,16 @@ formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
 ==== Impacted features
-You are only affected if you have used any custom date formats in your mappings, pipelines or templates.
+The switch to java time only impacts custom <<date,`date`>> and
+<<date_nanos,`date_nanos`>> formats.
+
+ These formats are commonly used in:
+
+* <<mapping,Index mappings>>
+* <<indices-templates,Index templates>>
+* <<pipeline,Ingest pipelines>>
+
+If you don't use custom date formats, you can skip the rest of this guide.
 Most of the custom date formats are compatible, but with some there is a change of meaning or missing. More on that below.
 A custom format is specified on a date field like this:
 [source,console]

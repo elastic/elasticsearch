@@ -43,7 +43,6 @@ Infra/Plugins::
 
 Network::
 * Invoke response handler on failure to send {pull}53631[#53631]
-* Fix RemoteConnectionManager size() method {pull}52823[#52823] (issue: {issue}52029[#52029])
 
 SQL::
 * SQL: Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])

@@ -628,6 +628,12 @@ public class ApiKeyService {
             deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
                 usedName, apiKeyId, replacedWith);
         }
+
+        @Override
+        public void usedDeprecatedField(String usedName) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], which has been removed entirely",
+                usedName);
+        }
     }
 
     /**

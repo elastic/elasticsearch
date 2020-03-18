@@ -29,7 +29,7 @@ import java.util.TimeZone;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
@@ -52,7 +52,7 @@ class DateMethodValueSource extends FieldDataValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleDocValues(this) {

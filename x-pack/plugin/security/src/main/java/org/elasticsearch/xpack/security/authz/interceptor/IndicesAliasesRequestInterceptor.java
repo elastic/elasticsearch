@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
@@ -48,6 +49,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
         if (requestInfo.getRequest() instanceof IndicesAliasesRequest) {
             final IndicesAliasesRequest request = (IndicesAliasesRequest) requestInfo.getRequest();
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+            final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isAuthAllowed()) {
                 if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
                     IndicesAccessControl indicesAccessControl =
@@ -89,7 +91,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                         // do not audit success again
                         listener.onResponse(null);
                     } else {
-                        auditTrailService.accessDenied(AuditUtil.extractRequestId(threadContext), requestInfo.getAuthentication(),
+                        auditTrail.accessDenied(AuditUtil.extractRequestId(threadContext), requestInfo.getAuthentication(),
                             requestInfo.getAction(), request, authorizationInfo);
                         listener.onFailure(Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                             "has more permissions than any of the indices"));

@@ -42,7 +42,7 @@ public class Substring extends ScalarFunction implements OptionalArgument {
         super(source, end != null ? Arrays.asList(src, start, end) : Arrays.asList(src, new Literal(source, 0, DataTypes.INTEGER), start));
         this.source = src;
         this.start = start;
-        this.end = new Literal(source, null, DataTypes.NULL);
+        this.end = end != null ? end : new Literal(source, null, DataTypes.NULL);
     }
 
     @Override

@@ -10,17 +10,17 @@ recover the cluster state and the cluster's data:
 
 `gateway.expected_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.expected_data_nodes` instead.]
     The number of (data or master) nodes that are expected to be in the cluster.
     Recovery of local shards will start as soon as the expected number of
     nodes have joined the cluster. Defaults to `0`
-    Deprecated and will be removed in 8.0
 
 `gateway.expected_master_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.expected_data_nodes` instead.]
     The number of master nodes that are expected to be in the cluster.
     Recovery of local shards will start as soon as the expected number of
     master nodes have joined the cluster. Defaults to `0`
-    Deprecated and will be removed in 8.0
 
 `gateway.expected_data_nodes`::
 
@@ -39,13 +39,13 @@ as long as the following conditions are met:
 
 `gateway.recover_after_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.recover_after_data_nodes` instead.]
     Recover as long as this many data or master nodes have joined the cluster.
-    Deprecated and will be removed in 8.0
 
 `gateway.recover_after_master_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.recover_after_data_nodes` instead.]
     Recover as long as this many master nodes have joined the cluster.
-    Deprecated and will be removed in 8.0
 
 `gateway.recover_after_data_nodes`::
 

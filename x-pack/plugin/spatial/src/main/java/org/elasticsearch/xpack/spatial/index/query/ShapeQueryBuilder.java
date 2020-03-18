@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -34,6 +35,9 @@ import java.util.function.Supplier;
  */
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
+
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(Arrays.asList(ShapeFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -101,22 +105,19 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     @Override
-    public String queryFieldType() {
-        return ShapeFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
     @SuppressWarnings({ "rawtypes" })
-    protected List validContentTypes() {
-        return Arrays.asList(ShapeFieldMapper.CONTENT_TYPE);
+    protected List<String> validContentTypes(){
+        return validContentTypes;
     }
 
     @Override
     @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (fieldType.typeName().equals(ShapeFieldMapper.CONTENT_TYPE) == false) {
+        List<String> validContentTypes = validContentTypes();
+        if (validContentTypes.contains(fieldType.typeName()) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is not of type [" + String.join(" or ", validContentTypes())
+                    + "] but of type [" + fieldType.typeName() + "]");
         }
 
         final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;

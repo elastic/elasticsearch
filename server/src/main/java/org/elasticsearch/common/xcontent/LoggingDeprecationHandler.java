@@ -33,7 +33,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
  * though the user sent them.
  */
 public class LoggingDeprecationHandler implements DeprecationHandler {
-    public static LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
+    public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     /**
      * The logger to which to send deprecation messages.
      *
@@ -56,5 +56,10 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     @Override
     public void usedDeprecatedField(String usedName, String replacedWith) {
         deprecationLogger.deprecated("Deprecated field [{}] used, replaced by [{}]", usedName, replacedWith);
+    }
+
+    @Override
+    public void usedDeprecatedField(String usedName) {
+        deprecationLogger.deprecated("Deprecated field [{}] used, which has been removed entirely", usedName);
     }
 }

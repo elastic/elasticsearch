@@ -43,8 +43,8 @@ public class RestCatTransformAction extends AbstractCatAction {
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(
-            new Route(GET, "_cat/transform"),
-            new Route(GET, "_cat/transform/{" + TransformField.TRANSFORM_ID + "}")));
+            new Route(GET, "_cat/transforms"),
+            new Route(GET, "_cat/transforms/{" + TransformField.TRANSFORM_ID + "}")));
     }
 
     @Override
@@ -91,8 +91,8 @@ public class RestCatTransformAction extends AbstractCatAction {
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/transform\n");
-        sb.append("/_cat/transform/{" + TransformField.TRANSFORM_ID + "}\n");
+        sb.append("/_cat/transforms\n");
+        sb.append("/_cat/transforms/{" + TransformField.TRANSFORM_ID + "}\n");
     }
 
     @Override

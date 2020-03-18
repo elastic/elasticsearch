@@ -15,7 +15,7 @@ search analysis>>. See <<specify-analyzer>>.
 
 [TIP]
 ====
-We recommend testing analyzer before using them in production. See
+We recommend testing analyzers before using them in production. See
 <<test-analyzer>>.
 ====
 

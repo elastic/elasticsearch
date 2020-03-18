@@ -13,6 +13,12 @@ Unless overridden with the <<search-analyzer,`search_analyzer`>> mapping
 parameter, this analyzer is used for both <<analysis-index-search-time,index and
 search analysis>>. See <<specify-analyzer>>.
 
+[TIP]
+====
+We recommend testing analyzer before using them in production. See
+<<test-analyzer>>.
+====
+
 [[search-quote-analyzer]]
 ==== `search_quote_analyzer`
 

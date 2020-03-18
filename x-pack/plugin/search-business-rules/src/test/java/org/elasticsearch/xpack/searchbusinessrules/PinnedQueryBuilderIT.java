@@ -203,11 +203,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     
     public void testHighlight() throws Exception {
         // Issue raised in https://github.com/elastic/elasticsearch/issues/53699
-        assertAcked(prepareCreate("test").setMapping(
-                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+        assertAcked(prepareCreate("test").addMapping("type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                         .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
         refresh();
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR), "2");

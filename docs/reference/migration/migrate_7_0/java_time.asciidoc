@@ -129,7 +129,7 @@ For dates before 1970, use a date format containing a year.
 
 
 [float]
-==== Migration Guide
+==== Migration guide
 For a detailed migration guide, see <<migrate_to_java_time>>.
 
 include::migrate_to_java_time.asciidoc[]

@@ -339,6 +339,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
 include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
 end::chunking-config[]
 
+tag::class-assignment-objective[]
+Defines the objective to optimize when assigning class labels. Available
+objectives are `maximize_accuracy` and `maximize_minimum_recall`. When maximizing
+accuracy class labels are chosen to maximize the number of correct predictions.
+When maximizing minimum recall labels are chosen to maximize the minimum recall
+for any class. Defaults to maximize_minimum_recall.
+end::class-assignment-objective[]
+
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
@@ -1317,6 +1325,11 @@ The configuration of how to source the analysis data. It requires an
   (Required, string or array) Index or indices on which to perform the 
   analysis. It can be a single index or index pattern as well as an array of 
   indices or patterns.
++
+--
+WARNING: If your source indices contain documents with the same IDs, only the 
+document that is indexed last appears in the destination index.
+--
   
 `query`:::
   (Optional, object) The {es} query domain-specific language 

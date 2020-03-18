@@ -48,7 +48,10 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
         condition.analyze(scriptRoot, scope, conditionInput);
@@ -62,32 +65,36 @@ public final class SIfElse extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        ifblock.lastSource = lastSource;
-        ifblock.inLoop = inLoop;
-        ifblock.lastLoop = lastLoop;
+        Input ifblockInput = new Input();
+        ifblockInput.lastSource = input.lastSource;
+        ifblockInput.inLoop = input.inLoop;
+        ifblockInput.lastLoop = input.lastLoop;
 
-        ifblock.analyze(scriptRoot, scope.newLocalScope());
+        Output ifblockOutput = ifblock.analyze(scriptRoot, scope.newLocalScope(), ifblockInput);
 
-        anyContinue = ifblock.anyContinue;
-        anyBreak = ifblock.anyBreak;
-        statementCount = ifblock.statementCount;
+        output.anyContinue = ifblockOutput.anyContinue;
+        output.anyBreak = ifblockOutput.anyBreak;
+        output.statementCount = ifblockOutput.statementCount;
 
         if (elseblock == null) {
             throw createError(new IllegalArgumentException("Extraneous else statement."));
         }
 
-        elseblock.lastSource = lastSource;
-        elseblock.inLoop = inLoop;
-        elseblock.lastLoop = lastLoop;
+        Input elseblockInput = new Input();
+        elseblockInput.lastSource = input.lastSource;
+        elseblockInput.inLoop = input.inLoop;
+        elseblockInput.lastLoop = input.lastLoop;
 
-        elseblock.analyze(scriptRoot, scope.newLocalScope());
+        Output elseblockOutput = elseblock.analyze(scriptRoot, scope.newLocalScope(), elseblockInput);
 
-        methodEscape = ifblock.methodEscape && elseblock.methodEscape;
-        loopEscape = ifblock.loopEscape && elseblock.loopEscape;
-        allEscape = ifblock.allEscape && elseblock.allEscape;
-        anyContinue |= elseblock.anyContinue;
-        anyBreak |= elseblock.anyBreak;
-        statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
+        output.methodEscape = ifblockOutput.methodEscape && elseblockOutput.methodEscape;
+        output.loopEscape = ifblockOutput.loopEscape && elseblockOutput.loopEscape;
+        output.allEscape = ifblockOutput.allEscape && elseblockOutput.allEscape;
+        output.anyContinue |= elseblockOutput.anyContinue;
+        output.anyBreak |= elseblockOutput.anyBreak;
+        output.statementCount = Math.max(ifblockOutput.statementCount, elseblockOutput.statementCount);
+
+        return output;
     }
 
     @Override

@@ -245,7 +245,6 @@ POST /_aliases
 // TEST[continued]
 
 ===== Update before upgrading to ES7.
-* update pipeline
 If your pipelines were using a joda style patterns, they also have to be updated. There is no need to create a new pipeline.
 Just update the already existing one.
 

@@ -89,7 +89,7 @@ When you are running Elasticsearch 7 with Java 8, you are not able to parse
 the timezone `GMT0` properly anymore. The reason for this is a bug in the
 JDK, which has not been fixed for JDK8. You can read more in the
 https://bugs.openjdk.java.net/browse/JDK-8138664[official issue]
-The fix is in JDK version 9 and newer.
+This bug is fixed in JDK9 and later versions.
 
 [float]
 ==== Scripting with dates should use java time based methods

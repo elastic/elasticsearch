@@ -2,5 +2,5 @@
 == Removal of mapping types
 
 Elasticsearch 8.0.0 no longer supports mapping types.  For details on how to
-migrate your clusters away from mapping types, see
-{ref-7x}/removal-of-types.html[The removal of types documentation for the 7x release]
+migrate your clusters away from mapping types, see the
+{ref-7x}/removal-of-types.html[removal of types] documentation for the 7x release

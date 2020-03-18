@@ -1,0 +1,172 @@
+---
+"Test by field":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "overall_cardinality": {
+              "airline": 50000
+            }
+          }
+  - match: { model_memory_estimate: "3135mb" }
+
+---
+"Test by field also influencer":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "by_field_name": "airline"}],
+              "influencers": [ "airline" ]
+            },
+            "overall_cardinality": {
+              "airline": 50000
+            },
+            "max_bucket_cardinality": {
+              "airline": 500
+            }
+          }
+  - match: { model_memory_estimate: "3135mb" }
+
+---
+"Test by field with independent influencer":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "by_field_name": "airline"}],
+              "influencers": [ "country" ]
+            },
+            "overall_cardinality": {
+              "airline": 50000
+            },
+            "max_bucket_cardinality": {
+              "country": 500
+            }
+          }
+  - match: { model_memory_estimate: "3140mb" }
+
+---
+"Test partition field":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "partition_field_name": "airline"}]
+            },
+            "overall_cardinality": {
+              "airline": 50000
+            }
+          }
+  - match: { model_memory_estimate: "3135mb" }
+
+---
+"Test partition field also influencer":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "partition_field_name": "airline"}],
+              "influencers": [ "airline" ]
+            },
+            "overall_cardinality": {
+              "airline": 50000
+            },
+            "max_bucket_cardinality": {
+              "airline": 500
+            }
+          }
+  - match: { model_memory_estimate: "3135mb" }
+
+---
+"Test partition field with independent influencer":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "partition_field_name": "airline"}],
+              "influencers": [ "country" ]
+            },
+            "overall_cardinality": {
+              "airline": 50000
+            },
+            "max_bucket_cardinality": {
+              "country": 500
+            }
+          }
+  - match: { model_memory_estimate: "3140mb" }
+
+---
+"Test by and partition field":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "by_field_name": "airline", "partition_field_name": "country"}]
+            },
+            "overall_cardinality": {
+              "airline": 4000,
+              "country": 600
+            }
+          }
+  - match: { model_memory_estimate: "150010mb" }
+
+---
+"Test by and partition fields also influencers":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "by_field_name": "airline", "partition_field_name": "country"}],
+              "influencers": [ "airline", "country" ]
+            },
+            "overall_cardinality": {
+              "airline": 4000,
+              "country": 600
+            },
+            "max_bucket_cardinality": {
+              "airline": 60,
+              "country": 40
+            }
+          }
+  - match: { model_memory_estimate: "150010mb" }
+
+---
+"Test by and partition fields with independent influencer":
+  - do:
+      ml.estimate_model_memory:
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "max", "field_name": "responsetime", "by_field_name": "airline", "partition_field_name": "country"}],
+              "influencers": [ "src_ip" ]
+            },
+            "overall_cardinality": {
+              "airline": 4000,
+              "country": 600
+            },
+            "max_bucket_cardinality": {
+              "src_ip": 500
+            }
+          }
+  - match: { model_memory_estimate: "150015mb" }
+

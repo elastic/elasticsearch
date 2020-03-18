@@ -16,13 +16,12 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
-import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
 
@@ -34,9 +33,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(POST, "/_async_search"),
-            new Route(GET, "/_async_search"),
-            new Route(POST, "/{index}/_async_search"),
-            new Route(GET, "/{index}/_async_search")));
+            new Route(POST, "/{index}/_async_search")));
     }
 
     @Override

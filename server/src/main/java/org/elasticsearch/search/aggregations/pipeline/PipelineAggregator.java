@@ -30,7 +30,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 public abstract class PipelineAggregator implements NamedWriteable {
     /**
@@ -55,6 +59,46 @@ public abstract class PipelineAggregator implements NamedWriteable {
          */
         PipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser)
                 throws IOException;
+    }
+
+    /**
+     * Tree of {@link PipelineAggregator}s to modify a tree of aggregations
+     * after their final reduction.
+     */
+    public static class PipelineTree {
+        /**
+         * An empty tree of {@link PipelineAggregator}s.
+         */
+        public static final PipelineTree EMPTY = new PipelineTree(emptyMap(), emptyList());
+
+        private final Map<String, PipelineTree> subTrees;
+        private final List<PipelineAggregator> aggregators;
+
+        public PipelineTree(Map<String, PipelineTree> subTrees, List<PipelineAggregator> aggregators) {
+            this.subTrees = subTrees;
+            this.aggregators = aggregators;
+        }
+
+        /**
+         * The {@link PipelineAggregator}s for the aggregation at this
+         * position in the tree.
+         */
+        public List<PipelineAggregator> aggregators() {
+            return aggregators;
+        }
+
+        /**
+         * Get the sub-tree at for the named sub-aggregation or {@link #EMPTY}
+         * if there are no pipeline aggragations for that sub-aggregator.
+         */
+        public PipelineTree subTree(String name) {
+            return subTrees.getOrDefault(name, EMPTY);
+        }
+
+        @Override
+        public String toString() {
+            return "PipelineTree[" + aggregators + "," + subTrees + "]";
+        }
     }
 
     private String name;

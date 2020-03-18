@@ -152,7 +152,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
             .collect(
                 Collectors.toMap(
                     Function.identity(),
-                    id -> new ShardIdLatch(id, new CountDownLatch(1), failures.decrementAndGet() >= 0 ? true : false)
+                    id -> new ShardIdLatch(id, new CountDownLatch(1), failures.decrementAndGet() >= 0)
                 )
             );
         ShardIdLatch[] shardLatchArray = shardLatchMap.values().stream()
@@ -171,10 +171,8 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
-            private int lastVersion = initial.getVersion();
             private int shardIndex = 0;
             private boolean isFirst = true;
-            private int shardFailures = 0;
 
             @Override
             public boolean hasNext() {
@@ -201,31 +199,23 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 while (index < step && shardIndex < shardLatchArray.length) {
                     if (shardLatchArray[shardIndex].shouldFail == false) {
                         ++index;
-                    } else {
-                        ++shardFailures;
                     }
                     shardLatchArray[shardIndex++].countDown();
                 }
-                assertBusy(() -> {
-                    AsyncSearchResponse newResp = client().execute(GetAsyncSearchAction.INSTANCE,
-                        new GetAsyncSearchAction.Request(response.getId())
-                            .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
-                    atomic.set(newResp);
-                    assertNotEquals(lastVersion, newResp.getVersion());
-                });
-                AsyncSearchResponse newResponse = atomic.get();
-                lastVersion = newResponse.getVersion();
+                AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
+                    new GetAsyncSearchAction.Request(response.getId())
+                        .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
 
                 if (newResponse.isRunning()) {
                     assertThat(newResponse.status(),  equalTo(RestStatus.OK));
                     assertTrue(newResponse.isPartial());
-                    assertFalse(newResponse.getFailure() != null);
+                    assertNull(newResponse.getFailure());
                     assertNotNull(newResponse.getSearchResponse());
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, lessThanOrEqualTo(numFailures));
                 } else if (numFailures == shardLatchArray.length) {
                     assertThat(newResponse.status(),  equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                    assertTrue(newResponse.getFailure() != null);
+                    assertNotNull(newResponse.getFailure());
                     assertTrue(newResponse.isPartial());
                     assertNotNull(newResponse.getSearchResponse());
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
@@ -306,7 +296,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {}
+        protected void doWriteTo(StreamOutput out) {}
 
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -364,7 +354,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         protected boolean doEquals(BlockQueryBuilder other) {
-            return true;
+            return false;
         }
 
         @Override

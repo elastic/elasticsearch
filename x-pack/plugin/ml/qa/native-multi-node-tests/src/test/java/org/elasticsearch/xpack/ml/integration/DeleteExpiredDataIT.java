@@ -165,7 +165,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Refresh to ensure the snapshot timestamp updates are visible
-        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+        refresh("*");
 
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
         // FIXME it would be better to wait for something concrete instead of wait for time to elapse
@@ -184,6 +184,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         retainAllSnapshots("snapshots-retention-with-retain");
 
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountBeforeDelete =
@@ -232,6 +233,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
         long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountAfterDelete =
@@ -296,6 +298,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             client().execute(UpdateModelSnapshotAction.INSTANCE, request).get();
         }
         // We need to refresh to ensure the updates are visible
-        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+        refresh("*");
     }
 }

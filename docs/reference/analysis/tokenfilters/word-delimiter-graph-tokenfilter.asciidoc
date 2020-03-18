@@ -40,16 +40,16 @@ hyphens, we recommend using the
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the
-`word_delimiter_graph` filter to split `Neil's Super-Duper-XL500--42+AutoCoder`
+`word_delimiter_graph` filter to split `Neil's-Super-Duper-XL500--42+AutoCoder`
 into normalized tokens using the filter's default rules:
 
 [source,console]
 ----
 GET /_analyze
 {
-  "tokenizer": "whitespace",
+  "tokenizer": "keyword",
   "filter": [ "word_delimiter_graph" ],
-  "text": "Neil's Super-Duper-XL500--42+AutoCoder"
+  "text": "Neil's-Super-Duper-XL500--42+AutoCoder"
 }
 ----
 
@@ -64,62 +64,62 @@ The filter produces the following tokens:
 [source,console-result]
 ----
 {
-  "tokens" : [
+  "tokens": [
     {
-      "token" : "Neil",
-      "start_offset" : 0,
-      "end_offset" : 4,
-      "type" : "word",
-      "position" : 0
+      "token": "Neil",
+      "start_offset": 0,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
     },
     {
-      "token" : "Super",
-      "start_offset" : 7,
-      "end_offset" : 12,
-      "type" : "word",
-      "position" : 1
+      "token": "Super",
+      "start_offset": 7,
+      "end_offset": 12,
+      "type": "word",
+      "position": 1
     },
     {
-      "token" : "Duper",
-      "start_offset" : 13,
-      "end_offset" : 18,
-      "type" : "word",
-      "position" : 2
+      "token": "Duper",
+      "start_offset": 13,
+      "end_offset": 18,
+      "type": "word",
+      "position": 2
     },
     {
-      "token" : "XL",
-      "start_offset" : 19,
-      "end_offset" : 21,
-      "type" : "word",
-      "position" : 3
+      "token": "XL",
+      "start_offset": 19,
+      "end_offset": 21,
+      "type": "word",
+      "position": 3
     },
     {
-      "token" : "500",
-      "start_offset" : 21,
-      "end_offset" : 24,
-      "type" : "word",
-      "position" : 4
+      "token": "500",
+      "start_offset": 21,
+      "end_offset": 24,
+      "type": "word",
+      "position": 4
     },
     {
-      "token" : "42",
-      "start_offset" : 26,
-      "end_offset" : 28,
-      "type" : "word",
-      "position" : 5
+      "token": "42",
+      "start_offset": 26,
+      "end_offset": 28,
+      "type": "word",
+      "position": 5
     },
     {
-      "token" : "Auto",
-      "start_offset" : 29,
-      "end_offset" : 33,
-      "type" : "word",
-      "position" : 6
+      "token": "Auto",
+      "start_offset": 29,
+      "end_offset": 33,
+      "type": "word",
+      "position": 6
     },
     {
-      "token" : "Coder",
-      "start_offset" : 33,
-      "end_offset" : 38,
-      "type" : "word",
-      "position" : 7
+      "token": "Coder",
+      "start_offset": 33,
+      "end_offset": 38,
+      "type": "word",
+      "position": 7
     }
   ]
 }
@@ -141,7 +141,7 @@ PUT /my_index
     "analysis": {
       "analyzer": {
         "my_analyzer": {
-          "tokenizer": "whitespace",
+          "tokenizer": "keyword",
           "filter": [ "word_delimiter_graph" ]
         }
       }
@@ -189,7 +189,7 @@ could produce tokens with illegal offsets.
 (Optional, boolean)
 If `true`, the filter produces catenated tokens for chains of alphanumeric
 characters separated by non-alphabetic delimiters. For example:
-`super-duper-xl-500` -> [**`superduperxl500`**, `super`, `duper`, `xl`, `500` ].
+`super-duper-xl-500` -> [ **`superduperxl500`**, `super`, `duper`, `xl`, `500` ].
 Defaults to `false`.
 
 [WARNING]
@@ -215,7 +215,7 @@ you plan to use these queries.
 (Optional, boolean)
 If `true`, the filter produces catenated tokens for chains of numeric characters
 separated by non-alphabetic delimiters. For example: `01-02-03` ->
-[**`010203`**, `01`, `02`, `03` ]. Defaults to `false`.
+[ **`010203`**, `01`, `02`, `03` ]. Defaults to `false`.
 
 [WARNING]
 ====
@@ -240,7 +240,7 @@ you plan to use these queries.
 (Optional, boolean)
 If `true`, the filter produces catenated tokens for chains of alphabetical
 characters separated by non-alphabetic delimiters. For example: `super-duper-xl`
--> [**`superduperxl`**, `super`, `duper`, `xl`]. Defaults to `false`.
+-> [ **`superduperxl`**, `super`, `duper`, `xl` ]. Defaults to `false`.
 
 [WARNING]
 ====
@@ -277,8 +277,8 @@ Defaults to `true`.
 (Optional, boolean)
 If `true`, the filter includes the original version of any split tokens in the
 output. This original version includes non-alphanumeric delimiters. For example:
-`super-duper-xl-500` -> [**`super-duper-xl-500`**, `super`, `duper`, `xl`, `500`
-]. Defaults to `false`.
+`super-duper-xl-500` -> [ **`super-duper-xl-500`**, `super`, `duper`, `xl`,
+`500` ]. Defaults to `false`.
 
 [WARNING]
 ====
@@ -309,7 +309,7 @@ break.
 `split_on_case_change`::
 (Optional, boolean)
 If `true`, the filter splits tokens at letter case transitions. For example:
-`camelCase` -> [ `camel`, `Case`]. Defaults to `true`.
+`camelCase` -> [ `camel`, `Case` ]. Defaults to `true`.
 
 `split_on_numerics`::
 (Optional, boolean)
@@ -319,7 +319,7 @@ If `true`, the filter splits tokens at letter-number transitions. For example:
 `stem_english_possessive`::
 (Optional, boolean)
 If `true`, the filter removes the English possessive (`'s`) from the end of each
-token. For example: `O'Neil's` -> `[ `O`, `Neil` ]. Defaults to `true`.
+token. For example: `O'Neil's` -> [ `O`, `Neil` ]. Defaults to `true`.
 
 `type_table`::
 +
@@ -332,7 +332,7 @@ those characters.
 For example, the following array maps the plus (`+`) and hyphen (`-`) characters
 as alphanumeric, which means they won't be treated as delimiters:
 
-`["+ => ALPHA", "- => ALPHA"]`
+`[ "+ => ALPHA", "- => ALPHA" ]`
 
 Supported types include:
 
@@ -408,7 +408,7 @@ PUT /my_index
     "analysis": {
       "analyzer": {
         "my_analyzer": {
-          "tokenizer": "whitespace",
+          "tokenizer": "keyword",
           "filter": [ "my_custom_word_delimiter_graph_filter" ]
         }
       },

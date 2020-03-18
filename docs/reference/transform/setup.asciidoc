@@ -16,13 +16,14 @@ To use the {transforms}, you must have the
 ==== {transform-cap} nodes
 
 To use {transforms}, there must be at least one node in your cluster with
-`xpack.transform.enabled` and `node.transform` set to `true`. All data nodes and
-master-eligible nodes must have `xpack.transform.enabled` set to `true`, which
-is the default behavior.
+`xpack.transform.enabled` and `node.transform` set to `true`. By default, all
+nodes are {transform} nodes unless you explicitly change these settings or set 
+`node.data` to `false`.
 
-You can limit which nodes run resource-intensive activity related to
-{transforms} by setting `node.transform` to `false` on some nodes. For more
-information, see <<transform-settings>> and <<modules-node>>.
+If you want to control which nodes run {transforms}, set `node.transform` to
+`false` on some nodes.
+
+For more information, see <<transform-settings>> and <<modules-node>>.
 
 [discrete]
 [[transform-privileges]]

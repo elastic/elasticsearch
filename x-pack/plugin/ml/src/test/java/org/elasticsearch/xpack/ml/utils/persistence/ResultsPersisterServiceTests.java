@@ -222,7 +222,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {}));
         assertThat(e.getMessage(), containsString("experienced failure that cannot be automatically retried"));
 
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {
@@ -278,7 +278,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s)->{}));
 
-        verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
+        verify(client).execute(eq(BulkAction.INSTANCE), any(), any());
         assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
     }
 

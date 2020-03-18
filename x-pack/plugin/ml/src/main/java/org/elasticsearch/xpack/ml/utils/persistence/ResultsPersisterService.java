@@ -181,7 +181,7 @@ public class ResultsPersisterService {
                 LOGGER.warn("[" + jobId + "] Exception while executing search action", e);
                 failureMessage = e.getDetailedMessage();
                 if (isIrrecoverable(e)) {
-                    LOGGER.warn(new ParameterizedMessage("[{}] experienced irrecoverable failure", jobId), e);
+                    LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
                     throw new ElasticsearchException("{} experienced failure that cannot be automatically retried", e, jobId);
                 }
             }
@@ -194,7 +194,7 @@ public class ResultsPersisterService {
      * @param ex The exception to check
      * @return true when the failure will persist no matter how many times we retry.
      */
-    static boolean isIrrecoverable(Exception ex) {
+    private static boolean isIrrecoverable(Exception ex) {
         Throwable t = ExceptionsHelper.unwrapCause(ex);
         if (t instanceof ElasticsearchException) {
             return IRRECOVERABLE_REST_STATUSES.contains(((ElasticsearchException) t).status());

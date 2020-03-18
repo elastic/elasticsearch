@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.common.Strings;
@@ -45,9 +44,8 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         SearchSourceBuilder searchSourceBuilder = createTestSearchSourceBuilder();
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(searchSourceBuilder, indices);
 
-        setRandomSearchParams(submitRequest.getSearchRequest(), expectedParams);
-        setRandomIndicesOptions(submitRequest.getSearchRequest()::indicesOptions,
-                submitRequest.getSearchRequest()::indicesOptions, expectedParams);
+        setRandomSearchParams(submitRequest, expectedParams);
+        setRandomIndicesOptions(submitRequest::setIndicesOptions, submitRequest::getIndicesOptions, expectedParams);
         // some properties of theSearchRequest are always overwritten in the submit request,
         // so we need to adapt the expected parameters accordingly for tests to pass
         expectedParams.put("ccs_minimize_roundtrips", "false");
@@ -84,32 +82,32 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.assertToXContentBody(searchSourceBuilder, request.getEntity());
     }
 
-    private static void setRandomSearchParams(SearchRequest searchRequest, Map<String, String> expectedParams) {
+    private static void setRandomSearchParams(SubmitAsyncSearchRequest request, Map<String, String> expectedParams) {
         expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (randomBoolean()) {
-            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("routing", searchRequest.routing());
+            request.setRouting(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", request.getRouting());
         }
         if (randomBoolean()) {
-            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("preference", searchRequest.preference());
+            request.setPreference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", request.getPreference());
         }
         if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.CURRENTLY_SUPPORTED));
+            request.setSearchType(randomFrom(SearchType.CURRENTLY_SUPPORTED));
         }
-        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        expectedParams.put("search_type", request.getSearchType().name().toLowerCase(Locale.ROOT));
         if (randomBoolean()) {
-            searchRequest.allowPartialSearchResults(randomBoolean());
-            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
-        }
-        if (randomBoolean()) {
-            searchRequest.requestCache(randomBoolean());
-            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
+            request.setAllowPartialSearchResults(randomBoolean());
+            expectedParams.put("allow_partial_search_results", Boolean.toString(request.getAllowPartialSearchResults()));
         }
         if (randomBoolean()) {
-            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+            request.setRequestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(request.getRequestCache()));
         }
-        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        if (randomBoolean()) {
+            request.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
     }
 
 }

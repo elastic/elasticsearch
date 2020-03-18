@@ -36,6 +36,11 @@ import java.util.Optional;
  */
 public class SubmitAsyncSearchRequest implements Validatable {
 
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 1;
+    public static final int DEFAULT_BATCHED_REDUCE_SIZE = 5;
+    public static final boolean DEFAULT_CCS_MINIMIZE_ROUNDTRIPS = false;
+    public static final boolean DEFAULT_REQUEST_CACHE_VALUE = true;
+
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
     private TimeValue waitForCompletion;
@@ -48,19 +53,27 @@ public class SubmitAsyncSearchRequest implements Validatable {
      */
     public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
         this.searchRequest = new SearchRequest(indices, source);
-        searchRequest.setCcsMinimizeRoundtrips(false);
-        searchRequest.setPreFilterShardSize(1);
-        searchRequest.setBatchedReduceSize(5);
-        searchRequest.requestCache(true);
+        searchRequest.setCcsMinimizeRoundtrips(DEFAULT_CCS_MINIMIZE_ROUNDTRIPS);
+        searchRequest.setPreFilterShardSize(DEFAULT_PRE_FILTER_SHARD_SIZE);
+        searchRequest.setBatchedReduceSize(DEFAULT_BATCHED_REDUCE_SIZE);
+        searchRequest.requestCache(DEFAULT_REQUEST_CACHE_VALUE);
     }
 
+
+//    /**
+//     * Get the {@link SearchRequest} that this submit request wraps
+//     */
+//    public SearchRequest getSearchRequest() {
+//        return searchRequest;
+//    }
 
     /**
-     * Get the {@link SearchRequest} that this submit request wraps
+     * Get the target indices
      */
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
+    public String[] getIndices() {
+        return this.searchRequest.indices();
     }
+
 
     /**
      * Get the minimum time that the request should wait before returning a partial result (defaults to 1 second).
@@ -106,18 +119,25 @@ public class SubmitAsyncSearchRequest implements Validatable {
 
     // setters for request parameters of the wrapped SearchRequest
     /**
-     * Set the routing values to control the shards that the search will be executed on.
+     * Set the routing value to control the shards that the search will be executed on.
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    public void routing(String routing) {
+    public void setRouting(String routing) {
         this.searchRequest.routing(routing);
     }
 
     /**
      * Set the routing values to control the shards that the search will be executed on.
      */
-    public void routing(String... routings) {
+    public void setRoutings(String... routings) {
         this.searchRequest.routing(routings);
+    }
+
+    /**
+     * Get the routing value to control the shards that the search will be executed on.
+     */
+    public String getRouting() {
+        return this.searchRequest.routing();
     }
 
     /**
@@ -125,30 +145,58 @@ public class SubmitAsyncSearchRequest implements Validatable {
      * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
-    public void preference(String preference) {
+    public void setPreference(String preference) {
         this.searchRequest.preference(preference);
+    }
+
+    /**
+     * Get the preference to execute the search.
+     */
+    public String getPreference() {
+        return this.searchRequest.preference();
     }
 
     /**
      * Specifies what type of requested indices to ignore and how to deal with indices wildcard expressions.
      */
-    public void indicesOptions(IndicesOptions indicesOptions) {
+    public void setIndicesOptions(IndicesOptions indicesOptions) {
         this.searchRequest.indicesOptions(indicesOptions);
+    }
+
+    /**
+     * Get the indices Options.
+     */
+    public IndicesOptions getIndicesOptions() {
+        return this.searchRequest.indicesOptions();
     }
 
     /**
      * The search type to execute, defaults to {@link SearchType#DEFAULT}.
      */
-    public void searchType(SearchType searchType) {
+    public void setSearchType(SearchType searchType) {
         this.searchRequest.searchType(searchType);
+    }
+
+    /**
+     * Get the search type to execute, defaults to {@link SearchType#DEFAULT}.
+     */
+    public SearchType getSearchType() {
+        return this.searchRequest.searchType();
     }
 
     /**
      * Sets if this request should allow partial results. (If method is not called,
      * will default to the cluster level setting).
      */
-    public void allowPartialSearchResults(boolean allowPartialSearchResults) {
+    public void setAllowPartialSearchResults(boolean allowPartialSearchResults) {
         this.searchRequest.allowPartialSearchResults(allowPartialSearchResults);
+    }
+
+    /**
+     * Gets if this request should allow partial results.
+     */
+    public Boolean getAllowPartialSearchResults() {
+        return this.searchRequest.allowPartialSearchResults();
     }
 
     /**
@@ -160,12 +208,35 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
+     * Gets the number of shard results that should be reduced at once on the coordinating node.
+     * This defaults to 5 for {@link SubmitAsyncSearchRequest}.
+     */
+    public int getBatchedReduceSize() {
+        return this.searchRequest.getBatchedReduceSize();
+    }
+
+    /**
      * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
      * will default to the index level setting if request cache is enabled or not).
      */
-    public void requestCache(Boolean requestCache) {
+    public void setRequestCache(Boolean requestCache) {
         this.searchRequest.requestCache(requestCache);
+    }
+
+    /**
+     * Gets if this request should use the request cache or not.
+     * Defaults to `true` for {@link SubmitAsyncSearchRequest}.
+     */
+    public Boolean getRequestCache() {
+        return this.searchRequest.requestCache();
+    }
+
+    /**
+     * Gets if the source of the {@link SearchSourceBuilder} initially used on this request.
+     */
+    public SearchSourceBuilder getSearchSource() {
+        return this.searchRequest.source();
     }
 
     @Override
@@ -198,7 +269,7 @@ public class SubmitAsyncSearchRequest implements Validatable {
             return false;
         }
         SubmitAsyncSearchRequest request = (SubmitAsyncSearchRequest) o;
-        return Objects.equals(getSearchRequest(), request.getSearchRequest())
+        return Objects.equals(searchRequest, request.searchRequest)
                 && Objects.equals(getKeepAlive(), request.getKeepAlive())
                 && Objects.equals(getWaitForCompletion(), request.getWaitForCompletion())
                 && Objects.equals(isCleanOnCompletion(), request.isCleanOnCompletion());
@@ -206,6 +277,6 @@ public class SubmitAsyncSearchRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getSearchRequest(), getKeepAlive(), getWaitForCompletion(), isCleanOnCompletion());
+        return Objects.hash(searchRequest, getKeepAlive(), getWaitForCompletion(), isCleanOnCompletion());
     }
 }

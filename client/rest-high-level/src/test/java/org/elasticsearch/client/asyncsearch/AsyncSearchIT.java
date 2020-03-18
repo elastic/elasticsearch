@@ -37,8 +37,8 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(sourceBuilder, index);
-        // 2 sec should be enough to make sure we always complete right away
-        request.setWaitForCompletion(new TimeValue(2, TimeUnit.SECONDS));
+        // 15 sec should be enough to make sure we always complete right away
+        request.setWaitForCompletion(new TimeValue(15, TimeUnit.SECONDS));
         request.setCleanOnCompletion(false);
         AsyncSearchResponse response = highLevelClient().asyncSearch().submitAsyncSearch(request, RequestOptions.DEFAULT);
         assertNotNull(response.getId());

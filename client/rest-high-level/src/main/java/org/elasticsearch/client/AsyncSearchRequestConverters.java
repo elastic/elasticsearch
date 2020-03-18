@@ -20,28 +20,27 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.RequestConverters.Params;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
-import static org.elasticsearch.client.RequestConverters.addSearchRequestParams;
 
 final class AsyncSearchRequestConverters {
 
     static Request submitAsyncSearch(SubmitAsyncSearchRequest asyncSearchRequest) throws IOException {
-        SearchRequest searchRequest = asyncSearchRequest.getSearchRequest();
         String endpoint = new RequestConverters.EndpointBuilder().addCommaSeparatedPathParts(
-                searchRequest.indices())
+                asyncSearchRequest.getIndices())
                 .addPathPartAsIs("_async_search").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new RequestConverters.Params();
         // add all typical search params and search request source as body
-        addSearchRequestParams(params, searchRequest);
-        if (searchRequest.source() != null) {
-            request.setEntity(RequestConverters.createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        addSearchRequestParams(params, asyncSearchRequest);
+        if (asyncSearchRequest.getSearchSource() != null) {
+            request.setEntity(RequestConverters.createEntity(asyncSearchRequest.getSearchSource(), REQUEST_BODY_CONTENT_TYPE));
         }
         // set async search submit specific parameters
         if (asyncSearchRequest.isCleanOnCompletion() != null) {
@@ -55,5 +54,22 @@ final class AsyncSearchRequestConverters {
         }
         request.addParameters(params.asMap());
         return request;
+    }
+
+    static void addSearchRequestParams(Params params, SubmitAsyncSearchRequest request) {
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        params.withRouting(request.getRouting());
+        params.withPreference(request.getPreference());
+        params.withIndicesOptions(request.getIndicesOptions());
+        params.putParam("search_type", request.getSearchType().name().toLowerCase(Locale.ROOT));
+        if (request.getRequestCache() != null) {
+            params.putParam("request_cache", Boolean.toString(request.getRequestCache()));
+        }
+        if (request.getAllowPartialSearchResults() != null) {
+            params.putParam("allow_partial_search_results", Boolean.toString(request.getAllowPartialSearchResults()));
+        }
+        params.putParam("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
+        params.putParam("pre_filter_shard_size", Integer.toString(SubmitAsyncSearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
+        params.putParam("ccs_minimize_roundtrips", Boolean.toString(SubmitAsyncSearchRequest.DEFAULT_CCS_MINIMIZE_ROUNDTRIPS));
     }
 }

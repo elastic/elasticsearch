@@ -52,22 +52,6 @@ public class SubmitAsyncSearchRequestTests extends ESTestCase {
             assertEquals(1, validation.get().validationErrors().size());
             assertEquals("[keep_alive] must be greater than 1 minute, got: 1ms", validation.get().validationErrors().get(0));
         }
-        {
-            SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder(), "test");
-            request.getSearchRequest().setCcsMinimizeRoundtrips(true);
-            Optional<ValidationException> validation = request.validate();
-            assertTrue(validation.isPresent());
-            assertEquals(1, validation.get().validationErrors().size());
-            assertEquals("[ccs_minimize_roundtrips] is not supported on async search queries", validation.get().validationErrors().get(0));
-        }
-        {
-            SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder(), "test");
-            request.getSearchRequest().scroll(new TimeValue(1000));
-            Optional<ValidationException> validation = request.validate();
-            assertTrue(validation.isPresent());
-            assertEquals(1, validation.get().validationErrors().size());
-            assertEquals("[scroll] queries are not supported", validation.get().validationErrors().get(0));
-        }
     }
 
 }

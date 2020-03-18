@@ -40,7 +40,9 @@ public class AsyncSearchResponse implements ToXContentObject  {
     @Nullable
     private String id;
     private final int version;
+    @Nullable
     private SearchResponse searchResponse;
+    @Nullable
     private ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;

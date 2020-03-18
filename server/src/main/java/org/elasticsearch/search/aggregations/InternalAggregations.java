@@ -86,7 +86,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     public InternalAggregations(StreamInput in) throws IOException {
         super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        if (in.getVersion().before(Version.V_8_0_0)) { // NOCOMMIT switch to 7.7.0 before backporting
+        if (in.getVersion().before(Version.V_8_0_0)) { // TODO switch to 7.7.0 before merging
             in.readNamedWriteableList(PipelineAggregator.class); 
         }
         /*
@@ -102,7 +102,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_8_0_0)) { // TODO switch to 7.7.0 before merging
             if (pipelineTreeForBwcSerialization == null) {
                 out.writeNamedWriteableList(emptyList());
             } else {

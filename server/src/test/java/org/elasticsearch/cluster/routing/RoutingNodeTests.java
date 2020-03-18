@@ -120,7 +120,7 @@ public class RoutingNodeTests extends ESTestCase {
         final ShardRouting test1Shard0 =
             TestShardRouting.newShardRouting("test1", 0, "node-1", false, ShardRoutingState.STARTED);
         final ShardRouting test2Shard0 =
-            TestShardRouting.newShardRouting("test2", 0, "node-1", "node-2",false, ShardRoutingState.RELOCATING);
+            TestShardRouting.newShardRouting("test2", 0, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
         routingNode.add(test1Shard0);
         routingNode.add(test2Shard0);
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(2));

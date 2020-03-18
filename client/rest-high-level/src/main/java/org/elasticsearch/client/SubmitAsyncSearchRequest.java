@@ -18,13 +18,11 @@
  */
 
 
-package org.elasticsearch.client.asyncsearch;
+package org.elasticsearch.client;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -60,12 +58,12 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
 
-//    /**
-//     * Get the {@link SearchRequest} that this submit request wraps
-//     */
-//    public SearchRequest getSearchRequest() {
-//        return searchRequest;
-//    }
+    /**
+     * Get the {@link SearchRequest} that this submit request wraps
+     */
+    SearchRequest getSearchRequest() {
+        return searchRequest;
+    }
 
     /**
      * Get the target indices
@@ -134,26 +132,12 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Get the routing value to control the shards that the search will be executed on.
-     */
-    public String getRouting() {
-        return this.searchRequest.routing();
-    }
-
-    /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public void setPreference(String preference) {
         this.searchRequest.preference(preference);
-    }
-
-    /**
-     * Get the preference to execute the search.
-     */
-    public String getPreference() {
-        return this.searchRequest.preference();
     }
 
     /**
@@ -164,24 +148,10 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Get the indices Options.
-     */
-    public IndicesOptions getIndicesOptions() {
-        return this.searchRequest.indicesOptions();
-    }
-
-    /**
      * The search type to execute, defaults to {@link SearchType#DEFAULT}.
      */
     public void setSearchType(SearchType searchType) {
         this.searchRequest.searchType(searchType);
-    }
-
-    /**
-     * Get the search type to execute, defaults to {@link SearchType#DEFAULT}.
-     */
-    public SearchType getSearchType() {
-        return this.searchRequest.searchType();
     }
 
     /**
@@ -193,26 +163,11 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Gets if this request should allow partial results.
-     */
-    public Boolean getAllowPartialSearchResults() {
-        return this.searchRequest.allowPartialSearchResults();
-    }
-
-    /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
      * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
      */
     public void setBatchedReduceSize(int batchedReduceSize) {
         this.searchRequest.setBatchedReduceSize(batchedReduceSize);
-    }
-
-    /**
-     * Gets the number of shard results that should be reduced at once on the coordinating node.
-     * This defaults to 5 for {@link SubmitAsyncSearchRequest}.
-     */
-    public int getBatchedReduceSize() {
-        return this.searchRequest.getBatchedReduceSize();
     }
 
     /**
@@ -222,21 +177,6 @@ public class SubmitAsyncSearchRequest implements Validatable {
      */
     public void setRequestCache(Boolean requestCache) {
         this.searchRequest.requestCache(requestCache);
-    }
-
-    /**
-     * Gets if this request should use the request cache or not.
-     * Defaults to `true` for {@link SubmitAsyncSearchRequest}.
-     */
-    public Boolean getRequestCache() {
-        return this.searchRequest.requestCache();
-    }
-
-    /**
-     * Gets if the source of the {@link SearchSourceBuilder} initially used on this request.
-     */
-    public SearchSourceBuilder getSearchSource() {
-        return this.searchRequest.source();
     }
 
     @Override

@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -48,8 +48,9 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         // but we need to set these since they are the default we send over http
         expectedParams.put("request_cache", "true");
         expectedParams.put("batched_reduce_size", "5");
-        setRandomSearchParams(submitRequest, expectedParams);
-        setRandomIndicesOptions(submitRequest::setIndicesOptions, submitRequest::getIndicesOptions, expectedParams);
+        SearchRequest searchRequest = submitRequest.getSearchRequest();
+        setRandomSearchParams(searchRequest, expectedParams);
+        setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
         if (randomBoolean()) {
             boolean cleanOnCompletion = randomBoolean();
@@ -80,27 +81,27 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.assertToXContentBody(searchSourceBuilder, request.getEntity());
     }
 
-    private static void setRandomSearchParams(SubmitAsyncSearchRequest request, Map<String, String> expectedParams) {
+    private static void setRandomSearchParams(SearchRequest request, Map<String, String> expectedParams) {
         expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (randomBoolean()) {
-            request.setRouting(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("routing", request.getRouting());
+            request.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", request.routing());
         }
         if (randomBoolean()) {
-            request.setPreference(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("preference", request.getPreference());
+            request.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", request.preference());
         }
         if (randomBoolean()) {
-            request.setSearchType(randomFrom(SearchType.CURRENTLY_SUPPORTED));
+            request.searchType(randomFrom(SearchType.CURRENTLY_SUPPORTED));
         }
-        expectedParams.put("search_type", request.getSearchType().name().toLowerCase(Locale.ROOT));
+        expectedParams.put("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
         if (randomBoolean()) {
-            request.setAllowPartialSearchResults(randomBoolean());
-            expectedParams.put("allow_partial_search_results", Boolean.toString(request.getAllowPartialSearchResults()));
+            request.allowPartialSearchResults(randomBoolean());
+            expectedParams.put("allow_partial_search_results", Boolean.toString(request.allowPartialSearchResults()));
         }
         if (randomBoolean()) {
-            request.setRequestCache(randomBoolean());
-            expectedParams.put("request_cache", Boolean.toString(request.getRequestCache()));
+            request.requestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(request.requestCache()));
         }
         if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));

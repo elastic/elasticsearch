@@ -20,8 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
-import org.elasticsearch.client.asyncsearch.AsyncSearchResponse;
 
 import java.io.IOException;
 

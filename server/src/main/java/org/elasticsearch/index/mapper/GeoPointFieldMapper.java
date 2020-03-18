@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,6 +120,14 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
             setupFieldType(context);
             return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
                 ignoreMalformed, ignoreZValue, copyTo);
+        }
+
+        @Override
+        protected void setupFieldType(BuilderContext context) {
+            super.setupFieldType(context);
+
+            GeoPointFieldType fieldType = (GeoPointFieldType)fieldType();
+            fieldType.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
         }
 
         @Override
@@ -210,7 +219,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    public static class GeoPointFieldType extends MappedFieldType {
+    public static class GeoPointFieldType extends AbstractSearchableGeometryFieldType {
         public GeoPointFieldType() {
         }
 
@@ -245,7 +254,8 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
+            throw new QueryShardException(context,
+                "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
         }
     }

@@ -70,6 +70,7 @@ public class RealmsTests extends ESTestCase {
             factories.put(name, config -> new DummyRealm(name, config));
         }
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);

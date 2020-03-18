@@ -190,6 +190,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");

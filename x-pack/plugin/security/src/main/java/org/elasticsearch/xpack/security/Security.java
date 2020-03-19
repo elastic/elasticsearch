@@ -364,14 +364,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             return modules;
         }
 
-        // we can't load that at construction time since the license plugin might not have been loaded at that point
-        // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
-        // everything should have been loaded
-        modules.add(b -> {
-            if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-                b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
-            }
-        });
         return modules;
     }
 

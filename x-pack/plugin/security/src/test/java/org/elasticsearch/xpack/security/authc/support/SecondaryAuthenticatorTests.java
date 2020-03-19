@@ -96,7 +96,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(realms.asList()).thenReturn(Collections.singletonList(realm));
         when(realms.getUnlicensedRealms()).thenReturn(Collections.emptyList());
 
-        final AuditTrailService auditTrail = mock(AuditTrailService.class);
+        final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 

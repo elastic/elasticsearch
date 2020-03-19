@@ -19,6 +19,15 @@
 
 package org.elasticsearch.search.query;
 
+import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
+import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Supplier;
+
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
@@ -36,15 +45,6 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
-import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
 
@@ -321,23 +321,32 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (hasAggs = in.readBoolean()) {
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                aggregations = DelayableWriteable.referencing(new InternalAggregations(in));
-            } else {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::new, in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            InternalAggregations readAggs = null;
+            if (hasAggs = in.readBoolean()) {
+                readAggs = new InternalAggregations(in);
             }
-        }
-        if (in.getVersion().before(Version.V_7_2_0)) {
-            List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
-                .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
-            if (hasAggs && pipelineAggregators.isEmpty() == false) {
-                List<InternalAggregation> internalAggs = aggregations.get().asList().stream()
-                    .map(agg -> (InternalAggregation) agg).collect(Collectors.toList());
-                //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly, while
-                //later versions include them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
-                //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1.
-                this.aggregations = DelayableWriteable.referencing(new InternalAggregations(internalAggs, pipelineAggregators));
+            if (in.getVersion().before(Version.V_7_2_0)) {
+                List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
+                    .map(a -> (SiblingPipelineAggregator) a).collect(toList());
+                if (hasAggs && pipelineAggregators.isEmpty() == false) {
+                    List<InternalAggregation> internalAggs = readAggs.copyResults();
+                    /*
+                     * Earlier versions serialize sibling pipeline aggs
+                     * separately as they used to be set to QuerySearchResult
+                     * directly, while later versions include them in
+                     * InternalAggregations. Note that despite serializing
+                     * sibling pipeline aggs as part of nternalAggregations is
+                     * supported since 6.7.0, the shards set sibling pipeline
+                     * aggs to InternalAggregations only from 7.1.
+                     */
+                    readAggs = new InternalAggregations(internalAggs, pipelineAggregators);
+                }
+            }
+            aggregations = DelayableWriteable.referencing(readAggs);
+        } else {
+            if (hasAggs = in.readBoolean()) {
+                aggregations = DelayableWriteable.delayed(InternalAggregations::new, in);
             }
         }
         if (in.readBoolean()) {

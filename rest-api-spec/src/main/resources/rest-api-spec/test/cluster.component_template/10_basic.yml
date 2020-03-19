@@ -1,8 +1,5 @@
 ---
 "Basic CRUD":
-  - skip:
-      version: " - 7.99.99"
-      reason: not backported yet
 
   - do:
       cluster.put_component_template:

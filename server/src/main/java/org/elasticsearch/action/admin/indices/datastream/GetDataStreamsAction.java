@@ -48,7 +48,7 @@ import java.util.Objects;
 public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Response> {
 
     public static final GetDataStreamsAction INSTANCE = new GetDataStreamsAction();
-    public static final String NAME = "indices:admin/data_streams/get";
+    public static final String NAME = "indices:admin/data_stream/get";
 
     private GetDataStreamsAction() {
         super(NAME, Response::new);

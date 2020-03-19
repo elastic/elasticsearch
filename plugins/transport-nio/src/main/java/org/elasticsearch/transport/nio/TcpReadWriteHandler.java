@@ -31,21 +31,21 @@ import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.transport.InboundAggregator;
-import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundDecoder3;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
-    private final InboundDecoder decoder;
+    private final InboundDecoder3 decoder;
     private final NioTcpChannel channel;
     private final InboundAggregator aggregator;
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
         this.aggregator = new InboundAggregator();
-        this.decoder = new InboundDecoder(aggregator, recycler);
+        this.decoder = new InboundDecoder3(aggregator, recycler);
     }
 
     @Override

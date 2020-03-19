@@ -85,7 +85,7 @@ public class InboundAggregatorTests extends ESTestCase {
         assertNull(aggregated);
 
         // Signal EOS
-        aggregated = aggregator.aggregate(InboundDecoder2.END_CONTENT);
+        aggregated = aggregator.aggregate(InboundDecoder.END_CONTENT);
 
         assertThat(aggregated, notNullValue());
         assertFalse(aggregated.isPing());

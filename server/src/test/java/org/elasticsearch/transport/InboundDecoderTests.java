@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.hasItems;
 
-public class InboundDecoder2Tests extends ESTestCase {
+public class InboundDecoderTests extends ESTestCase {
 
     private final AtomicInteger releasedCount = new AtomicInteger(0);
     private final Releasable releasable = releasedCount::incrementAndGet;
@@ -70,7 +70,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
         final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
-        InboundDecoder2 decoder = new InboundDecoder2();
+        InboundDecoder decoder = new InboundDecoder();
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, releasable);
         int bytesConsumed = decoder.handle(releasable1, fragments::add);
@@ -104,7 +104,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         assertEquals(messageBytes, content);
         // Ref count is incremented since the bytes are forwarded as a fragment
         assertEquals(2, releasable2.refCount());
-        assertEquals(InboundDecoder2.END_CONTENT, endMarker);
+        assertEquals(InboundDecoder.END_CONTENT, endMarker);
     }
 
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
@@ -135,7 +135,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         final BytesReference remainingHeaderAndMessageBytes = uncompressedBytes.slice(partialHeaderSize,
             uncompressedBytes.length() - partialHeaderSize);
 
-        InboundDecoder2 decoder = new InboundDecoder2();
+        InboundDecoder decoder = new InboundDecoder();
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, releasable);
         int bytesConsumed = decoder.handle(releasable1, fragments::add);
@@ -171,7 +171,7 @@ public class InboundDecoder2Tests extends ESTestCase {
             // Ref count is incremented since the bytes are forwarded as a fragment
             assertEquals(2, releasable2.refCount());
         }
-        assertEquals(InboundDecoder2.END_CONTENT, endMarker);
+        assertEquals(InboundDecoder.END_CONTENT, endMarker);
     }
 
     public void testDecodeHandshakeCompatibility() throws IOException {
@@ -187,7 +187,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
-        InboundDecoder2 decoder = new InboundDecoder2();
+        InboundDecoder decoder = new InboundDecoder();
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, releasable);
         int bytesConsumed = decoder.handle(releasable1, fragments::add);
@@ -232,7 +232,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         final BytesReference uncompressedBytes =out.bytes();
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
 
-        InboundDecoder2 decoder = new InboundDecoder2();
+        InboundDecoder decoder = new InboundDecoder();
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, releasable);
         int bytesConsumed = decoder.handle(releasable1, fragments::add);
@@ -266,7 +266,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         assertEquals(uncompressedBytes, content);
         // Ref count is not incremented since the bytes are immediately consumed on decompression
         assertEquals(1, releasable2.refCount());
-        assertEquals(InboundDecoder2.END_CONTENT, endMarker);
+        assertEquals(InboundDecoder.END_CONTENT, endMarker);
     }
 
     public void testCompressedDecodeHandshakeCompatibility() throws IOException {
@@ -282,7 +282,7 @@ public class InboundDecoder2Tests extends ESTestCase {
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
-        InboundDecoder2 decoder = new InboundDecoder2();
+        InboundDecoder decoder = new InboundDecoder();
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, releasable);
         int bytesConsumed = decoder.handle(releasable1, fragments::add);

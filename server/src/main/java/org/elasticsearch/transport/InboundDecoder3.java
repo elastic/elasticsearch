@@ -29,33 +29,33 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
-public class InboundDecoder2 implements Releasable {
+public class InboundDecoder3 implements Releasable {
 
-    static final Object PING = new Object();
     static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
+    private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
 
-    public InboundDecoder2() {
-        this(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+    public InboundDecoder3(InboundAggregator aggregator) {
+        this(aggregator, PageCacheRecycler.NON_RECYCLING_INSTANCE);
     }
 
-    public InboundDecoder2(PageCacheRecycler recycler) {
+    public InboundDecoder3(InboundAggregator aggregator, PageCacheRecycler recycler) {
+        this.aggregator = aggregator;
         this.recycler = recycler;
     }
 
-    public int handle(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int handle(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
-                fragmentConsumer.accept(PING);
+//                aggregator.pingReceived(channel);
                 return 6;
             } else {
                 int headerBytesToRead = headerBytesToRead(reference);
@@ -69,10 +69,10 @@ public class InboundDecoder2 implements Releasable {
                     if (header.isCompressed()) {
                         decompressor = new TransportDecompressor(recycler);
                     }
-                    fragmentConsumer.accept(header);
+                    aggregator.headerReceived(header);
 
                     if (isDone()) {
-                        finishMessage(fragmentConsumer);
+                        finishMessage(channel);
                     }
                     return headerBytesToRead;
                 }
@@ -90,13 +90,13 @@ public class InboundDecoder2 implements Releasable {
                 decompress(retainedContent);
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    forwardNonEmptyContent(decompressed, fragmentConsumer);
+                    forwardNonEmptyContent(channel, decompressed);
                 }
             } else {
-                forwardNonEmptyContent(retainedContent, fragmentConsumer);
+                forwardNonEmptyContent(channel, retainedContent);
             }
             if (isDone()) {
-                finishMessage(fragmentConsumer);
+                finishMessage(channel);
             }
 
             return bytesToConsume;
@@ -111,20 +111,20 @@ public class InboundDecoder2 implements Releasable {
         bytesConsumed = 0;
     }
 
-    private void forwardNonEmptyContent(ReleasableBytesReference content, Consumer<Object> fragmentConsumer) {
+    private void forwardNonEmptyContent(TcpChannel channel, ReleasableBytesReference content) {
         // Do not bother forwarding empty content
         if (content.length() == 0) {
             content.close();
         } else {
-            fragmentConsumer.accept(content);
+//            aggregator.contentReceived(channel, content);
         }
     }
 
-    private void finishMessage(Consumer<Object> fragmentConsumer) {
+    private void finishMessage(TcpChannel channel) {
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
-        fragmentConsumer.accept(END_CONTENT);
+//        aggregator.contentReceived(channel, END_CONTENT);
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {

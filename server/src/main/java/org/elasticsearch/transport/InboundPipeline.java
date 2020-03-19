@@ -31,11 +31,11 @@ public class InboundPipeline implements Releasable {
 
     private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, null, true);
 
-    private final InboundDecoder2 decoder;
+    private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, AggregatedMessage> messageHandler;
 
-    public InboundPipeline(InboundDecoder2 decoder, InboundAggregator aggregator,
+    public InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
                            BiConsumer<TcpChannel, AggregatedMessage> messageHandler) {
         this.decoder = decoder;
         this.aggregator = aggregator;
@@ -56,14 +56,20 @@ public class InboundPipeline implements Releasable {
         while (continueHandling) {
             boolean continueDecoding = true;
             while (continueDecoding) {
-                final int bytesDecoded = decoder.handle(reference, fragments::add);
-                if (bytesDecoded != 0) {
-                    bytesConsumed += bytesDecoded;
+                final int remaining = reference.length() - bytesConsumed;
+                if (remaining != 0) {
+                    try (ReleasableBytesReference slice = reference.retainedSlice(bytesConsumed, remaining)) {
+                        final int bytesDecoded = decoder.handle(slice, fragments::add);
+                        if (bytesDecoded != 0) {
+                            bytesConsumed += bytesDecoded;
+                            if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
+                                continueDecoding = false;
+                            }
+                        } else {
+                            continueDecoding = false;
+                        }
+                    }
                 } else {
-                    continueDecoding = false;
-                }
-
-                if (endOfMessage(fragments.get(fragments.size() - 1))) {
                     continueDecoding = false;
                 }
             }
@@ -75,7 +81,7 @@ public class InboundPipeline implements Releasable {
                     forwardFragments(channel, fragments);
                 } finally {
                     for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
+                        if (fragment != InboundDecoder.END_CONTENT && fragment instanceof ReleasableBytesReference) {
                             ((ReleasableBytesReference) fragment).close();
                         }
                     }
@@ -92,9 +98,7 @@ public class InboundPipeline implements Releasable {
         for (Object fragment : fragments) {
             if (fragment instanceof Header) {
                 aggregator.headerReceived((Header) fragment);
-            } else if (fragment == InboundDecoder2.END_CONTENT) {
-
-            } else if (fragment == InboundDecoder2.PING) {
+            } else if (fragment == InboundDecoder.PING) {
                 assert aggregator.isAggregating() == false;
                 messageHandler.accept(channel, PING_MESSAGE);
             } else {
@@ -110,6 +114,6 @@ public class InboundPipeline implements Releasable {
     }
 
     private boolean endOfMessage(Object fragment) {
-        return fragment == InboundDecoder2.PING || fragment == InboundDecoder2.END_CONTENT;
+        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT;
     }
 }

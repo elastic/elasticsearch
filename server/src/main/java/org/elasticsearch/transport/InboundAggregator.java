@@ -44,8 +44,8 @@ public class InboundAggregator implements Releasable {
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
-        } else if (content != InboundDecoder2.END_CONTENT) {
-            contentAggregation.add(content);
+        } else if (content != InboundDecoder.END_CONTENT) {
+            contentAggregation.add(content.retain());
             return null;
         } else {
             final ReleasableBytesReference[] releasableReferences = contentAggregation.toArray(new ReleasableBytesReference[0]);

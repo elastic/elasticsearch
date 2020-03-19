@@ -32,7 +32,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.transport.InboundAggregator;
-import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundDecoder3;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
@@ -47,7 +47,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
     private final InboundAggregator aggregator;
-    private final InboundDecoder decoder;
+    private final InboundDecoder3 decoder;
 
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
@@ -56,7 +56,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     Netty4MessageChannelHandler(PageCacheRecycler pageCacheRecycler, Netty4Transport transport) {
         this.transport = transport;
         this.aggregator = new InboundAggregator();
-        this.decoder = new InboundDecoder(aggregator, pageCacheRecycler);
+        this.decoder = new InboundDecoder3(aggregator, pageCacheRecycler);
     }
 
     @Override

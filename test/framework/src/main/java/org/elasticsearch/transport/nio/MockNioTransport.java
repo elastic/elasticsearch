@@ -55,7 +55,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.InboundAggregator;
-import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundDecoder3;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
@@ -270,14 +270,14 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
-        private final InboundDecoder decoder;
+        private final InboundDecoder3 decoder;
         private final MockSocketChannel channel;
         private final InboundAggregator aggregator;
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
             this.aggregator = new InboundAggregator();
-            this.decoder = new InboundDecoder(aggregator, recycler);
+            this.decoder = new InboundDecoder3(aggregator, recycler);
         }
 
         @Override

@@ -40,7 +40,7 @@ public class TransportDecompressor implements Closeable {
     private final PageCacheRecycler recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-    private boolean readHeader = false;
+    private boolean hasReadHeader = false;
 
     public TransportDecompressor(PageCacheRecycler recycler) {
         this.recycler = recycler;
@@ -50,7 +50,7 @@ public class TransportDecompressor implements Closeable {
 
     public int decompress(BytesReference bytesReference) throws IOException {
         int bytesConsumed = 0;
-        if (readHeader == false) {
+        if (hasReadHeader == false) {
             if (CompressorFactory.COMPRESSOR.isCompressed(bytesReference) == false) {
                 int maxToRead = Math.min(bytesReference.length(), 10);
                 StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
@@ -62,7 +62,7 @@ public class TransportDecompressor implements Closeable {
                 sb.append("]");
                 throw new IllegalStateException(sb.toString());
             }
-            readHeader = true;
+            hasReadHeader = true;
             int headerLength = CompressorFactory.COMPRESSOR.headerLength();
             bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
             bytesConsumed += headerLength;
@@ -98,6 +98,10 @@ public class TransportDecompressor implements Closeable {
         }
 
         return bytesConsumed;
+    }
+
+    public boolean canDecompress(int bytesAvailable) {
+        return hasReadHeader || bytesAvailable >= CompressorFactory.COMPRESSOR.headerLength();
     }
 
     public boolean isEOS() {

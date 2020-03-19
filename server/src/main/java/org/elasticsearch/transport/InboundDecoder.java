@@ -29,33 +29,33 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 public class InboundDecoder implements Releasable {
 
+    static final Object PING = new Object();
     static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
-    private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
 
-    public InboundDecoder(InboundAggregator aggregator) {
-        this(aggregator, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+    public InboundDecoder() {
+        this(PageCacheRecycler.NON_RECYCLING_INSTANCE);
     }
 
-    public InboundDecoder(InboundAggregator aggregator, PageCacheRecycler recycler) {
-        this.aggregator = aggregator;
+    public InboundDecoder(PageCacheRecycler recycler) {
         this.recycler = recycler;
     }
 
-    public int handle(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+    public int handle(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
-//                aggregator.pingReceived(channel);
+                fragmentConsumer.accept(PING);
                 return 6;
             } else {
                 int headerBytesToRead = headerBytesToRead(reference);
@@ -69,15 +69,19 @@ public class InboundDecoder implements Releasable {
                     if (header.isCompressed()) {
                         decompressor = new TransportDecompressor(recycler);
                     }
-                    aggregator.headerReceived(header);
+                    fragmentConsumer.accept(header);
 
                     if (isDone()) {
-                        finishMessage(channel);
+                        finishMessage(fragmentConsumer);
                     }
                     return headerBytesToRead;
                 }
             }
         } else {
+            // There are a minimum number of bytes required to start decompression
+            if (decompressor != null && decompressor.canDecompress(reference.length()) == false) {
+                return 0;
+            }
             int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
             bytesConsumed += bytesToConsume;
             ReleasableBytesReference retainedContent;
@@ -90,13 +94,13 @@ public class InboundDecoder implements Releasable {
                 decompress(retainedContent);
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    forwardNonEmptyContent(channel, decompressed);
+                    forwardNonEmptyContent(decompressed, fragmentConsumer);
                 }
             } else {
-                forwardNonEmptyContent(channel, retainedContent);
+                forwardNonEmptyContent(retainedContent, fragmentConsumer);
             }
             if (isDone()) {
-                finishMessage(channel);
+                finishMessage(fragmentConsumer);
             }
 
             return bytesToConsume;
@@ -111,20 +115,20 @@ public class InboundDecoder implements Releasable {
         bytesConsumed = 0;
     }
 
-    private void forwardNonEmptyContent(TcpChannel channel, ReleasableBytesReference content) {
+    private void forwardNonEmptyContent(ReleasableBytesReference content, Consumer<Object> fragmentConsumer) {
         // Do not bother forwarding empty content
         if (content.length() == 0) {
             content.close();
         } else {
-//            aggregator.contentReceived(channel, content);
+            fragmentConsumer.accept(content);
         }
     }
 
-    private void finishMessage(TcpChannel channel) {
+    private void finishMessage(Consumer<Object> fragmentConsumer) {
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
-//        aggregator.contentReceived(channel, END_CONTENT);
+        fragmentConsumer.accept(END_CONTENT);
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {

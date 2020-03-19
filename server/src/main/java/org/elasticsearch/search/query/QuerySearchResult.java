@@ -55,6 +55,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private TotalHits totalHits;
     private float maxScore = Float.NaN;
     private DocValueFormat[] sortValueFormats;
+    /**
+     * Aggregation results. We wrap them in
+     * {@linkplain DelayableWriteable} because
+     * {@link InternalAggregation} is usually made up of many small objects
+     * which have a fairly high overhead in the JVM. So we delay deserializing
+     * them until just before we need them.
+     */
     private DelayableWriteable<InternalAggregations> aggregations;
     private boolean hasAggs;
     private Suggest suggest;

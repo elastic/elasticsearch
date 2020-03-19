@@ -1,8 +1,6 @@
 ---
 "Terms Query with No.of terms exceeding index.max_terms_count should FAIL":
   - skip:
-      version: " - 7.7.0"
-      reason: deprecation warnings added in 7.7.0
       features: warnings
   - do:
       indices.create:
@@ -47,7 +45,7 @@
           body: {"query" : {"terms" : {"user" : ["u1", "u2", "u3"]}}}
 
   - do:
-      warnings:
+      allowed_warnings:
         - "Deprecated field [type] used, which has been removed entirely"
       search:
           rest_total_hits_as_int: true

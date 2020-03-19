@@ -28,7 +28,7 @@ public class TimingStats implements Writeable, ToXContentObject {
     }
 
     private static ConstructingObjectParser<TimingStats, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<TimingStats, Void> parser = new ConstructingObjectParser<>("timing_stats", ignoreUnknownFields,
+        ConstructingObjectParser<TimingStats, Void> parser = new ConstructingObjectParser<>("regression_timing_stats", ignoreUnknownFields,
             a -> new TimingStats(TimeValue.timeValueMillis((long) a[0]), TimeValue.timeValueMillis((long) a[1])));
 
         parser.declareLong(ConstructingObjectParser.constructorArg(), ELAPSED_TIME);

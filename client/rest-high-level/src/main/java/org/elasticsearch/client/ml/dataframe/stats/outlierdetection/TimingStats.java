@@ -31,7 +31,8 @@ public class TimingStats implements ToXContentObject {
 
     public static final ParseField ELAPSED_TIME = new ParseField("elapsed_time");
 
-    public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>("timing_stats", true,
+    public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>("outlier_detection_timing_stats",
+        true,
         a -> new TimingStats(TimeValue.timeValueMillis((long) a[0])));
 
     static {

@@ -45,7 +45,7 @@ public class Hyperparameters implements ToXContentObject, Writeable {
     }
 
     private static ConstructingObjectParser<Hyperparameters, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Hyperparameters, Void> parser = new ConstructingObjectParser<>("regression_hyperparameters",
+        ConstructingObjectParser<Hyperparameters, Void> parser = new ConstructingObjectParser<>("classification_hyperparameters",
             ignoreUnknownFields,
             a -> new Hyperparameters(
                 (String) a[0],

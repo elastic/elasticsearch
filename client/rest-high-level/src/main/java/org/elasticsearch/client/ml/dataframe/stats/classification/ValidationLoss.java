@@ -30,13 +30,12 @@ import java.util.Objects;
 
 public class ValidationLoss implements ToXContentObject {
 
-    public static final String TYPE = "validation_loss";
-
     public static final ParseField LOSS_TYPE = new ParseField("loss_type");
     public static final ParseField FOLD_VALUES = new ParseField("fold_values");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ValidationLoss, Void> PARSER = new ConstructingObjectParser<>(TYPE, true,
+    public static ConstructingObjectParser<ValidationLoss, Void> PARSER = new ConstructingObjectParser<>("classification_validation_loss",
+        true,
         a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1]));
 
     static {

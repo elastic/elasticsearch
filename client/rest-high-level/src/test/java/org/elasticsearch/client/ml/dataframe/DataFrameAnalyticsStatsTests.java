@@ -56,14 +56,12 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
     }
 
     public static DataFrameAnalyticsStats randomDataFrameAnalyticsStats() {
-        AnalysisStats analysisStats = null;
-        if (randomBoolean()) {
-            analysisStats = ClassificationStatsTests.createRandom();
-        } else if (randomBoolean()) {
-            analysisStats = OutlierDetectionStatsTests.createRandom();
-        } else if (randomBoolean()) {
-            analysisStats = RegressionStatsTests.createRandom();
-        }
+        AnalysisStats analysisStats = randomBoolean() ? null :
+            randomFrom(
+                ClassificationStatsTests.createRandom(),
+                OutlierDetectionStatsTests.createRandom(),
+                RegressionStatsTests.createRandom()
+            );
 
         return new DataFrameAnalyticsStats(
             randomAlphaOfLengthBetween(1, 10),

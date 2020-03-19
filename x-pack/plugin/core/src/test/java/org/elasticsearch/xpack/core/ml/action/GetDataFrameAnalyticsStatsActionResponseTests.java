@@ -43,14 +43,12 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
             IntStream.of(progressSize).forEach(progressIndex -> progress.add(
                 new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100))));
             MemoryUsage memoryUsage = randomBoolean() ? null : MemoryUsageTests.createRandom();
-            AnalysisStats analysisStats = null;
-            if (randomBoolean()) {
-                analysisStats = OutlierDetectionStatsTests.createRandom();
-            } else if (randomBoolean()) {
-                analysisStats = RegressionStatsTests.createRandom();
-            } else {
-                analysisStats = ClassificationStatsTests.createRandom();
-            }
+            AnalysisStats analysisStats = randomBoolean() ? null :
+                randomFrom(
+                    ClassificationStatsTests.createRandom(),
+                    OutlierDetectionStatsTests.createRandom(),
+                    RegressionStatsTests.createRandom())
+                ;
             Response.Stats stats = new Response.Stats(DataFrameAnalyticsConfigTests.randomValidId(),
                 randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, memoryUsage, analysisStats, null,
                 randomAlphaOfLength(20));

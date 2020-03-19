@@ -49,7 +49,7 @@ public class Hyperparameters implements ToXContentObject {
     public static final ParseField REGULARIZATION_TREE_SIZE_PENALTY_MULTIPLIER =
         new ParseField("regularization_tree_size_penalty_multiplier");
 
-    public static ConstructingObjectParser<Hyperparameters, Void> PARSER = new ConstructingObjectParser<>("regression_hyperparameters",
+    public static ConstructingObjectParser<Hyperparameters, Void> PARSER = new ConstructingObjectParser<>("classification_hyperparameters",
         true,
         a -> new Hyperparameters(
             (String) a[0],

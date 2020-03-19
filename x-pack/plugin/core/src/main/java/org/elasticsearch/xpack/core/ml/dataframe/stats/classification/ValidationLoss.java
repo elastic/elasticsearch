@@ -21,8 +21,6 @@ import java.util.Objects;
 
 public class ValidationLoss implements ToXContentObject, Writeable {
 
-    public static final String TYPE = "validation_loss";
-
     public static final ParseField LOSS_TYPE = new ParseField("loss_type");
     public static final ParseField FOLD_VALUES = new ParseField("fold_values");
 
@@ -31,7 +29,8 @@ public class ValidationLoss implements ToXContentObject, Writeable {
     }
 
     private static ConstructingObjectParser<ValidationLoss, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>(TYPE, ignoreUnknownFields,
+        ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>("classification_validation_loss",
+            ignoreUnknownFields,
             a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1]));
 
         parser.declareString(ConstructingObjectParser.constructorArg(), LOSS_TYPE);

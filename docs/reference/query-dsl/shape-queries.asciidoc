@@ -10,7 +10,7 @@ map out virtual worlds, sporting venues, theme parks, and CAD diagrams.
 
 Elasticsearch supports two types of cartesian data:
 <<point,`point`>> fields which support x/y pairs, and
-<<hape,`shape`>> fields, which support points, lines, circles, polygons, multi-polygons, etc.
+<<shape,`shape`>> fields, which support points, lines, circles, polygons, multi-polygons, etc.
 
 The queries in this group are:
 

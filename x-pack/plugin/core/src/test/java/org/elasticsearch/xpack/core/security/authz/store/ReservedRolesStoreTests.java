@@ -397,14 +397,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only indices for APM telemetry
-        Arrays.asList(
-            "apm-*",
-            ".ml-anomalies-*"
-        ).forEach((index) -> {
+        Arrays.asList("apm-*").forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));

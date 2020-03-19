@@ -19,13 +19,11 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Holds a field that can be found in a request while parsing and its different
@@ -117,22 +115,6 @@ public class ParseField {
      *         names for this {@link ParseField}.
      */
     public boolean match(String fieldName, DeprecationHandler deprecationHandler) {
-        return match(null, () -> XContentLocation.UNKNOWN, fieldName, deprecationHandler);
-    }
-
-    /**
-     * Does {@code fieldName} match this field?
-     * @param parserName
-     *            the name of the parent object holding this field
-     * @param location
-     *            the XContentLocation of the field
-     * @param fieldName
-     *            the field name to match against this {@link ParseField}
-     * @param deprecationHandler called if {@code fieldName} is deprecated
-     * @return true if <code>fieldName</code> matches any of the acceptable
-     *         names for this {@link ParseField}.
-     */
-    public boolean match(String parserName, Supplier<XContentLocation> location, String fieldName, DeprecationHandler deprecationHandler) {
         Objects.requireNonNull(fieldName, "fieldName cannot be null");
         // if this parse field has not been completely deprecated then try to
         // match the preferred name
@@ -145,11 +127,11 @@ public class ParseField {
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
                 if (fullyDeprecated) {
-                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName);
+                    deprecationHandler.usedDeprecatedField(fieldName);
                 } else if (allReplacedWith == null) {
-                    deprecationHandler.usedDeprecatedName(parserName, location, fieldName, name);
+                    deprecationHandler.usedDeprecatedName(fieldName, name);
                 } else {
-                    deprecationHandler.usedDeprecatedField(parserName, location, fieldName, allReplacedWith);
+                    deprecationHandler.usedDeprecatedField(fieldName, allReplacedWith);
                 }
                 return true;
             }

@@ -104,7 +104,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
         }
-        assertWarnings("[stored script source][1:33] Deprecated field [code] used, expected [source] instead");
+        assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {

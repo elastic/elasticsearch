@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.function.Supplier;
-
 /**
  * Callback for notifying the creator of the {@link XContentParser} that
  * parsing hit a deprecated field.
@@ -34,35 +32,20 @@ public interface DeprecationHandler {
      */
     DeprecationHandler THROW_UNSUPPORTED_OPERATION = new DeprecationHandler() {
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
-            if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + usedName + "] at [" + location.get() + "] which is a deprecated name for [" + replacedWith + "]");
-            } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + usedName + "] which is a deprecated name for [" + replacedWith + "]");
-            }
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+                + usedName + "] which is a deprecated name for [" + replacedWith + "]");
         }
         @Override
-        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
-            if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + usedName + "] at [" + location.get() + "] which has been replaced with [" + modernName + "]");
-            } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + usedName + "] which has been replaced with [" + modernName + "]");
-            }
+        public void usedDeprecatedName(String usedName, String modernName) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+                + usedName + "] which has been replaced with [" + modernName + "]");
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
-            if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + usedName + "] at [" + location.get() + "] which has been deprecated entirely");
-            } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + usedName + "] which has been deprecated entirely");
-            }
+        public void usedDeprecatedField(String usedName) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+                + usedName + "] which has been deprecated entirely");
         }
     };
 
@@ -71,17 +54,17 @@ public interface DeprecationHandler {
      */
     DeprecationHandler IGNORE_DEPRECATIONS = new DeprecationHandler() {
         @Override
-        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        public void usedDeprecatedName(String usedName, String modernName) {
 
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        public void usedDeprecatedField(String usedName, String replacedWith) {
 
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        public void usedDeprecatedField(String usedName) {
 
         }
     };
@@ -91,7 +74,7 @@ public interface DeprecationHandler {
      * @param usedName the provided field name
      * @param modernName the modern name for the field
      */
-    void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName);
+    void usedDeprecatedName(String usedName, String modernName);
 
     /**
      * Called when the provided field name matches the current field but the entire
@@ -99,13 +82,12 @@ public interface DeprecationHandler {
      * @param usedName the provided field name
      * @param replacedWith the name of the field that replaced this field
      */
-    void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith);
+    void usedDeprecatedField(String usedName, String replacedWith);
 
     /**
      * Called when the provided field name matches the current field but the entire
      * field has been marked as deprecated with no replacement
      * @param usedName the provided field name
      */
-    void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName);
-
+    void usedDeprecatedField(String usedName);
 }

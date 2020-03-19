@@ -302,7 +302,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         QueryBuilder q = parseQuery(query);
         QueryBuilder expected = new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder());
         assertEquals(expected, q);
-        assertWarnings("[bool][1:24] Deprecated field [mustNot] used, expected [must_not] instead");
+        assertWarnings("Deprecated field [mustNot] used, expected [must_not] instead");
     }
 
     public void testRewrite() throws IOException {

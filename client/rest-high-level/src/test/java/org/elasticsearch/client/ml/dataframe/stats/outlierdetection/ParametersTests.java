@@ -22,8 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 public class ParametersTests extends AbstractXContentTestCase<Parameters> {
 
@@ -43,15 +41,9 @@ public class ParametersTests extends AbstractXContentTestCase<Parameters> {
     }
 
     public static Parameters createRandom() {
-        int methodsSize = randomIntBetween(1, 5);
-        SortedSet<String> methods = new TreeSet<>();
-        for (int i = 0; i < methodsSize; i++) {
-            methods.add(randomAlphaOfLength(5));
-        }
-
         return new Parameters(
             randomIntBetween(1, Integer.MAX_VALUE),
-            methods,
+            randomAlphaOfLength(5),
             randomBoolean(),
             randomDouble(),
             randomDouble(),

@@ -15,18 +15,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class Parameters implements Writeable, ToXContentObject {
 
     public static final ParseField N_NEIGHBORS = new ParseField("n_neighbors");
-    public static final ParseField METHODS = new ParseField("methods");
+    public static final ParseField METHOD = new ParseField("method");
     public static final ParseField FEATURE_INFLUENCE_THRESHOLD = new ParseField("feature_influence_threshold");
     public static final ParseField COMPUTE_FEATURE_INFLUENCE = new ParseField("compute_feature_influence");
     public static final ParseField OUTLIER_FRACTION = new ParseField("outlier_fraction");
@@ -41,7 +37,7 @@ public class Parameters implements Writeable, ToXContentObject {
             ignoreUnknownFields,
             a -> new Parameters(
                 (int) a[0],
-                new TreeSet<>((List<String>) a[1]),
+                (String) a[1],
                 (boolean) a[2],
                 (double) a[3],
                 (double) a[4],
@@ -49,7 +45,7 @@ public class Parameters implements Writeable, ToXContentObject {
             ));
 
         parser.declareInt(constructorArg(), N_NEIGHBORS);
-        parser.declareStringArray(constructorArg(), METHODS);
+        parser.declareString(constructorArg(), METHOD);
         parser.declareBoolean(constructorArg(), COMPUTE_FEATURE_INFLUENCE);
         parser.declareDouble(constructorArg(), FEATURE_INFLUENCE_THRESHOLD);
         parser.declareDouble(constructorArg(), OUTLIER_FRACTION);
@@ -59,16 +55,16 @@ public class Parameters implements Writeable, ToXContentObject {
     }
 
     private final int nNeighbors;
-    private final SortedSet<String> methods;
+    private final String method;
     private final boolean computeFeatureInfluence;
     private final double featureInfluenceThreshold;
     private final double outlierFraction;
     private final boolean standardizationEnabled;
 
-    public Parameters(int nNeighbors, SortedSet<String> methods, boolean computeFeatureInfluence, double featureInfluenceThreshold,
+    public Parameters(int nNeighbors, String method, boolean computeFeatureInfluence, double featureInfluenceThreshold,
                       double outlierFraction, boolean standardizationEnabled) {
         this.nNeighbors = nNeighbors;
-        this.methods = Collections.unmodifiableSortedSet(methods);
+        this.method = method;
         this.computeFeatureInfluence = computeFeatureInfluence;
         this.featureInfluenceThreshold = featureInfluenceThreshold;
         this.outlierFraction = outlierFraction;
@@ -77,7 +73,7 @@ public class Parameters implements Writeable, ToXContentObject {
 
     public Parameters(StreamInput in) throws IOException {
         this.nNeighbors = in.readVInt();
-        this.methods = new TreeSet<>(in.readList(StreamInput::readString));
+        this.method = in.readString();
         this.computeFeatureInfluence = in.readBoolean();
         this.featureInfluenceThreshold = in.readDouble();
         this.outlierFraction = in.readDouble();
@@ -87,7 +83,7 @@ public class Parameters implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(nNeighbors);
-        out.writeStringCollection(methods);
+        out.writeString(method);
         out.writeBoolean(computeFeatureInfluence);
         out.writeDouble(featureInfluenceThreshold);
         out.writeDouble(outlierFraction);
@@ -98,7 +94,7 @@ public class Parameters implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(N_NEIGHBORS.getPreferredName(), nNeighbors);
-        builder.field(METHODS.getPreferredName(), methods);
+        builder.field(METHOD.getPreferredName(), method);
         builder.field(COMPUTE_FEATURE_INFLUENCE.getPreferredName(), computeFeatureInfluence);
         builder.field(FEATURE_INFLUENCE_THRESHOLD.getPreferredName(), featureInfluenceThreshold);
         builder.field(OUTLIER_FRACTION.getPreferredName(), outlierFraction);
@@ -114,7 +110,7 @@ public class Parameters implements Writeable, ToXContentObject {
 
         Parameters that = (Parameters) o;
         return nNeighbors == that.nNeighbors
-            && Objects.equals(methods, that.methods)
+            && Objects.equals(method, that.method)
             && computeFeatureInfluence == that.computeFeatureInfluence
             && featureInfluenceThreshold == that.featureInfluenceThreshold
             && outlierFraction == that.outlierFraction
@@ -123,7 +119,7 @@ public class Parameters implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, methods, computeFeatureInfluence, featureInfluenceThreshold, outlierFraction,
+        return Objects.hash(nNeighbors, method, computeFeatureInfluence, featureInfluenceThreshold, outlierFraction,
             standardizationEnabled);
     }
 }

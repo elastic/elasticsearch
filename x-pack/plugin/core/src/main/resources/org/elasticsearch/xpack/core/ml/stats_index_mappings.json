@@ -68,7 +68,7 @@
           "feature_influence_threshold": {
             "type": "double"
           },
-          "methods": {
+          "method": {
             "type": "keyword"
           },
           "n_neighbors": {

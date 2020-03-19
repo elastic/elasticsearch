@@ -85,7 +85,7 @@ public class AnalyticsResultProcessor {
                                     DataFrameAnalyticsAuditor auditor, ResultsPersisterService resultsPersisterService,
                                     List<ExtractedField> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
-        this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner).setShouldRetryPersistence(() -> isCancelled == false);
+        this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.statsHolder = Objects.requireNonNull(statsHolder);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
@@ -108,6 +108,7 @@ public class AnalyticsResultProcessor {
     }
 
     public void cancel() {
+        dataFrameRowsJoiner.cancel();
         isCancelled = true;
     }
 

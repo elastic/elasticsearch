@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 class DataFrameRowsJoiner implements AutoCloseable {
 
@@ -38,10 +37,10 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private final String analyticsId;
     private final DataFrameDataExtractor dataExtractor;
     private final ResultsPersisterService resultsPersisterService;
-    private Supplier<Boolean> shouldRetryPersistence = () -> true;
     private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
     private LinkedList<RowResults> currentResults;
     private volatile String failure;
+    private volatile boolean isCancelled;
 
     DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor, ResultsPersisterService resultsPersisterService) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
@@ -71,9 +70,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
     }
 
-    DataFrameRowsJoiner setShouldRetryPersistence(Supplier<Boolean> shouldRetryPersistence) {
-        this.shouldRetryPersistence = shouldRetryPersistence;
-        return this;
+    void cancel() {
+        isCancelled = true;
     }
 
     private void addResultAndJoinIfEndOfBatch(RowResults rowResults) {
@@ -96,7 +94,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
                 dataExtractor.getHeaders(),
                 bulkRequest,
                 analyticsId,
-                shouldRetryPersistence,
+                () -> isCancelled == false,
                 errorMsg -> {});
         }
         currentResults = new LinkedList<>();

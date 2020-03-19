@@ -74,7 +74,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     public void setUpMocks() {
         process = mock(AnalyticsProcess.class);
         dataFrameRowsJoiner = mock(DataFrameRowsJoiner.class);
-        when(dataFrameRowsJoiner.setShouldRetryPersistence(any())).thenReturn(dataFrameRowsJoiner);
         trainedModelProvider = mock(TrainedModelProvider.class);
         auditor = mock(DataFrameAnalyticsAuditor.class);
         resultsPersisterService = mock(ResultsPersisterService.class);
@@ -95,7 +94,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
 
-        verify(dataFrameRowsJoiner).setShouldRetryPersistence(any());
         verify(dataFrameRowsJoiner).close();
         verifyNoMoreInteractions(dataFrameRowsJoiner);
     }
@@ -108,7 +106,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
 
-        verify(dataFrameRowsJoiner).setShouldRetryPersistence(any());
         verify(dataFrameRowsJoiner).close();
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner);
         assertThat(statsHolder.getProgressTracker().writingResultsPercent.get(), equalTo(100));

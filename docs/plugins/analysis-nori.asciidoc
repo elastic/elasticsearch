@@ -54,6 +54,10 @@ It can be set to:
     가곡역 => 가곡역, 가곡, 역
 --
 
+`discard_punctuation`::
+
+    Whether punctuation should be discarded from the output. Defaults to `true`.
+
 `user_dictionary`::
 +
 --
@@ -99,6 +103,7 @@ PUT nori_sample
           "nori_user_dict": {
             "type": "nori_tokenizer",
             "decompound_mode": "mixed",
+            "discard_punctuation": "false",
             "user_dictionary": "userdict_ko.txt"
           }
         },

@@ -52,6 +52,14 @@ import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
 
+/**
+ * Note on subclassing ValuesSources: Generally, direct subclasses of ValuesSource should also be abstract, representing types.  These
+ * subclasses are free to add new methods specific to that type (e.g. {@link Numeric#isFloatingPoint()}).  Subclasses of these should, in
+ * turn, be concrete and implement specific ways of reading the given values (e.g.  script and field based sources).  It is also possible
+ * to see sub-sub-classes of ValuesSource that act as wrappers on other concrete values sources to add functionality, such as the
+ * anonymous subclasses returned from  {@link MissingValues} or the GeoPoint to Numeric conversion logic in
+ * {@link org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource}
+ */
 public abstract class ValuesSource {
 
     /**

@@ -47,8 +47,8 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
                 randomFrom(
                     ClassificationStatsTests.createRandom(),
                     OutlierDetectionStatsTests.createRandom(),
-                    RegressionStatsTests.createRandom())
-                ;
+                    RegressionStatsTests.createRandom()
+                );
             Response.Stats stats = new Response.Stats(DataFrameAnalyticsConfigTests.randomValidId(),
                 randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, memoryUsage, analysisStats, null,
                 randomAlphaOfLength(20));

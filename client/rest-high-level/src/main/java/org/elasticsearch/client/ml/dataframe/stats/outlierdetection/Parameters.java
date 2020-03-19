@@ -51,7 +51,7 @@ public class Parameters implements ToXContentObject {
 
     static {
         PARSER.declareInt(optionalConstructorArg(), N_NEIGHBORS);
-        PARSER.declareStringArray(optionalConstructorArg(), METHOD);
+        PARSER.declareString(optionalConstructorArg(), METHOD);
         PARSER.declareBoolean(optionalConstructorArg(), COMPUTE_FEATURE_INFLUENCE);
         PARSER.declareDouble(optionalConstructorArg(), FEATURE_INFLUENCE_THRESHOLD);
         PARSER.declareDouble(optionalConstructorArg(), OUTLIER_FRACTION);

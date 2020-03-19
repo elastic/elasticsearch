@@ -108,6 +108,7 @@ public class AnalyticsResultProcessor {
     }
 
     public void cancel() {
+        dataFrameRowsJoiner.cancel();
         isCancelled = true;
     }
 
@@ -265,12 +266,12 @@ public class AnalyticsResultProcessor {
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 WriteRequest.RefreshPolicy.IMMEDIATE,
                 docIdSupplier.apply(analytics.getId()),
-                () -> true,
+                () -> isCancelled == false,
                 errorMsg -> auditor.error(analytics.getId(),
                     "failed to persist result with id [" + docIdSupplier.apply(analytics.getId()) + "]; " + errorMsg)
             );
         } catch (IOException ioe) {
-            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", analytics.getId()), ioe);
+            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", analytics.getId()), ioe);
         } catch (Exception e) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", analytics.getId()), e);
         }

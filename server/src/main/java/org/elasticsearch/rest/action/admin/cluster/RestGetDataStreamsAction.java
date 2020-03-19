@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -47,6 +47,6 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] names = Strings.splitStringByCommaToArray(request.param("name"));
         GetDataStreamsAction.Request getDataStreamsRequest = new GetDataStreamsAction.Request(names);
-        return channel -> client.admin().cluster().getDataStreams(getDataStreamsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().getDataStreams(getDataStreamsRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.datastream;
+package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -43,7 +43,7 @@ import java.util.Objects;
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDataStreamAction INSTANCE = new DeleteDataStreamAction();
-    public static final String NAME = "cluster:admin/data_stream/delete";
+    public static final String NAME = "indices:admin/data_stream/delete";
 
     private DeleteDataStreamAction() {
         super(NAME, AcknowledgedResponse::new);

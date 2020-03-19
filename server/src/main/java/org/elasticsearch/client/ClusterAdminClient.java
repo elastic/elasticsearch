@@ -24,9 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.cluster.datastream.CreateDataStreamAction;
-import org.elasticsearch.action.admin.cluster.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.cluster.datastream.GetDataStreamsAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -721,34 +718,4 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get a script from the cluster state
      */
     ActionFuture<GetStoredScriptResponse> getStoredScript(GetStoredScriptRequest request);
-
-    /**
-     * Store a data stream
-     */
-    void createDataStream(CreateDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Store a data stream
-     */
-    ActionFuture<AcknowledgedResponse> createDataStream(CreateDataStreamAction.Request request);
-
-    /**
-     * Delete a data stream
-     */
-    void deleteDataStream(DeleteDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Delete a data stream
-     */
-    ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request);
-
-    /**
-     * Get data streams
-     */
-    void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener);
-
-    /**
-     * Get data streams
-     */
-    ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request);
 }

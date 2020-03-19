@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.datastream.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -53,6 +53,6 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
                 putDataStreamRequest.setTimestampFieldName(timeStampFieldName);
             }
         });
-        return channel -> client.admin().cluster().createDataStream(putDataStreamRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().createDataStream(putDataStreamRequest, new RestToXContentListener<>(channel));
     }
 }

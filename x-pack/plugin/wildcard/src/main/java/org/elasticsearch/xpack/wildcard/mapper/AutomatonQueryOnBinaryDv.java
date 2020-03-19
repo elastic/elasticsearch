@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -77,7 +78,7 @@ public class AutomatonQueryOnBinaryDv extends Query {
                         if (normalizer == null) {
                             return bytesMatcher.run(bytes, badi.getPosition(), valLength);                 
                         } else {
-                            String s = new String(bytes, position, valLength);
+                            String s = new String(bytes, position, valLength, StandardCharsets.UTF_8);
                             BytesRef normalized = normalizer.normalize(null, s);
                             return (bytesMatcher.run(normalized.bytes, normalized.offset, normalized.length));                  
                         }                        

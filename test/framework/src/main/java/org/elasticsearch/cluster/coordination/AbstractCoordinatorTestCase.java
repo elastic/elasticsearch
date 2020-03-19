@@ -58,7 +58,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
@@ -1290,7 +1289,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         AckCollector nextAckCollector = new AckCollector();
 
-        AckedFakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool, Consumer<Runnable> onTaskAvailableToRun) {
+        AckedFakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool,
+                                         Consumer<Runnable> onTaskAvailableToRun) {
             super(nodeName, serviceName, threadPool, onTaskAvailableToRun);
         }
 

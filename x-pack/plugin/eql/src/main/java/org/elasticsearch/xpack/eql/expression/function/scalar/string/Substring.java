@@ -39,10 +39,10 @@ public class Substring extends ScalarFunction implements OptionalArgument {
     private final Expression source, start, end;
 
     public Substring(Source source, Expression src, Expression start, Expression end) {
-        super(source, end != null ? Arrays.asList(src, start, end) : Arrays.asList(src, new Literal(source, 0, DataTypes.INTEGER), start));
+        super(source, Arrays.asList(src, start, end != null ? end : new Literal(source, null, DataTypes.NULL)));
         this.source = src;
         this.start = start;
-        this.end = end != null ? end : new Literal(source, null, DataTypes.NULL);
+        this.end = arguments().get(2);
     }
 
     @Override

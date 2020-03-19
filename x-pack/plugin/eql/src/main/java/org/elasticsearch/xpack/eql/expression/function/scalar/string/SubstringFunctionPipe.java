@@ -38,11 +38,11 @@ public class SubstringFunctionPipe extends Pipe {
     public final Pipe resolveAttributes(AttributeResolver resolver) {
         Pipe newSource = source.resolveAttributes(resolver);
         Pipe newStart = start.resolveAttributes(resolver);
-        Pipe newLength = end.resolveAttributes(resolver);
-        if (newSource == source && newStart == start && newLength == end) {
+        Pipe newEnd = end.resolveAttributes(resolver);
+        if (newSource == source && newStart == start && newEnd == end) {
             return this;
         }
-        return replaceChildren(newSource, newStart, newLength);
+        return replaceChildren(newSource, newStart, newEnd);
     }
 
     @Override
@@ -55,8 +55,8 @@ public class SubstringFunctionPipe extends Pipe {
         return source.resolved() && start.resolved() && end.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newStart, Pipe newLength) {
-        return new SubstringFunctionPipe(source(), expression(), newSource, newStart, newLength);
+    protected Pipe replaceChildren(Pipe newSource, Pipe newStart, Pipe newEnd) {
+        return new SubstringFunctionPipe(source(), expression(), newSource, newStart, newEnd);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
@@ -28,8 +29,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -79,9 +82,18 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
-            return new TokenStreamComponents(tokenizer);
+            // Lower case all ngram content
+            TokenStream tok = new LowerCaseFilter(tokenizer);
+            return new TokenStreamComponents(r -> {
+                tokenizer.setReader(r);
+              },tok);            
         }
-    });    
+
+        @Override
+        protected TokenStream normalize(String fieldName, TokenStream in) {
+          return new LowerCaseFilter(in);
+        }        
+    });         
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new WildcardFieldType();
@@ -167,12 +179,116 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
-            setupFieldType(context);            
+            setupFieldType(context);       
+            
+            String fullName =  buildFullName(context);
+            CaseInsensitiveFieldType caseInsensitiveFieldType =
+                    new CaseInsensitiveFieldType(fullName, fullName + "._case_insensitive");
+            CaseInsensitiveFieldMapper caseInsensitiveFieldMapper = new CaseInsensitiveFieldMapper(caseInsensitiveFieldType, context.indexSettings());            
+            
             return new WildcardFieldMapper(
                     name, fieldType, defaultFieldType, ignoreAbove, 
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, caseInsensitiveFieldMapper);
         }
     }
+    
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Iterator<Mapper> iterator() {
+        List<Mapper> subIterators = new ArrayList<>();
+        if (caseInsensitiveFieldMapper != null) {
+            subIterators.add(caseInsensitiveFieldMapper);
+        }
+        return Iterators.concat(super.iterator(), subIterators.iterator());
+    }    
+    
+    private static final class CaseInsensitiveFieldMapper extends FieldMapper {
+
+        protected CaseInsensitiveFieldMapper(CaseInsensitiveFieldType fieldType, Settings indexSettings) {
+            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String contentType() {
+            return "caseInsensitive";
+        }
+
+        @Override
+        public String toString() {
+            return fieldType().toString();
+        }
+    }    
+    
+    static final class CaseInsensitiveFieldType extends MappedFieldType {
+
+        final String parentField;
+
+        CaseInsensitiveFieldType(String parentField, String name) {
+            setName(name);
+            this.parentField = parentField;
+        }
+
+        void doXContent(XContentBuilder builder) throws IOException {
+            builder.startObject("index_caseInsensitive");
+            builder.endObject();
+        }
+        
+        private WildcardFieldType getParent(QueryShardContext context) {
+            return (WildcardFieldType) context.fieldMapper(this.parentField);
+        }
+
+
+        @Override
+        public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
+            // Delegate to parent with case sensitivity turned off.
+            return getParent(context).wildcardQuery(value, method, context, false);
+        }                
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            for (Object value : values) {
+                bq.add(termQuery(value, context), Occur.SHOULD);
+            }
+            return new ConstantScoreQuery(bq.build());
+        }
+        
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+        }
+        
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            return  wildcardQuery(value + "*", method, context);
+        }             
+
+        @Override
+        public CaseInsensitiveFieldType clone() {
+            return new CaseInsensitiveFieldType(parentField, name());
+        }
+
+        @Override
+        public String typeName() {
+            return "caseInsensitive";
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + ",caseInsensitive";
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return getParent(context).existsQuery(context);
+        }
+    }                    
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
@@ -320,15 +436,29 @@ public class WildcardFieldMapper extends FieldMapper {
                 PatternStructure other = (PatternStructure) obj;
                 return pattern.equals(other.pattern);
             }
-            
-            
         }
-        
+
+        public static BytesRef toLower(BytesRef value) {
+            return WILDCARD_ANALYZER.normalize(null, value.utf8ToString());
+        }
+
+        public static String toLower(String value) {
+            return WILDCARD_ANALYZER.normalize(null, value).utf8ToString();
+        }
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
+            return wildcardQuery(wildcardPattern, method, context, true);
+        }
+        
+        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context, boolean caseSensitive) {
+            if (caseSensitive == false) {
+                wildcardPattern = toLower(wildcardPattern);
+            }
+            
             PatternStructure patternStructure = new PatternStructure(wildcardPattern);            
             ArrayList<String> tokens = new ArrayList<>();
+            
 
             for (int i = 0; i < patternStructure.fragments.length; i++) {
                 String fragment = patternStructure.fragments[i];
@@ -389,7 +519,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
                 Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-                verifyingBuilder.add(new BooleanClause(new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton), Occur.MUST));
+                Analyzer normalizer = caseSensitive ? null: WILDCARD_ANALYZER;
+                verifyingBuilder.add(new BooleanClause(new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton, normalizer), Occur.MUST));
                 return verifyingBuilder.build();
             }
             return approximation;
@@ -486,9 +617,10 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     private int ignoreAbove;
+    private CaseInsensitiveFieldMapper caseInsensitiveFieldMapper;
 
     private WildcardFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, CaseInsensitiveFieldMapper caseInsensitiveFieldMapper) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreAbove = ignoreAbove;
         assert fieldType.indexOptions() == IndexOptions.DOCS;
@@ -496,6 +628,7 @@ public class WildcardFieldMapper extends FieldMapper {
         ngramFieldType = fieldType.clone();
         ngramFieldType.setTokenized(true);                    
         ngramFieldType.freeze();
+        this.caseInsensitiveFieldMapper = caseInsensitiveFieldMapper;
     }
 
     /** Values that have more chars than the return value of this method will
@@ -570,6 +703,8 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
+        WildcardFieldMapper mw = (WildcardFieldMapper) mergeWith;
+        this.caseInsensitiveFieldMapper = (CaseInsensitiveFieldMapper) this.caseInsensitiveFieldMapper.merge(mw.caseInsensitiveFieldMapper);
         this.ignoreAbove = ((WildcardFieldMapper) mergeWith).ignoreAbove;
     }    
 }

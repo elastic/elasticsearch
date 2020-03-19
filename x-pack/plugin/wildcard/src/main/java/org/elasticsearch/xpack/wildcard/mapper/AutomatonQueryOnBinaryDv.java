@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -34,11 +35,13 @@ public class AutomatonQueryOnBinaryDv extends Query {
     private final String field;
     private final String matchPattern;
     private final Automaton automaton;
+    private Analyzer normalizer;
 
-    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
+    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton, Analyzer normalizer) {
         this.field = field;
         this.matchPattern = matchPattern;
         this.automaton = automaton;
+        this.normalizer = normalizer;
     }
 
     @Override
@@ -62,12 +65,22 @@ public class AutomatonQueryOnBinaryDv extends Query {
                         int size = badi.readVInt();
                         for (int i=0; i< size; i++) {
                             int valLength = badi.readVInt();
-                            if (bytesMatcher.run(arrayOfValues.bytes, badi.getPosition(), valLength)) {
+                            if (valueMatches(arrayOfValues.bytes, badi.getPosition(), valLength)) {
                                 return true;
-                            }
+                            }                                
                             badi.skipBytes(valLength);
                         }
                         return false;
+                    }
+
+                    private boolean valueMatches(byte[] bytes, int position, int valLength) {
+                        if (normalizer == null) {
+                            return bytesMatcher.run(bytes, badi.getPosition(), valLength);                 
+                        } else {
+                            String s = new String(bytes, position, valLength);
+                            BytesRef normalized = normalizer.normalize(null, s);
+                            return (bytesMatcher.run(normalized.bytes, normalized.offset, normalized.length));                  
+                        }                        
                     }
 
                     @Override

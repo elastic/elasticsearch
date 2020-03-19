@@ -67,7 +67,7 @@ final class AsyncSearchRequestConverters {
             params.withRequestCache(request.getRequestCache());
         }
         if (request.getAllowPartialSearchResults() != null) {
-            params.withPartialResults(request.getAllowPartialSearchResults());
+            params.withAllowPartialResults(request.getAllowPartialSearchResults());
         }
         params.withBatchedReduceSize(request.getBatchedReduceSize());
     }

@@ -31,6 +31,8 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -38,12 +40,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class AsyncSearchResponse implements ToXContentObject  {
     @Nullable
-    private String id;
+    private final String id;
     private final int version;
     @Nullable
-    private SearchResponse searchResponse;
+    private final SearchResponse searchResponse;
     @Nullable
-    private ElasticsearchException error;
+    private final ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;
 
@@ -57,12 +59,18 @@ public class AsyncSearchResponse implements ToXContentObject  {
                                boolean isPartial,
                                boolean isRunning,
                                long startTimeMillis,
-                               long expirationTimeMillis) {
+                               long expirationTimeMillis,
+                               @Nullable String id,
+                               @Nullable SearchResponse searchResponse,
+                               @Nullable ElasticsearchException error) {
         this.version = version;
         this.isPartial = isPartial;
         this.isRunning = isRunning;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
+        this.id = id;
+        this.searchResponse = searchResponse;
+        this.error = error;
     }
 
     /**
@@ -71,13 +79,6 @@ public class AsyncSearchResponse implements ToXContentObject  {
     @Nullable
     public String getId() {
         return id;
-    }
-
-    /**
-     * Sets the optional id property, use by parser and tests
-     */
-    void setId(String id) {
-        this.id = id;
     }
 
     /**
@@ -98,24 +99,10 @@ public class AsyncSearchResponse implements ToXContentObject  {
     }
 
     /**
-     * Sets the optional search response property, used by parser and tests
-     */
-    void setSearchResponse(SearchResponse searchResponse) {
-        this.searchResponse = searchResponse;
-    }
-
-    /**
      * Returns the failure reason or null if the query is running or has completed normally.
      */
     public ElasticsearchException getFailure() {
         return error;
-    }
-
-    /**
-     * Sets the optional failure property, use by parser and tests
-     */
-    void setFailure(ElasticsearchException error) {
-        this.error = error;
     }
 
     /**
@@ -193,17 +180,20 @@ public class AsyncSearchResponse implements ToXContentObject  {
                     (boolean) args[1],
                     (boolean) args[2],
                     (long) args[3],
-                    (long) args[4]));
+                    (long) args[4],
+                    (String) args[5],
+                    (SearchResponse) args[6],
+                    (ElasticsearchException) args[7]));
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_PARTIAL_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_RUNNING_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), START_TIME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPIRATION_FIELD);
-        PARSER.declareString(AsyncSearchResponse::setId, ID_FIELD);
-        PARSER.declareObject(AsyncSearchResponse::setSearchResponse, (p, c) -> AsyncSearchResponse.parseSearchResponse(p),
+        PARSER.declareInt(constructorArg(), VERSION_FIELD);
+        PARSER.declareBoolean(constructorArg(), IS_PARTIAL_FIELD);
+        PARSER.declareBoolean(constructorArg(), IS_RUNNING_FIELD);
+        PARSER.declareLong(constructorArg(), START_TIME_FIELD);
+        PARSER.declareLong(constructorArg(), EXPIRATION_FIELD);
+        PARSER.declareString(optionalConstructorArg(), ID_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> AsyncSearchResponse.parseSearchResponse(p),
                 RESPONSE_FIELD);
-        PARSER.declareObject(AsyncSearchResponse::setFailure, (p, c) -> ElasticsearchException.fromXContent(p), ERROR_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), ERROR_FIELD);
     }
 
     private static SearchResponse parseSearchResponse(XContentParser p) throws IOException {

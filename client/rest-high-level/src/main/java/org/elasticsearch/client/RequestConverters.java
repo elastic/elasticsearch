@@ -416,7 +416,7 @@ final class RequestConverters {
             params.withRequestCache(searchRequest.requestCache());
         }
         if (searchRequest.allowPartialSearchResults() != null) {
-            params.withPartialResults(searchRequest.allowPartialSearchResults());
+            params.withAllowPartialResults(searchRequest.allowPartialSearchResults());
         }
         params.withBatchedReduceSize(searchRequest.getBatchedReduceSize());
         if (searchRequest.scroll() != null) {
@@ -876,7 +876,7 @@ final class RequestConverters {
             return putParam("request_cache", Boolean.toString(requestCache));
         }
 
-        Params withPartialResults(boolean allowPartialSearchResults) {
+        Params withAllowPartialResults(boolean allowPartialSearchResults) {
             return putParam("allow_partial_search_results", Boolean.toString(allowPartialSearchResults));
         }
 

@@ -73,7 +73,6 @@ aggregation that it performs and the indexing process.
 
 For better performance, make sure that your search aggregations and queries are 
 optimized, so they don't process unnecessary data.
-{transform}.
 
 NOTE: When you use <<search-aggregations-bucket-datehistogram-aggregation>>, the 
 queries are not considered optimal as they run through a significant amount of 

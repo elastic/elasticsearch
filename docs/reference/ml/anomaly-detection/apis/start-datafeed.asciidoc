@@ -49,7 +49,7 @@ following formats: +
 
 - ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
 - ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
-- Seconds from the Epoch, for example `1390370400`
+- Milliseconds from the Epoch, for example `1485061200000`
 
 Date-time arguments using either of the ISO 8601 formats must have a time zone
 designator, where Z is accepted as an abbreviation for UTC time.

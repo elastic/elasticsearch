@@ -25,6 +25,8 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public final class Scripts {
 
     public static final String DOC_VALUE = "doc[{}].value";
+    public static final String QL_SCRIPTS = "{ql}";
+    public static final String EQL_SCRIPTS = "{eql}";
     public static final String SQL_SCRIPTS = "{sql}";
     public static final String PARAM = "{}";
     // FIXME: this needs to be either renamed (drop Sql) or find a pluggable approach (through ScriptWeaver)
@@ -33,7 +35,9 @@ public final class Scripts {
     private Scripts() {}
 
     static final Map<Pattern, String> FORMATTING_PATTERNS = unmodifiableMap(Stream.of(
-            new SimpleEntry<>(DOC_VALUE, SQL_SCRIPTS + ".docValue(doc,{})"),
+            new SimpleEntry<>(DOC_VALUE, QL_SCRIPTS + ".docValue(doc,{})"),
+            new SimpleEntry<>(QL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
+            new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
             new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
             new SimpleEntry<>(PARAM, "params.%s"))
             .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
@@ -56,7 +60,7 @@ public final class Scripts {
 
     public static ScriptTemplate nullSafeFilter(ScriptTemplate script) {
         return new ScriptTemplate(formatTemplate(
-                format(Locale.ROOT, "{sql}.nullSafeFilter(%s)", script.template())),
+                format(Locale.ROOT, "{ql}.nullSafeFilter(%s)", script.template())),
                 script.params(),
                 DataTypes.BOOLEAN);
     }
@@ -64,7 +68,7 @@ public final class Scripts {
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
         String methodName = script.outputType().isNumeric() ? "nullSafeSortNumeric" : "nullSafeSortString";
         return new ScriptTemplate(formatTemplate(
-                format(Locale.ROOT, "{sql}.%s(%s)", methodName, script.template())),
+                format(Locale.ROOT, "{ql}.%s(%s)", methodName, script.template())),
                 script.params(),
                 script.outputType());
     }

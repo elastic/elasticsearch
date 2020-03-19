@@ -403,22 +403,22 @@ final class RequestConverters {
         return request;
     }
 
-    private static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
+    static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
         params.withIndicesOptions(searchRequest.indicesOptions());
-        params.putParam("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
         params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
-        params.putParam("max_concurrent_shard_requests", Integer.toString(searchRequest.getMaxConcurrentShardRequests()));
+        params.withMaxConcurrentShardRequests(searchRequest.getMaxConcurrentShardRequests());
         if (searchRequest.requestCache() != null) {
-            params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));
+            params.withRequestCache(searchRequest.requestCache());
         }
         if (searchRequest.allowPartialSearchResults() != null) {
-            params.putParam("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+            params.withAllowPartialResults(searchRequest.allowPartialSearchResults());
         }
-        params.putParam("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        params.withBatchedReduceSize(searchRequest.getBatchedReduceSize());
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());
         }
@@ -858,6 +858,26 @@ final class RequestConverters {
 
         Params withPreference(String preference) {
             return putParam("preference", preference);
+        }
+
+        Params withSearchType(String searchType) {
+            return putParam("search_type", searchType);
+        }
+
+        Params withMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+            return putParam("max_concurrent_shard_requests", Integer.toString(maxConcurrentShardRequests));
+        }
+
+        Params withBatchedReduceSize(int batchedReduceSize) {
+            return putParam("batched_reduce_size", Integer.toString(batchedReduceSize));
+        }
+
+        Params withRequestCache(boolean requestCache) {
+            return putParam("request_cache", Boolean.toString(requestCache));
+        }
+
+        Params withAllowPartialResults(boolean allowPartialSearchResults) {
+            return putParam("allow_partial_search_results", Boolean.toString(allowPartialSearchResults));
         }
 
         Params withRealtime(boolean realtime) {

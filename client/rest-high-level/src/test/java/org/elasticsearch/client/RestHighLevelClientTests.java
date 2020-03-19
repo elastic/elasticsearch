@@ -890,6 +890,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&
+                                apiName.startsWith("async_search") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
                                 apiName.equals("indices.get_index_template") == false) {

@@ -53,7 +53,7 @@ If you configure more than one realm of any type with the same order, the node w
 
 [discrete]
 [[deprecate-insecure-monitoring-password]]
-=== Deprecation of insecure monitoring password setting
+==== Deprecation of insecure monitoring password setting
 
 The `auth.password` setting for the monitoring HTTP exporter has been deprecated and will be
 removed in version 8.0.0. Please use the `auth.secure_password` setting instead.

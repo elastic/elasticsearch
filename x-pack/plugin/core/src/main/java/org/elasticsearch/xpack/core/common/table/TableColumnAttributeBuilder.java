@@ -3,8 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.rest.cat;
 
+package org.elasticsearch.xpack.core.common.table;
 
 import org.elasticsearch.common.Strings;
 

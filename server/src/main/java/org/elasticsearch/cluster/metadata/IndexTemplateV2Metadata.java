@@ -98,8 +98,7 @@ public class IndexTemplateV2Metadata implements MetaData.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        // TODO: update this once backported
-        return Version.V_8_0_0;
+        return Version.V_7_7_0;
     }
 
     @Override

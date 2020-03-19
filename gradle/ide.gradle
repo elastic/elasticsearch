@@ -71,7 +71,7 @@ idea {
       }
       codeStyle {
         java {
-          classCountToUseImportOnDemand = 99
+          classCountToUseImportOnDemand = 999
         }
       }
       encodings {
@@ -130,6 +130,12 @@ idea {
   }
 }
 
+/**
+ * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
+ *
+ * @param path Path to existing XML file
+ * @param action Action to perform on parsed XML document
+ */
 void modifyXml(Object path, Action<? super Node> action) {
   File xmlFile = project.file(path)
   Node xml = new XmlParser().parse(xmlFile)

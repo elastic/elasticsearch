@@ -20,15 +20,6 @@ archivesBaseName = 'x-pack-eql'
 // All integration tests live in qa modules
 integTest.enabled = false
 
-// Instead we create a separate task to run the tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  mustRunAfter test
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-check.dependsOn internalClusterTest
-
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compileOnly(project(':modules:lang-painless')) {
@@ -43,9 +34,6 @@ dependencies {
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-
-  // TOML parser for EqlActionIT tests
-  testCompile 'io.ous:jtoml:2.0.0'
 }
 
 

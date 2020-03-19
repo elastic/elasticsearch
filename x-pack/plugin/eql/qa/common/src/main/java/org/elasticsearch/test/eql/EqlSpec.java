@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.test.eql;
 
 import org.elasticsearch.common.Strings;
 

@@ -34,12 +34,14 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, AggregatedMessage> messageHandler;
+    private final BiConsumer<TcpChannel, AggregatedMessage> errorHandler;
 
     public InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
                            BiConsumer<TcpChannel, AggregatedMessage> messageHandler) {
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
+        this.errorHandler = (c, e) -> {};
     }
 
     @Override

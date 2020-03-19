@@ -29,7 +29,7 @@ Search::
 === Upgrades
 
 Features/Ingest::
-* Ingest Attachment: Upgrade tika to v1.22 (#45575) {pull}53418[#53418]
+* Ingest Attachment: Upgrade tika to v1.22 {pull}53418[#53418]
 
 Infra/Core::
 * Upgrade the bundled JDK to JDK 14 {pull}53748[#53748] (issue: {issue}53575[#53575])

@@ -407,18 +407,20 @@ allprojects {
         i++;
         folder.output = "build-eclipse/" + i
       }
-      /*
-       * Allow accessing com/sun/net/httpserver in projects that have
-       * configured forbidden apis to allow it.
-       */
-      plugins.withType(ForbiddenApisPlugin) {
-        if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
-          classpath.entries
-            .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-            .each {
-              it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-            }
-        }
+    }
+  }
+  /*
+   * Allow accessing com/sun/net/httpserver in projects that have
+   * configured forbidden apis to allow it.
+   */
+  plugins.withType(ForbiddenApisPlugin) {
+    eclipse.classpath.file.whenMerged { classpath ->
+      if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
+        classpath.entries
+          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
+          .each {
+            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+          }
       }
     }
   }

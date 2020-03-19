@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 
@@ -66,7 +67,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
                             + "InternalSqlScriptUtils.eq("
                             + "InternalSqlScriptUtils.substring("
                             + "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-                            "\"params\":{\"v0\":\"file_name.keyword\",\"v1\":0,\"v2\":-4,\"v3\":\".exe\"}"
+                            "\"params\":{\"v0\":\"file_name.keyword\",\"v1\":-4,\"v2\":null,\"v3\":\".exe\"}"
                             
                     }
             }

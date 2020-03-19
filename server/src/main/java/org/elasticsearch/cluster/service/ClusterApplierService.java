@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -348,9 +349,18 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         if (!lifecycle.started()) {
             return;
         }
+
         final ThreadContext threadContext = threadPool.getThreadContext();
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
+            // copy any accumulated response headers (e.g. deprecation warnings) since we may send responses from cluster state listeners
+            for (Map.Entry<String, List<String>> responseHeader : responseHeaders.entrySet()) {
+                for (String value : responseHeader.getValue()) {
+                    threadContext.addResponseHeader(responseHeader.getKey(), value);
+                }
+            }
+
             UpdateTask updateTask = new UpdateTask(config.priority(), source, new SafeClusterApplyListener(listener, logger), executor);
             if (config.timeout() != null) {
                 threadPoolExecutor.execute(updateTask, config.timeout(),

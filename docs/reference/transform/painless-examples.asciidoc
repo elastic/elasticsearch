@@ -53,7 +53,9 @@ scripted metric aggregation which provides a metric output.
 `last_doc` in the `state` object.
 <2> The `map_script` defines `current_date` based on the timestamp of the 
 document, then compares `current_date` with `state.timestamp_latest`, finally 
-returns `state.last_doc` from the shard.
+returns `state.last_doc` from the shard. By using `new HashMap(...)` we copy the 
+source document, this is important whenever you want to pass the full source 
+object from one phase to the next.
 <3> The `combine_script` returns `state` from each shard.
 <4> The `reduce_script` iterates through the value of `s.timestamp_latest` 
 returned by each shard and returns the document with the latest timestamp 

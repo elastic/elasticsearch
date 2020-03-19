@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
@@ -47,7 +48,7 @@ public class ResultsPersisterService {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = new HashSet<>(
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(new HashSet<>(
         Arrays.asList(
             RestStatus.GONE,
             RestStatus.NOT_IMPLEMENTED,
@@ -58,7 +59,7 @@ public class ResultsPersisterService {
             RestStatus.METHOD_NOT_ALLOWED,
             RestStatus.NOT_ACCEPTABLE
         )
-    );
+    ));
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
 

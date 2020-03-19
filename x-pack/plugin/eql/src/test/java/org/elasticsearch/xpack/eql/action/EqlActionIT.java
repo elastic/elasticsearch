@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -43,7 +43,6 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
     @SuppressWarnings("unchecked")
     public void setUpData() throws Exception {
         // Insert test data
-        ObjectMapper mapper = new ObjectMapper();
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, EqlActionIT.class.getResourceAsStream("/test_data.json"))) {
             List<Object> list = parser.list();

@@ -107,4 +107,5 @@ public interface DeprecationHandler {
      * @param usedName the provided field name
      */
     void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName);
+
 }

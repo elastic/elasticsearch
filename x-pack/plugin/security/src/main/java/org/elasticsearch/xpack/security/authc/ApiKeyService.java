@@ -620,37 +620,24 @@ public class ApiKeyService {
 
         @Override
         public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
-            if (parserName != null) {
-                deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used in api key [{}], expected [{}] instead",
-                    parserName, location.get(), usedName, apiKeyId, modernName);
-            } else {
-                deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
-                    usedName, apiKeyId, modernName);
-            }
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                prefix, usedName, apiKeyId, modernName);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
-            if (parserName != null) {
-                deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used in api key [{}], replaced by [{}]",
-                    parserName, location.get(), usedName, apiKeyId, replacedWith);
-            } else {
-                deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
-                    usedName, apiKeyId, replacedWith);
-            }
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                prefix, usedName, apiKeyId, replacedWith);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
-            if (parserName != null) {
-                deprecationLogger.deprecated(
-                    "[{}][{}] Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
-                    parserName, location.get(), usedName);
-            } else {
-                deprecationLogger.deprecated(
-                    "[{}][{}] Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
-                    usedName);
-            }
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated(
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                prefix, usedName);
         }
     }
 

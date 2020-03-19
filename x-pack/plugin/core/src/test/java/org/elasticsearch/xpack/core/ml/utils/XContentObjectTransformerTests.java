@@ -127,8 +127,8 @@ public class XContentObjectTransformerTests extends ESTestCase {
     public void testDeprecationWarnings() throws IOException {
         XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = new XContentObjectTransformer<>(NamedXContentRegistry.EMPTY,
             (p)-> {
-            p.getDeprecationHandler().usedDeprecatedField(null, null, "oldField", "newField");
-            p.getDeprecationHandler().usedDeprecatedName(null, null, "oldName", "modernName");
+            p.getDeprecationHandler().usedDeprecatedField("oldField", "newField");
+            p.getDeprecationHandler().usedDeprecatedName("oldName", "modernName");
             return new BoolQueryBuilder();
             });
         List<String> deprecations = new ArrayList<>();

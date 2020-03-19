@@ -1869,7 +1869,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - '[classification][1:139] Deprecated field [maximum_number_trees] used, expected [max_trees] instead'
+        - 'Deprecated field [maximum_number_trees] used, expected [max_trees] instead'
       ml.put_data_frame_analytics:
         id: "classification-with-maximum-number-trees"
         body: >

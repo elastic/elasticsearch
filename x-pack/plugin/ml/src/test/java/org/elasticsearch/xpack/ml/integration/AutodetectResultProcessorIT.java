@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -13,18 +16,24 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -61,6 +70,8 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,8 +86,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -129,6 +143,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 JOB_ID,
                 renormalizer,
                 new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
+                new AnnotationPersister(originSettingClient, auditor),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {
@@ -200,6 +215,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertEquals(1, persistedModelSnapshot.count());
         assertEquals(modelSnapshot, persistedModelSnapshot.results().get(0));
         assertEquals(Collections.singletonList(modelSnapshot), capturedUpdateModelSnapshotOnJobRequests);
+
+        List<Annotation> annotations = getAnnotations();
+        assertThat(annotations, hasSize(1));
+        assertThat(annotations.get(0).getAnnotation(), is(equalTo("Job model snapshot stored")));
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
@@ -424,7 +443,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static ModelSnapshot createModelSnapshot() {
-        return new ModelSnapshot.Builder(JOB_ID).setSnapshotId(randomAlphaOfLength(12)).build();
+        return new ModelSnapshot.Builder(JOB_ID)
+            .setSnapshotId(randomAlphaOfLength(12))
+            .setTimestamp(Date.from(Instant.ofEpochMilli(1000000000)))
+            .build();
     }
 
     private static Quantiles createQuantiles() {
@@ -604,6 +626,28 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             throw errorHolder.get();
         }
         return resultHolder.get();
+    }
+
+    private List<Annotation> getAnnotations() throws Exception {
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        client().admin().indices().prepareRefresh(AnnotationIndex.INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
+            .execute()
+            .actionGet();
+
+        SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME);
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        List<Annotation> annotations = new ArrayList<>();
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            annotations.add(parseAnnotation(hit.getSourceRef()));
+        }
+        return annotations;
+    }
+
+    private Annotation parseAnnotation(BytesReference source) throws IOException {
+        try (XContentParser parser = createParser(jsonXContent, source)) {
+            return Annotation.PARSER.parse(parser, null);
+        }
     }
 
     private Optional<Quantiles> getQuantiles() throws Exception {

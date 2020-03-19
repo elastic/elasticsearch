@@ -52,6 +52,8 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import java.io.IOException;
 import java.util.Locale;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
@@ -62,9 +64,11 @@ import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
@@ -74,7 +78,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     @Override
     protected XContentBuilder createTypedMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("geo")
             .field("type", "geo_shape");
         if (randomBoolean()) {
@@ -119,10 +123,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         xcb = xcb.endObject().endObject().endObject();
 
         return xcb;
-    }
-
-    public void testIndexPointsFilterRectangle() throws Exception {
-        super.testIndexPointsFilterRectangle(Strings.toString(createTypedMapping()));
     }
 
     public void testShapeFetchingPath() throws Exception {
@@ -219,8 +219,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         }
         gcb.shape(new PolygonBuilder(cb));
 
-        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
-
         XContentBuilder mapping = createRandomMapping();
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         client().admin().indices().prepareCreate("test").addMapping("_doc",mapping).setSettings(settings).get();
@@ -237,8 +235,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
-        assertTrue("query: " + geoShapeQueryBuilder.toString() + " doc: " + Strings.toString(docSource),
-            result.getHits().getTotalHits().value > 0);
+        assertThat(result.getHits().getHits().length, greaterThan(0));
     }
 
     // Test for issue #34418
@@ -299,9 +296,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         SearchResponse response = client().prepareSearch("test")
             .setQuery(querySupplier.get())
             .get();
-        assertEquals(2, response.getHits().getTotalHits().value);
-        assertNotEquals("1", response.getHits().getAt(0).getId());
-        assertNotEquals("1", response.getHits().getAt(1).getId());
+        assertHitCount(response, 2);
+        assertThat(response.getHits().getAt(0).getId(), not(equalTo("1")));
+        assertThat(response.getHits().getAt(1).getId(), not(equalTo("1")));
     }
 
     public void testGeometryCollectionRelations() throws Exception {
@@ -322,15 +319,15 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             SearchResponse response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertHitCount(response, 1);
             response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
                 .get();
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertHitCount(response, 1);
             response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
                 .get();
-            assertEquals(0, response.getHits().getTotalHits().value);
+            assertHitCount(response, 0);
         }
         // A geometry collection that is partially within the indexed shape
         {
@@ -340,15 +337,15 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             SearchResponse response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();
-            assertEquals(0, response.getHits().getTotalHits().value);
+            assertHitCount(response, 0);
             response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
                 .get();
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertHitCount(response, 1);
             response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
                 .get();
-            assertEquals(0, response.getHits().getTotalHits().value);
+            assertHitCount(response, 0);
         }
         {
             // A geometry collection that is disjoint with the indexed shape
@@ -358,15 +355,15 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             SearchResponse response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.CONTAINS))
                 .get();
-            assertEquals(0, response.getHits().getTotalHits().value);
+            assertHitCount(response, 0);
             response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
                 .get();
-            assertEquals(0, response.getHits().getTotalHits().value);
+            assertHitCount(response, 0);
             response = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("geo", builder.buildGeometry()).relation(ShapeRelation.DISJOINT))
                 .get();
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertHitCount(response, 1);
         }
     }
 
@@ -401,13 +398,12 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("blakely"));
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
-        XContentBuilder mapping = createTypedMapping();
+        XContentBuilder mapping = createDefaultMapping();
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
@@ -417,9 +413,13 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
             .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test")
-            .setQuery(geoIntersectionQuery("geo", "Big_Rectangle")).get());
-        assertThat(e.getMessage(), containsString("source disabled"));
+        try {
+            client().prepareSearch("test")
+                .setQuery(geoIntersectionQuery("geo", "Big_Rectangle")).get();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                containsString("source disabled"));
+        }
     }
 
     public void testReusableBuilder() throws IOException {
@@ -509,13 +509,12 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
             .setPostFilter(filter).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(response.getHits().getHits().length, greaterThan(0));
     }
 
     public void testExistsQuery() throws Exception {
         // Create a random geometry collection.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
-        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
         XContentBuilder builder = createRandomMapping();
         client().admin().indices().prepareCreate("test").addMapping("type", builder)
@@ -560,7 +559,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .setQuery(geoIntersectionQuery("location", shape))
             .get();
 
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(response, 1);
     }
 
     public void testPointsOnlyExplicit() throws Exception {
@@ -594,11 +593,11 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .setQuery(matchAllQuery())
             .get();
 
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertHitCount(response, 2);
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = Strings.toString(createTypedMapping());
+        String mapping = Strings.toString(createDefaultMapping());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
         createIndex("shapes");
         ensureGreen();
@@ -620,8 +619,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test")
@@ -629,8 +627,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
@@ -660,7 +657,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         SearchResponse response = client().prepareSearch("test")
             .setQuery(geoShapeQuery("alias", shape))
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(response, 1);
     }
 
     public void testQueryRandomGeoCollection() throws Exception {
@@ -672,8 +669,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             cb.coordinate(randomPoly.getPolyLon(i), randomPoly.getPolyLat(i));
         }
         gcb.shape(new PolygonBuilder(cb));
-
-        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
         XContentBuilder builder = createRandomMapping();
         client().admin().indices().prepareCreate("test")

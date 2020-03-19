@@ -184,7 +184,8 @@ public class WildcardFieldMapper extends FieldMapper {
             String fullName =  buildFullName(context);
             CaseInsensitiveFieldType caseInsensitiveFieldType =
                     new CaseInsensitiveFieldType(fullName, fullName + "._case_insensitive");
-            CaseInsensitiveFieldMapper caseInsensitiveFieldMapper = new CaseInsensitiveFieldMapper(caseInsensitiveFieldType, context.indexSettings());            
+            CaseInsensitiveFieldMapper caseInsensitiveFieldMapper = 
+                    new CaseInsensitiveFieldMapper(caseInsensitiveFieldType, context.indexSettings());            
             
             return new WildcardFieldMapper(
                     name, fieldType, defaultFieldType, ignoreAbove, 
@@ -520,7 +521,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
                 Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
                 Analyzer normalizer = caseSensitive ? null: WILDCARD_ANALYZER;
-                verifyingBuilder.add(new BooleanClause(new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton, normalizer), Occur.MUST));
+                verifyingBuilder.add(new BooleanClause(
+                        new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton, normalizer), Occur.MUST));
                 return verifyingBuilder.build();
             }
             return approximation;
@@ -620,7 +622,8 @@ public class WildcardFieldMapper extends FieldMapper {
     private CaseInsensitiveFieldMapper caseInsensitiveFieldMapper;
 
     private WildcardFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, CaseInsensitiveFieldMapper caseInsensitiveFieldMapper) {
+                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, 
+                CaseInsensitiveFieldMapper caseInsensitiveFieldMapper) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreAbove = ignoreAbove;
         assert fieldType.indexOptions() == IndexOptions.DOCS;

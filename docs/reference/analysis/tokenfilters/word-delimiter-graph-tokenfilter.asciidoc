@@ -440,8 +440,8 @@ that span multiple positions when any of the following parameters are `true`:
 
 However, only the `word_delimiter_graph` filter assigns multi-position tokens a
 `positionLength` attribute, which indicates the number of positions a token
-spans. This ensures the `word_delimiter_graph` filter always produces valid token
-https://en.wikipedia.org/wiki/Directed_acyclic_graph[graphs].
+spans. This ensures the `word_delimiter_graph` filter always produces valid
+<<token-graphs,token graphs>>.
 
 The `word_delimiter` filter does not assign multi-position tokens a
 `positionLength` attribute. This means it produces invalid graphs for streams

@@ -1888,12 +1888,7 @@ public class RestHighLevelClient implements Closeable {
      * emitted there just mean that you are talking to an old version of
      * Elasticsearch. There isn't anything you can do about the deprecation.
      */
-    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {}
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {}
-    };
+    private static final DeprecationHandler DEPRECATION_HANDLER = DeprecationHandler.IGNORE_DEPRECATIONS;
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();

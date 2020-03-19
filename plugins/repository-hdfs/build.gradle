@@ -74,6 +74,12 @@ dependencies {
   }
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+  }
+}
+
 normalization {
   runtimeClasspath {
     // ignore generated keytab files for the purposes of build avoidance

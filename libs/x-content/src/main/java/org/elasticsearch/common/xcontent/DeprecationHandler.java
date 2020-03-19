@@ -41,6 +41,32 @@ public interface DeprecationHandler {
             throw new UnsupportedOperationException("deprecated fields not supported here but got ["
                 + usedName + "] which has been replaced with [" + modernName + "]");
         }
+
+        @Override
+        public void usedDeprecatedField(String usedName) {
+            throw new UnsupportedOperationException("deprecated fields not supported here but got ["
+                + usedName + "] which has been deprecated entirely");
+        }
+    };
+
+    /**
+     * Ignores all deprecations
+     */
+    DeprecationHandler IGNORE_DEPRECATIONS = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName) {
+
+        }
     };
 
     /**
@@ -52,9 +78,16 @@ public interface DeprecationHandler {
 
     /**
      * Called when the provided field name matches the current field but the entire
-     * field has been marked as deprecated.
+     * field has been marked as deprecated and another field should be used
      * @param usedName the provided field name
      * @param replacedWith the name of the field that replaced this field
      */
     void usedDeprecatedField(String usedName, String replacedWith);
+
+    /**
+     * Called when the provided field name matches the current field but the entire
+     * field has been marked as deprecated with no replacement
+     * @param usedName the provided field name
+     */
+    void usedDeprecatedField(String usedName);
 }

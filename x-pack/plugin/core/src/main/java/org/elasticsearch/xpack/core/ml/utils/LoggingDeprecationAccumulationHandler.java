@@ -39,6 +39,13 @@ public class LoggingDeprecationAccumulationHandler implements DeprecationHandler
             new Object[] {usedName, replacedWith}));
     }
 
+    @Override
+    public void usedDeprecatedField(String usedName) {
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedField(usedName);
+        deprecations.add(LoggerMessageFormat.format("Deprecated field [{}] used, which has been deprecated entirely",
+            new Object[]{ usedName }));
+    }
+
     /**
      * The collected deprecation warnings
      */

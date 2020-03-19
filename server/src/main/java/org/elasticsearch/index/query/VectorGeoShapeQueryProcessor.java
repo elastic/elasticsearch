@@ -20,7 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -40,25 +43,24 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
+
 
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
+public class VectorGeoShapeQueryProcessor implements AbstractSearchableGeometryFieldType.QueryProcessor {
 
     @Override
-    public Query process(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
         }
-        if (queryShape == null) {
-            return new MatchNoDocsQuery();
-        }
-        return getVectorQueryFromShape(queryShape, fieldName, relation, context);
+        // wrap geoQuery as a ConstantScoreQuery
+        return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
     private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
@@ -103,9 +105,9 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         }
 
         @Override
-        public Void visit(Line line) {
+        public Void visit(org.elasticsearch.geometry.Line line) {
             if (line.isEmpty() == false) {
-                List<Line> collector = new ArrayList<>();
+                List<org.elasticsearch.geometry.Line> collector = new ArrayList<>();
                 GeoLineDecomposer.decomposeLine(line, collector);
                 collectLines(collector);
             }
@@ -119,7 +121,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
         @Override
         public Void visit(MultiLine multiLine) {
-            List<Line> collector = new ArrayList<>();
+            List<org.elasticsearch.geometry.Line> collector = new ArrayList<>();
             GeoLineDecomposer.decomposeMultiLine(multiLine, collector);
             collectLines(collector);
             return null;
@@ -136,7 +138,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         @Override
         public Void visit(MultiPolygon multiPolygon) {
             if (multiPolygon.isEmpty() == false) {
-                List<Polygon> collector = new ArrayList<>();
+                List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
                 GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, true, collector);
                 collectPolygons(collector);
             }
@@ -153,9 +155,9 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         }
 
         @Override
-        public Void visit(Polygon polygon) {
+        public Void visit(org.elasticsearch.geometry.Polygon polygon) {
             if (polygon.isEmpty() == false) {
-                List<Polygon> collector = new ArrayList<>();
+                List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
                 GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
                 collectPolygons(collector);
             }
@@ -170,19 +172,17 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
             return null;
         }
 
-        private void collectLines(List<Line> geometryLines) {
+        private void collectLines(List<org.elasticsearch.geometry.Line> geometryLines) {
             for (Line line: geometryLines) {
                 geometries.add(GeoShapeUtils.toLuceneLine(line));
             }
         }
 
-        private void collectPolygons(List<Polygon> geometryPolygons) {
+        private void collectPolygons(List<org.elasticsearch.geometry.Polygon> geometryPolygons) {
             for (Polygon polygon : geometryPolygons) {
                 geometries.add(GeoShapeUtils.toLucenePolygon(polygon));
             }
         }
     }
-
 }
-
 

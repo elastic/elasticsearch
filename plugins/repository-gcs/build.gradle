@@ -56,6 +56,12 @@ dependencies {
   testCompile project(':test:fixtures:gcs-fixture')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 dependencyLicenses {
   mapping from: /google-cloud-.*/, to: 'google-cloud'
   mapping from: /google-auth-.*/, to: 'google-auth'

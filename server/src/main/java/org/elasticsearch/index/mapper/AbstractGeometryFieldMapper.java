@@ -89,7 +89,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper>
-        extends FieldMapper.Builder<T, Y> {
+            extends FieldMapper.Builder<T, Y> {
         protected Boolean coerce;
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
@@ -187,7 +187,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     public static class TypeParser implements Mapper.TypeParser {
         protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry, Map<String, Object> params)
-            throws MapperParsingException {
+                throws MapperParsingException {
             if (DeprecatedParameters.parse(name, entry.getKey(), entry.getValue(),
                 (DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY))) {
                 return true;

@@ -98,7 +98,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("inline", "code");
 
         factory.create(null, randomAlphaOfLength(10), configMap);
-        assertWarnings("[script][1:11] Deprecated field [inline] used, expected [source] instead");
+        assertWarnings("Deprecated field [inline] used, expected [source] instead");
     }
 
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {

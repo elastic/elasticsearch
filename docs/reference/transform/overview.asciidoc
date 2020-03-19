@@ -68,7 +68,7 @@ creates a new index that is dedicated to the transformed data.
 
 {transforms-cap} perform search aggregations on the source 
 indices then index the results into the destination index. Therefore, a 
-{transform} never will take less time than the cumulated duration of the 
+{transform} never takes less time than the cumulated duration of the 
 aggregation that it performs and the indexing process.
 
 For better performance, make sure that your search aggregations and queries are 

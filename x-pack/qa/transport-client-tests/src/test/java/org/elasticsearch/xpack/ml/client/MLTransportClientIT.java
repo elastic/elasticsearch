@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.client;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
@@ -66,6 +68,9 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         // Open job POST data, flush, close and check a result
         AcknowledgedResponse openJobResponse = mlClient.openJob(new OpenJobAction.Request(jobId)).actionGet();
         assertThat(openJobResponse.isAcknowledged(), equalTo(true));
+
+        // Assert transport client can read named writeables
+        client.admin().cluster().state(new ClusterStateRequest()).actionGet();
 
         String content = "{\"time\":1000, \"msg\": \"some categorical message\"}\n" +
                 "{\"time\":11000, \"msg\": \"some categorical message in the second bucket\"}\n" +
@@ -157,6 +162,9 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedId, new Date().getTime());
         AcknowledgedResponse startDataFeedResponse = mlClient.startDatafeed(startDatafeedRequest).actionGet();
         assertThat(startDataFeedResponse.isAcknowledged(), equalTo(true));
+
+        // Assert transport client can read named writeables
+        client.admin().cluster().state(new ClusterStateRequest()).actionGet();
 
         StopDatafeedAction.Response stopDataFeedResponse = mlClient.stopDatafeed(new StopDatafeedAction.Request(datafeedId)).actionGet();
         assertThat(stopDataFeedResponse.isStopped(), equalTo(true));

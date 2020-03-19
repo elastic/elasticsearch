@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -40,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -77,7 +77,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(
-            XPackClientPlugin.class,
+            LocalStateMachineLearning.class,
             Netty4Plugin.class,
             ReindexPlugin.class,
             // ILM is required for .ml-state template index settings

@@ -267,7 +267,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         BulkItemResponse irrecoverable = new BulkItemResponse(
             2,
             DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "fail", new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST)));
+            new BulkItemResponse.Failure("my-index", "_doc", "fail", new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST)));
         doAnswerWithResponses(
             new BulkResponse(new BulkItemResponse[]{irrecoverable, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
             new BulkResponse(new BulkItemResponse[0], 0L))

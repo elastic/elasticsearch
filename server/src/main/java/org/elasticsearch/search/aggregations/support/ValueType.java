@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Set;
 
+@Deprecated
 public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES,
@@ -42,7 +43,6 @@ public enum ValueType implements Writeable {
         new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS)),
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, DocValueFormat.IP),
-    // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
     GEOPOINT((byte) 8, "geo_point", "geo_point", CoreValuesSourceType.GEOPOINT, DocValueFormat.GEOHASH),
     BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.BOOLEAN, DocValueFormat.BOOLEAN),

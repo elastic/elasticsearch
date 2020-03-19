@@ -84,7 +84,7 @@ public class SubstringFunctionPipe extends Pipe {
         return start;
     }
     
-    public Pipe length() {
+    public Pipe end() {
         return end;
     }
 

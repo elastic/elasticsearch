@@ -37,8 +37,7 @@ final class StringUtils {
         }
         if (end < 0) {
             end = 0;
-        }
-        if (end > length) {
+        } else if (end > length) {
             end = length;
         }
 

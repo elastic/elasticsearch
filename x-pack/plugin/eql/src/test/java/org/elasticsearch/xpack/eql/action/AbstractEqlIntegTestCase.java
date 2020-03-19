@@ -12,9 +12,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
@@ -35,7 +35,7 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateEqlXPackPlugin.class);
+        return singletonList(LocalStateEqlXPackPlugin.class);
     }
 }
 

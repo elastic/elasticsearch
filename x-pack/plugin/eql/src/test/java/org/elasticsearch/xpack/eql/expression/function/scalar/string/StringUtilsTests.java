@@ -27,6 +27,16 @@ public class StringUtilsTests extends ESTestCase {
         assertEquals("", substringSlice(str, -15, -11));
     }
 
+    public void testSubstringSlicePositiveOverLength() {
+        String str = randomAlphaOfLength(10);
+        assertEquals("", substringSlice(str, 11, 14));
+    }
+
+    public void testSubstringHigherEndThanStartNegative() {
+        String str = randomAlphaOfLength(10);
+        assertEquals("", substringSlice(str, -20, -11));
+    }
+
     public void testSubstringRandomSlicePositive() {
         String str = randomAlphaOfLength(10);
         int start = randomInt(5);
@@ -47,7 +57,7 @@ public class StringUtilsTests extends ESTestCase {
         assertEquals(str.substring(0, 10 - 1), substringSlice(str, -start, -1));
     }
 
-    public void testEndHigherThanLenght() {
+    public void testEndHigherThanLength() {
         String str = randomAlphaOfLength(10);
         int end = 10 + randomInt(10);
         assertEquals(str, substringSlice(str, 0, end));

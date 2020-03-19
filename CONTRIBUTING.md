@@ -109,45 +109,24 @@ and `JAVA11_HOME` available so that the tests can pass.
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
 
-We support development in the Eclipse and IntelliJ IDEs. 
-For Eclipse, the minimum version that we support is [4.13][eclipse]. 
-For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in IntelliJ versions IntelliJ 2019.2 and
+onwards. We would like to support Eclipse, but few of us use it and has fallen
+into [disrepair][eclipse].
 
-Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Gradle : Existing Gradle Project`.
-Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying 
-`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
+### Importing the project into IntelliJ IDEA
 
-IntelliJ users can automatically configure their IDE: `./gradlew idea`
-then `File->New Project From Existing Sources`. Point to the root of
-the source directory, select
-`Import project from external model->Gradle`, enable
-`Use auto-import`. In order to run tests directly from
-IDEA 2017.2 and above, it is required to disable the IDEA run launcher in order to avoid
-`idea_rt.jar` causing "jar hell". This can be achieved by adding the
-`-Didea.no.launcher=true` [JVM
-option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties).
-Alternatively, `idea.no.launcher=true` can be set in the
-[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
-file which can be accessed under Help > Edit Custom Properties (this will require a
-restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations->...->Defaults->JUnit` and verify that the `Shorten command line` setting is set to
-`user-local default: none`. You may also need to [remove `ant-javafx.jar` from your
-classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
-reported as a source of jar hell.
+Elasticsearch builds using Java 12. Before importing into IntelliJ you will need
+to define an appropriate SDK. The convention is that **this SDK should be named
+"12"** so that the project import will detect it automatically. For more details
+on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+
+You can import the Elasticsearch project into IntelliJ IDEA via:
+
+ - Select **File > Open**
+ - In the subsequent dialog navigate to the root `build.gradle` file
+ - In the subsequent dialog select **Open as Project**
 
 To run an instance of elasticsearch from the source code run `./gradlew run`
-
-The Elasticsearch codebase makes heavy use of Java `assert`s and the
-test runner requires that assertions be enabled within the JVM. This
-can be accomplished by passing the flag `-ea` to the JVM on startup.
-
-For IntelliJ, go to
-`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
-`-ea`.
-
-For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
-`VM Arguments`.
 
 Please follow these formatting guidelines:
 
@@ -203,26 +182,9 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-You may find it helpful to configure your IDE to automatically insert the
-appropriate license header depending on the part of the project to which you are
-contributing.
-
-#### IntelliJ: Copyright & Scope Profiles
-
-To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
-These may potentially be called `apache2` and `commercial`. These can be created in
-`Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
-their respective directories, two "Scopes" will need to be created. These can be created in
-`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
-the `shared` scope type. Create a scope, `apache2`, with
-the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
-the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
-The two scopes, together, should account for all the files in the project. To associate the scopes
-with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
-the associations `apache2/apache2` and `commercial/commercial`.
-
-Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
-the settings window and/or restart IntelliJ to see your changes take effect.
+> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> be automatically configured to add the correct license header to new source
+> files based on the source location.
 
 ### Creating A Distribution
 

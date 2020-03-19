@@ -37,6 +37,7 @@ plugins {
 apply plugin: 'nebula.info-scm'
 apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
+apply from: 'gradle/ide.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -133,10 +134,9 @@ allprojects {
   project.ext {
     // for ide hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
-            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
-            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-            gradle.startParameter.taskNames.contains('cleanEclipse')
-    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
+      System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+      gradle.startParameter.taskNames.contains('cleanEclipse')
 
     // for BWC testing
     bwcVersions = versions
@@ -150,8 +150,8 @@ task verifyVersions {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
     }
-    // Read the list from maven central. 
-    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here 
+    // Read the list from maven central.
+    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
       bwcVersions.compareToAuthoritative(
@@ -397,40 +397,6 @@ gradle.projectsEvaluated {
   }
 }
 
-// intellij configuration
-allprojects {
-  apply plugin: 'idea'
-
-  if (isIdea) {
-    project.buildDir = file('build-idea')
-  }
-  idea {
-    module {
-      inheritOutputDirs = false
-      outputDir = file('build-idea/classes/main')
-      testOutputDir = file('build-idea/classes/test')
-
-      // also ignore other possible build dirs
-      excludeDirs += file('build')
-      excludeDirs += file('build-eclipse')
-    }
-  }
-
-  task cleanIdeaBuildDir(type: Delete) {
-    delete 'build-idea'
-  }
-  cleanIdeaBuildDir.setGroup("ide")
-  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
-
-  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
-}
-
-idea {
-  project {
-    vcs = 'Git'
-  }
-}
-
 // eclipse configuration
 allprojects {
   apply plugin: 'eclipse'
@@ -481,7 +447,7 @@ allprojects {
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 
-  // work arround https://github.com/gradle/gradle/issues/6582 
+  // work arround https://github.com/gradle/gradle/issues/6582
   tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
   tasks.matching { it.name == 'eclipseClasspath' }.all {
     it.mustRunAfter { tasks.cleanEclipseClasspath }
@@ -501,7 +467,7 @@ allprojects {
    * *is* needed for projects that depends on the project doing the shadowing.
    * Without this they won't properly depend on the shadowed project.
    */
-  if (isEclipse || isIdea) {
+  if (isEclipse) {
     project.plugins.withType(ShadowPlugin).whenPluginAdded {
       project.afterEvaluate {
         project.configurations.compile.extendsFrom project.configurations.bundle
@@ -604,14 +570,14 @@ allprojects {
 
 allprojects {
   task checkPart1
-  task checkPart2 
+  task checkPart2
   tasks.matching { it.name == "check" }.all { check ->
     if (check.path.startsWith(":x-pack:")) {
       checkPart2.dependsOn check
     } else {
       checkPart1.dependsOn check
     }
-  } 
+  }
 }
 
 

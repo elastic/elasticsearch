@@ -70,7 +70,7 @@
   - do:
       indices.get_alias:
         name: ".ml-anomalies-.write-job-crud-test-apis"
-  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: {} }
+  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: { is_hidden: true } }
 
   - do:
       ml.delete_job:

@@ -10,6 +10,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -183,6 +184,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         retainAllSnapshots("snapshots-retention-with-retain");
 
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountBeforeDelete =
@@ -231,6 +233,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
         long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
                 .get().getHits().getTotalHits().value;
         long totalNotificationsCountAfterDelete =

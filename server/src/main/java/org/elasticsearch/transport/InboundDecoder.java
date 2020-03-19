@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +33,7 @@ import java.util.function.Consumer;
 public class InboundDecoder implements Releasable {
 
     static final Object PING = new Object();
-    static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
+    static final Object END_CONTENT = new Object();
 
     private final PageCacheRecycler recycler;
     private TransportDecompressor decompressor;

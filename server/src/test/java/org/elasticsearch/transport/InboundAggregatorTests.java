@@ -74,8 +74,8 @@ public class InboundAggregatorTests extends ESTestCase {
         }
     }
 
-    public void testInboundAggregation() throws IOException {
-        long requestId = randomLong();
+    public void testInboundAggregation() {
+        long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         // Initiate Message
         aggregator.headerReceived(header);
@@ -85,7 +85,7 @@ public class InboundAggregatorTests extends ESTestCase {
         assertNull(aggregated);
 
         // Signal EOS
-        aggregated = aggregator.aggregate(InboundDecoder.END_CONTENT);
+        aggregated = aggregator.finishAggregation();
 
         assertThat(aggregated, notNullValue());
         assertFalse(aggregated.isPing());

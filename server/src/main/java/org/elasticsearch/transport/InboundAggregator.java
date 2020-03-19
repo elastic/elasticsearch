@@ -44,19 +44,21 @@ public class InboundAggregator implements Releasable {
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
-        } else if (content != InboundDecoder.END_CONTENT) {
+        } else {
             contentAggregation.add(content.retain());
             return null;
-        } else {
-            final ReleasableBytesReference[] releasableReferences = contentAggregation.toArray(new ReleasableBytesReference[0]);
-            CompositeBytesReference aggregatedContent = new CompositeBytesReference(releasableReferences);
-            ReleasableBytesReference releasableAggregatedContent = new ReleasableBytesReference(aggregatedContent,
-                () -> Releasables.close(releasableReferences));
-            final AggregatedMessage aggregated = new AggregatedMessage(currentHeader, releasableAggregatedContent, false);
-            contentAggregation.clear();
-            currentHeader = null;
-            return aggregated;
         }
+    }
+
+    public AggregatedMessage finishAggregation() {
+        final ReleasableBytesReference[] releasableReferences = contentAggregation.toArray(new ReleasableBytesReference[0]);
+        CompositeBytesReference aggregatedContent = new CompositeBytesReference(releasableReferences);
+        ReleasableBytesReference releasableAggregatedContent = new ReleasableBytesReference(aggregatedContent,
+            () -> Releasables.close(releasableReferences));
+        final AggregatedMessage aggregated = new AggregatedMessage(currentHeader, releasableAggregatedContent, false);
+        contentAggregation.clear();
+        currentHeader = null;
+        return aggregated;
     }
 
     public boolean isAggregating() {

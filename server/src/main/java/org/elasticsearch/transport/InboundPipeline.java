@@ -81,7 +81,7 @@ public class InboundPipeline implements Releasable {
                     forwardFragments(channel, fragments);
                 } finally {
                     for (Object fragment : fragments) {
-                        if (fragment != InboundDecoder.END_CONTENT && fragment instanceof ReleasableBytesReference) {
+                        if (fragment instanceof ReleasableBytesReference) {
                             ((ReleasableBytesReference) fragment).close();
                         }
                     }
@@ -97,18 +97,21 @@ public class InboundPipeline implements Releasable {
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) {
         for (Object fragment : fragments) {
             if (fragment instanceof Header) {
+                assert aggregator.isAggregating() == false;
                 aggregator.headerReceived((Header) fragment);
             } else if (fragment == InboundDecoder.PING) {
                 assert aggregator.isAggregating() == false;
                 messageHandler.accept(channel, PING_MESSAGE);
-            } else {
-                assert fragment instanceof ReleasableBytesReference;
-                final AggregatedMessage aggregated = aggregator.aggregate((ReleasableBytesReference) fragment);
-                if (aggregated != null) {
-                    try (Releasable toClose = aggregated.getContent()) {
-                        messageHandler.accept(channel, aggregated);
-                    }
+            } else if (fragment == InboundDecoder.END_CONTENT) {
+                assert aggregator.isAggregating();
+                final AggregatedMessage aggregated = aggregator.finishAggregation();
+                try (Releasable toClose = aggregated.getContent()) {
+                    messageHandler.accept(channel, aggregated);
                 }
+            } else {
+                assert aggregator.isAggregating();
+                assert fragment instanceof ReleasableBytesReference;
+                aggregator.aggregate((ReleasableBytesReference) fragment);
             }
         }
     }

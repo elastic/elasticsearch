@@ -32,7 +32,8 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.transport.InboundAggregator;
-import org.elasticsearch.transport.InboundDecoder3;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
@@ -46,17 +47,15 @@ import java.util.Queue;
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
-    private final InboundAggregator aggregator;
-    private final InboundDecoder3 decoder;
 
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private WriteOperation currentWrite;
+    private final InboundPipeline pipeline;
 
     Netty4MessageChannelHandler(PageCacheRecycler pageCacheRecycler, Netty4Transport transport) {
         this.transport = transport;
-        this.aggregator = new InboundAggregator();
-        this.decoder = new InboundDecoder3(aggregator, pageCacheRecycler);
+        this.pipeline = new InboundPipeline(new InboundDecoder(pageCacheRecycler), new InboundAggregator(), transport::inboundMessage);
     }
 
     @Override
@@ -72,7 +71,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 buffer.retain();
                 final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
                 try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::release)) {
-                    bytesHandled = decoder.handle(channel, reference);
+                    bytesHandled = pipeline.handleBytes(channel, reference);
                 }
                 buffer.readerIndex(buffer.readerIndex() + bytesHandled);
             }
@@ -120,7 +119,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         doFlush(ctx);
-        Releasables.closeWhileHandlingException(decoder, aggregator);
+        Releasables.closeWhileHandlingException(pipeline);
         super.channelInactive(ctx);
     }
 

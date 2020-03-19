@@ -40,9 +40,9 @@ public class InboundPipelineTests extends ESTestCase {
 
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-    ;
 
     public void testPipelineHandling() throws IOException {
+        // TODO: Add header tests
         final InboundDecoder decoder = new InboundDecoder();
         final InboundAggregator aggregator = new InboundAggregator();
         final List<MessageData> expected = new ArrayList<>();
@@ -142,7 +142,7 @@ public class InboundPipelineTests extends ESTestCase {
         private final String value;
         private final String actionName;
 
-        public MessageData(long requestId, boolean isRequest, boolean isCompressed, String actionName, String value) {
+        private MessageData(long requestId, boolean isRequest, boolean isCompressed, String actionName, String value) {
             this.requestId = requestId;
             this.isRequest = isRequest;
             this.isCompressed = isCompressed;

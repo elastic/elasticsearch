@@ -60,6 +60,21 @@ public class ParseFieldTests extends ESTestCase {
         assertWarnings("Deprecated field [like_text] used, replaced by [like]");
     }
 
+    public void testDeprecatedWithNoReplacement() {
+        String name = "dep";
+        String[] alternatives = new String[]{"old_dep", "new_dep"};
+        ParseField field = new ParseField(name).withDeprecation(alternatives).withAllDeprecated();
+        assertFalse(field.match("not a field name", LoggingDeprecationHandler.INSTANCE));
+        assertTrue(field.match("dep", LoggingDeprecationHandler.INSTANCE));
+        assertWarnings("Deprecated field [dep] used, which has been removed entirely");
+        assertTrue(field.match("old_dep", LoggingDeprecationHandler.INSTANCE));
+        assertWarnings("Deprecated field [old_dep] used, which has been removed entirely");
+        assertTrue(field.match("new_dep", LoggingDeprecationHandler.INSTANCE));
+        assertWarnings("Deprecated field [new_dep] used, which has been removed entirely");
+
+
+    }
+
     public void testGetAllNamesIncludedDeprecated() {
         ParseField parseField = new ParseField("terms", "in");
         assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("terms", "in"));

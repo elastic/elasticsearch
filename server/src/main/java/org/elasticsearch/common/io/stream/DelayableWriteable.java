@@ -91,7 +91,23 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
+            if (out.getVersion() == remoteVersion) {
+                /*
+                 * If the version *does* line up we can just copy the bytes
+                 * which is good because this is how shard request caching
+                 * works.
+                 */
+                out.writeBytesReference(serialized);
+            } else {
+                /*
+                 * If the version doesn't line up then we have to deserialize
+                 * into the Writeable and re-serialize it against the new
+                 * output stream so it can apply any backwards compatibility
+                 * differences in the wire protocol. This ain't efficient but
+                 * it should be quite rare.
+                 */
+                referencing(get()).writeTo(out);
+            }
         }
 
         @Override

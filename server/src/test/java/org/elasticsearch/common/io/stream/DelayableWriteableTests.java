@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -96,18 +97,49 @@ public class DelayableWriteableTests extends ESTestCase {
         }
     }
 
-    public void testRoundTrip() throws IOException {
+    public void testRoundTripFromReferencing() throws IOException {
         Example e = new Example(randomAlphaOfLength(5));
-        roundTripTestCase(DelayableWriteable.referencing(e), Example::new);
+        DelayableWriteable<Example> original = DelayableWriteable.referencing(e);
+        assertFalse(original.isDelayed());
+        roundTripTestCase(original, Example::new);
     }
 
-    public void testRoundTripWithNamedWriteable() throws IOException {
+    public void testRoundTripFromReferencingWithNamedWriteable() throws IOException {
         NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
-        roundTripTestCase(DelayableWriteable.referencing(n), NamedHolder::new);
+        DelayableWriteable<NamedHolder> original = DelayableWriteable.referencing(n);
+        assertFalse(original.isDelayed());
+        roundTripTestCase(original, NamedHolder::new);
+    }
+
+    public void testRoundTripFromDelayed() throws IOException {
+        Example e = new Example(randomAlphaOfLength(5));
+        DelayableWriteable<Example> original = roundTrip(DelayableWriteable.referencing(e), Example::new, Version.CURRENT);
+        assertTrue(original.isDelayed());
+        roundTripTestCase(original, Example::new);
+    }
+
+    public void testRoundTripFromDelayedWithNamedWriteable() throws IOException {
+        NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
+        DelayableWriteable<NamedHolder> original = roundTrip(DelayableWriteable.referencing(n), NamedHolder::new, Version.CURRENT);
+        assertTrue(original.isDelayed());
+        roundTripTestCase(original, NamedHolder::new);
+    }
+
+    public void testRoundTripFromDelayedFromOldVersion() throws IOException {
+        Example e = new Example(randomAlphaOfLength(5));
+        DelayableWriteable<Example> original = roundTrip(DelayableWriteable.referencing(e), Example::new, randomOldVersion());
+        assertTrue(original.isDelayed());
+        roundTripTestCase(original, Example::new);
+    }
+
+    public void testRoundTripFromDelayedFromOldVersionWithNamedWriteable() throws IOException {
+        NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
+        DelayableWriteable<NamedHolder> original = roundTrip(DelayableWriteable.referencing(n), NamedHolder::new, randomOldVersion());
+        assertTrue(original.isDelayed());
+        roundTripTestCase(original, NamedHolder::new);
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
-        assertFalse(original.isDelayed());
         DelayableWriteable<T> roundTripped = roundTrip(original, reader, Version.CURRENT);
         assertTrue(roundTripped.isDelayed());
         assertThat(roundTripped.get(), equalTo(original.get()));
@@ -123,5 +155,9 @@ public class DelayableWriteableTests extends ESTestCase {
     protected NamedWriteableRegistry writableRegistry() {
         return new NamedWriteableRegistry(singletonList(
                 new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
+    }
+
+    private static Version randomOldVersion() {
+        return randomValueOtherThanMany(Version.CURRENT::before, () -> VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
     }
 }

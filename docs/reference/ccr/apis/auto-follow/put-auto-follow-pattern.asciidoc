@@ -34,7 +34,7 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 [source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/auto_follow_pattern_name
------------ClusterIdConverter---------------------------------------
+--------------------------------------------------
 // TEST[continued]
 
 //////////////////////////

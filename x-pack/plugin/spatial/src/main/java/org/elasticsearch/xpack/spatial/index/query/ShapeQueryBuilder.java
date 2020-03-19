@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -138,7 +139,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
         }
 
         final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return ft.geometryQueryBuilder().process(shape, ft.name(), relation, context);
+        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, ft.name(), relation, context));
     }
 
     @Override

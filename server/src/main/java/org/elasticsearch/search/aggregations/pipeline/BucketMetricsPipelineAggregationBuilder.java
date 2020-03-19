@@ -117,14 +117,14 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
         Optional<AggregationBuilder> aggBuilder = context.getSiblingAggregations().stream()
                 .filter(builder -> builder.getName().equals(firstAgg))
                 .findAny();
-        if (aggBuilder.isPresent()) {
-            if ((aggBuilder.get() instanceof MultiBucketAggregationBuilder) == false) {
-                context.addValidationError("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must be a multi-bucket aggregation for aggregation [" + name + "] found :"
-                        + aggBuilder.get().getClass().getName() + " for buckets path: " + bucketsPaths[0]);
-            }
-        } else {
+        if (aggBuilder.isEmpty()) {
             context.addBucketPathValidationError("aggregation does not exist for aggregation [" + name + "]: " + bucketsPaths[0]);
+            return;
+        }
+        if ((aggBuilder.get() instanceof MultiBucketAggregationBuilder) == false) {
+            context.addValidationError("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " must be a multi-bucket aggregation for aggregation [" + name + "] found :"
+                    + aggBuilder.get().getClass().getName() + " for buckets path: " + bucketsPaths[0]);
         }
     }
 

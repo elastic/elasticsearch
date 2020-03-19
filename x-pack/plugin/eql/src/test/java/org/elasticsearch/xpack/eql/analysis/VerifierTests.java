@@ -131,8 +131,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:26: Unknown function [substring]",
-                error("foo where user_domain == substring('abcdfeg', 0, 5)"));
         assertEquals("1:25: Unknown function [endsWith]",
                 error("file where opcode=0 and endsWith(file_name, 'loREr.exe')"));
         assertEquals("1:25: Unknown function [startsWith]",
@@ -143,7 +141,7 @@ public class VerifierTests extends ESTestCase {
                 error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",
                 error("process where add(serial_event_id, 0) == 1"));
-        assertEquals("1:15: Unknown function [subtract]",
+        assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",
                 error("process where subtract(serial_event_id, -5) == 6"));
         assertEquals("1:15: Unknown function [multiply]",
                 error("process where multiply(6, serial_event_id) == 30"));

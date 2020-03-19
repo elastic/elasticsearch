@@ -26,7 +26,9 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Nullable
     private final String id;
     private final int version;
+    @Nullable
     private final SearchResponse searchResponse;
+    @Nullable
     private final ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;

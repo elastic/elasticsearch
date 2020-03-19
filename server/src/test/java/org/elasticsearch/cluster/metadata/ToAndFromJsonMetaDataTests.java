@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
@@ -122,6 +123,14 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         new CompressedXContent("{\"baz\":\"eggplant\"}"),
                         Collections.singletonMap("alias", AliasMetaData.builder("alias").build())),
                     5L, Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar"))))
+                .put("index_templatev2", new IndexTemplateV2(Arrays.asList("foo", "bar*"),
+                    new Template(Settings.builder().put("setting", "value").build(),
+                        new CompressedXContent("{\"baz\":\"eggplant\"}"),
+                        Collections.singletonMap("alias", AliasMetaData.builder("alias").build())),
+                    Collections.singletonList("component_template"),
+                    5L,
+                    4L,
+                    Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken"))))
                 .put(IndexMetaData.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
@@ -298,6 +307,19 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(parsedMetaData.componentTemplates().get("component_template").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar"))));
         assertThat(parsedMetaData.componentTemplates().get("component_template").template(),
+            equalTo(new Template(Settings.builder().put("setting", "value").build(),
+                new CompressedXContent("{\"baz\":\"eggplant\"}"),
+                Collections.singletonMap("alias", AliasMetaData.builder("alias").build()))));
+
+        // index template v2
+        assertNotNull(parsedMetaData.templatesV2().get("index_templatev2"));
+        assertThat(parsedMetaData.templatesV2().get("index_templatev2").priority(), is(5L));
+        assertThat(parsedMetaData.templatesV2().get("index_templatev2").version(), is(4L));
+        assertThat(parsedMetaData.templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
+        assertThat(parsedMetaData.templatesV2().get("index_templatev2").composedOf(), is(Collections.singletonList("component_template")));
+        assertThat(parsedMetaData.templatesV2().get("index_templatev2").metadata(),
+            equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken"))));
+        assertThat(parsedMetaData.templatesV2().get("index_templatev2").template(),
             equalTo(new Template(Settings.builder().put("setting", "value").build(),
                 new CompressedXContent("{\"baz\":\"eggplant\"}"),
                 Collections.singletonMap("alias", AliasMetaData.builder("alias").build()))));

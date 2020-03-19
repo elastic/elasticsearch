@@ -19,31 +19,17 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
 import java.util.ArrayList;
-import java.util.function.BiConsumer;
 
 public class InboundAggregator implements Releasable {
 
-    private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, BytesArray.EMPTY, true);
-
-    private final BiConsumer<TcpChannel,AggregatedMessage> messageConsumer;
     private final ArrayList<ReleasableBytesReference> contentAggregation = new ArrayList<>();
     private Header currentHeader;
-
-    public InboundAggregator(BiConsumer<TcpChannel, AggregatedMessage> messageConsumer) {
-        this.messageConsumer = messageConsumer;
-    }
-
-    public void pingReceived(TcpChannel channel) {
-        this.messageConsumer.accept(channel, PING_MESSAGE);
-    }
 
     public void headerReceived(Header header) {
         if (currentHeader != null) {
@@ -54,24 +40,28 @@ public class InboundAggregator implements Releasable {
         currentHeader = header;
     }
 
-    public void contentReceived(TcpChannel channel, ReleasableBytesReference content) {
+    public AggregatedMessage aggregate(ReleasableBytesReference content) {
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
-        } else if (content != InboundDecoder.END_CONTENT) {
+        } else if (content != InboundDecoder2.END_CONTENT) {
             contentAggregation.add(content);
+            return null;
         } else {
-            CompositeBytesReference aggregatedContent = new CompositeBytesReference(contentAggregation.toArray(new BytesReference[0]));
-            try {
-                messageConsumer.accept(channel, new AggregatedMessage(currentHeader, aggregatedContent, false));
-            } finally {
-                Releasables.close(contentAggregation);
-                contentAggregation.clear();
-                currentHeader = null;
-            }
+            final ReleasableBytesReference[] releasableReferences = contentAggregation.toArray(new ReleasableBytesReference[0]);
+            CompositeBytesReference aggregatedContent = new CompositeBytesReference(releasableReferences);
+            ReleasableBytesReference releasableAggregatedContent = new ReleasableBytesReference(aggregatedContent,
+                () -> Releasables.close(releasableReferences));
+            final AggregatedMessage aggregated = new AggregatedMessage(currentHeader, releasableAggregatedContent, false);
+            contentAggregation.clear();
+            currentHeader = null;
+            return aggregated;
         }
     }
 
+    public boolean isAggregating() {
+        return currentHeader != null;
+    }
 
     @Override
     public void close() {

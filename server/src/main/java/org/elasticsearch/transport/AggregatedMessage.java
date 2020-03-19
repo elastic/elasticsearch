@@ -19,16 +19,16 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 public class AggregatedMessage {
 
     private final Header header;
-    private final BytesReference content;
+    private final ReleasableBytesReference content;
     private final Exception exception;
     private final boolean isPing;
 
-    public AggregatedMessage(Header header, BytesReference content, boolean isPing) {
+    public AggregatedMessage(Header header, ReleasableBytesReference content, boolean isPing) {
         this.header = header;
         this.content = content;
         this.exception = null;
@@ -39,7 +39,7 @@ public class AggregatedMessage {
         return header;
     }
 
-    public BytesReference getContent() {
+    public ReleasableBytesReference getContent() {
         return content;
     }
 

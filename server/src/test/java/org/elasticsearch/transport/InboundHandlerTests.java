@@ -23,7 +23,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -81,7 +80,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
         handler.registerRequestHandler(registry);
 
-        handler.inboundMessage(channel, new AggregatedMessage(null, BytesArray.EMPTY, true));
+//        handler.inboundMessage(channel, new AggregatedMessage(null, BytesArray.EMPTY, true));
         assertEquals(1, handler.getReadBytes().count());
         assertEquals(6, handler.getReadBytes().sum());
         if (channel.isServerChannel()) {
@@ -134,7 +133,8 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, requestContent, false);
+        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, null, false);
+//        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, requestContent, false);
         handler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
@@ -154,7 +154,8 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, version);
-        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, responseContent, false);
+        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, null, false);
+//        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, responseContent, false);
         handler.inboundMessage(channel, responseMessage);
 
         if (isError) {

@@ -55,7 +55,7 @@ public class InboundDecoder implements Releasable {
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
-                aggregator.pingReceived(channel);
+//                aggregator.pingReceived(channel);
                 return 6;
             } else {
                 int headerBytesToRead = headerBytesToRead(reference);
@@ -116,7 +116,7 @@ public class InboundDecoder implements Releasable {
         if (content.length() == 0) {
             content.close();
         } else {
-            aggregator.contentReceived(channel, content);
+//            aggregator.contentReceived(channel, content);
         }
     }
 
@@ -124,7 +124,7 @@ public class InboundDecoder implements Releasable {
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
-        aggregator.contentReceived(channel, END_CONTENT);
+//        aggregator.contentReceived(channel, END_CONTENT);
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {

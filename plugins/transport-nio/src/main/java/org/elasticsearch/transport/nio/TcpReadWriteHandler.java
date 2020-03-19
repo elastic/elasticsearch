@@ -44,7 +44,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
-        this.aggregator = new InboundAggregator(transport::inboundMessage);
+        this.aggregator = new InboundAggregator();
         this.decoder = new InboundDecoder(aggregator, recycler);
     }
 

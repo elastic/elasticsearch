@@ -276,7 +276,7 @@ public class MockNioTransport extends TcpTransport {
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
-            this.aggregator = new InboundAggregator(transport::inboundMessage);
+            this.aggregator = new InboundAggregator();
             this.decoder = new InboundDecoder(aggregator, recycler);
         }
 

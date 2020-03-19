@@ -55,7 +55,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     Netty4MessageChannelHandler(PageCacheRecycler pageCacheRecycler, Netty4Transport transport) {
         this.transport = transport;
-        this.aggregator = new InboundAggregator(transport::inboundMessage);
+        this.aggregator = new InboundAggregator();
         this.decoder = new InboundDecoder(aggregator, pageCacheRecycler);
     }
 

@@ -31,25 +31,20 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class InboundAggregatorTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final AtomicReference<AggregatedMessage> message = new AtomicReference<>();
     private InboundAggregator aggregator;
 
     @Before
     @Override
-    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        aggregator = new InboundAggregator((c, a) -> message.set(a));
+        aggregator = new InboundAggregator();
     }
 
     @After
@@ -74,7 +69,7 @@ public class InboundAggregatorTests extends ESTestCase {
             streamOutput.write(randomByteArrayOfLength(10));
             expectThrows(IllegalStateException.class, () -> {
                 ReleasableBytesReference content = new ReleasableBytesReference(streamOutput.bytes(), () -> {});
-                aggregator.contentReceived(mock(TcpChannel.class), content);
+                aggregator.aggregate(content);
             });
         }
     }
@@ -85,25 +80,17 @@ public class InboundAggregatorTests extends ESTestCase {
         // Initiate Message
         aggregator.headerReceived(header);
 
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-            threadPool.getThreadContext().writeTo(streamOutput);
-            streamOutput.writeString("action_name");
-            streamOutput.write(randomByteArrayOfLength(10));
-            aggregator.contentReceived(mock(TcpChannel.class), new ReleasableBytesReference(streamOutput.bytes(), () -> {}));
-        }
-
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
-        aggregator.contentReceived(mock(TcpChannel.class), new ReleasableBytesReference(bytes, () -> {}));
-
-        assertThat(message.get(), nullValue());
+        AggregatedMessage aggregated = aggregator.aggregate(new ReleasableBytesReference(bytes, () -> {}));
+        assertNull(aggregated);
 
         // Signal EOS
-        aggregator.contentReceived(mock(TcpChannel.class), InboundDecoder.END_CONTENT);
+        aggregated = aggregator.aggregate(InboundDecoder2.END_CONTENT);
 
-        assertThat(message.get(), notNullValue());
-        assertFalse(message.get().isPing());
-        assertTrue(message.get().getHeader().isRequest());
-        assertThat(message.get().getHeader().getRequestId(), equalTo(requestId));
-        assertThat(message.get().getHeader().getVersion(), equalTo(Version.CURRENT));
+        assertThat(aggregated, notNullValue());
+        assertFalse(aggregated.isPing());
+        assertTrue(aggregated.getHeader().isRequest());
+        assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
+        assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
     }
 }

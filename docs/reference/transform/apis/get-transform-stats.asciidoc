@@ -77,7 +77,8 @@ informational; you cannot update their values.
 `checkpointing`::
 (object) Contains statistics about <<transform-checkpoints,checkpoints>>.
 `checkpointing`.`changes_last_detected_at`:::
-(date) The timestamp when changes were last detected in the source indices.
+(date)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
 `checkpointing`.`last`:::
 (object) Contains statistics about the last completed checkpoint. 
 `checkpointing`.`last`.`checkpoint`::::
@@ -128,18 +129,8 @@ started.
 (string) The host and port where transport HTTP connections are accepted. For
 example, `127.0.0.1:9300`.
 `state`::
-(string) The status of the {transform}, which can be one of the following values:
-+
---
-* `aborting`: The {transform} is aborting.
-* `failed`: The {transform} failed. For more information about the failure,
-check the reason field.
-* `indexing`: The {transform} is actively processing data and creating new
-documents.
-* `started`: The {transform} is running but not actively indexing data.
-* `stopped`: The {transform} is stopped.
-* `stopping`: The {transform} is stopping.
---
+(string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 `stats`::
 (object) An object that provides statistical information about the {transform}.
@@ -150,28 +141,35 @@ for the {transform}.
 (long) The number of documents that have been processed from the source index of
 the {transform}.
 `stats`.`exponential_avg_checkpoint_duration_ms`:::
-(double) Exponential moving average of the duration of the checkpoint, in milliseconds.
+(double)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
 `stats`.`exponential_avg_documents_indexed`:::
-(double) Exponential moving average of the number of new documents that have been
-indexed.
+(double)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 `stats`.`exponential_avg_documents_processed`:::
-(double) Exponential moving average of the number of documents that have been
-processed.
+(double)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
 `stats`.`index_failures`:::
-(long) The number of indexing failures.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-failures]
 `stats`.`index_time_in_ms`:::
-(long) The amount of time spent indexing, in milliseconds.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
 `stats`.`index_total`:::
-(long) The number of indices created.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
 `stats`.`pages_processed`:::
-(long) The number of search or bulk index operations processed. Documents are
-processed in batches instead of individually.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 `stats`.`search_failures`:::
-(long) The number of search failures. 
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]
 `stats`.`search_time_in_ms`:::
-(long) The amount of time spent searching, in milliseconds.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
 `stats`.`search_total`:::
-(long) The number of search operations on the source index for the {transform}. 
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-total]
 `stats`.`trigger_count`:::
 (long) The number of times the {transform} has been triggered by the scheduler.
 For example, the scheduler triggers the {transform} indexer to check for updates

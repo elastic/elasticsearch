@@ -73,18 +73,18 @@ import java.util.Set;
 public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
-    private String overridenFields;
+    private String esmessagefields;
 
     protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
         super(charset);
-        this.overridenFields = String.join(",",overrideFields);
+        this.esmessagefields = String.join(",",overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
                                           .withPattern(pattern(typeName, overrideFields))
                                           .withAlwaysWriteExceptions(false)
                                           .build();
     }
 
-    private String pattern(String type, String[] overrideFields) {
+    private String pattern(String type, String[] esmessagefields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -98,12 +98,12 @@ public class ESJsonLayout extends AbstractStringLayout {
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
 
-        // overridden fields are expected to be present in a log message
-        for (String key : overrideFields) {
+        // esmessagefields are treated as potentially overriding
+        for (String key : esmessagefields) {
             map.remove(key);
         }
 
-        return createPattern(map, Set.of(overrideFields));
+        return createPattern(map, Set.of(esmessagefields));
     }
 
 
@@ -126,7 +126,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             separator = ", ";
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
-        sb.append(notEmpty(", %CustomMapFields{"+overridenFields+"} "));
+        sb.append(notEmpty(", %CustomMapFields "));
         sb.append("%exceptionAsJson ");
         sb.append("}");
         sb.append(System.lineSeparator());
@@ -171,7 +171,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginAttribute(value = "charset", defaultString = "UTF-8")
         Charset charset;
 
-        @PluginAttribute("overrideFields")
+        @PluginAttribute("esmessagefields")
         private String overrideFields;
 
         public Builder() {

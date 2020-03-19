@@ -20,6 +20,8 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Chars;
+import org.apache.logging.log4j.util.StringBuilders;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,16 +65,26 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return this;
     }
 
-//    @Override
-//    protected void appendMap(final StringBuilder sb) {
-//        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
-//        sb.append(message);
-//    }
-
-    //taken from super.asJson without the wrapping '{' '}'
-    @Override
-    protected void asJson(StringBuilder sb) {
-        super.asJson(sb);
+    /**
+     * This method is used in order to support ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
+     * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
+     * @param sb a string builder where JSON fields will be attached
+     */
+    protected void addJsonNoBrackets(StringBuilder sb) {
+        for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(Chars.DQUOTE);
+            int start = sb.length();
+            sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));
+            StringBuilders.escapeJson(sb, start);
+            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
+            start = sb.length();
+            sb.append((Object) getIndexedReadOnlyStringMap().getValueAt(i));
+            StringBuilders.escapeJson(sb, start);
+            sb.append(Chars.DQUOTE);
+        }
     }
 
     public static String inQuotes(String s) {

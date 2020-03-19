@@ -439,7 +439,8 @@ public class RestHighLevelClient implements Closeable {
     /**
      * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
      * <p>
-     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>
+     * for more information.
      */
     public AsyncSearchClient asyncSearch() {
         return asyncSearchClient;

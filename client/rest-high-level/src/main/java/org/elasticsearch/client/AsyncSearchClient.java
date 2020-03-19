@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.AsyncSearchResponse;
+import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 
 import java.io.IOException;
 
@@ -34,10 +34,9 @@ public class AsyncSearchClient {
         this.restHighLevelClient = restHighLevelClient;
     }
 
-    // TODO add docs url
     /**
      * Submit a new async search request.
-     * See <a href="todo"> the docs</a> for more.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -48,10 +47,9 @@ public class AsyncSearchClient {
                 AsyncSearchResponse::fromXContent, emptySet());
     }
 
-    // TODO add docs url
     /**
      * Asynchronously submit a new async search request.
-     * See <a href="todo"> the docs</a> for more.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> the docs</a> for more.
      * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high-ilm-ilm-get-lifecycle-policy.html">
      * the docs</a> for more.
      * @param request the request

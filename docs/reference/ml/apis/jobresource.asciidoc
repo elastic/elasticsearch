@@ -302,9 +302,10 @@ A data description object has the following properties:
 
 `time_format`::
   (string) The time format, which can be `epoch`, `epoch_ms`, or a custom pattern.
-  The default value is `epoch`, which refers to UNIX or Epoch time (the number of seconds
-  since 1 Jan 1970).
-  The value `epoch_ms` indicates that time is measured in milliseconds since the epoch.
+  The default value is `epoch_ms`, which refers to milliseconds since the epoch 
+  (the number of milliseconds since 1 Jan 1970).
+  The value `epoch_ms` indicates that time is measured in milliseconds since the 
+  epoch.
   The `epoch` and `epoch_ms` time formats accept either integer or real values. +
 +
 --

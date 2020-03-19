@@ -65,8 +65,6 @@ subprojects {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
-  restXpackSpecs
-  restXpackTests
 }
 
 artifacts {

@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Hyperparameters implements ToXContentObject {
 
@@ -53,72 +53,72 @@ public class Hyperparameters implements ToXContentObject {
         true,
         a -> new Hyperparameters(
             (String) a[0],
-            (double) a[1],
-            (double) a[2],
-            (double) a[3],
-            (double) a[4],
-            (int) a[5],
-            (int) a[6],
-            (int) a[7],
-            (int) a[8],
-            (int) a[9],
-            (double) a[10],
-            (double) a[11],
-            (double) a[12],
-            (double) a[13],
-            (double) a[14]
+            (Double) a[1],
+            (Double) a[2],
+            (Double) a[3],
+            (Double) a[4],
+            (Integer) a[5],
+            (Integer) a[6],
+            (Integer) a[7],
+            (Integer) a[8],
+            (Integer) a[9],
+            (Double) a[10],
+            (Double) a[11],
+            (Double) a[12],
+            (Double) a[13],
+            (Double) a[14]
         ));
 
     static {
-        PARSER.declareString(constructorArg(), CLASS_ASSIGNMENT_OBJECTIVE);
-        PARSER.declareDouble(constructorArg(), DOWNSAMPLE_FACTOR);
-        PARSER.declareDouble(constructorArg(), ETA);
-        PARSER.declareDouble(constructorArg(), ETA_GROWTH_RATE_PER_TREE);
-        PARSER.declareDouble(constructorArg(), FEATURE_BAG_FRACTION);
-        PARSER.declareInt(constructorArg(), MAX_ATTEMPTS_TO_ADD_TREE);
-        PARSER.declareInt(constructorArg(), MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER);
-        PARSER.declareInt(constructorArg(), MAX_TREES);
-        PARSER.declareInt(constructorArg(), NUM_FOLDS);
-        PARSER.declareInt(constructorArg(), NUM_SPLITS_PER_FEATURE);
-        PARSER.declareDouble(constructorArg(), REGULARIZATION_DEPTH_PENALTY_MULTIPLIER);
-        PARSER.declareDouble(constructorArg(), REGULARIZATION_LEAF_WEIGHT_PENALTY_MULTIPLIER);
-        PARSER.declareDouble(constructorArg(), REGULARIZATION_SOFT_TREE_DEPTH_LIMIT);
-        PARSER.declareDouble(constructorArg(), REGULARIZATION_SOFT_TREE_DEPTH_TOLERANCE);
-        PARSER.declareDouble(constructorArg(), REGULARIZATION_TREE_SIZE_PENALTY_MULTIPLIER);
+        PARSER.declareString(optionalConstructorArg(), CLASS_ASSIGNMENT_OBJECTIVE);
+        PARSER.declareDouble(optionalConstructorArg(), DOWNSAMPLE_FACTOR);
+        PARSER.declareDouble(optionalConstructorArg(), ETA);
+        PARSER.declareDouble(optionalConstructorArg(), ETA_GROWTH_RATE_PER_TREE);
+        PARSER.declareDouble(optionalConstructorArg(), FEATURE_BAG_FRACTION);
+        PARSER.declareInt(optionalConstructorArg(), MAX_ATTEMPTS_TO_ADD_TREE);
+        PARSER.declareInt(optionalConstructorArg(), MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER);
+        PARSER.declareInt(optionalConstructorArg(), MAX_TREES);
+        PARSER.declareInt(optionalConstructorArg(), NUM_FOLDS);
+        PARSER.declareInt(optionalConstructorArg(), NUM_SPLITS_PER_FEATURE);
+        PARSER.declareDouble(optionalConstructorArg(), REGULARIZATION_DEPTH_PENALTY_MULTIPLIER);
+        PARSER.declareDouble(optionalConstructorArg(), REGULARIZATION_LEAF_WEIGHT_PENALTY_MULTIPLIER);
+        PARSER.declareDouble(optionalConstructorArg(), REGULARIZATION_SOFT_TREE_DEPTH_LIMIT);
+        PARSER.declareDouble(optionalConstructorArg(), REGULARIZATION_SOFT_TREE_DEPTH_TOLERANCE);
+        PARSER.declareDouble(optionalConstructorArg(), REGULARIZATION_TREE_SIZE_PENALTY_MULTIPLIER);
     }
 
     private final String classAssignmentObjective;
-    private final double downsampleFactor;
-    private final double eta;
-    private final double etaGrowthRatePerTree;
-    private final double featureBagFraction;
-    private final int maxAttemptsToAddTree;
-    private final int maxOptimizationRoundsPerHyperparameter;
-    private final int maxTrees;
-    private final int numFolds;
-    private final int numSplitsPerFeature;
-    private final double regularizationDepthPenaltyMultiplier;
-    private final double regularizationLeafWeightPenaltyMultiplier;
-    private final double regularizationSoftTreeDepthLimit;
-    private final double regularizationSoftTreeDepthTolerance;
-    private final double regularizationTreeSizePenaltyMultiplier;
+    private final Double downsampleFactor;
+    private final Double eta;
+    private final Double etaGrowthRatePerTree;
+    private final Double featureBagFraction;
+    private final Integer maxAttemptsToAddTree;
+    private final Integer maxOptimizationRoundsPerHyperparameter;
+    private final Integer maxTrees;
+    private final Integer numFolds;
+    private final Integer numSplitsPerFeature;
+    private final Double regularizationDepthPenaltyMultiplier;
+    private final Double regularizationLeafWeightPenaltyMultiplier;
+    private final Double regularizationSoftTreeDepthLimit;
+    private final Double regularizationSoftTreeDepthTolerance;
+    private final Double regularizationTreeSizePenaltyMultiplier;
 
     public Hyperparameters(String classAssignmentObjective,
-                           double downsampleFactor,
-                           double eta,
-                           double etaGrowthRatePerTree,
-                           double featureBagFraction,
-                           int maxAttemptsToAddTree,
-                           int maxOptimizationRoundsPerHyperparameter,
-                           int maxTrees,
-                           int numFolds,
-                           int numSplitsPerFeature,
-                           double regularizationDepthPenaltyMultiplier,
-                           double regularizationLeafWeightPenaltyMultiplier,
-                           double regularizationSoftTreeDepthLimit,
-                           double regularizationSoftTreeDepthTolerance,
-                           double regularizationTreeSizePenaltyMultiplier) {
-        this.classAssignmentObjective = Objects.requireNonNull(classAssignmentObjective);
+                           Double downsampleFactor,
+                           Double eta,
+                           Double etaGrowthRatePerTree,
+                           Double featureBagFraction,
+                           Integer maxAttemptsToAddTree,
+                           Integer maxOptimizationRoundsPerHyperparameter,
+                           Integer maxTrees,
+                           Integer numFolds,
+                           Integer numSplitsPerFeature,
+                           Double regularizationDepthPenaltyMultiplier,
+                           Double regularizationLeafWeightPenaltyMultiplier,
+                           Double regularizationSoftTreeDepthLimit,
+                           Double regularizationSoftTreeDepthTolerance,
+                           Double regularizationTreeSizePenaltyMultiplier) {
+        this.classAssignmentObjective = classAssignmentObjective;
         this.downsampleFactor = downsampleFactor;
         this.eta = eta;
         this.etaGrowthRatePerTree = etaGrowthRatePerTree;
@@ -135,24 +135,114 @@ public class Hyperparameters implements ToXContentObject {
         this.regularizationTreeSizePenaltyMultiplier = regularizationTreeSizePenaltyMultiplier;
     }
 
+    public String getClassAssignmentObjective() {
+        return classAssignmentObjective;
+    }
+
+    public Double getDownsampleFactor() {
+        return downsampleFactor;
+    }
+
+    public Double getEta() {
+        return eta;
+    }
+
+    public Double getEtaGrowthRatePerTree() {
+        return etaGrowthRatePerTree;
+    }
+
+    public Double getFeatureBagFraction() {
+        return featureBagFraction;
+    }
+
+    public Integer getMaxAttemptsToAddTree() {
+        return maxAttemptsToAddTree;
+    }
+
+    public Integer getMaxOptimizationRoundsPerHyperparameter() {
+        return maxOptimizationRoundsPerHyperparameter;
+    }
+
+    public Integer getMaxTrees() {
+        return maxTrees;
+    }
+
+    public Integer getNumFolds() {
+        return numFolds;
+    }
+
+    public Integer getNumSplitsPerFeature() {
+        return numSplitsPerFeature;
+    }
+
+    public Double getRegularizationDepthPenaltyMultiplier() {
+        return regularizationDepthPenaltyMultiplier;
+    }
+
+    public Double getRegularizationLeafWeightPenaltyMultiplier() {
+        return regularizationLeafWeightPenaltyMultiplier;
+    }
+
+    public Double getRegularizationSoftTreeDepthLimit() {
+        return regularizationSoftTreeDepthLimit;
+    }
+
+    public Double getRegularizationSoftTreeDepthTolerance() {
+        return regularizationSoftTreeDepthTolerance;
+    }
+
+    public Double getRegularizationTreeSizePenaltyMultiplier() {
+        return regularizationTreeSizePenaltyMultiplier;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(), classAssignmentObjective);
-        builder.field(DOWNSAMPLE_FACTOR.getPreferredName(), downsampleFactor);
-        builder.field(ETA.getPreferredName(), eta);
-        builder.field(ETA_GROWTH_RATE_PER_TREE.getPreferredName(), etaGrowthRatePerTree);
-        builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
-        builder.field(MAX_ATTEMPTS_TO_ADD_TREE.getPreferredName(), maxAttemptsToAddTree);
-        builder.field(MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(), maxOptimizationRoundsPerHyperparameter);
-        builder.field(MAX_TREES.getPreferredName(), maxTrees);
-        builder.field(NUM_FOLDS.getPreferredName(), numFolds);
-        builder.field(NUM_SPLITS_PER_FEATURE.getPreferredName(), numSplitsPerFeature);
-        builder.field(REGULARIZATION_DEPTH_PENALTY_MULTIPLIER.getPreferredName(), regularizationDepthPenaltyMultiplier);
-        builder.field(REGULARIZATION_LEAF_WEIGHT_PENALTY_MULTIPLIER.getPreferredName(), regularizationLeafWeightPenaltyMultiplier);
-        builder.field(REGULARIZATION_SOFT_TREE_DEPTH_LIMIT.getPreferredName(), regularizationSoftTreeDepthLimit);
-        builder.field(REGULARIZATION_SOFT_TREE_DEPTH_TOLERANCE.getPreferredName(), regularizationSoftTreeDepthTolerance);
-        builder.field(REGULARIZATION_TREE_SIZE_PENALTY_MULTIPLIER.getPreferredName(), regularizationTreeSizePenaltyMultiplier);
+        if (classAssignmentObjective != null) {
+            builder.field(CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(), classAssignmentObjective);
+        }
+        if (downsampleFactor != null) {
+            builder.field(DOWNSAMPLE_FACTOR.getPreferredName(), downsampleFactor);
+        }
+        if (eta != null) {
+            builder.field(ETA.getPreferredName(), eta);
+        }
+        if (etaGrowthRatePerTree != null) {
+            builder.field(ETA_GROWTH_RATE_PER_TREE.getPreferredName(), etaGrowthRatePerTree);
+        }
+        if (featureBagFraction != null) {
+            builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
+        }
+        if (maxAttemptsToAddTree != null) {
+            builder.field(MAX_ATTEMPTS_TO_ADD_TREE.getPreferredName(), maxAttemptsToAddTree);
+        }
+        if (maxOptimizationRoundsPerHyperparameter != null) {
+            builder.field(MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(), maxOptimizationRoundsPerHyperparameter);
+        }
+        if (maxTrees != null) {
+            builder.field(MAX_TREES.getPreferredName(), maxTrees);
+        }
+        if (numFolds != null) {
+            builder.field(NUM_FOLDS.getPreferredName(), numFolds);
+        }
+        if (numSplitsPerFeature != null) {
+            builder.field(NUM_SPLITS_PER_FEATURE.getPreferredName(), numSplitsPerFeature);
+        }
+        if (regularizationDepthPenaltyMultiplier != null) {
+            builder.field(REGULARIZATION_DEPTH_PENALTY_MULTIPLIER.getPreferredName(), regularizationDepthPenaltyMultiplier);
+        }
+        if (regularizationLeafWeightPenaltyMultiplier != null) {
+            builder.field(REGULARIZATION_LEAF_WEIGHT_PENALTY_MULTIPLIER.getPreferredName(), regularizationLeafWeightPenaltyMultiplier);
+        }
+        if (regularizationSoftTreeDepthLimit != null) {
+            builder.field(REGULARIZATION_SOFT_TREE_DEPTH_LIMIT.getPreferredName(), regularizationSoftTreeDepthLimit);
+        }
+        if (regularizationSoftTreeDepthTolerance != null) {
+            builder.field(REGULARIZATION_SOFT_TREE_DEPTH_TOLERANCE.getPreferredName(), regularizationSoftTreeDepthTolerance);
+        }
+        if (regularizationTreeSizePenaltyMultiplier != null) {
+            builder.field(REGULARIZATION_TREE_SIZE_PENALTY_MULTIPLIER.getPreferredName(), regularizationTreeSizePenaltyMultiplier);
+        }
         builder.endObject();
         return builder;
     }
@@ -164,20 +254,20 @@ public class Hyperparameters implements ToXContentObject {
 
         Hyperparameters that = (Hyperparameters) o;
         return Objects.equals(classAssignmentObjective, that.classAssignmentObjective)
-            && downsampleFactor == that.downsampleFactor
-            && eta == that.eta
-            && etaGrowthRatePerTree == that.etaGrowthRatePerTree
-            && featureBagFraction == that.featureBagFraction
-            && maxAttemptsToAddTree == that.maxAttemptsToAddTree
-            && maxOptimizationRoundsPerHyperparameter == that.maxOptimizationRoundsPerHyperparameter
-            && maxTrees == that.maxTrees
-            && numFolds == that.numFolds
-            && numSplitsPerFeature == that.numSplitsPerFeature
-            && regularizationDepthPenaltyMultiplier == that.regularizationDepthPenaltyMultiplier
-            && regularizationLeafWeightPenaltyMultiplier == that.regularizationLeafWeightPenaltyMultiplier
-            && regularizationSoftTreeDepthLimit == that.regularizationSoftTreeDepthLimit
-            && regularizationSoftTreeDepthTolerance == that.regularizationSoftTreeDepthTolerance
-            && regularizationTreeSizePenaltyMultiplier == that.regularizationTreeSizePenaltyMultiplier;
+            && Objects.equals(downsampleFactor, that.downsampleFactor)
+            && Objects.equals(eta, that.eta)
+            && Objects.equals(etaGrowthRatePerTree, that.etaGrowthRatePerTree)
+            && Objects.equals(featureBagFraction, that.featureBagFraction)
+            && Objects.equals(maxAttemptsToAddTree, that.maxAttemptsToAddTree)
+            && Objects.equals(maxOptimizationRoundsPerHyperparameter, that.maxOptimizationRoundsPerHyperparameter)
+            && Objects.equals(maxTrees, that.maxTrees)
+            && Objects.equals(numFolds, that.numFolds)
+            && Objects.equals(numSplitsPerFeature, that.numSplitsPerFeature)
+            && Objects.equals(regularizationDepthPenaltyMultiplier, that.regularizationDepthPenaltyMultiplier)
+            && Objects.equals(regularizationLeafWeightPenaltyMultiplier, that.regularizationLeafWeightPenaltyMultiplier)
+            && Objects.equals(regularizationSoftTreeDepthLimit, that.regularizationSoftTreeDepthLimit)
+            && Objects.equals(regularizationSoftTreeDepthTolerance, that.regularizationSoftTreeDepthTolerance)
+            && Objects.equals(regularizationTreeSizePenaltyMultiplier, that.regularizationTreeSizePenaltyMultiplier);
     }
 
     @Override

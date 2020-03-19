@@ -54,6 +54,14 @@ public class MemoryUsage implements ToXContentObject {
         this.peakUsageBytes = peakUsageBytes;
     }
 
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public long getPeakUsageBytes() {
+        return peakUsageBytes;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

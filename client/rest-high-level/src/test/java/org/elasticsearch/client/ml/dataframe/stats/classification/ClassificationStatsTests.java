@@ -44,7 +44,7 @@ public class ClassificationStatsTests extends AbstractXContentTestCase<Classific
     public static ClassificationStats createRandom() {
         return new ClassificationStats(
             Instant.now(),
-            randomIntBetween(1, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomIntBetween(1, Integer.MAX_VALUE),
             HyperparametersTests.createRandom(),
             TimingStatsTests.createRandom(),
             ValidationLossTests.createRandom()

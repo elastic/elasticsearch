@@ -43,6 +43,6 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
     }
 
     public static TimingStats createRandom() {
-        return new TimingStats(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        return new TimingStats(randomBoolean() ? null : TimeValue.timeValueMillis(randomNonNegativeLong()));
     }
 }

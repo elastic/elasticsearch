@@ -42,21 +42,21 @@ public class HyperparametersTests extends AbstractXContentTestCase<Hyperparamete
 
     public static Hyperparameters createRandom() {
         return new Hyperparameters(
-            randomAlphaOfLength(10),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomDouble()
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble()
         );
     }
 }

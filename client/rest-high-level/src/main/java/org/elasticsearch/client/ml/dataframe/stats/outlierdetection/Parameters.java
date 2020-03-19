@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Parameters implements ToXContentObject {
 
@@ -41,32 +41,32 @@ public class Parameters implements ToXContentObject {
     public static ConstructingObjectParser<Parameters, Void> PARSER = new ConstructingObjectParser<>("outlier_detection_parameters",
         true,
         a -> new Parameters(
-            (int) a[0],
+            (Integer) a[0],
             (String) a[1],
-            (boolean) a[2],
-            (double) a[3],
-            (double) a[4],
-            (boolean) a[5]
+            (Boolean) a[2],
+            (Double) a[3],
+            (Double) a[4],
+            (Boolean) a[5]
         ));
 
     static {
-        PARSER.declareInt(constructorArg(), N_NEIGHBORS);
-        PARSER.declareStringArray(constructorArg(), METHOD);
-        PARSER.declareBoolean(constructorArg(), COMPUTE_FEATURE_INFLUENCE);
-        PARSER.declareDouble(constructorArg(), FEATURE_INFLUENCE_THRESHOLD);
-        PARSER.declareDouble(constructorArg(), OUTLIER_FRACTION);
-        PARSER.declareBoolean(constructorArg(), STANDARDIZATION_ENABLED);
+        PARSER.declareInt(optionalConstructorArg(), N_NEIGHBORS);
+        PARSER.declareStringArray(optionalConstructorArg(), METHOD);
+        PARSER.declareBoolean(optionalConstructorArg(), COMPUTE_FEATURE_INFLUENCE);
+        PARSER.declareDouble(optionalConstructorArg(), FEATURE_INFLUENCE_THRESHOLD);
+        PARSER.declareDouble(optionalConstructorArg(), OUTLIER_FRACTION);
+        PARSER.declareBoolean(optionalConstructorArg(), STANDARDIZATION_ENABLED);
     }
 
-    private final int nNeighbors;
+    private final Integer nNeighbors;
     private final String method;
-    private final boolean computeFeatureInfluence;
-    private final double featureInfluenceThreshold;
-    private final double outlierFraction;
-    private final boolean standardizationEnabled;
+    private final Boolean computeFeatureInfluence;
+    private final Double featureInfluenceThreshold;
+    private final Double outlierFraction;
+    private final Boolean standardizationEnabled;
 
-    public Parameters(int nNeighbors, String method, boolean computeFeatureInfluence, double featureInfluenceThreshold,
-                      double outlierFraction, boolean standardizationEnabled) {
+    public Parameters(Integer nNeighbors, String method, Boolean computeFeatureInfluence, Double featureInfluenceThreshold,
+                      Double outlierFraction, Boolean standardizationEnabled) {
         this.nNeighbors = nNeighbors;
         this.method = method;
         this.computeFeatureInfluence = computeFeatureInfluence;
@@ -75,15 +75,51 @@ public class Parameters implements ToXContentObject {
         this.standardizationEnabled = standardizationEnabled;
     }
 
+    public Integer getnNeighbors() {
+        return nNeighbors;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public Boolean getComputeFeatureInfluence() {
+        return computeFeatureInfluence;
+    }
+
+    public Double getFeatureInfluenceThreshold() {
+        return featureInfluenceThreshold;
+    }
+
+    public Double getOutlierFraction() {
+        return outlierFraction;
+    }
+
+    public Boolean getStandardizationEnabled() {
+        return standardizationEnabled;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(N_NEIGHBORS.getPreferredName(), nNeighbors);
-        builder.field(METHOD.getPreferredName(), method);
-        builder.field(COMPUTE_FEATURE_INFLUENCE.getPreferredName(), computeFeatureInfluence);
-        builder.field(FEATURE_INFLUENCE_THRESHOLD.getPreferredName(), featureInfluenceThreshold);
-        builder.field(OUTLIER_FRACTION.getPreferredName(), outlierFraction);
-        builder.field(STANDARDIZATION_ENABLED.getPreferredName(), standardizationEnabled);
+        if (nNeighbors != null) {
+            builder.field(N_NEIGHBORS.getPreferredName(), nNeighbors);
+        }
+        if (method != null) {
+            builder.field(METHOD.getPreferredName(), method);
+        }
+        if (computeFeatureInfluence != null) {
+            builder.field(COMPUTE_FEATURE_INFLUENCE.getPreferredName(), computeFeatureInfluence);
+        }
+        if (featureInfluenceThreshold != null) {
+            builder.field(FEATURE_INFLUENCE_THRESHOLD.getPreferredName(), featureInfluenceThreshold);
+        }
+        if (outlierFraction != null) {
+            builder.field(OUTLIER_FRACTION.getPreferredName(), outlierFraction);
+        }
+        if (standardizationEnabled != null) {
+            builder.field(STANDARDIZATION_ENABLED.getPreferredName(), standardizationEnabled);
+        }
         builder.endObject();
         return builder;
     }
@@ -94,12 +130,12 @@ public class Parameters implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         Parameters that = (Parameters) o;
-        return nNeighbors == that.nNeighbors
+        return Objects.equals(nNeighbors, that.nNeighbors)
             && Objects.equals(method, that.method)
-            && computeFeatureInfluence == that.computeFeatureInfluence
-            && featureInfluenceThreshold == that.featureInfluenceThreshold
-            && outlierFraction == that.outlierFraction
-            && standardizationEnabled == that.standardizationEnabled;
+            && Objects.equals(computeFeatureInfluence, that.computeFeatureInfluence)
+            && Objects.equals(featureInfluenceThreshold, that.featureInfluenceThreshold)
+            && Objects.equals(outlierFraction, that.outlierFraction)
+            && Objects.equals(standardizationEnabled, that.standardizationEnabled);
     }
 
     @Override

@@ -39,23 +39,35 @@ public class ValidationLoss implements ToXContentObject {
         a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), LOSS_TYPE);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FoldValues.PARSER, FOLD_VALUES);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LOSS_TYPE);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), FoldValues.PARSER, FOLD_VALUES);
     }
 
     private final String lossType;
     private final List<FoldValues> foldValues;
 
     public ValidationLoss(String lossType, List<FoldValues> values) {
-        this.lossType = Objects.requireNonNull(lossType);
-        this.foldValues = Objects.requireNonNull(values);
+        this.lossType = lossType;
+        this.foldValues = values;
+    }
+
+    public String getLossType() {
+        return lossType;
+    }
+
+    public List<FoldValues> getFoldValues() {
+        return foldValues;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(LOSS_TYPE.getPreferredName(), lossType);
-        builder.field(FOLD_VALUES.getPreferredName(), foldValues);
+        if (lossType != null) {
+            builder.field(LOSS_TYPE.getPreferredName(), lossType);
+        }
+        if (foldValues != null) {
+            builder.field(FOLD_VALUES.getPreferredName(), foldValues);
+        }
         builder.endObject();
         return builder;
     }

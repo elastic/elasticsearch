@@ -54,6 +54,14 @@ public class FoldValues implements ToXContentObject {
         this.values = values;
     }
 
+    public int getFold() {
+        return fold;
+    }
+
+    public double[] getValues() {
+        return values;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

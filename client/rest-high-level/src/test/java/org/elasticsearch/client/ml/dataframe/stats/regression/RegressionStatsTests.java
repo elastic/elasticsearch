@@ -45,7 +45,7 @@ public class RegressionStatsTests extends AbstractXContentTestCase<RegressionSta
     public static RegressionStats createRandom() {
         return new RegressionStats(
             Instant.now(),
-            randomIntBetween(1, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomIntBetween(1, Integer.MAX_VALUE),
             HyperparametersTests.createRandom(),
             TimingStatsTests.createRandom(),
             ValidationLossTests.createRandom()

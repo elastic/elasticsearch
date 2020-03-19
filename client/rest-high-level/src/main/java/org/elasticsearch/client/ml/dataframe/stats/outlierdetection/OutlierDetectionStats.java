@@ -61,6 +61,18 @@ public class OutlierDetectionStats implements AnalysisStats {
         this.timingStats = Objects.requireNonNull(timingStats);
     }
 
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public Parameters getParameters() {
+        return parameters;
+    }
+
+    public TimingStats getTimingStats() {
+        return timingStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();

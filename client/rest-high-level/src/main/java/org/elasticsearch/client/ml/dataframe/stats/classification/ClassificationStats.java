@@ -44,7 +44,7 @@ public class ClassificationStats implements AnalysisStats {
         true,
         a -> new ClassificationStats(
             (Instant) a[0],
-            (int) a[1],
+            (Integer) a[1],
             (Hyperparameters) a[2],
             (TimingStats) a[3],
             (ValidationLoss) a[4]
@@ -56,19 +56,19 @@ public class ClassificationStats implements AnalysisStats {
             p -> TimeUtil.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
             ObjectParser.ValueType.VALUE);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), ITERATION);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ITERATION);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Hyperparameters.PARSER, HYPERPARAMETERS);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimingStats.PARSER, TIMING_STATS);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), ValidationLoss.PARSER, VALIDATION_LOSS);
     }
 
     private final Instant timestamp;
-    private final int iteration;
+    private final Integer iteration;
     private final Hyperparameters hyperparameters;
     private final TimingStats timingStats;
     private final ValidationLoss validationLoss;
 
-    public ClassificationStats(Instant timestamp, int iteration, Hyperparameters hyperparameters, TimingStats timingStats,
+    public ClassificationStats(Instant timestamp, Integer iteration, Hyperparameters hyperparameters, TimingStats timingStats,
                                ValidationLoss validationLoss) {
         this.timestamp = Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.iteration = iteration;
@@ -77,11 +77,33 @@ public class ClassificationStats implements AnalysisStats {
         this.validationLoss = Objects.requireNonNull(validationLoss);
     }
 
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public Integer getIteration() {
+        return iteration;
+    }
+
+    public Hyperparameters getHyperparameters() {
+        return hyperparameters;
+    }
+
+    public TimingStats getTimingStats() {
+        return timingStats;
+    }
+
+    public ValidationLoss getValidationLoss() {
+        return validationLoss;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
-        builder.field(ITERATION.getPreferredName(), iteration);
+        if (iteration != null) {
+            builder.field(ITERATION.getPreferredName(), iteration);
+        }
         builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
         builder.field(TIMING_STATS.getPreferredName(), timingStats);
         builder.field(VALIDATION_LOSS.getPreferredName(), validationLoss);
@@ -95,7 +117,7 @@ public class ClassificationStats implements AnalysisStats {
         if (o == null || getClass() != o.getClass()) return false;
         ClassificationStats that = (ClassificationStats) o;
         return Objects.equals(timestamp, that.timestamp)
-            && iteration == that.iteration
+            && Objects.equals(iteration, that.iteration)
             && Objects.equals(hyperparameters, that.hyperparameters)
             && Objects.equals(timingStats, that.timingStats)
             && Objects.equals(validationLoss, that.validationLoss);

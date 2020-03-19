@@ -42,12 +42,12 @@ public class ParametersTests extends AbstractXContentTestCase<Parameters> {
 
     public static Parameters createRandom() {
         return new Parameters(
-            randomIntBetween(1, Integer.MAX_VALUE),
-            randomAlphaOfLength(5),
-            randomBoolean(),
-            randomDouble(),
-            randomDouble(),
-            randomBoolean()
+            randomBoolean() ? null : randomIntBetween(1, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomAlphaOfLength(5),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomBoolean()
         );
     }
 }

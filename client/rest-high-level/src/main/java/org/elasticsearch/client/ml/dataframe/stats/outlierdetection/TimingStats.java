@@ -33,22 +33,28 @@ public class TimingStats implements ToXContentObject {
 
     public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>("outlier_detection_timing_stats",
         true,
-        a -> new TimingStats(TimeValue.timeValueMillis((long) a[0])));
+        a -> new TimingStats(a[0] == null ? null : TimeValue.timeValueMillis((long) a[0])));
 
     static {
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), ELAPSED_TIME);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ELAPSED_TIME);
     }
 
     private final TimeValue elapsedTime;
 
     public TimingStats(TimeValue elapsedTime) {
-        this.elapsedTime = Objects.requireNonNull(elapsedTime);
+        this.elapsedTime = elapsedTime;
+    }
+
+    public TimeValue getElapsedTime() {
+        return elapsedTime;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.humanReadableField(ELAPSED_TIME.getPreferredName(), ELAPSED_TIME.getPreferredName() + "_string", elapsedTime);
+        if (elapsedTime != null) {
+            builder.humanReadableField(ELAPSED_TIME.getPreferredName(), ELAPSED_TIME.getPreferredName() + "_string", elapsedTime);
+        }
         builder.endObject();
         return builder;
     }

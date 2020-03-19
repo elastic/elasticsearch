@@ -43,8 +43,8 @@ public class ValidationLossTests extends AbstractXContentTestCase<ValidationLoss
 
     public static ValidationLoss createRandom() {
         return new ValidationLoss(
-            randomAlphaOfLength(10),
-            randomList(5, () -> FoldValuesTests.createRandom())
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomList(5, () -> FoldValuesTests.createRandom())
         );
     }
 }

@@ -49,6 +49,10 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         with("message", message);
     }
 
+    public ESLogMessage() {
+        super(new LinkedHashMap<>());
+    }
+
     public ESLogMessage argAndField(String key, Object value) {
         this.arguments.add(value);
         super.with(key, value);

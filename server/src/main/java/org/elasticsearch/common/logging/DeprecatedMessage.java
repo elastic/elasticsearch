@@ -43,7 +43,7 @@ public class DeprecatedMessage  {
 
             }
         };
-        return new ESLogMessage(messagePattern, args)
+        return new ESLogMessage()
             .field("message", value)
             .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }

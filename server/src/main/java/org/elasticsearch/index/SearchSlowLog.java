@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -157,10 +156,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         public static ESLogMessage of(SearchContext context, long tookInNanos) {
             Map<String, Object> jsonFields = prepareMap(context, tookInNanos);
-            // message for json logs is overridden from json Fields
-            String plaintextMessage = message(context, tookInNanos);
-            return new ESLogMessage(plaintextMessage)
-                               .withFields(jsonFields);
+            return new ESLogMessage().withFields(jsonFields);
         }
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
@@ -188,42 +184,6 @@ public final class SearchSlowLog implements SearchOperationListener {
 
             messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
             return messageFields;
-        }
-
-        // Message will be used in plaintext logs
-        private static String message(SearchContext context, long tookInNanos) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(context.indexShard().shardId())
-                .append(" ")
-                .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
-                .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
-                .append("total_hits[");
-            if (context.queryResult().getTotalHits() != null) {
-                sb.append(context.queryResult().getTotalHits());
-            } else {
-                sb.append("-1");
-            }
-            sb.append("], ");
-            if (context.groupStats() == null) {
-                sb.append("stats[], ");
-            } else {
-                sb.append("stats[");
-                Strings.collectionToDelimitedString(context.groupStats(), ",", "", "", sb);
-                sb.append("], ");
-            }
-            sb.append("search_type[").append(context.searchType()).append("], total_shards[")
-                .append(context.numberOfShards()).append("], ");
-            if (context.request().source() != null) {
-                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
-            } else {
-                sb.append("source[], ");
-            }
-            if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
-                sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
-            } else {
-                sb.append("id[], ");
-            }
-            return sb.toString();
         }
 
         private static String escapeJson(String text) {

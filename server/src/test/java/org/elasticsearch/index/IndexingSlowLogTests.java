@@ -83,8 +83,6 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.get("routing"), nullValue());
-
-        assertThat(p.asString(), containsString("routing[]"));
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {

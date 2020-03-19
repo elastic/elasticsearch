@@ -107,18 +107,14 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
 
-    private String createPattern(Map<String, Object> map, Set<String> overrideFields) {
+    private String createPattern(Map<String, Object> map, Set<String> esmessagefields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
         for (Map.Entry<String, Object> entry : map.entrySet()) {
 
-            if (overrideFields.contains(entry.getKey())) {
-                sb.append("%notEmpty{");
-                sb.append(separator);
-                appendField(sb, entry);
-                sb.append("}");
-            } else {
+            // fields present in esmessagefields are meant to be provided in CustomMapFields
+            if (esmessagefields.contains(entry.getKey()) == false) {
                 sb.append(separator);
                 appendField(sb, entry);
             }

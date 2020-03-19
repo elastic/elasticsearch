@@ -184,7 +184,8 @@ PUT _cluster/settings
           "seeds": null,
           "skip_unavailable": null,
           "transport": {
-            "compress": null
+            "compress": null,
+            "ping_schedule" : null
           }
         }
       }

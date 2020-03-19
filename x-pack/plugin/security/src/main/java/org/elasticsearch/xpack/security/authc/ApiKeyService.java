@@ -69,6 +69,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.SecretKeyFactory;
@@ -572,12 +574,12 @@ public class ApiKeyService {
         return enabled && licenseState.isApiKeyServiceAllowed();
     }
 
-    private void ensureEnabled() {
+    public void ensureEnabled() {
         if (licenseState.isApiKeyServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {
-            throw new IllegalStateException("api keys are not enabled");
+            throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }
     }
 
@@ -625,6 +627,12 @@ public class ApiKeyService {
         public void usedDeprecatedField(String usedName, String replacedWith) {
             deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
                 usedName, apiKeyId, replacedWith);
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], which has been removed entirely",
+                usedName);
         }
     }
 
@@ -884,7 +892,22 @@ public class ApiKeyService {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
-            return authentication.getAuthenticatedBy().getName();
+            return authentication.getSourceRealm().getName();
+        }
+    }
+
+    /**
+     * Returns realm type for the authenticated user.
+     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * then it will return the realm name of user who created this API key.
+     * @param authentication {@link Authentication}
+     * @return realm type
+     */
+    public static String getCreatorRealmType(final Authentication authentication) {
+        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
+        } else {
+            return authentication.getSourceRealm().getType();
         }
     }
 

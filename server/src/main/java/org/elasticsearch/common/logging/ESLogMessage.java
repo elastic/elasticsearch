@@ -63,6 +63,13 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         return this;
     }
 
+//    @Override
+//    protected void appendMap(final StringBuilder sb) {
+//        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
+//        sb.append(message);
+//    }
+
+    //taken from super.asJson without the wrapping '{' '}'
     @Override
     protected void asJson(StringBuilder sb) {
         super.asJson(sb);

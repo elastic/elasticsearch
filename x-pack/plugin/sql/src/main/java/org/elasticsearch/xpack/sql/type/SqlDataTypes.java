@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.time.OffsetTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -30,6 +29,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -136,7 +136,7 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
     }
 
-    private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Arrays.asList(
+    private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Stream.of(
             DATE,
             TIME,
             INTERVAL_YEAR,
@@ -154,8 +154,7 @@ public class SqlDataTypes {
             INTERVAL_MINUTE_TO_SECOND,
             GEO_SHAPE,
             GEO_POINT,
-            SHAPE)
-            .stream())
+            SHAPE))
             .sorted(Comparator.comparing(DataType::typeName))
             .collect(toUnmodifiableList());
 
@@ -270,6 +269,7 @@ public class SqlDataTypes {
                 || dataType == DATE         // because of date formats
                 || dataType == DATETIME
                 || dataType == SCALED_FLOAT // because of scaling_factor
+                || dataType == CONSTANT_KEYWORD
                 || dataType == GEO_POINT
                 || dataType == GEO_SHAPE
                 || dataType == SHAPE;
@@ -333,6 +333,9 @@ public class SqlDataTypes {
             return JDBCType.VARCHAR;
         }
         if (dataType == TEXT) {
+            return JDBCType.VARCHAR;
+        }
+        if (dataType == CONSTANT_KEYWORD) {
             return JDBCType.VARCHAR;
         }
         if (dataType == DATETIME) {
@@ -420,13 +423,13 @@ public class SqlDataTypes {
      */
     public static int defaultPrecision(DataType dataType) {
         if (dataType == UNSUPPORTED) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == NULL) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == BOOLEAN) {
-            return 1;
+            return dataType.size();
         }
         if (dataType == BYTE) {
             return 3;
@@ -458,20 +461,23 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return 32766;
         }
+        if (dataType == CONSTANT_KEYWORD) {
+            return 15;
+        }
         if (dataType == DATETIME) {
             return 3;
         }
         if (dataType == IP) {
-            return 39;
+            return dataType.size();
         }
         if (dataType == BINARY) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
         }
         if (dataType == OBJECT) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == NESTED) {
-            return 0;
+            return dataType.size();
         }
         //
         // SQL specific
@@ -487,13 +493,13 @@ public class SqlDataTypes {
         }
 
         if (dataType == GEO_SHAPE) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
         }
         if (dataType == GEO_POINT) {
             return Integer.MAX_VALUE;
         }
         if (dataType == SHAPE) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
         }
         if (dataType == INTERVAL_YEAR) {
             return 7;
@@ -540,13 +546,13 @@ public class SqlDataTypes {
 
     public static int displaySize(DataType dataType) {
         if (dataType == UNSUPPORTED) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == NULL) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == BOOLEAN) {
-            return 1;
+            return dataType.size();
         }
         if (dataType == BYTE) {
             return 5;
@@ -576,22 +582,25 @@ public class SqlDataTypes {
             return 32766;
         }
         if (dataType == TEXT) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
+        }
+        if (dataType == CONSTANT_KEYWORD) {
+            return 32766;
         }
         if (dataType == DATETIME) {
             return 29;
         }
         if (dataType == IP) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == BINARY) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
         }
         if (dataType == OBJECT) {
-            return 0;
+            return dataType.size();
         }
         if (dataType == NESTED) {
-            return 0;
+            return dataType.size();
         }
         //
         // SQL specific
@@ -603,53 +612,17 @@ public class SqlDataTypes {
             return 18;
         }
         if (dataType == GEO_SHAPE) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
         }
         if (dataType == GEO_POINT) {
             //2 doubles + len("POINT( )")
             return 25 * 2 + 8;
         }
         if (dataType == SHAPE) {
-            return Integer.MAX_VALUE;
+            return dataType.size();
         }
-        if (dataType == INTERVAL_YEAR) {
-            return 7;
-        }
-        if (dataType == INTERVAL_MONTH) {
-            return 7;
-        }
-        if (dataType == INTERVAL_DAY) {
-            return 23;
-        }
-        if (dataType == INTERVAL_HOUR) {
-            return 23;
-        }
-        if (dataType == INTERVAL_MINUTE) {
-            return 23;
-        }
-        if (dataType == INTERVAL_SECOND) {
-            return 23;
-        }
-        if (dataType == INTERVAL_YEAR_TO_MONTH) {
-            return 7;
-        }
-        if (dataType == INTERVAL_DAY_TO_HOUR) {
-            return 23;
-        }
-        if (dataType == INTERVAL_DAY_TO_MINUTE) {
-            return 23;
-        }
-        if (dataType == INTERVAL_DAY_TO_SECOND) {
-            return 23;
-        }
-        if (dataType == INTERVAL_HOUR_TO_MINUTE) {
-            return 23;
-        }
-        if (dataType == INTERVAL_HOUR_TO_SECOND) {
-            return 23;
-        }
-        if (dataType == INTERVAL_MINUTE_TO_SECOND) {
-            return 23;
+        if (SqlDataTypes.isInterval(dataType)) {
+            return defaultPrecision(dataType);
         }
 
         return 0;

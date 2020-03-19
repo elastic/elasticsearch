@@ -43,12 +43,16 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
-        condition = condition.cast(scriptRoot, scope);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-        if (condition.constant != null) {
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        condition.analyze(scriptRoot, scope, conditionInput);
+        condition.cast();
+
+        if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -56,22 +60,25 @@ public final class SIf extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        ifblock.lastSource = lastSource;
-        ifblock.inLoop = inLoop;
-        ifblock.lastLoop = lastLoop;
+        Input ifblockInput = new Input();
+        ifblockInput.lastSource = input.lastSource;
+        ifblockInput.inLoop = input.inLoop;
+        ifblockInput.lastLoop = input.lastLoop;
 
-        ifblock.analyze(scriptRoot, scope.newLocalScope());
+        Output ifblockOutput = ifblock.analyze(scriptRoot, scope.newLocalScope(), ifblockInput);
 
-        anyContinue = ifblock.anyContinue;
-        anyBreak = ifblock.anyBreak;
-        statementCount = ifblock.statementCount;
+        output.anyContinue = ifblockOutput.anyContinue;
+        output.anyBreak = ifblockOutput.anyBreak;
+        output.statementCount = ifblockOutput.statementCount;
+
+        return output;
     }
 
     @Override
     IfNode write(ClassNode classNode) {
         IfNode ifNode = new IfNode();
 
-        ifNode.setConditionNode(condition.write(classNode));
+        ifNode.setConditionNode(condition.cast(condition.write(classNode)));
         ifNode.setBlockNode(ifblock.write(classNode));
 
         ifNode.setLocation(location);

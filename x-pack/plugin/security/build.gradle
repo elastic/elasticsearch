@@ -100,7 +100,7 @@ dependencies {
   testCompile('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
   testCompile('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
   testCompile('commons-pool:commons-pool:1.6')
-  testCompile('commons-collections:commons-collections:3.2')
+  testCompile('commons-collections:commons-collections:3.2.2')
   testCompile('org.apache.mina:mina-core:2.0.17')
   testCompile('org.apache.directory.api:api-util:1.0.1')
   testCompile('org.apache.directory.api:api-i18n:1.0.1')

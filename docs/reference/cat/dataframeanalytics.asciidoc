@@ -31,9 +31,8 @@ For more information, see <<security-privileges>> and {ml-docs}/setup.html[Set u
 ////
 [[cat-dfanalytics-desc]]
 ==== {api-description-title}
-
-TBD
 ////
+
 
 [[cat-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -49,6 +48,65 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+If you do not specify which columns to include, the API returns the default
+columns. If you explicitly specify one or more columns, it returns only the
+specified columns.
++
+Valid columns are:
+
+`assignment_explanation`, `ae`:::
+include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-dfanalytics]
+
+`create_time`, `ct`, `createTime`:::
+(Default)
+The time when the {dfanalytics-job} was created.
+
+`description`, `d`:::
+include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
+
+`dest_index`, `di`, `destIndex`:::
+Name of the destination index.
+
+`failure_reason`, `fr`, `failureReason`:::
+Contains messages about the reason why a {dfanalytics-job} failed.
+
+`id`:::
+(Default)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+
+`model_memory_limit`, `mml`, `modelMemoryLimit`:::
+The approximate maximum amount of memory resources that are permitted for the 
+{dfanalytics-job}.
+
+`node.address`, `na`, `nodeAddress`:::
+The network address of the node that the {dfanalytics-job} is assigned to.
+
+`node.ephemeral_id`, `ne`, `nodeEphemeralId`:::
+The ephemeral ID of the node that the {dfanalytics-job} is assigned to.
+
+`node.id`, `ni`, `nodeId`:::
+The unique identifier of the node that the {dfanalytics-job} is assigned to.
+
+`node.name`, `nn`, `nodeName`:::
+The name of the node that the {dfanalytics-job} is assigned to.
+
+`progress`, `p`:::
+The progress report of the {dfanalytics-job} by phase.
+
+`source_index`, `si`, `sourceIndex`:::
+Name of the source index.
+
+`state`, `s`:::
+(Default)
+Current state of the {dfanalytics-job}.
+
+`type`, `t`:::
+(Default)
+The type of analysis that the {dfanalytics-job} performs.
+
+`version`, `v`:::
+The {es} version number in which the {dfanalytics-job} was created.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
@@ -57,91 +115,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
-
-
-[[cat-dfanalytics-results]]
-==== {api-response-body-title}
-
-`assignment_explanation`::
-include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-dfanalytics]
-+
---
-To retrieve this information, specify the `ae` column in the `h` query 
-parameter.
---
-
-`create_time`::
-The time when the {dfanalytics-job} was created. To retrieve this information, 
-specify the `ct` or `createTime` column in the `h` query parameter.
-
-`description`::
-include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
-+
---
-To retrieve this information, specify the `d` column in the `h` query parameter.
---
-
-`dest_index`::
-Name of the destination index. To retrieve this information, specify the `di` or 
-the `destIndex` column in the `h` query parameter.
-
-`failure_reason`::
-Contains messages about the reason why a {dfanalytics-job} failed. To retrieve 
-this information, specify the `fr` or the `failureReason` column in the `h` 
-query parameter.
-
-`id`::
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
-+
---
-To retrieve this information, specify the `id` column in the `h` query 
-parameter.
---
-
-`model_memory_limit`::
-The approximate maximum amount of memory resources that are permitted for the 
-{dfanalytics-job}. To retrieve this information, specify the `mml` or the 
-`modelMemoryLimit` column in the `h` query parameter.
-
-`node.address`::
-The network address of the node that the {dfanalytics-job} is assigned to. To 
-retrieve this information, specify the `na` or `nodeAddress` column in the `h` 
-query parameter.
-
-`node.ephemeral_id`::
-The ephemeral ID of the node that the {dfanalytics-job} is assigned to. To 
-retrieve this information, specify the `ne` or `nodeEphemeralId` column in the 
-`h` query parameter.
-
-`node.id`::
-The unique identifier of the node that the {dfanalytics-job} is assigned to. To 
-retrieve this information, specify the `ni` or `nodeId` column in the `h` query 
-parameter.
-
-`node.name`::
-The name of the node that the {dfanalytics-job} is assigned to. To retrieve this 
-information, specify the `nn` or `nodeName` column in the `h` query 
-parameter.
-
-`progress`::
-The progress report of the {dfanalytics-job} by phase. To retrieve this 
-information, specify the `p` column in the `h` query parameter.
-
-`source_index`::
-Name of the source index. To retrieve this information, specify the `si` or the 
-`sourceIndex` column in the `h` query parameter.
-
-`state`::
-Current state of the {dfanalytics-job}. To retrieve this information, specify 
-the `s` column in the `h` query parameter.
-
-`type`::
-The type of analysis that the {dfanalytics-job} performs. To retrieve this 
-information, specify the `t` column in the `h` query parameter.
-
-`version`::
-The {es} version number in which the {dfanalytics-job} was created. To retrieve 
-this information, specify the `v` column in the `h` query parameter.
 
 
 [[cat-dfanalytics-example]]

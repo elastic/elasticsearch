@@ -27,7 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
@@ -44,7 +44,7 @@ final class GeoLatitudeValueSource extends ValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicGeoPointFieldData leafData = (AtomicGeoPointFieldData) fieldData.load(leaf);
+        LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
         final MultiGeoPointValues values = leafData.getGeoPointValues();
         return new DoubleDocValues(this) {
             @Override

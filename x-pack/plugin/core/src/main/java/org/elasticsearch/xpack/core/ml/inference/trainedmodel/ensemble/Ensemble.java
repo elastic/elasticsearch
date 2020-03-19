@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -73,11 +73,10 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                     p.namedObject(StrictlyParsedTrainedModel.class, n, null),
             (ensembleBuilder) -> ensembleBuilder.setModelsAreOrdered(true),
             TRAINED_MODELS);
-        parser.declareNamedObjects(Ensemble.Builder::setOutputAggregatorFromParser,
+        parser.declareNamedObject(Ensemble.Builder::setOutputAggregator,
             (p, c, n) ->
                 lenient ? p.namedObject(LenientlyParsedOutputAggregator.class, n, null) :
                     p.namedObject(StrictlyParsedOutputAggregator.class, n, null),
-            (ensembleBuilder) -> {/*Noop as it could be an array or object, it just has to be a one*/},
             AGGREGATE_OUTPUT);
         parser.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
         parser.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
@@ -139,19 +138,20 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
-        List<Double> inferenceResults = new ArrayList<>(this.models.size());
+        double[][] inferenceResults = new double[this.models.size()][];
         List<Map<String, Double>> featureInfluence = new ArrayList<>();
+        int i = 0;
         NullInferenceConfig subModelInferenceConfig = new NullInferenceConfig(config.requestingImportance());
-        this.models.forEach(model -> {
+        for (TrainedModel model : models) {
             InferenceResults result = model.infer(fields, subModelInferenceConfig, Collections.emptyMap());
-            assert result instanceof SingleValueInferenceResults;
-            SingleValueInferenceResults inferenceResult = (SingleValueInferenceResults) result;
-            inferenceResults.add(inferenceResult.value());
+            assert result instanceof RawInferenceResults;
+            RawInferenceResults inferenceResult = (RawInferenceResults) result;
+            inferenceResults[i++] = inferenceResult.getValue();
             if (config.requestingImportance()) {
                 featureInfluence.add(inferenceResult.getFeatureImportance());
             }
-        });
-        List<Double> processed = outputAggregator.processValues(inferenceResults);
+        }
+        double[] processed = outputAggregator.processValues(inferenceResults);
         return buildResults(processed, featureInfluence, config, featureDecoderMap);
     }
 
@@ -160,13 +160,13 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return targetType;
     }
 
-    private InferenceResults buildResults(List<Double> processedInferences,
+    private InferenceResults buildResults(double[] processedInferences,
                                           List<Map<String, Double>> featureInfluence,
                                           InferenceConfig config,
                                           Map<String, String> featureDecoderMap) {
         // Indicates that the config is useless and the caller just wants the raw value
         if (config instanceof NullInferenceConfig) {
-            return new RawInferenceResults(outputAggregator.aggregate(processedInferences),
+            return new RawInferenceResults(new double[] {outputAggregator.aggregate(processedInferences)},
                 InferenceHelpers.decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)));
         }
         switch(targetType) {
@@ -176,7 +176,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                     InferenceHelpers.decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)));
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                assert classificationWeights == null || processedInferences.size() == classificationWeights.length;
+                assert classificationWeights == null || processedInferences.length == classificationWeights.length;
                 // Adjust the probabilities according to the thresholds
                 Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     processedInferences,
@@ -356,6 +356,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return Collections.unmodifiableCollection(accountables);
     }
 
+    @Override
+    public Version getMinimalCompatibilityVersion() {
+        return models.stream().map(TrainedModel::getMinimalCompatibilityVersion).max(Version::compareTo).orElse(Version.V_7_6_0);
+    }
+
     public static class Builder {
         private List<String> featureNames;
         private List<TrainedModel> trainedModels;
@@ -406,14 +411,6 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         public Builder setClassificationWeights(List<Double> classificationWeights) {
             this.classificationWeights = classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
             return this;
-        }
-
-        private void setOutputAggregatorFromParser(List<OutputAggregator> outputAggregators) {
-            if (outputAggregators.size() != 1) {
-                throw ExceptionsHelper.badRequestException("[{}] must have exactly one aggregator defined.",
-                    AGGREGATE_OUTPUT.getPreferredName());
-            }
-            this.setOutputAggregator(outputAggregators.get(0));
         }
 
         private void setTargetType(String targetType) {

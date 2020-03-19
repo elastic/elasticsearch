@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -40,24 +41,32 @@ public class GatewayServiceTests extends ESTestCase {
         GatewayService service = createService(Settings.builder());
         assertNull(service.recoverAfterTime());
 
-        // ensure default is set when setting expected_nodes
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
-        assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
-
         // ensure default is set when setting expected_data_nodes
         service = createService(Settings.builder().put("gateway.expected_data_nodes", 1));
-        assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
-
-        // ensure default is set when setting expected_master_nodes
-        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
         assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
 
         // ensure settings override default
         final TimeValue timeValue = TimeValue.timeValueHours(3);
         // ensure default is set when setting expected_nodes
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time",
+        service = createService(Settings.builder().put("gateway.recover_after_time",
             timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
+    }
+
+    public void testDeprecatedSettings() {
+        GatewayService service = createService(Settings.builder());
+
+        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_NODES_SETTING });
+
+        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_MASTER_NODES_SETTING });
+
+        service = createService(Settings.builder().put("gateway.recover_after_nodes", 1));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_NODES_SETTING });
+
+        service = createService(Settings.builder().put("gateway.recover_after_master_nodes", 1));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
     }
 
 }

@@ -109,10 +109,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         return xcb;
     }
 
-    public void testIndexPointsFilterRectangle() throws Exception {
-        super.testIndexPointsFilterRectangle(Strings.toString(createRandomMapping()));
-    }
-
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
         String mapping = Strings.toString(createDefaultMapping());

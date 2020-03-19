@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -56,9 +55,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
@@ -559,8 +558,21 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         return source != null && source.isSuggestOnly();
     }
 
+    public int resolveTrackTotalHitsUpTo() {
+        return resolveTrackTotalHitsUpTo(scroll, source);
+    }
+
+    public static int resolveTrackTotalHitsUpTo(Scroll scroll, SearchSourceBuilder source) {
+        if (scroll != null) {
+            // no matter what the value of track_total_hits is
+            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        }
+        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo() == null ?
+            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+    }
+
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // generating description in a lazy way since source can be quite big
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override

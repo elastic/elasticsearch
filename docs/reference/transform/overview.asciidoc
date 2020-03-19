@@ -72,7 +72,7 @@ indices then index the results into the destination index. Therefore, a
 aggregation that it performs and the indexing process.
 
 For better performance, make sure that your search aggregations and queries are 
-optimized, so they don't process data that is not necessary for your 
+optimized, so they don't process unnecessary data.
 {transform}.
 
 NOTE: When you use <<search-aggregations-bucket-datehistogram-aggregation>>, the 

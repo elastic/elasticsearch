@@ -1,7 +1,7 @@
 ---
 "Terms Query with No.of terms exceeding index.max_terms_count should FAIL":
   - skip:
-      features: warnings
+      features: allowed_warnings
   - do:
       indices.create:
           include_type_name: true

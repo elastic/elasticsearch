@@ -1,6 +1,6 @@
 "Ensure that we fetch the document only once":
   - skip:
-      features: warnings
+      features: allowed_warnings
   - do:
       indices.create:
           index: search_index

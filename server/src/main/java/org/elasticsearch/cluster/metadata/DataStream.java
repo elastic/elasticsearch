@@ -35,12 +35,12 @@ import java.util.Objects;
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     private final String name;
-    private final String timeStampFieldName;
+    private final String timeStampField;
     private final List<String> indices;
 
-    public DataStream(String name, String timeStampFieldName, List<String> indices) {
+    public DataStream(String name, String timeStampField, List<String> indices) {
         this.name = name;
-        this.timeStampFieldName = timeStampFieldName;
+        this.timeStampField = timeStampField;
         this.indices = indices;
     }
 
@@ -48,8 +48,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return name;
     }
 
-    public String getTimeStampFieldName() {
-        return timeStampFieldName;
+    public String getTimeStampField() {
+        return timeStampField;
     }
 
     public List<String> getIndices() {
@@ -67,12 +67,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(timeStampFieldName);
+        out.writeString(timeStampField);
         out.writeStringCollection(indices);
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
-    public static final ParseField TIMESTAMP_FIELD_NAME_FIELD = new ParseField("timestamp_field_name");
+    public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
 
     @SuppressWarnings("unchecked")
@@ -81,7 +81,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD_NAME_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
     }
 
@@ -93,7 +93,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_NAME_FIELD.getPreferredName(), timeStampFieldName);
+        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         builder.endObject();
         return builder;
@@ -105,12 +105,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
         return name.equals(that.name) &&
-            timeStampFieldName.equals(that.timeStampFieldName) &&
+            timeStampField.equals(that.timeStampField) &&
             indices.equals(that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampFieldName, indices);
+        return Objects.hash(name, timeStampField, indices);
     }
 }

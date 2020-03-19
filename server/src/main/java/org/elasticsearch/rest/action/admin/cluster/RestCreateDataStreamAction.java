@@ -48,7 +48,7 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
         CreateDataStreamAction.Request putDataStreamRequest = new CreateDataStreamAction.Request(request.param("name"));
         request.withContentOrSourceParamParserOrNull(parser -> {
             Map<String, Object> body = parser.map();
-            String timeStampFieldName = (String) body.get(DataStream.TIMESTAMP_FIELD_NAME_FIELD.getPreferredName());
+            String timeStampFieldName = (String) body.get(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName());
             if (timeStampFieldName != null) {
                 putDataStreamRequest.setTimestampFieldName(timeStampFieldName);
             }

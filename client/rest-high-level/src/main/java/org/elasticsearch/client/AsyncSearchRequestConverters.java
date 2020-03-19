@@ -61,14 +61,14 @@ final class AsyncSearchRequestConverters {
         params.withRouting(request.getRouting());
         params.withPreference(request.getPreference());
         params.withIndicesOptions(request.getIndicesOptions());
-        params.putParam("search_type", request.getSearchType().name().toLowerCase(Locale.ROOT));
-        params.putParam("max_concurrent_shard_requests", Integer.toString(request.getMaxConcurrentShardRequests()));
+        params.withSearchType(request.getSearchType().name().toLowerCase(Locale.ROOT));
+        params.withMaxConcurrentShardRequests(request.getMaxConcurrentShardRequests());
         if (request.getRequestCache() != null) {
-            params.putParam("request_cache", Boolean.toString(request.getRequestCache()));
+            params.withRequestCache(request.getRequestCache());
         }
         if (request.getAllowPartialSearchResults() != null) {
-            params.putParam("allow_partial_search_results", Boolean.toString(request.getAllowPartialSearchResults()));
+            params.withPartialResults(request.getAllowPartialSearchResults());
         }
-        params.putParam("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
+        params.withBatchedReduceSize(request.getBatchedReduceSize());
     }
 }

@@ -52,30 +52,24 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
 
     @Override
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
-        if (parserName != null) {
-            deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used, expected [{}] instead",
-                parserName, location.get(), usedName, modernName);
-        } else {
-            deprecationLogger.deprecated("Deprecated field [{}] used, expected [{}] instead", usedName, modernName);
-        }
+        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        deprecationLogger.deprecated("{}Deprecated field [{}] used, expected [{}] instead",
+            prefix, usedName, modernName);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
-        if (parserName != null) {
-            deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used, replaced by [{}]",
-                parserName, location.get(), usedName, replacedWith);
-        }
-        else {
-            deprecationLogger.deprecated("Deprecated field [{}] used, replaced by [{}]", usedName, replacedWith);
-        }
+        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        deprecationLogger.deprecated("{} Deprecated field [{}] used, replaced by [{}]",
+            prefix, usedName, replacedWith);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
-        if (parserName != null) {
-            deprecationLogger.deprecated("[{}][{}] Deprecated field [{}] used, this field is unused and will be removed entirely",
-                parserName, location.get(), usedName);
+        String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+        if (true) {
+            deprecationLogger.deprecated("{}Deprecated field [{}] used, this field is unused and will be removed entirely",
+                prefix, usedName);
         } else {
             deprecationLogger.deprecated("Deprecated field [{}] used, this field is unused and will be removed entirely", usedName);
         }

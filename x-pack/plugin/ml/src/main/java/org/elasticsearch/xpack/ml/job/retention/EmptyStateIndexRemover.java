@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -84,26 +82,14 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     }
 
     private void getCurrentStateIndices(ActionListener<Set<String>> listener) {
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(AnomalyDetectorsIndex.jobStateIndexPattern());
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
         client.admin().indices().getIndex(
             getIndexRequest,
             ActionListener.wrap(
-                getIndexResponse -> listener.onResponse(getCurrentStateIndicesFromResponse(getIndexResponse)),
+                getIndexResponse -> listener.onResponse(Set.of(getIndexResponse.getIndices())),
                 listener::onFailure
             )
         );
-    }
-
-    private static Set<String> getCurrentStateIndicesFromResponse(GetIndexResponse getIndexResponse) {
-        Set<String> currentStateIndices = new HashSet<>();
-        for (var aliasEntry : getIndexResponse.aliases()) {
-            for (var alias : aliasEntry.value) {
-                if (AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(alias.alias())) {
-                    currentStateIndices.add(aliasEntry.key);
-                }
-            }
-        }
-        return currentStateIndices;
     }
 
     private void executeDeleteEmptyStateIndices(Set<String> emptyStateIndices, ActionListener<Boolean> listener) {

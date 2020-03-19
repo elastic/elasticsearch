@@ -17,8 +17,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -29,7 +27,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.stubbing.Answer;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -117,15 +114,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
                 ".ml-state-e", indexStats(".ml-state-e", 0))).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
-        GetIndexResponse getIndexResponse =
-            new GetIndexResponse(
-                new String[] {},
-                null,
-                ImmutableOpenMap.<String, List<AliasMetaData>>builder()
-                    .fPut(".ml-state-e", List.of(AliasMetaData.builder(".ml-state-write").build()))
-                    .build(),
-                null,
-                null);
+        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
         AcknowledgedResponse deleteIndexResponse = new AcknowledgedResponse(acknowledged);

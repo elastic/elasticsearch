@@ -24,6 +24,7 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -213,7 +214,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(Line line) {
-            addFields(LatLonShape.createIndexableFields(name, new org.apache.lucene.geo.Line(line.getY(), line.getX())));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLuceneLine(line)));
             return null;
         }
 
@@ -254,16 +255,13 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(LatLonShape.createIndexableFields(name, toLucenePolygon(polygon)));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon)));
             return null;
         }
 
         @Override
         public Void visit(Rectangle r) {
-            org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
-                new double[]{r.getMinY(), r.getMinY(), r.getMaxY(), r.getMaxY(), r.getMinY()},
-                new double[]{r.getMinX(), r.getMaxX(), r.getMaxX(), r.getMinX(), r.getMinX()});
-            addFields(LatLonShape.createIndexableFields(name, p));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(r)));
             return null;
         }
 
@@ -272,11 +270,4 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
     }
 
-    public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
-        org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
-        for(int i = 0; i<holes.length; i++) {
-            holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
-        }
-        return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
-    }
 }

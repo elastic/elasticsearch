@@ -178,6 +178,7 @@ the key-value pairs that contain your data.
 An index is a logical namespace that maps to one or more
 <<glossary-primary-shard,primary shards>> and can have zero or more
 <<glossary-replica-shard,replica shards>>.
+--
 
 [[glossary-index-alias]] index alias ::
 +

@@ -110,7 +110,11 @@ public class FakeThreadPoolMasterService extends MasterService {
                     final Runnable task = pendingTasks.remove(taskIndex);
                     taskInProgress = true;
                     scheduledNextTask = false;
-                    task.run();
+                    final ThreadContext threadContext = threadPool.getThreadContext();
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        threadContext.markAsSystemContext();
+                        task.run();
+                    }
                     if (waitForPublish == false) {
                         taskInProgress = false;
                     }

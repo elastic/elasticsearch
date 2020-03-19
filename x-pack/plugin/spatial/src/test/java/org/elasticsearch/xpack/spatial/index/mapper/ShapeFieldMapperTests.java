@@ -250,7 +250,6 @@ public class ShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyName() throws Exception {
-        // after 5.x
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("")
             .field("type", "shape")

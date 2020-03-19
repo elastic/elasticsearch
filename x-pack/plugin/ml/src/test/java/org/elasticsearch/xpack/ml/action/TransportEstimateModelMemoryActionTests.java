@@ -36,7 +36,7 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
 
         Detector withByField = createDetector(function, "field", "buy", null, null);
         assertThat(TransportEstimateModelMemoryAction.calculateDetectorRequirementBytes(withByField,
-            overallCardinality), is(200 * 65536L));
+            overallCardinality), is(134 * 65536L));
 
         Detector withPartitionField = createDetector(function, "field", null, null, "part");
         assertThat(TransportEstimateModelMemoryAction.calculateDetectorRequirementBytes(withPartitionField,
@@ -44,7 +44,7 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
 
         Detector withByAndPartitionFields = createDetector(function, "field", "buy", null, "part");
         assertThat(TransportEstimateModelMemoryAction.calculateDetectorRequirementBytes(withByAndPartitionFields,
-            overallCardinality), is(200 * 100 * 65536L));
+            overallCardinality), is(134 * 100 * 65536L));
     }
 
     public void testCalculateInfluencerRequirementBytes() {

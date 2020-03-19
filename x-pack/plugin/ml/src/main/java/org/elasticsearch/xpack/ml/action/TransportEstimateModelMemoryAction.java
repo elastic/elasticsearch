@@ -64,6 +64,7 @@ public class TransportEstimateModelMemoryAction
 
         long answer = 0;
 
+        // These values for detectors assume splitting is via a partition field
         switch (detector.getFunction()) {
             case COUNT:
             case LOW_COUNT:
@@ -71,7 +72,7 @@ public class TransportEstimateModelMemoryAction
             case NON_ZERO_COUNT:
             case LOW_NON_ZERO_COUNT:
             case HIGH_NON_ZERO_COUNT:
-                answer = 1; // TODO add realistic number
+                answer = new ByteSizeValue(32, ByteSizeUnit.KB).getBytes();
                 break;
             case DISTINCT_COUNT:
             case LOW_DISTINCT_COUNT:
@@ -104,18 +105,14 @@ public class TransportEstimateModelMemoryAction
             case NON_NULL_SUM:
             case LOW_NON_NULL_SUM:
             case HIGH_NON_NULL_SUM:
-                // 64 comes from https://github.com/elastic/kibana/issues/18722
-                answer = new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
-                break;
             case MEDIAN:
             case LOW_MEDIAN:
             case HIGH_MEDIAN:
-                answer = 1; // TODO add realistic number
-                break;
             case VARP:
             case LOW_VARP:
             case HIGH_VARP:
-                answer = 1; // TODO add realistic number
+                // 64 comes from https://github.com/elastic/kibana/issues/18722
+                answer = new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
                 break;
             case TIME_OF_DAY:
             case TIME_OF_WEEK:
@@ -130,11 +127,11 @@ public class TransportEstimateModelMemoryAction
 
         String byFieldName = detector.getByFieldName();
         if (byFieldName != null) {
-            long multiplier = cardinalityEstimate(Detector.BY_FIELD_NAME_FIELD.getPreferredName(), byFieldName, overallCardinality, true);
-            if (Long.MAX_VALUE / answer < multiplier) {
-                return Long.MAX_VALUE;
-            }
-            answer *= multiplier;
+            long cardinalityEstimate =
+                cardinalityEstimate(Detector.BY_FIELD_NAME_FIELD.getPreferredName(), byFieldName, overallCardinality, true);
+            // The memory cost of a by field is about 2/3rds that of a partition field
+            long multiplier = addNonNegativeLongsWithMaxValueCap(cardinalityEstimate, 2) / 3 * 2;
+            answer = multiplyNonNegativeLongsWithMaxValueCap(answer, multiplier);
         }
 
         String overFieldName = detector.getOverFieldName();
@@ -148,10 +145,7 @@ public class TransportEstimateModelMemoryAction
         if (partitionFieldName != null) {
             long multiplier =
                 cardinalityEstimate(Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true);
-            if (Long.MAX_VALUE / answer < multiplier) {
-                return Long.MAX_VALUE;
-            }
-            answer *= multiplier;
+            answer = multiplyNonNegativeLongsWithMaxValueCap(answer, multiplier);
         }
 
         return answer;
@@ -168,10 +162,7 @@ public class TransportEstimateModelMemoryAction
         long totalInfluencerCardinality = pureInfluencers.stream()
             .map(influencer -> cardinalityEstimate(AnalysisConfig.INFLUENCERS.getPreferredName(), influencer, maxBucketCardinality, false))
             .reduce(0L, TransportEstimateModelMemoryAction::addNonNegativeLongsWithMaxValueCap);
-        if (Long.MAX_VALUE / BYTES_PER_INFLUENCER_VALUE < totalInfluencerCardinality) {
-            return Long.MAX_VALUE;
-        }
-        return BYTES_PER_INFLUENCER_VALUE * totalInfluencerCardinality;
+        return multiplyNonNegativeLongsWithMaxValueCap(BYTES_PER_INFLUENCER_VALUE, totalInfluencerCardinality);
     }
 
     static long calculateCategorizationRequirementBytes(AnalysisConfig analysisConfig) {
@@ -200,7 +191,7 @@ public class TransportEstimateModelMemoryAction
 
     static ByteSizeValue roundUpToNextMb(long bytes) {
         assert bytes >= 0 : "negative bytes " + bytes;
-        return new ByteSizeValue((BYTES_IN_MB - 1 + Math.min(Long.MAX_VALUE - BYTES_IN_MB + 1, bytes)) / BYTES_IN_MB, ByteSizeUnit.MB);
+        return new ByteSizeValue(addNonNegativeLongsWithMaxValueCap(bytes, BYTES_IN_MB - 1) / BYTES_IN_MB, ByteSizeUnit.MB);
     }
 
     private static long addNonNegativeLongsWithMaxValueCap(long a, long b) {
@@ -210,5 +201,14 @@ public class TransportEstimateModelMemoryAction
             return Long.MAX_VALUE;
         }
         return a + b;
+    }
+
+    private static long multiplyNonNegativeLongsWithMaxValueCap(long a, long b) {
+        assert a >= 0;
+        assert b >= 0;
+        if (Long.MAX_VALUE / a < b) {
+            return Long.MAX_VALUE;
+        }
+        return a * b;
     }
 }

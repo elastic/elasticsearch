@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,16 +72,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
 
         // User login a.k.a exchange the user credentials for an API Key
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME,
-                new SecureString(TEST_PASSWORD.toCharArray()))));
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-            .setName("test key")
-            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .get();
-        assertNotNull(response);
-        final String apiKeyCredentials = Base64.getEncoder().encodeToString(
-            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String apiKeyCredentials = getApiKeyFromCredentials(TEST_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()));
         // Make a request to init an SSO flow with the API Key as secondary authentication
         Request request = new Request("POST", "/_idp/saml/init");
         request.setOptions(RequestOptions.DEFAULT.toBuilder()
@@ -108,16 +100,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertServiceProviderIsRegistered(entityId, acsUrl);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // User login a.k.a exchange the user credentials for an API Key
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME,
-                new SecureString(TEST_PASSWORD.toCharArray()))));
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-            .setName("test key")
-            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .get();
-        assertNotNull(response);
-        final String apiKeyCredentials = Base64.getEncoder().encodeToString(
-            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String apiKeyCredentials = getApiKeyFromCredentials(TEST_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()));
         // Make a request to init an SSO flow with the API Key as secondary authentication
         Request request = new Request("POST", "/_idp/saml/init");
         request.setOptions(RequestOptions.DEFAULT.toBuilder()
@@ -171,18 +154,15 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
         assertThat(authnState, hasKey("nameid_format"));
         assertThat(authnState.get("nameid_format"), equalTo(nameIdFormat));
+        assertThat(authnState, hasKey("entity_id"));
+        assertThat(authnState.get("entity_id"), equalTo(entityId));
+        assertThat(authnState, hasKey("acs_url"));
+        assertThat(authnState.get("acs_url"), equalTo(acsUrl));
+        assertThat(authnState, hasKey("authn_request_id"));
+        final String expectedInResponeTo = authnState.get("authn_request_id");
 
         // User login a.k.a exchange the user credentials for an API Key
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME,
-                new SecureString(TEST_PASSWORD.toCharArray()))));
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-            .setName("test key")
-            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .get();
-        assertNotNull(response);
-        final String apiKeyCredentials =
-            base64Encode((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String apiKeyCredentials = getApiKeyFromCredentials(TEST_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()));
         // Make a request to init an SSO flow with the API Key as secondary authentication
         Request initRequest = new Request("POST", "/_idp/saml/init");
         initRequest.setOptions(RequestOptions.DEFAULT.toBuilder()
@@ -190,7 +170,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 new SecureString(TEST_PASSWORD.toCharArray())))
             .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
             .build());
-        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\"}");
+        XContentBuilder authnStateBuilder = jsonBuilder();
+        authnStateBuilder.map(authnState);
+        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\", \"authn_state\":" + Strings.toString(authnStateBuilder) + "}");
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -199,6 +181,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(body, containsString("Destination=\"" + acsUrl + "\""));
         assertThat(body, containsString("<saml2:Audience>" + entityId + "</saml2:Audience>"));
         assertThat(body, containsString("<saml2:NameID Format=\"" + nameIdFormat + "\">"));
+        assertThat(body, containsString("InResponseTo=\"" + expectedInResponeTo + "\""));
         Map<String, String> sp = initResponseObject.evaluate("service_provider");
         assertThat(sp, hasKey("entity_id"));
         assertThat(sp.get("entity_id"), equalTo(entityId));
@@ -229,7 +212,6 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         assertServiceProviderIsRegistered(entityId, acsUrl);
-        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // Validate incoming authentication request
         Request validateRequest = new Request("POST", "/_idp/saml/validate");
@@ -282,6 +264,19 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
         assertThat(serviceProvider, hasKey("enabled"));
         assertThat(serviceProvider.get("enabled"), equalTo(true));
+    }
+
+    private String getApiKeyFromCredentials(String username, SecureString password) {
+        // User login a.k.a exchange the user credentials for an API Key
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(username, password)));
+        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
+            .setName("test key")
+            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
+            .get();
+        assertNotNull(response);
+        return Base64.getEncoder().encodeToString(
+            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
     }
 
     private AuthnRequest buildAuthnRequest(String entityId, URL acs, URL destination, String nameIdFormat, boolean forceAuthn) {

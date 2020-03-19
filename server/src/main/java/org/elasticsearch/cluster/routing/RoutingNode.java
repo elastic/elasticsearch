@@ -293,7 +293,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         if (shardRoutings == null) {
             return 0;
         } else {
-            return Math.toIntExact(shardRoutings.stream().filter(Predicate.not(ShardRouting::relocating)).count());
+            return Math.toIntExact(shardRoutings.stream().filter(sr -> sr.relocating() == false).count());
         }
     }
 

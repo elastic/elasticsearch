@@ -27,6 +27,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -45,8 +46,6 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
-
-import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 
 public class VectorGeoPointShapeQueryProcessor implements AbstractSearchableGeometryFieldType.QueryProcessor {
 
@@ -145,7 +144,7 @@ public class VectorGeoPointShapeQueryProcessor implements AbstractSearchableGeom
             org.apache.lucene.geo.Polygon[] lucenePolygons =
                 new org.apache.lucene.geo.Polygon[collector.size()];
             for (int i = 0; i < collector.size(); i++) {
-                lucenePolygons[i] = toLucenePolygon(collector.get(i));
+                lucenePolygons[i] = GeoShapeUtils.toLucenePolygon(collector.get(i));
             }
             Query query = LatLonPoint.newPolygonQuery(fieldName, lucenePolygons);
             if (fieldType.hasDocValues()) {

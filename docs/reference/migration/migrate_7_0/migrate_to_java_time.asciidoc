@@ -120,7 +120,8 @@ For example, the joda-time format `YYYY-MM-dd'T'hh:mm:ssZZ` accepts the followin
 2010-01-01T01:02:03+01:02:03
 ```
 
-You cannot parse them all with one pattern in 7.0. You need to specify 3 separate patterns
+In java time, you cannot parse all these dates using a single format
+Instead, you must specify 3 separate formats:
 
 ```
 2010-01-01T01:02:03Z

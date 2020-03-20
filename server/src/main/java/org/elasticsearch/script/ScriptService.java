@@ -46,6 +46,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -241,7 +242,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);
-        cacheHolder = new AtomicReference<>(new CacheHolder(settings, contexts.keySet(), compilationLimitsEnabled()));
+        cacheHolder = new AtomicReference<>(new CacheHolder(settings, contexts.values(), compilationLimitsEnabled()));
     }
 
     /**
@@ -255,12 +256,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);
 
         // Handle all updatable per-context settings at once for each context.
-        for (String context: contexts.keySet()) {
+        for (ScriptContext<?> context: contexts.values()) {
             clusterSettings.addSettingsUpdateConsumer(
                 (settings) -> cacheHolder.get().updateContextSettings(settings, context),
-                List.of(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context),
-                        SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context),
-                        SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context),
+                List.of(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name),
+                        SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name),
+                        SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name),
                         SCRIPT_GENERAL_CACHE_EXPIRE_SETTING, // general settings used for fallbacks
                         SCRIPT_GENERAL_CACHE_SIZE_SETTING
                 )
@@ -580,17 +581,18 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         final ScriptCache general;
         final Map<String, AtomicReference<ScriptCache>> contextCache;
 
-        final Set<String> contexts;
+        final Set<ScriptContext<?>> contexts;
         final boolean compilationLimitsEnabled;
 
-        CacheHolder(Settings settings, Set<String> contexts, boolean compilationLimitsEnabled) {
+        CacheHolder(Settings settings, Collection<ScriptContext<?>> contexts, boolean compilationLimitsEnabled) {
             this.compilationLimitsEnabled = compilationLimitsEnabled;
             this.contexts = Set.copyOf(contexts);
             if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE)) {
                 this.general = null;
                 Map<String, AtomicReference<ScriptCache>> contextCache = new HashMap<>(this.contexts.size());
-                for (String context : this.contexts) {
-                    contextCache.put(context, new AtomicReference<>(contextFromSettings(settings, context, this.compilationLimitsEnabled)));
+                for (ScriptContext<?> context : this.contexts) {
+                    contextCache.put(context.name,
+                                     new AtomicReference<>(contextFromSettings(settings, context, this.compilationLimitsEnabled)));
                 }
                 this.contextCache = Collections.unmodifiableMap(contextCache);
             } else {
@@ -607,12 +609,24 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         /**
          * Create a ScriptCache for the given context.
          */
-        private static ScriptCache contextFromSettings(Settings settings, String context, boolean compilationLimitsEnabled) {
-            return new ScriptCache(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(settings),
-                SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(settings),
-                compilationLimitsEnabled ?
-                    SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context).get(settings) :
-                    SCRIPT_COMPILATION_RATE_ZERO);
+        private static ScriptCache contextFromSettings(Settings settings, ScriptContext<?> context, boolean compilationLimitsEnabled) {
+            String name = context.name;
+            Tuple<Integer, TimeValue> compileRate;
+            Setting<Tuple<Integer, TimeValue>> rateSetting = SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(name);
+            if (compilationLimitsEnabled == false) {
+                compileRate = SCRIPT_COMPILATION_RATE_ZERO;
+            } else if (rateSetting.existsOrFallbackExists(settings)) {
+                compileRate = rateSetting.get(settings);
+            } else {
+                compileRate = context.maxCompilationRateDefault;
+            }
+
+            Setting<TimeValue> cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(name);
+            Setting<Integer> cacheSize = SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(name);
+
+            return new ScriptCache(cacheSize.existsOrFallbackExists(settings) ? cacheSize.get(settings) : context.cacheSizeDefault,
+                                   cacheExpire.existsOrFallbackExists(settings) ? cacheExpire.get(settings) : context.cacheExpireDefault,
+                                   compileRate);
         }
 
         /**
@@ -666,16 +680,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         /**
          * Update settings for the context cache, if we're in the context cache mode otherwise no-op.
          */
-        void updateContextSettings(Settings settings, String context) {
+        void updateContextSettings(Settings settings, ScriptContext<?> context) {
             if (general != null) {
                 return;
             }
-            AtomicReference<ScriptCache> ref = contextCache.get(context);
-            assert ref != null : "expected script cache to exist for context [" + context + "]";
+            AtomicReference<ScriptCache> ref = contextCache.get(context.name);
+            assert ref != null : "expected script cache to exist for context [" + context.name + "]";
             ScriptCache cache = ref.get();
-            assert cache != null : "expected script cache to be non-null for context [" + context + "]";
+            assert cache != null : "expected script cache to be non-null for context [" + context.name + "]";
             ref.set(contextFromSettings(settings, context, compilationLimitsEnabled));
-            logger.debug("Replaced context [" + context + "] with new settings");
+            logger.debug("Replaced context [" + context.name + "] with new settings");
         }
     }
 }

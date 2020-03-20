@@ -432,6 +432,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final void assertWarnings(String... expectedWarnings) {
+        assertWarnings(true, expectedWarnings);
+    }
+
+    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
@@ -457,7 +461,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     private void assertWarnings(List<String> actualWarnings, String[] expectedWarnings) {
         assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
         final Set<String> actualWarningValues =
-                actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
+                actualWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                    .collect(Collectors.toSet());
         for (String msg : expectedWarnings) {
             assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
         }

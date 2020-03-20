@@ -23,6 +23,12 @@ esplugin {
   hasClientJar = true
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'rank_eval'  
+  }
+}
+
 testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
   module file(project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile)

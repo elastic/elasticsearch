@@ -204,7 +204,7 @@ The java-time literal `c` is interpreted as "localized day of week."
 `E` does not accept full-text day formats, such as `Wednesday`.
 --
 
-Text forms EEEE and similar::
+`EEEE` and similar text forms::
 +
 --
 Support for full-text forms depends on the locale data provided with your Java

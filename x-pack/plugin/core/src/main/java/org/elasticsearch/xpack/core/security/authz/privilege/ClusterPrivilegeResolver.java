@@ -199,6 +199,7 @@ public class ClusterPrivilegeResolver {
     public static boolean isClusterAction(String actionName) {
         return actionName.startsWith("cluster:") ||
             actionName.startsWith("indices:admin/template/") ||
+            // todo: hack until we implement security of data_streams
             actionName.startsWith("indices:admin/data_stream/");
     }
 

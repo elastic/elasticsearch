@@ -203,7 +203,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 } else {
                     memoryUsage = null;
                 }
-                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                     analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
                 } else {
                     analysisStats = null;
@@ -334,7 +334,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                     out.writeOptionalWriteable(memoryUsage);
                 }
-                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                     out.writeOptionalNamedWriteable(analysisStats);
                 }
                 out.writeOptionalWriteable(node);

@@ -245,7 +245,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
     private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
 
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 4) - 1; // 15
+        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 10) - 1; // 1023
 
         private final PointValues.IntersectVisitor in;
         private final QueryCancellation queryCancellation;

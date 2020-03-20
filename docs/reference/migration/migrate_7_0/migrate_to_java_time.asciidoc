@@ -329,7 +329,8 @@ POST /_aliases
 --------------------------------------------------
 // TEST[continued]
 
-===== Update before upgrading to ES7.
+[[java-time-migration-update-ingest-pipelines]]
+===== Update ingest pipelines
 If your ingest pipelines contain joda-time date formats, you can update them
 using the <<put-pipeline-api,put ingest pipeline>> API.
 

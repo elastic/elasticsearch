@@ -581,7 +581,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
                 sb.append(normalized);
             }
-            return sb.toString();
+            return sb.toBytesRef().utf8ToString();
         }
     }
      

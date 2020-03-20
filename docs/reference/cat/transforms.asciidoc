@@ -115,7 +115,7 @@ The {transform} pipeline.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
 
 `reason`, `r`:::
-The reason.
+The reason for the current state.
 
 `search_failure`, `sf`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]

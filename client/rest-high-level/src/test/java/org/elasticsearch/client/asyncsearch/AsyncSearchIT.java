@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.asyncsearch;
 
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -68,5 +69,12 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
                 RequestOptions.DEFAULT);
         assertNotNull(deleteAsyncSearchResponse);
         assertNotNull(deleteAsyncSearchResponse.isAcknowledged());
+
+        // TODO remove this workaround
+        // we manually delete the ".async_search" index after this test because otherwise
+        // test cluster stays in cluster_health yellow bc. that index requires 1 replica
+        org.elasticsearch.action.support.master.AcknowledgedResponse deleteResponse = highLevelClient().indices()
+                .delete(new DeleteIndexRequest(".async-search"), RequestOptions.DEFAULT);
+        assertTrue(deleteResponse.isAcknowledged());
     }
 }

@@ -911,7 +911,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             private void setUp() {
-                final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
                 mockTransport = new DisruptableMockTransport(localNode, logger) {
                     @Override
                     protected void execute(Runnable runnable) {
@@ -929,20 +928,24 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             .filter(transport -> transport.getLocalNode().getAddress().equals(address)).findAny();
                     }
                 };
+
                 final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()) ?
                     nodeSettings : Settings.builder().put(nodeSettings)
                     .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                         ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)).build(); // suppress auto-bootstrap
-                transportService = mockTransport.createTransportService(settings, threadPool,
-                    getTransportInterceptor(localNode, threadPool), a -> localNode, null, emptySet());
-                masterService = new AckedFakeThreadPoolMasterService(localNode.getId(), "test", threadPool,
+                transportService = mockTransport.createTransportService(
+                    settings, deterministicTaskQueue.getThreadPool(this::onNode),
+                    getTransportInterceptor(localNode, deterministicTaskQueue.getThreadPool(this::onNode)),
+                    a -> localNode, null, emptySet());
+                masterService = new AckedFakeThreadPoolMasterService(localNode.getId(), "test",
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable)));
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterApplierService = new DisruptableClusterApplierService(localNode.getId(), settings, clusterSettings,
-                    deterministicTaskQueue, threadPool);
+                    deterministicTaskQueue, this::onNode);
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
+                    new NodeConnectionsService(clusterService.getSettings(), deterministicTaskQueue.getThreadPool(this::onNode),
+                        transportService));
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
@@ -951,8 +954,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},
                     getElectionStrategy());
                 masterService.setClusterStatePublisher(coordinator);
-                final GatewayService gatewayService
-                    = new GatewayService(settings, allocationService, clusterService, threadPool, coordinator, null);
+                final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService,
+                    deterministicTaskQueue.getThreadPool(this::onNode), coordinator, null);
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();
@@ -1289,9 +1292,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         AckCollector nextAckCollector = new AckCollector();
 
-        AckedFakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool,
-                                         Consumer<Runnable> onTaskAvailableToRun) {
-            super(nodeName, serviceName, threadPool, onTaskAvailableToRun);
+        AckedFakeThreadPoolMasterService(String nodeName, String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
+            super(nodeName, serviceName, onTaskAvailableToRun);
         }
 
         @Override
@@ -1321,8 +1323,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private boolean applicationMayFail;
 
         DisruptableClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings,
-                                         DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
-            super(nodeName, settings, clusterSettings, threadPool);
+                                         DeterministicTaskQueue deterministicTaskQueue, Function<Runnable, Runnable> runnableWrapper) {
+            super(nodeName, settings, clusterSettings, deterministicTaskQueue.getThreadPool(runnableWrapper));
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {
@@ -1342,7 +1344,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-            return new MockSinglePrioritizingExecutor(nodeName, deterministicTaskQueue, threadPool);
+            return new MockSinglePrioritizingExecutor(nodeName, deterministicTaskQueue);
         }
 
         @Override

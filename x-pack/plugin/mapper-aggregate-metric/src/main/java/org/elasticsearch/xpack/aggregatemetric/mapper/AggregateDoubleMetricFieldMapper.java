@@ -23,14 +23,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValue;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValues;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -49,6 +46,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetricFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -381,33 +380,27 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
                             return new LeafAggregateDoubleMetricFieldData() {
                                 @Override
-                                public AggregateDoubleMetricValues getAggregateMetricValues(final Metric metric) throws IOException {
+                                public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) throws IOException {
                                     try {
-//                                        final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), fieldName+ SUBFIELD_SEPARATOR + agg);
                                         final NumericDocValues values = DocValues.getNumeric(context.reader(),
-                                            fieldName+ SUBFIELD_SEPARATOR + metric);
+                                            fieldName + SUBFIELD_SEPARATOR + metric);
 
-                                        final InternalAggregateDoubleMetricValue value = new InternalAggregateDoubleMetricValue();
-                                        return new AggregateDoubleMetricValues() {
+                                        return new SortedNumericDoubleValues() {
+                                            @Override
+                                            public double nextValue() throws IOException {
+                                                return Double.longBitsToDouble(values.longValue());
+                                            }
+
+                                            @Override
+                                            public int docValueCount() {
+                                                return 1;
+                                            }
 
                                             @Override
                                             public boolean advanceExact(int doc) throws IOException {
                                                 return values.advanceExact(doc);
                                             }
-
-                                            @Override
-                                            public AggregateDoubleMetricValue metricValue() throws IOException {
-                                                try {
-//                                                    value.setValue(NumericUtils.sortableLongToDouble(values.longValue()));
-                                                    value.setValue(Double.longBitsToDouble(values.longValue()));
-                                                    return value;
-                                                } catch (IOException e) {
-                                                    throw new IOException("Cannot load doc value", e);
-                                                }
-                                            }
                                         };
-
-//                                        return values;
                                     } catch (IOException e) {
                                         throw new IOException("Cannot load doc values", e);
                                     }
@@ -616,24 +609,5 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         if (includeDefaults || defaultMetric.explicit()) {
             builder.field(Names.DEFAULT_METRIC.getPreferredName(), defaultMetric.value());
         }
-    }
-
-
-    /** re-usable {@link AggregateDoubleMetricValue} implementation */
-    private static class InternalAggregateDoubleMetricValue extends AggregateDoubleMetricValue {
-        double value;
-
-        InternalAggregateDoubleMetricValue() { }
-
-        /** Set the double value */
-        void setValue(double v) {
-            value = v;
-        }
-
-        @Override
-        public double doubleValue() {
-            return value;
-        }
-
     }
 }

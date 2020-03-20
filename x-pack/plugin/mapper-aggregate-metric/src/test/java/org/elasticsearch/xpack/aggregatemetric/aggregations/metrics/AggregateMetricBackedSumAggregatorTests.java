@@ -48,7 +48,6 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
         });
     }
 
-
     private AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType createDefaultFieldType() {
         AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType fieldType =
             new AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType();

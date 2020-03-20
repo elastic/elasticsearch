@@ -23,8 +23,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValue;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -78,8 +77,10 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-//        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
-        final AggregateDoubleMetricValues values = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
+        final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
+
+        final SortedNumericDoubleValues counts = valuesSource.getAggregateMetricValues(ctx, Metric.value_count);
+
 
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
@@ -95,13 +96,20 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
 
-                    final AggregateDoubleMetricValue aggregateSum = values.metricValue();
-                    kahanSummation.add(aggregateSum.doubleValue());
+                    double aggregateSum = values.nextValue();
+                    kahanSummation.add(aggregateSum);
 
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
                 }
+
+                if (counts.advanceExact(doc)) {
+                    double valueCount = counts.nextValue();
+                }
+
             }
+
+
         };
     }
 

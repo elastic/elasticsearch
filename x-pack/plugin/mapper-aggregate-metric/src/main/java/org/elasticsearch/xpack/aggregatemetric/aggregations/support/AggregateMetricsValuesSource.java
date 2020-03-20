@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
@@ -17,7 +17,7 @@ import java.io.IOException;
 public class AggregateMetricsValuesSource {
     public abstract static class AggregateDoubleMetric extends org.elasticsearch.search.aggregations.support.ValuesSource {
 
-        public abstract AggregateDoubleMetricValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException;
+        public abstract SortedNumericDoubleValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException;
 
         public static class Fielddata extends AggregateDoubleMetric {
 
@@ -34,7 +34,7 @@ public class AggregateMetricsValuesSource {
 
             @Override
             public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-                AggregateDoubleMetricValues values = getAggregateMetricValues(context, null);
+                SortedNumericDoubleValues values = getAggregateMetricValues(context, null);
                 return new DocValueBits() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
@@ -43,7 +43,7 @@ public class AggregateMetricsValuesSource {
                 };
             }
 
-            public AggregateDoubleMetricValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException {
+            public SortedNumericDoubleValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException {
                 return indexFieldData.load(context).getAggregateMetricValues(metric);
             }
         }

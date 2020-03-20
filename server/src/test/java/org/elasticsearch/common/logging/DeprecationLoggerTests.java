@@ -216,10 +216,18 @@ public class DeprecationLoggerTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> DeprecationLogger.removeThreadContext(threadContext));
     }
 
-    public void testWarningValueFromWarningHeader() throws InterruptedException {
+    public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
         final String first = DeprecationLogger.formatWarning(s);
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first), equalTo(s));
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
+
+        final String withPos = "[context][1:11] Blah blah blah";
+        final String formatted = DeprecationLogger.formatWarning(withPos);
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+
+        final String withNegativePos = "[context][-1:-1] Blah blah blah";
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
+            equalTo("Blah blah blah"));
     }
 
     public void testEscapeBackslashesAndQuotes() {

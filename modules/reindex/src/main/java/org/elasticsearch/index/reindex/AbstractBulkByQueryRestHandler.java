@@ -96,7 +96,7 @@ public abstract class AbstractBulkByQueryRestHandler<
     }
 
     private void setMaxDocsFromSearchSize(Request request, int size) {
-        LoggingDeprecationHandler.INSTANCE.usedDeprecatedName("size", "max_docs");
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, null, "size", "max_docs");
         setMaxDocsValidateIdentical(request, size);
     }
 }

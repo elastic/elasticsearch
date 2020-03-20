@@ -117,7 +117,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                     expectWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed." +
                         " Please use the `if_seq_no` and `if_primary_term` parameters instead." +
-                        " (request for index [index], type [type], id [id])"));
+                        " (request for index [index], type [type])"));
             } else {
                 deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                     highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -156,7 +156,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                         expectWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed."
                             + " Please use the `if_seq_no` and `if_primary_term` parameters instead."
-                            + " (request for index [index], type [type], id [version_conflict])"));
+                            + " (request for index [index], type [type])"));
                 } else {
                     execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                         highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -507,7 +507,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync,
                         expectWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. "
                             + "Please use the `if_seq_no` and `if_primary_term` parameters instead. "
-                            + "(request for index [index], type [type], id [id])"));
+                            + "(request for index [index], type [type])"));
                 } else {
                     execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync,
                         highLevelClient()::index, highLevelClient()::indexAsync);

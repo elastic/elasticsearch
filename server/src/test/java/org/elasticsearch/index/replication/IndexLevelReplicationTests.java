@@ -519,7 +519,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     indexShard.translogStats().estimatedNumberOfOperations(), equalTo(0));
             }
             assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
-                "Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test], type [type], id [1])");
+                "Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test], type [type])");
         }
     }
 

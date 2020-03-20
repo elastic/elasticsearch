@@ -224,6 +224,10 @@ public class DeprecationLoggerTests extends ESTestCase {
         final String withPos = "[context][1:11] Blah blah blah";
         final String formatted = DeprecationLogger.formatWarning(withPos);
         assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+
+        final String withNegativePos = "[context][-1:-1] Blah blah blah";
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
+            equalTo("Blah blah blah"));
     }
 
     public void testEscapeBackslashesAndQuotes() {

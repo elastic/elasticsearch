@@ -174,7 +174,7 @@ public class DeprecationLogger {
                     "GMT" + // GMT
                     "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
-    public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[\\d+:\\d+] ");
+    public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
 
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string

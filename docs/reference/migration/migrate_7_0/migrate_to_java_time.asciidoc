@@ -107,7 +107,8 @@ Failure to properly convert `x` (Week year) to `Y` could result in data loss.
 --
 Replace with multiple `X`'s.
 
-`Z` has similar meaning in 7.0 with a notable difference that it expects different number of literals to parse different forms.
+`Z` has s similar meaning in java time. However, java time expects different
+numbers of literals to parse different forms.
 
 Consider migrating to `X` which give you more control of how your time is parsed.
 For instance format `YYYY-MM-dd'T'hh:mm:ssZZ` allowed all the forms below:

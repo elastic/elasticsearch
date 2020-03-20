@@ -375,5 +375,8 @@ DELETE /_template/template_1
 // TEST[continued]
 ////
 
-===== External templates
-Revisit other templates from elastic stack where you used a custom date pattern.
+[[java-time-migration-update-external-tools-templates]]
+===== Update external tools and templates
+Ensure you also update any date formats in templates or tools outside of {es}.
+This can include tools such as {beats-ref}/getting-started.html[{beats}] or
+{logstash-ref}/index.html[Logstash].

@@ -30,6 +30,7 @@ POST /sales*/_async_search?size=0
     }
 }
 --------------------------------------------------
+// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/53887"]
 // TEST[setup:sales]
 // TEST[s/size=0/size=0&wait_for_completion=0/]
 

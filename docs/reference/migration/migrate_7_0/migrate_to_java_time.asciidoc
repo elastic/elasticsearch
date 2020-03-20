@@ -255,7 +255,12 @@ GET my_index_1/_mapping
 --------------------------------------------------
 
 
-* Create my_index_2 with mappings changed with the format set to `8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`
+To change the date format for the `datetime` field, create a separate index
+containing an updated mapping and date format.
+
+For example, the following `my_index_2` index changes the `datetime` field's 
+date format to `8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`. The `8` prefix 
+indicates this date format uses java time.
 
 [source,console]
 --------------------------------------------------

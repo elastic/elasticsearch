@@ -38,8 +38,6 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
 
-    public static final String CHECKSTYLE_VERSION = '8.20'
-
     public static TaskProvider create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
@@ -232,7 +230,10 @@ class PrecommitTasks {
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             configDir = checkstyleDir
-            toolVersion = CHECKSTYLE_VERSION
+        }
+        project.dependencies {
+            checkstyle "com.puppycrawl.tools:checkstyle:${VersionProperties.versions.checkstyle}"
+            checkstyle project.project(':checkstyle')
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->

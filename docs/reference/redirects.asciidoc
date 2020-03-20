@@ -386,6 +386,11 @@ coming::[7.x]
 
 coming::[7.x]
 
+[role="exclude",id="data-streams"]
+=== Data stream APIs
+
+coming::[7.x]
+
 [role="exclude",id="cat-transform"]
 === cat transform API
 

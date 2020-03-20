@@ -185,6 +185,8 @@ public class TransformIndexerStats extends IndexerJobStats {
     private static <T> T unboxSafe(Object l, T default_value) {
         if (l == null) {
             return default_value;
-        } else return (T) l;
+        } else {
+            return (T) l;
+        }
     }
 }

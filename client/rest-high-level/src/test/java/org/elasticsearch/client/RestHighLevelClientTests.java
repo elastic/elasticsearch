@@ -794,7 +794,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.put_component_template",
             "cluster.get_component_template",
             "cluster.delete_component_template",
-            "scripts_painless_execute",
             "indices.create_data_stream",
             "indices.get_data_streams",
             "indices.delete_data_stream"

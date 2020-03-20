@@ -299,7 +299,7 @@ PUT my_index_2
 --------------------------------------------------
 // TEST[continued]
 
-* Reindex the deprecated format index to new_index_1
+Next, reindex the data from `my_index_1` to `my_index_2`.
 
 [source,console]
 --------------------------------------------------

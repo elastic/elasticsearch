@@ -368,13 +368,13 @@ PUT _template/template_1
 }
 --------------------------------------------------
 
-
+////
 [source,console]
 --------------------------------------------------
 DELETE /_template/template_1
 --------------------------------------------------
 // TEST[continued]
-* Upgrade to 7.x
+////
 
 ===== External templates
 Revisit other templates from elastic stack where you used a custom date pattern.

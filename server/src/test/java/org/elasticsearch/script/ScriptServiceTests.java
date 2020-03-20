@@ -595,9 +595,10 @@ public class ScriptServiceTests extends ESTestCase {
             Settings.builder()
                 .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
                 .build(),
-            List.of(foo, IngestScript.CONTEXT),
+            List.of(foo, IngestScript.CONTEXT, IngestConditionalScript.CONTEXT),
             true);
-        assertEquals(new Tuple<>(375, TimeValue.timeValueMinutes(5)), contextCache.contextCache.get("ingest").get().rate);
+        assertEquals(new Tuple<>(375, TimeValue.timeValueMinutes(5)),
+                     contextCache.contextCache.get("ingest").get().rate);
         assertEquals(200, contextCache.contextCache.get("ingest").get().cacheSize);
         assertEquals(TimeValue.timeValueMillis(0), contextCache.contextCache.get("ingest").get().cacheExpire);
     }

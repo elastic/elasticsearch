@@ -13,21 +13,22 @@ s|SQL precision
 
 4+h| Core types
 
-| <<null-value, `null`>>      | null          | NULL        | 0
-| <<boolean, `boolean`>>      | boolean       | BOOLEAN     | 1
-| <<number, `byte`>>          | byte          | TINYINT     | 3
-| <<number, `short`>>         | short         | SMALLINT    | 5
-| <<number, `integer`>>       | integer       | INTEGER     | 10
-| <<number, `long`>>          | long          | BIGINT      | 19
-| <<number, `double`>>        | double        | DOUBLE      | 15
-| <<number, `float`>>         | float         | REAL        | 7
-| <<number, `half_float`>>    | half_float    | FLOAT       | 3
-| <<number, `scaled_float`>>  | scaled_float  | DOUBLE      | 15
-| <<keyword, `keyword`>>      | keyword       | VARCHAR     | 32,766
-| <<text, `text`>>            | text          | VARCHAR     | 2,147,483,647
-| <<binary, `binary`>>        | binary        | VARBINARY   | 2,147,483,647
-| <<date, `date`>>            | datetime      | TIMESTAMP   | 29
-| <<ip, `ip`>>                | ip            | VARCHAR     | 39
+| <<null-value, `null`>>                   | null            | NULL        | 0
+| <<boolean, `boolean`>>                   | boolean         | BOOLEAN     | 1
+| <<number, `byte`>>                       | byte            | TINYINT     | 3
+| <<number, `short`>>                      | short           | SMALLINT    | 5
+| <<number, `integer`>>                    | integer         | INTEGER     | 10
+| <<number, `long`>>                       | long            | BIGINT      | 19
+| <<number, `double`>>                     | double          | DOUBLE      | 15
+| <<number, `float`>>                      | float           | REAL        | 7
+| <<number, `half_float`>>                 | half_float      | FLOAT       | 3
+| <<number, `scaled_float`>>               | scaled_float    | DOUBLE      | 15
+| <<keyword, `keyword`>>                   | keyword         | VARCHAR     | 32,766
+| <<constant-keyword, `constant_keyword`>> | constant_keyword| VARCHAR     | 32,766
+| <<text, `text`>>                         | text            | VARCHAR     | 2,147,483,647
+| <<binary, `binary`>>                     | binary          | VARBINARY   | 2,147,483,647
+| <<date, `date`>>                         | datetime        | TIMESTAMP   | 29
+| <<ip, `ip`>>                             | ip              | VARCHAR     | 39
 
 4+h| Complex types
 

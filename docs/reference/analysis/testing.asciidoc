@@ -55,7 +55,7 @@ The API returns the following response:
 You can also test combinations of:
 
 * A tokenizer
-* Zero or token filters
+* Zero or more token filters
 * Zero or more character filters
 
 [source,console]

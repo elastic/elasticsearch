@@ -103,7 +103,7 @@ Failure to properly convert `x` (Week year) to `Y` could result in data loss.
 ====
 --
 
-`Z` Zone offset/id::
+`Z` (Zone offset/id)::
 +
 --
 Replace with multiple `X`

@@ -22,9 +22,11 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class InboundPipelineTests extends ESTestCase {
@@ -42,33 +45,42 @@ public class InboundPipelineTests extends ESTestCase {
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     public void testPipelineHandling() throws IOException {
-        // TODO: Add header tests
-        final InboundDecoder decoder = new InboundDecoder();
-        final InboundAggregator aggregator = new InboundAggregator();
-        final List<MessageData> expected = new ArrayList<>();
-        final List<MessageData> actual = new ArrayList<>();
+        final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
+        final List<Tuple<MessageData, Exception>> actual = new ArrayList<>();
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
-        final BiConsumer<TcpChannel, AggregatedMessage> biConsumer = (c, m) -> {
+        final BiConsumer<TcpChannel, AggregatedMessage> messageHandler = (c, m) -> {
             try {
                 final Header header = m.getHeader();
                 final MessageData actualData;
+                final Version version = header.getVersion();
                 final boolean isRequest = header.isRequest();
                 final long requestId = header.getRequestId();
                 final boolean isCompressed = header.isCompressed();
                 if (isRequest) {
                     final TestRequest request = new TestRequest(m.getContent().streamInput());
-                    actualData = new MessageData(requestId, isRequest, isCompressed, header.getActionName(), request.value);
+                    actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), request.value);
                 } else {
                     final TestResponse response = new TestResponse(m.getContent().streamInput());
-                    actualData = new MessageData(requestId, isRequest, isCompressed, null, response.value);
+                    actualData = new MessageData(version, requestId, isRequest, isCompressed, null, response.value);
                 }
-                actual.add(actualData);
+                actual.add(new Tuple<>(actualData, null));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         };
+        final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler = (c, tuple) -> {
+            final Header header = tuple.v1();
+            final MessageData actualData;
+            final Version version = header.getVersion();
+            final boolean isRequest = header.isRequest();
+            final long requestId = header.getRequestId();
+            final boolean isCompressed = header.isCompressed();
+            actualData = new MessageData(version, requestId, isRequest, isCompressed, null, null);
+            actual.add(new Tuple<>(actualData, tuple.v2()));
+        };
 
-        final InboundPipeline pipeline = new InboundPipeline(decoder, aggregator, biConsumer);
+        final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, recycler, messageHandler, errorHandler);
 
         final int iterations = randomIntBetween(100, 500);
         long totalMessages = 0;
@@ -79,26 +91,45 @@ public class InboundPipelineTests extends ESTestCase {
             toRelease.clear();
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
+                    final boolean invalidVersion = rarely();
+
                     String actionName = "actionName";
+                    final Version version;
+                    if (invalidVersion) {
+                        version = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+                    } else {
+                        version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+                    }
                     final String value = randomAlphaOfLength(randomIntBetween(10, 200));
                     final boolean isRequest = randomBoolean();
                     final boolean isCompressed = randomBoolean();
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
+                    Exception expectedExceptionClass = null;
 
                     OutboundMessage message;
                     if (isRequest) {
-                        messageData = new MessageData(requestId, true, isCompressed, actionName, value);
+                        if (invalidVersion) {
+                            expectedExceptionClass = new IllegalStateException();
+                            messageData = new MessageData(version, requestId, true, isCompressed, null, null);
+                        } else {
+                            messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
+                        }
                         message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                            Version.CURRENT, actionName, requestId, false, isCompressed);
+                            version, actionName, requestId, false, isCompressed);
                     } else {
-                        messageData = new MessageData(requestId, false, isCompressed, null, value);
+                        if (invalidVersion) {
+                            expectedExceptionClass = new IllegalStateException();
+                            messageData = new MessageData(version, requestId, false, isCompressed, null, null);
+                        } else {
+                            messageData = new MessageData(version, requestId, false, isCompressed, null, value);
+                        }
                         message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                            Version.CURRENT, requestId, false, isCompressed);
+                            version, requestId, false, isCompressed);
                     }
 
-                    expected.add(messageData);
+                    expected.add(new Tuple<>(messageData, expectedExceptionClass));
                     final BytesReference reference = message.serialize(new BytesStreamOutput());
                     Streams.copy(reference.streamInput(), streamOutput);
                 }
@@ -118,13 +149,19 @@ public class InboundPipelineTests extends ESTestCase {
 
                 final int messages = expected.size();
                 for (int j = 0; j < messages; ++j) {
-                    final MessageData expectedMessage = expected.get(j);
-                    final MessageData actualMessage = actual.get(j);
-                    assertEquals(expectedMessage.requestId, actualMessage.requestId);
-                    assertEquals(expectedMessage.isRequest, actualMessage.isRequest);
-                    assertEquals(expectedMessage.isCompressed, actualMessage.isCompressed);
-                    assertEquals(expectedMessage.value, actualMessage.value);
-                    assertEquals(expectedMessage.actionName, actualMessage.actionName);
+                    final Tuple<MessageData, Exception> expectedTuple = expected.get(j);
+                    final Tuple<MessageData, Exception> actualTuple = actual.get(j);
+                    final MessageData expectedMessageData = expectedTuple.v1();
+                    final MessageData actualMessageData = actualTuple.v1();
+                    assertEquals(expectedMessageData.requestId, actualMessageData.requestId);
+                    assertEquals(expectedMessageData.isRequest, actualMessageData.isRequest);
+                    assertEquals(expectedMessageData.isCompressed, actualMessageData.isCompressed);
+                    assertEquals(expectedMessageData.value, actualMessageData.value);
+                    assertEquals(expectedMessageData.actionName, actualMessageData.actionName);
+                    if (expectedTuple.v2() != null) {
+                        assertNotNull(actualTuple.v2());
+                        assertThat(actualTuple.v2(), instanceOf(expectedTuple.v2().getClass()));
+                    }
                 }
 
                 for (ReleasableBytesReference released : toRelease) {
@@ -136,19 +173,22 @@ public class InboundPipelineTests extends ESTestCase {
 
     private static class MessageData {
 
+        private final Version version;
         private final long requestId;
         private final boolean isRequest;
         private final boolean isCompressed;
         private final String value;
         private final String actionName;
 
-        private MessageData(long requestId, boolean isRequest, boolean isCompressed, String actionName, String value) {
+        private MessageData(Version version, long requestId, boolean isRequest, boolean isCompressed, String actionName, String value) {
+            this.version = version;
             this.requestId = requestId;
             this.isRequest = isRequest;
             this.isCompressed = isCompressed;
             this.actionName = actionName;
             this.value = value;
         }
+
 
         @Override
         public boolean equals(Object o) {
@@ -158,13 +198,14 @@ public class InboundPipelineTests extends ESTestCase {
             return requestId == that.requestId &&
                 isRequest == that.isRequest &&
                 isCompressed == that.isCompressed &&
+                Objects.equals(version, that.version) &&
                 Objects.equals(value, that.value) &&
                 Objects.equals(actionName, that.actionName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(requestId, isRequest, isCompressed, value, actionName);
+            return Objects.hash(version, requestId, isRequest, isCompressed, value, actionName);
         }
     }
 }

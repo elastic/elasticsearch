@@ -35,16 +35,19 @@ public class InboundDecoder implements Releasable {
     static final Object PING = new Object();
     static final Object END_CONTENT = new Object();
 
+    private final Version version;
     private final PageCacheRecycler recycler;
+    private Exception decodingException;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
 
     public InboundDecoder() {
-        this(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        this(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
     }
 
-    public InboundDecoder(PageCacheRecycler recycler) {
+    public InboundDecoder(Version version, PageCacheRecycler recycler) {
+        this.version = version;
         this.recycler = recycler;
     }
 
@@ -76,6 +79,13 @@ public class InboundDecoder implements Releasable {
                     return headerBytesToRead;
                 }
             }
+        } else if (isDecodingFailed()) {
+            int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
+            bytesConsumed += bytesToConsume;
+            if (isDone()) {
+                finishMessage(fragmentConsumer);
+            }
+            return bytesToConsume;
         } else {
             // There are a minimum number of bytes required to start decompression
             if (decompressor != null && decompressor.canDecompress(reference.length()) == false) {
@@ -109,6 +119,7 @@ public class InboundDecoder implements Releasable {
     @Override
     public void close() {
         IOUtils.closeWhileHandlingException(decompressor);
+        decodingException = null;
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
@@ -124,10 +135,17 @@ public class InboundDecoder implements Releasable {
     }
 
     private void finishMessage(Consumer<Object> fragmentConsumer) {
+        Object finishMarker;
+        if (decodingException != null) {
+            finishMarker = decodingException;
+        } else {
+            finishMarker = END_CONTENT;
+        }
+        decodingException = null;
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
-        fragmentConsumer.accept(END_CONTENT);
+        fragmentConsumer.accept(finishMarker);
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {
@@ -170,10 +188,15 @@ public class InboundDecoder implements Releasable {
             byte status = streamInput.readByte();
             Version remoteVersion = Version.fromId(streamInput.readInt());
             Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
-            if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                // Skip since we already have ensured enough data available
-                streamInput.readInt();
-                header.finishParsingHeader(streamInput);
+            final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
+            if (invalidVersion != null) {
+                decodingException = invalidVersion;
+            } else {
+                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+                    // Skip since we already have ensured enough data available
+                    streamInput.readInt();
+                    header.finishParsingHeader(streamInput);
+                }
             }
             return header;
         }
@@ -181,5 +204,23 @@ public class InboundDecoder implements Releasable {
 
     private boolean isOnHeader() {
         return totalNetworkSize == -1;
+    }
+
+    private boolean isDecodingFailed() {
+        return decodingException != null;
+    }
+
+    private static IllegalStateException ensureVersionCompatibility(Version remoteVersion, Version currentVersion, boolean isHandshake) {
+        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
+        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
+        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
+        // once the connection is established
+        final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
+        if (remoteVersion.isCompatible(compatibilityVersion) == false) {
+            final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
+            String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
+            return new IllegalStateException(msg + remoteVersion + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
+        }
+        return null;
     }
 }

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,12 +39,18 @@ public class InboundPipeline implements Releasable {
     private final BiConsumer<TcpChannel, AggregatedMessage> messageHandler;
     private final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler;
 
-    public InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
-                           BiConsumer<TcpChannel, AggregatedMessage> messageHandler) {
+    public InboundPipeline(Version version, PageCacheRecycler recycler, BiConsumer<TcpChannel, AggregatedMessage> messageHandler,
+                           BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
+        this(new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler, errorHandler);
+    }
+
+    private InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
+                            BiConsumer<TcpChannel, AggregatedMessage> messageHandler,
+                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
-        this.errorHandler = (c, e) -> {};
+        this.errorHandler = errorHandler;
     }
 
     @Override
@@ -123,6 +131,6 @@ public class InboundPipeline implements Releasable {
     }
 
     private boolean endOfMessage(Object fragment) {
-        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT;
+        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 }

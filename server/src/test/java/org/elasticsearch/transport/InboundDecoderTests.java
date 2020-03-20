@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class InboundDecoderTests extends ESTestCase {
 
@@ -155,23 +156,20 @@ public class InboundDecoderTests extends ESTestCase {
         assertTrue(header.needsToReadVariableHeader());
         fragments.clear();
 
-        final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
+        final BytesReference bytes2 = totalBytes.slice(bytesConsumed, 2);
         final ReleasableBytesReference releasable2 = new ReleasableBytesReference(bytes2, releasable);
         int bytesConsumed2 = decoder.handle(releasable2, fragments::add);
-        assertEquals(totalBytes.length() - partialHeaderSize, bytesConsumed2);
+        assertEquals(0, fragments.size());
+        assertEquals(2, bytesConsumed2);
 
-        final Object content = fragments.get(0);
-        final Object endMarker = fragments.get(1);
+        final BytesReference bytes3 = totalBytes.slice(bytesConsumed + 2, totalBytes.length() - bytesConsumed - bytesConsumed2);
+        final ReleasableBytesReference releasable3 = new ReleasableBytesReference(bytes3, releasable);
+        int bytesConsumed3 = decoder.handle(releasable3, fragments::add);
+        assertEquals(totalBytes.length() - bytesConsumed - bytesConsumed2, bytesConsumed3);
 
-        assertEquals(remainingHeaderAndMessageBytes, content);
-        if (isCompressed) {
-            // Ref count is not incremented since the bytes are immediately consumed on decompression
-            assertEquals(1, releasable2.refCount());
-        } else {
-            // Ref count is incremented since the bytes are forwarded as a fragment
-            assertEquals(2, releasable2.refCount());
-        }
-        assertEquals(InboundDecoder.END_CONTENT, endMarker);
+        final Object exception = fragments.get(0);
+
+        assertThat(exception, instanceOf(IllegalStateException.class));
     }
 
     public void testDecodeHandshakeCompatibility() throws IOException {
@@ -298,5 +296,34 @@ public class InboundDecoderTests extends ESTestCase {
         // TODO: On 9.0 this will be true because all compatible versions with contain the variable header int
         assertTrue(header.needsToReadVariableHeader());
         fragments.clear();
+    }
+
+    public void testWillConsumeNetworkBytesBeforeFinishedWithDecodeError() throws IOException {
+        String action = "test-request";
+        long requestId = randomNonNegativeLong();
+        Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)),
+            incompatibleVersion, action, requestId, false, true);
+
+        final BytesReference bytes = message.serialize(new BytesStreamOutput());
+        int totalHeaderSize = TcpHeader.headerSize(incompatibleVersion);
+
+        InboundDecoder decoder = new InboundDecoder();
+        final ArrayList<Object> fragments = new ArrayList<>();
+        final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, releasable);
+        int bytesConsumed = decoder.handle(releasable1, fragments::add);
+        assertEquals(totalHeaderSize, bytesConsumed);
+        assertEquals(1, releasable1.refCount());
+
+        final Header header = (Header) fragments.get(0);
+        assertEquals(requestId, header.getRequestId());
+        assertEquals(incompatibleVersion, header.getVersion());
+        fragments.clear();
+
+        final int remaining = bytes.length() - bytesConsumed;
+        final BytesReference bytes2 = bytes.slice(bytesConsumed, remaining);
+        final ReleasableBytesReference releasable2 = new ReleasableBytesReference(bytes2, releasable);
+        bytesConsumed = decoder.handle(releasable2, fragments::add);
+        assertEquals(remaining, bytesConsumed);
     }
 }

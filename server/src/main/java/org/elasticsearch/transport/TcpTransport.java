@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -107,6 +108,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
     protected final Settings settings;
+    private final Version version;
     protected final ThreadPool threadPool;
     protected final PageCacheRecycler pageCacheRecycler;
     protected final NetworkService networkService;
@@ -131,6 +133,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         NetworkService networkService) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
+        this.version = version;
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
         this.networkService = networkService;
@@ -148,6 +151,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, handshaker,
             keepAlive);
+    }
+
+    public Version getVersion() {
+        return version;
     }
 
     @Override
@@ -668,6 +675,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             onException(channel, e);
         }
+    }
+
+    public void inboundDecodeException(TcpChannel channel, Tuple<Header, Exception> tuple) {
+        // Need to call inbound handler to mark bytes received. This should eventually be unnecessary as the
+        // stats marking will move into the pipeline.
+        inboundHandler.handleDecodeException(channel, tuple.v1());
+        onException(channel, tuple.v2());
     }
 
     /**

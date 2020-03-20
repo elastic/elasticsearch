@@ -54,8 +54,6 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.InboundAggregator;
-import org.elasticsearch.transport.InboundDecoder;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
@@ -276,7 +274,8 @@ public class MockNioTransport extends TcpTransport {
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
-            this.pipeline = new InboundPipeline(new InboundDecoder(recycler), new InboundAggregator(), transport::inboundMessage);
+            this.pipeline = new InboundPipeline(transport.getVersion(), recycler, transport::inboundMessage,
+                transport::inboundDecodeException);
         }
 
         @Override

@@ -105,6 +105,11 @@ public class InboundHandler {
         }
     }
 
+    void handleDecodeException(TcpChannel channel, Header header) {
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        readBytesMetric.inc(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+    }
+
     private void messageReceived(AggregatedMessage aggregatedMessage, TcpChannel channel) throws IOException {
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 

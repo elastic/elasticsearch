@@ -75,7 +75,7 @@ For pattern `YYYY-ww` and date `2018-12-31T00:00:00.000Z`  will give `2019-01` (
 Replace with `u`.
 
 *Example:*
-`yyyy-MM-dd` should become `uuuu-MM-dd`
+`yyyy-MM-dd` should become `uuuu-MM-dd`.
 
 The difference is that year can contain non positive values, whereas `y` can not. Also year-of-era can also be associated with an era field.
 --

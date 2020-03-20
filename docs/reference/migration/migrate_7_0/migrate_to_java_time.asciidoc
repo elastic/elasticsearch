@@ -128,7 +128,7 @@ Pattern `YYYY-MM-dd'T'hh:mm:ssZ` accepting these dates:
 2010-01-01T01:02:03+0102
 2010-01-01T01:02:03+010203
 ```
-should be migrated to
+To accept all these forms in java time, you must use the `||` delimiter:
 [source,txt]
 --------------------------------------------------
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX

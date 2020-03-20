@@ -31,7 +31,7 @@ To see if your date format is impacted, use the <<migration-api-deprecation,depr
 or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant]
 
 [[java-time-migration-incompatible-date-formats]]
-==== Incompatible formats
+==== Incompatible date formats
 Custom date formats containing the following joda time literals should be
 changed before upgrading.
 

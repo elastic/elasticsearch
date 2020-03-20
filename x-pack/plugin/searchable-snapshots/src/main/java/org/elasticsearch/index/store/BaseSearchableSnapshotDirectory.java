@@ -33,6 +33,10 @@ public abstract class BaseSearchableSnapshotDirectory extends BaseDirectory {
         this.closed = new AtomicBoolean(false);
     }
 
+    public BlobContainer blobContainer() {
+        return blobContainer;
+    }
+
     protected final FileInfo fileInfo(final String name) throws FileNotFoundException {
         return snapshot.indexFiles()
             .stream()

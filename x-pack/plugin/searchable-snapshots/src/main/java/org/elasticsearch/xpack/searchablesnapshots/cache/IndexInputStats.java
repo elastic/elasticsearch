@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory.CacheBufferedIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;

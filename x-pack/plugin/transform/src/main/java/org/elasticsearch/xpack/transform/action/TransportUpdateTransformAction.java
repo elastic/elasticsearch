@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Reque
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -350,14 +351,20 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     }
 
     private void createDestination(Pivot pivot, TransformConfig config, ActionListener<Void> listener) {
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(
-                client,
-                Clock.systemUTC(),
-                config,
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                 mappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+            TransformIndex.createDestinationIndex(
+                client,
+                config,
+                generateddestIndexSettings,
                 ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-            ),
+            );
+        },
+
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )

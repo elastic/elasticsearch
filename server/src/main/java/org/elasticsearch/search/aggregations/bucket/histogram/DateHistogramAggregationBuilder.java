@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -287,7 +287,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     /**
-     * Parse the string specification of an offset. 
+     * Parse the string specification of an offset.
      */
     public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {
@@ -458,7 +458,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         Instant instant = null;
         final IndexNumericFieldData fieldData = context.getForField(ft);
         for (LeafReaderContext ctx : reader.leaves()) {
-            AtomicNumericFieldData leafFD = fieldData.load(ctx);
+            LeafNumericFieldData leafFD = fieldData.load(ctx);
             SortedNumericDocValues values = leafFD.getLongValues();
             if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 instant = Instant.ofEpochMilli(values.nextValue());

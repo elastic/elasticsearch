@@ -47,7 +47,8 @@ public class GatewayServiceTests extends ESTestCase {
 
         // ensure settings override default
         final TimeValue timeValue = TimeValue.timeValueHours(3);
-        // ensure default is set
+
+        // ensure default is set when setting expected_nodes
         service = createService(Settings.builder().put("gateway.recover_after_time",
             timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));

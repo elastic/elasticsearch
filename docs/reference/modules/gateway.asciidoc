@@ -23,7 +23,6 @@ recover the cluster state and the cluster's data:
 Once the `recover_after_time` duration has timed out, recovery will start
 as long as the following conditions are met:
 
-
 `gateway.recover_after_data_nodes`::
 
     Recover as long as this many data nodes have joined the cluster.

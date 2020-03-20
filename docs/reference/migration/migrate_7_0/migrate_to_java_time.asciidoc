@@ -93,7 +93,7 @@ A possible workaround https://stackoverflow.com/questions/38354151/how-to-force-
 `x` (Week year)::
 +
 --
-Replace with `Y`
+Replace with `Y`.
 
 This is a big change. `x` means https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[zone-offset] in java.time
 --

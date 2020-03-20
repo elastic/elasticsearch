@@ -162,14 +162,23 @@ yyyy-MM-'000'dd
 `e` (Name of day)::
 +
 --
-The same meaning in 7.0. However it is less flexible in 7.0. It do not allow parsing short and full text forms.
+In java time, `e` is still interpreted as "name of day" but does not parse
+short- or full-text forms.
 
-If you used `EEE YYYY-MM` for a format and expected days in form:
-`Wed 2020-01` or `Wednesday 2020-01`
-then you have to use two combined patterns in 7.0
-`cccc yyyy-MM||ccc yyyy-MM`
+For example, the joda-time date format `EEE YYYY-MM` accepts both
+`Wed 2020-01` and `Wednesday 2020-01`.
 
-E vs c. E means day-of-week vs c is for localized day-of-week. The difference is that E won't behave correctly for full text forms like Wednesday
+To accept both of these dates in java time, you must specify each format using
+the `||` delimiter: 
+
+[source,txt]
+--------------------------------------------------
+cccc yyyy-MM||ccc yyyy-MM
+--------------------------------------------------
+
+The joda-time literal `E` is interpreted as "day of week."
+The java-time literal `c` is interpreted as "localized day of week."
+`E` does not accept full-text day formats, such as `Wednesday`.
 --
 
 Text forms EEEE and similar::

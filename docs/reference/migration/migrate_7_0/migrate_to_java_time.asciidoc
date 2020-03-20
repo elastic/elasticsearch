@@ -85,9 +85,8 @@ values, while `y` cannot. `y` can also be associated with an era field.
 `C` (Century of era)::
 +
 --
-No longer supported in 7.0. There is no replacement, so you need to preprocess your input.
-
-A possible workaround https://stackoverflow.com/questions/38354151/how-to-force-java-time-localdate-to-assume-19th-century-as-yy-year-pattern
+Century of era is not supported in java time.
+There is no replacement. Instead, we recommend you preprocess your input.
 --
 
 `x` (Week year)::

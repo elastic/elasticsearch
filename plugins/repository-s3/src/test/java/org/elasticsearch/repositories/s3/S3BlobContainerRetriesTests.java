@@ -189,7 +189,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             }
         });
 
-        final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 500));
+        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
             final int readLimit;
@@ -509,13 +509,15 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         return randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
     }
 
+    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
+
     private static Tuple<Long, Long> getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
             return Tuple.tuple(0L, MAX_RANGE_VAL);
         }
 
-        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(rangeHeader);
+        final Matcher matcher = RANGE_PATTERN.matcher(rangeHeader);
         assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
         long rangeStart = Long.parseLong(matcher.group(1));
         long rangeEnd = Long.parseLong(matcher.group(2));

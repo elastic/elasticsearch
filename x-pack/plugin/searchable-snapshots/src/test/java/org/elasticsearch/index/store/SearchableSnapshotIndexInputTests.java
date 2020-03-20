@@ -93,7 +93,7 @@ public class SearchableSnapshotIndexInputTests extends ESIndexInputTestCase {
                     };
                 }
             });
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo, minimumReadSize,
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo, newIOContext(random()), minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE));
     }
 

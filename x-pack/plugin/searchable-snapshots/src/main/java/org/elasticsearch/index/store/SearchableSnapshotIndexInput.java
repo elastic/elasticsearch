@@ -6,6 +6,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedRunnable;
@@ -45,10 +46,8 @@ import java.util.Objects;
  * {@link InputStream} in {@code streamForSequentialReads}. Clones and slices, however, do not expect to be read sequentially and so make
  * a new request to the {@link BlobContainer} each time their internal buffer needs refilling.
  */
-public class SearchableSnapshotIndexInput extends BufferedIndexInput {
+public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInput {
 
-    private final BlobContainer blobContainer;
-    private final FileInfo fileInfo;
     private final long offset;
     private final long length;
 
@@ -61,17 +60,21 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     private static final long NO_SEQUENTIAL_READ_OPTIMIZATION = 0L;
 
 
-    SearchableSnapshotIndexInput(final BlobContainer blobContainer, final FileInfo fileInfo, long sequentialReadSize, int bufferSize) {
-        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, 0L, 0L, fileInfo.length(),
+    SearchableSnapshotIndexInput(
+        BlobContainer blobContainer,
+        FileInfo fileInfo,
+        IOContext context,
+        long sequentialReadSize,
+        int bufferSize
+    ) {
+        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, context, 0L, 0L, fileInfo.length(),
             sequentialReadSize, bufferSize);
     }
 
-    private SearchableSnapshotIndexInput(final String resourceDesc, final BlobContainer blobContainer, final FileInfo fileInfo,
+    private SearchableSnapshotIndexInput(String resourceDesc, BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
                                          final long position, final long offset, final long length, final long sequentialReadSize,
                                          final int bufferSize) {
-        super(resourceDesc, bufferSize);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
-        this.fileInfo = Objects.requireNonNull(fileInfo);
+        super(resourceDesc, blobContainer, fileInfo, context, bufferSize);
         this.offset = offset;
         this.length = length;
         this.position = position;
@@ -220,7 +223,7 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
 
     @Override
     public BufferedIndexInput clone() {
-        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, position, offset, length,
+        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, context, position, offset, length,
             // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
             // solution: do not optimize sequential reads on clones.
             NO_SEQUENTIAL_READ_OPTIMIZATION,
@@ -230,8 +233,8 @@ public class SearchableSnapshotIndexInput extends BufferedIndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-            final SearchableSnapshotIndexInput slice = new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo, position,
-                this.offset + offset, length,
+            final SearchableSnapshotIndexInput slice = new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo,  context,
+                position, this.offset + offset, length,
                 // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
                 // solution: do not optimize sequential reads on slices.
                 NO_SEQUENTIAL_READ_OPTIMIZATION,

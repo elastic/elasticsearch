@@ -5,11 +5,17 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
@@ -22,8 +28,11 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
@@ -36,50 +45,55 @@ public class CacheDirectoryTests extends ESTestCase {
     public void testClearCache() throws Exception {
         try (CacheService cacheService = new CacheService(Settings.EMPTY)) {
             cacheService.start();
-            try (Directory directory = newDirectory()) {
-                final int nbRandomFiles = randomIntBetween(3, 10);
-                final Map<String, Integer> randomFiles = new HashMap<>(nbRandomFiles);
 
-                for (int i = 0; i < nbRandomFiles; i++) {
-                    final String fileName = randomAlphaOfLength(10);
-                    final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+            final int nbRandomFiles = randomIntBetween(3, 10);
+            final List<BlobStoreIndexShardSnapshot.FileInfo> randomFiles = new ArrayList<>(nbRandomFiles);
 
-                    final IndexOutput indexOutput = directory.createOutput(fileName, newIOContext(random()));
-                    indexOutput.writeBytes(fileContent, fileContent.length);
-                    indexOutput.close();
-                    randomFiles.put(fileName, fileContent.length);
-                }
+            final Path shardSnapshotDir = createTempDir();
+            for (int i = 0; i < nbRandomFiles; i++) {
+                final String fileName = "file_" + randomAlphaOfLength(10);
+                final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+                final String blobName = randomAlphaOfLength(15);
+                Files.write(shardSnapshotDir.resolve(blobName), fileContent, StandardOpenOption.CREATE_NEW);
+                randomFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(blobName,
+                    new StoreFileMetaData(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
+                    new ByteSizeValue(fileContent.length)));
+            }
 
-                final Path cacheDir = createTempDir();
-                try (CacheDirectory cacheDirectory = newCacheDirectory(directory, cacheService, cacheDir)) {
-                    final byte[] buffer = new byte[1024];
-                    for (int i = 0; i < randomIntBetween(10, 50); i++) {
-                        final String fileName = randomFrom(randomFiles.keySet());
-                        final int fileLength = randomFiles.get(fileName);
+            final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", 0L, randomFiles, 0L, 0L, 0, 0L);
+            final BlobContainer blobContainer = new FsBlobContainer(new FsBlobStore(Settings.EMPTY, shardSnapshotDir, true),
+                BlobPath.cleanPath(), shardSnapshotDir);
 
-                        try (IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()))) {
-                            assertThat(input.length(), equalTo((long) fileLength));
-                            final int start = between(0, fileLength - 1);
-                            final int end = between(start + 1, fileLength);
+            final Path cacheDir = createTempDir();
+            try (CacheDirectory cacheDirectory = newCacheDirectory(snapshot, blobContainer, cacheService, cacheDir)) {
+                final byte[] buffer = new byte[1024];
+                for (int i = 0; i < randomIntBetween(10, 50); i++) {
+                    final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
+                    final int fileLength = Math.toIntExact(fileInfo.length());
 
-                            input.seek(start);
-                            while (input.getFilePointer() < end) {
-                                input.readBytes(buffer, 0, Math.toIntExact(Math.min(buffer.length, end - input.getFilePointer())));
-                            }
+                    try (IndexInput input = cacheDirectory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
+                        assertThat(input.length(), equalTo((long) fileLength));
+                        final int start = between(0, fileLength - 1);
+                        final int end = between(start + 1, fileLength);
+
+                        input.seek(start);
+                        while (input.getFilePointer() < end) {
+                            input.readBytes(buffer, 0, Math.toIntExact(Math.min(buffer.length, end - input.getFilePointer())));
                         }
-                        assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
-                        if (randomBoolean()) {
-                            cacheDirectory.clearCache();
-                            assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
-                        }
+                    }
+                    assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
+                    if (randomBoolean()) {
+                        cacheDirectory.clearCache();
+                        assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
                     }
                 }
             }
         }
     }
 
-    private CacheDirectory newCacheDirectory(Directory directory, CacheService cacheService, Path cacheDir) throws IOException {
-        return new CacheDirectory(directory, cacheService, cacheDir, new SnapshotId("_na","_na"), new IndexId("_na", "_na"),
+    private CacheDirectory newCacheDirectory(BlobStoreIndexShardSnapshot snapshot, BlobContainer container,
+                                             CacheService cacheService, Path cacheDir) throws IOException {
+        return new CacheDirectory(snapshot, container, cacheService, cacheDir, new SnapshotId("_na","_na"), new IndexId("_na", "_na"),
             new ShardId("_na", "_na", 0), () -> 0L);
     }
 

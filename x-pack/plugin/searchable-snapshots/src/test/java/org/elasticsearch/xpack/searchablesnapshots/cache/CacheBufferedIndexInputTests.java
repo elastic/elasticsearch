@@ -5,25 +5,33 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 
 import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.singleBlobContainer;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
@@ -40,14 +48,19 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 final String fileName = randomAlphaOfLength(10);
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
-                Directory directory = new SingleFileDirectory(fileName, input);
+                final String blobName = randomUnicodeOfLength(10);
+                final StoreFileMetaData metaData = new StoreFileMetaData(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
+                final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
+                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(input.length))), 0L, 0L, 0, 0L);
+
+                BlobContainer blobContainer = singleBlobContainer(blobName, input);
                 if (input.length <= cacheService.getCacheSize()) {
-                    directory = new CountingDirectory(directory, cacheService.getRangeSize());
+                    blobContainer = new CountingBlobContainer(blobContainer, cacheService.getRangeSize());
                 }
 
                 final Path cacheDir = createTempDir();
                 try (CacheDirectory cacheDirectory
-                         = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardId, () -> 0L)) {
+                         = new CacheDirectory(snapshot, blobContainer, cacheService, cacheDir, snapshotId, indexId, shardId, () -> 0L)) {
                     try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
@@ -56,145 +69,110 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                     }
                 }
 
-                if (directory instanceof CountingDirectory) {
+                if (blobContainer instanceof CountingBlobContainer) {
                     long numberOfRanges = numberOfRanges(input.length, cacheService.getRangeSize());
                     assertThat("Expected " + numberOfRanges + " ranges fetched from the source",
-                        ((CountingDirectory) directory).totalOpens.sum(), equalTo(numberOfRanges));
+                        ((CountingBlobContainer) blobContainer).totalOpens.sum(), equalTo(numberOfRanges));
                     assertThat("All bytes should have been read from source",
-                        ((CountingDirectory) directory).totalBytes.sum(), equalTo((long) input.length));
+                        ((CountingBlobContainer) blobContainer).totalBytes.sum(), equalTo((long) input.length));
                 }
-
-                directory.close();
             }
         }
     }
 
-    /**
-     * FilterDirectory that provides a single IndexInput with a given name and content.
-     */
-    private static class SingleFileDirectory  extends FilterDirectory {
-
-        private final String fileName;
-        private final byte[] fileContent;
-
-        SingleFileDirectory(final String fileName, final byte[] fileContent) {
-            super(null);
-            this.fileName = Objects.requireNonNull(fileName);
-            this.fileContent = Objects.requireNonNull(fileContent);
-        }
-
-        @Override
-        public String[] listAll() {
-            return new String[]{fileName};
-        }
-
-        @Override
-        public long fileLength(String name) throws IOException {
-            if (name.equals(fileName)) {
-                return fileContent.length;
-            }
-            throw new FileNotFoundException(name);
-        }
-
-        @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (name.equals(fileName)) {
-                return new ByteArrayIndexInput(fileName, fileContent);
-            }
-            throw new FileNotFoundException(name);
-        }
-
-        @Override
-        public void close() {
-        }
-    }
 
     /**
-     * FilterDirectory that counts the number of IndexInput it opens, as well as the
+     * BlobContainer that counts the number of {@link java.io.InputStream} it opens, as well as the
      * total number of bytes read from them.
      */
-    private static class CountingDirectory extends FilterDirectory {
+    private static class CountingBlobContainer extends BlobContainerWrapper {
 
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
 
         private final int rangeSize;
 
-        CountingDirectory(Directory in, int rangeSize) {
+        CountingBlobContainer(BlobContainer in, int rangeSize) {
             super(in);
             this.rangeSize = rangeSize;
         }
 
         @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            return new CountingIndexInput(this, super.openInput(name, context), rangeSize);
+        public InputStream readBlob(String name) throws IOException {
+            return new CountingInputStream(this, super.readBlob(name), getBlobLength(name), rangeSize);
+        }
+
+        @Override
+        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+            return new CountingInputStream(this, super.readBlob(blobName, position, length), length, rangeSize);
+        }
+
+        private long getBlobLength(String blobName) throws IOException {
+            for (Map.Entry<String, BlobMetaData> blob : listBlobs().entrySet()) {
+                if (blobName.equals(blob.getKey())) {
+                    return blob.getValue().length();
+                }
+            }
+            throw new FileNotFoundException(blobName);
         }
     }
 
     /**
-     * IndexInput that counts the number of bytes read from it, as well as the positions
+     * InputStream that counts the number of bytes read from it, as well as the positions
      * where read operations start and finish.
      */
-    private static class CountingIndexInput extends IndexInput {
+    private static class CountingInputStream extends FilterInputStream {
 
-        private final CountingDirectory dir;
-        private final IndexInput in;
+        private final CountingBlobContainer container;
         private final int rangeSize;
+        private final long length;
 
         private long bytesRead = 0L;
+        private long position = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
 
-        CountingIndexInput(CountingDirectory directory, IndexInput input, int rangeSize) {
-            super("CountingIndexInput(" + input + ")");
-            this.dir = Objects.requireNonNull(directory);
-            this.in = Objects.requireNonNull(input);
+        CountingInputStream(CountingBlobContainer container, InputStream input, long length, int rangeSize) {
+            super(input);
+            this.container = Objects.requireNonNull(container);
             this.rangeSize = rangeSize;
-            dir.totalOpens.increment();
+            this.length = length;
+            this.container.totalOpens.increment();
         }
 
         @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            if (getFilePointer() < start) {
-                start = getFilePointer();
+        public int read() throws IOException {
+            if (position < start) {
+                start = position;
             }
 
-            in.readBytes(b, offset, len);
+            final int result = in.read();
+            if (result == -1) {
+                return result;
+            }
+            bytesRead += 1L;
+            position += 1L;
+
+            if (position > end) {
+                end = position;
+            }
+            return result;
+        }
+
+        @Override
+        public int read(byte[] b, int offset, int len) throws IOException {
+            if (position < start) {
+                start = position;
+            }
+
+            final int result = in.read(b, offset, len);
             bytesRead += len;
+            position += len;
 
-            if (getFilePointer() > end) {
-                end = getFilePointer();
+            if (position > end) {
+                end = position;
             }
-        }
-
-        @Override
-        public byte readByte() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return in.getFilePointer();
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            in.seek(pos);
-        }
-
-        @Override
-        public long length() {
-            return in.length();
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            return new CountingIndexInput(dir, in.slice(sliceDescription, offset, length), rangeSize);
-        }
-
-        @Override
-        public IndexInput clone() {
-            return new CountingIndexInput(dir, in.clone(), rangeSize);
+            return result;
         }
 
         @Override
@@ -204,27 +182,27 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 throw new AssertionError("Read operation should start at the beginning of a range");
             }
             if (end % rangeSize != 0) {
-                if (end != in.length()) {
+                if (end != length) {
                     throw new AssertionError("Read operation should finish at the end of a range or the end of the file");
                 }
             }
-            if (in.length() <= rangeSize) {
-                if (bytesRead != in.length()) {
-                    throw new AssertionError("All [" + in.length() + "] bytes should have been read, no more no less but got:" + bytesRead);
+            if (length <= rangeSize) {
+                if (bytesRead != length) {
+                    throw new AssertionError("All [" + length + "] bytes should have been read, no more no less but got:" + bytesRead);
                 }
             } else {
                 if (bytesRead != rangeSize) {
-                    if (end != in.length()) {
+                    if (end != length) {
                         throw new AssertionError("Expecting [" + rangeSize + "] bytes to be read but got:" + bytesRead);
 
                     }
-                    final long remaining = in.length() % rangeSize;
+                    final long remaining = length % rangeSize;
                     if (bytesRead != remaining) {
                         throw new AssertionError("Expecting [" + remaining + "] bytes to be read but got:" + bytesRead);
                     }
                 }
             }
-            dir.totalBytes.add(bytesRead);
+            this.container.totalBytes.add(bytesRead);
         }
     }
 

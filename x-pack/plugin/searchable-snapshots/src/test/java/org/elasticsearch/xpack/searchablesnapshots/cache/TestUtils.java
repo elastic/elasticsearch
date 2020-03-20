@@ -5,10 +5,21 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
@@ -51,5 +62,67 @@ final class TestUtils {
         assertThat(counter.count(), equalTo(count));
         assertThat(counter.min(), equalTo(min));
         assertThat(counter.max(), equalTo(max));
+    }
+
+    /**
+     * A {@link BlobContainer} that can read a single in-memory blob.
+     * Any attempt to read a different blob will throw a {@link FileNotFoundException}
+     */
+    static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
+        return new BlobContainer() {
+
+            @Override
+            public InputStream readBlob(String name, long position, long length) throws IOException {
+                if (blobName.equals(name) == false) {
+                    throw new FileNotFoundException("Blob not found: " + name);
+                }
+                return Streams.limitStream(new ByteArrayInputStream(blobContent, Math.toIntExact(position), blobContent.length), length);
+            }
+
+            @Override
+            public Map<String, BlobMetaData> listBlobs() {
+                return Map.of(blobName, new PlainBlobMetaData(blobName, blobContent.length));
+            }
+
+            @Override
+            public BlobPath path() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream readBlob(String blobName) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public DeleteResult delete() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Map<String, BlobContainer> children() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

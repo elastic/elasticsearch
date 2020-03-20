@@ -1,0 +1,31 @@
+{
+  "indices.create_data_stream":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Creates or updates a data stream"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/{name}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the data stream"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    },
+    "body":{
+      "description":"The data stream definition",
+      "required":true
+    }
+  }
+}

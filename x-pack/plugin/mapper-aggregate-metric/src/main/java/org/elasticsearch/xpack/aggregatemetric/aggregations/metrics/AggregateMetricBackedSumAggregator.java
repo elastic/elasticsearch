@@ -23,9 +23,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.AggregateDoubleMetricValue;
-import org.elasticsearch.index.fielddata.AggregateDoubleMetricValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValue;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -96,8 +95,8 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
 
-                    final AggregateDoubleMetricValue aggregateSum = values.aggregateMetric();
-                    kahanSummation.add(aggregateSum.value());
+                    final AggregateDoubleMetricValue aggregateSum = values.metricValue();
+                    kahanSummation.add(aggregateSum.doubleValue());
 
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());

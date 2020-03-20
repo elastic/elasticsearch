@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
@@ -19,6 +18,6 @@ public class AggregateMetricsAggregatorsRegistrar {
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, pipelineAggregators, metaData) ->
                 new AggregateMetricBackedSumAggregator(name, (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                formatter, context, parent, pipelineAggregators, metaData));
+                    formatter, context, parent, pipelineAggregators, metaData));
     }
 }

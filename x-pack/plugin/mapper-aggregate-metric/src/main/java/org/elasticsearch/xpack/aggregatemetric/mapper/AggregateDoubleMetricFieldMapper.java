@@ -23,12 +23,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AggregateDoubleMetricValue;
-import org.elasticsearch.index.fielddata.AggregateDoubleMetricValues;
-import org.elasticsearch.index.fielddata.IndexAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValue;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValues;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.LeafAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -381,10 +381,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
                             return new LeafAggregateDoubleMetricFieldData() {
                                 @Override
-                                public AggregateDoubleMetricValues getAggregateMetricValues(final String agg) throws IOException {
+                                public AggregateDoubleMetricValues getAggregateMetricValues(final Metric metric) throws IOException {
                                     try {
 //                                        final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), fieldName+ SUBFIELD_SEPARATOR + agg);
-                                        final NumericDocValues values = DocValues.getNumeric(context.reader(), fieldName+ SUBFIELD_SEPARATOR + agg);
+                                        final NumericDocValues values = DocValues.getNumeric(context.reader(),
+                                            fieldName+ SUBFIELD_SEPARATOR + metric);
 
                                         final InternalAggregateDoubleMetricValue value = new InternalAggregateDoubleMetricValue();
                                         return new AggregateDoubleMetricValues() {
@@ -395,7 +396,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                             }
 
                                             @Override
-                                            public AggregateDoubleMetricValue aggregateMetric() throws IOException {
+                                            public AggregateDoubleMetricValue metricValue() throws IOException {
                                                 try {
 //                                                    value.setValue(NumericUtils.sortableLongToDouble(values.longValue()));
                                                     value.setValue(Double.longBitsToDouble(values.longValue()));
@@ -630,7 +631,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public double value() {
+        public double doubleValue() {
             return value;
         }
 

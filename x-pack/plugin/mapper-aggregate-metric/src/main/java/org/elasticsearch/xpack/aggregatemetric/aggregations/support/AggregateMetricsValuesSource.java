@@ -3,24 +3,21 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.AggregateDoubleMetricValues;
 import org.elasticsearch.index.fielddata.DocValueBits;
-import org.elasticsearch.index.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.AggregateDoubleMetricValues;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
 
 public class AggregateMetricsValuesSource {
     public abstract static class AggregateDoubleMetric extends org.elasticsearch.search.aggregations.support.ValuesSource {
 
-        public abstract AggregateDoubleMetricValues getAggregateMetricValues(LeafReaderContext context,
-                                                                             AggregateDoubleMetricFieldMapper.Metric metric)
-            throws IOException;
+        public abstract AggregateDoubleMetricValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException;
 
         public static class Fielddata extends AggregateDoubleMetric {
 
@@ -46,9 +43,8 @@ public class AggregateMetricsValuesSource {
                 };
             }
 
-            public AggregateDoubleMetricValues getAggregateMetricValues(LeafReaderContext context,
-                                                                        AggregateDoubleMetricFieldMapper.Metric metric) throws IOException {
-                return indexFieldData.load(context).getAggregateMetricValues(metric.name());
+            public AggregateDoubleMetricValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException {
+                return indexFieldData.load(context).getAggregateMetricValues(metric);
             }
         }
     }

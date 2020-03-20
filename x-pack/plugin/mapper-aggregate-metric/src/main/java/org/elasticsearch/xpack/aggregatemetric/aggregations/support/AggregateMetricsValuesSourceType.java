@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 
-import org.elasticsearch.index.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -15,6 +13,7 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 
 import java.util.Locale;
 import java.util.function.LongSupplier;
@@ -24,13 +23,12 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
     AGGREGATE_METRIC() {
         @Override
         public ValuesSource getEmpty() {
-            // TODO: Is this the correct exception type here?
-            throw new IllegalArgumentException("Can't deal with unmapped HistogramValuesSource type " + this.value());
+            throw new IllegalArgumentException("Can't deal with unmapped AggregateMetricsValuesSource type " + this.value());
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+            throw new AggregationExecutionException("Value source of type [" + this.value() + "] is not supported by scripts");
         }
 
         @Override
@@ -38,7 +36,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if (!(indexFieldData instanceof IndexAggregateDoubleMetricFieldData)) {
-                throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
+                throw new IllegalArgumentException("Expected aggregate_metric_double type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
             return new AggregateMetricsValuesSource.AggregateDoubleMetric.Fielddata((IndexAggregateDoubleMetricFieldData) indexFieldData);

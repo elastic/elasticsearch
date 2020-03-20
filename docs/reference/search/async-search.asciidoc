@@ -92,9 +92,10 @@ available through the `keep_alive` parameter, which defaults to `5d` (five days)
 Ongoing async searches and any saved search results are deleted after this
 period.
 
-NOTE: When results are sorted by a numeric field, shards get sorted based on
-minimum and maximum value that they hold for that field, hence partial
-results become available following the sort criteria that was requested.
+NOTE: When the primary sort of the results is an indexed field, shards get
+sorted based on minimum and maximum value that they hold for that field,
+hence partial results become available following the sort criteria that
+was requested.
 
 The submit async search API supports the same <<search-search-api-query-params,parameters>>
 as the search API, though some have different default values:

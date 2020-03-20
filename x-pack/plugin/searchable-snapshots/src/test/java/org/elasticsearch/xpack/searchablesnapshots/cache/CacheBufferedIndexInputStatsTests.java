@@ -6,28 +6,33 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.apache.lucene.store.BufferedIndexInput;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.randomCacheRangeSize;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.singleBlobContainer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -430,10 +435,15 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
+        final String blobName = randomUnicodeOfLength(10);
+        final BlobContainer blobContainer = singleBlobContainer(blobName, fileContent);
+        final StoreFileMetaData metaData = new StoreFileMetaData(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
+        final List<FileInfo> files = List.of(new FileInfo(blobName, metaData, new ByteSizeValue(fileContent.length)));
+        final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+
         try (CacheService ignored = cacheService;
-             Directory directory = newDirectory();
              CacheDirectory cacheDirectory =
-                 new CacheDirectory(directory, cacheService, createTempDir(), snapshotId, indexId, shardId,
+                 new CacheDirectory(snapshot, blobContainer, cacheService, createTempDir(), snapshotId, indexId, shardId,
                      () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS)) {
                      @Override
                      IndexInputStats createIndexInputStats(long fileLength) {
@@ -446,10 +456,6 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         ) {
             cacheService.start();
             assertThat(cacheDirectory.getStats(fileName), nullValue());
-
-            final IndexOutput indexOutput = directory.createOutput(fileName, newIOContext(random()));
-            indexOutput.writeBytes(fileContent, fileContent.length);
-            indexOutput.close();
 
             test.apply(fileName, fileContent, cacheDirectory);
         }

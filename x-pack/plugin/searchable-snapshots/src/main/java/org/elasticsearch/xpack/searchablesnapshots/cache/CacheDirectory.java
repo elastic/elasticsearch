@@ -9,22 +9,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.BaseSearchableSnapshotDirectory;
+import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -39,7 +43,7 @@ import java.util.function.LongSupplier;
 /**
  * {@link CacheDirectory} uses a {@link CacheService} to cache Lucene files provided by another {@link Directory}.
  */
-public class CacheDirectory extends FilterDirectory {
+public class CacheDirectory extends BaseSearchableSnapshotDirectory {
 
     private static final Logger logger = LogManager.getLogger(CacheDirectory.class);
     private static final int COPY_BUFFER_SIZE = 8192;
@@ -52,10 +56,11 @@ public class CacheDirectory extends FilterDirectory {
     private final Path cacheDir;
     private final LongSupplier currentTimeNanosSupplier;
 
-    public CacheDirectory(Directory in, CacheService cacheService, Path cacheDir, SnapshotId snapshotId, IndexId indexId, ShardId shardId,
+    public CacheDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer,
+                          CacheService cacheService, Path cacheDir, SnapshotId snapshotId, IndexId indexId, ShardId shardId,
                           LongSupplier currentTimeNanosSupplier)
         throws IOException {
-        super(in);
+        super(blobContainer, snapshot);
         this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Files.createDirectories(cacheDir);
@@ -96,8 +101,8 @@ public class CacheDirectory extends FilterDirectory {
         return new IndexInputStats(fileLength);
     }
 
-    public void close() throws IOException {
-        super.close();
+    @Override
+    protected void innerClose() {
         // Ideally we could let the cache evict/remove cached files by itself after the
         // directory has been closed.
         clearCache();
@@ -110,8 +115,9 @@ public class CacheDirectory extends FilterDirectory {
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        final long fileLength = fileLength(name);
-        return new CacheBufferedIndexInput(name, fileLength, context, stats.computeIfAbsent(name, n -> createIndexInputStats(fileLength)));
+        final FileInfo fileInfo = fileInfo(name);
+        final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
+        return new CacheBufferedIndexInput(blobContainer, fileInfo, context, inputStats);
     }
 
     private class CacheFileReference implements CacheFile.EvictionListener {
@@ -180,9 +186,8 @@ public class CacheDirectory extends FilterDirectory {
         }
     }
 
-    public class CacheBufferedIndexInput extends BufferedIndexInput {
+    public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
 
-        private final IOContext ioContext;
         private final long offset;
         private final long end;
         private final CacheFileReference cacheFileReference;
@@ -197,16 +202,17 @@ public class CacheDirectory extends FilterDirectory {
         // last seek position is kept around in order to detect forward/backward seeks for stats
         private long lastSeekPosition;
 
-        CacheBufferedIndexInput(String fileName, long fileLength, IOContext ioContext, IndexInputStats stats) {
-            this(new CacheFileReference(fileName, fileLength), ioContext, stats,
-                "CachedBufferedIndexInput(" + fileName + ")", 0L, fileLength, false);
+        CacheBufferedIndexInput(BlobContainer blobContainer, FileInfo fileInfo, IOContext context, IndexInputStats stats) {
+            this("CachedBufferedIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, context,
+                new CacheFileReference(fileInfo.physicalName(), fileInfo.length()), stats,
+                0L, fileInfo.length(), false);
             stats.incrementOpenCount();
         }
 
-        private CacheBufferedIndexInput(CacheFileReference cacheFileReference, IOContext ioContext, IndexInputStats stats,
-                                        String desc, long offset, long length, boolean isClone) {
-            super(desc, ioContext);
-            this.ioContext = ioContext;
+        private CacheBufferedIndexInput(String resourceDesc, BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
+                                        CacheFileReference cacheFileReference, IndexInputStats stats,
+                                        long offset, long length, boolean isClone) {
+            super(resourceDesc, blobContainer, fileInfo, context);
             this.offset = offset;
             this.cacheFileReference = cacheFileReference;
             this.stats = stats;
@@ -287,23 +293,21 @@ public class CacheDirectory extends FilterDirectory {
         @SuppressForbidden(reason = "Use positional writes on purpose")
         void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
             assert assertFileChannelOpen(fc);
-            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
+            final long length = end - start;
+            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
             logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
+            final long startTimeNanos = currentTimeNanosSupplier.getAsLong();
+            try (InputStream input = openInputStream(start, length)) {
                 stats.incrementInnerOpenCount();
-                final long startTimeNanos = currentTimeNanosSupplier.getAsLong();
-                if (start > 0) {
-                    input.seek(start);
-                }
                 long remaining = end - start;
                 while (remaining > 0) {
-                    final int size = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
-                    input.readBytes(copyBuffer, 0, size);
-                    fc.write(ByteBuffer.wrap(copyBuffer, 0, size), start + bytesCopied);
-                    bytesCopied += size;
-                    remaining -= size;
+                    final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
+                    int bytesRead = input.read(copyBuffer, 0, len);
+                    fc.write(ByteBuffer.wrap(copyBuffer, 0, bytesRead), start + bytesCopied);
+                    bytesCopied += bytesRead;
+                    remaining -= bytesRead;
                 }
                 final long endTimeNanos = currentTimeNanosSupplier.getAsLong();
                 stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
@@ -336,8 +340,8 @@ public class CacheDirectory extends FilterDirectory {
                 throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
                     + ",length=" + length + ",fileLength=" + this.length() + ": " + this);
             }
-            return new CacheBufferedIndexInput(cacheFileReference, ioContext, stats,
-                getFullSliceDescription(sliceDescription), this.offset + offset, length, true);
+            return new CacheBufferedIndexInput(getFullSliceDescription(sliceDescription), blobContainer, fileInfo, context,
+                cacheFileReference, stats, this.offset + offset, length, true);
         }
 
         @Override
@@ -352,24 +356,22 @@ public class CacheDirectory extends FilterDirectory {
         }
 
         private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
-            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, end - start))];
+            final long length = end - start;
+            final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
             logger.trace(() ->
                 new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
             int bytesCopied = 0;
-            try (IndexInput input = in.openInput(cacheFileReference.getFileName(), ioContext)) {
+            final long startTimeNanos = currentTimeNanosSupplier.getAsLong();
+            try (InputStream input = openInputStream(start, length)) {
                 stats.incrementInnerOpenCount();
-                final long startTimeNanos = currentTimeNanosSupplier.getAsLong();
-                if (start > 0) {
-                    input.seek(start);
-                }
                 long remaining = end - start;
                 while (remaining > 0) {
                     final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
-                    input.readBytes(copyBuffer, 0, len);
+                    int bytesRead = input.read(copyBuffer, 0, len);
                     System.arraycopy(copyBuffer, 0, buffer, offset + bytesCopied, len);
-                    bytesCopied += len;
-                    remaining -= len;
+                    bytesCopied += bytesRead;
+                    remaining -= bytesRead;
                 }
                 final long endTimeNanos = currentTimeNanosSupplier.getAsLong();
                 stats.addDirectBytesRead(bytesCopied, endTimeNanos - startTimeNanos);

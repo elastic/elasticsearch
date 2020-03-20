@@ -5,18 +5,14 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -25,12 +21,8 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
@@ -50,93 +42,22 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
  * shard files and what it stored in the snapshot the {@link BlobStoreIndexShardSnapshot} is used to map a physical file name as expected by
  * Lucene with the one (or the ones) corresponding blob(s) in the snapshot.
  */
-public class SearchableSnapshotDirectory extends BaseDirectory {
-
-    private final BlobStoreIndexShardSnapshot snapshot;
-    private final BlobContainer blobContainer;
+public class SearchableSnapshotDirectory extends BaseSearchableSnapshotDirectory {
 
     SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
-        super(new SingleInstanceLockFactory());
-        this.snapshot = Objects.requireNonNull(snapshot);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
-    }
-
-    private FileInfo fileInfo(final String name) throws FileNotFoundException {
-        return snapshot.indexFiles().stream()
-            .filter(fileInfo -> fileInfo.physicalName().equals(name))
-            .findFirst()
-            .orElseThrow(() -> new FileNotFoundException(name));
-    }
-
-    @Override
-    public String[] listAll() throws IOException {
-        ensureOpen();
-        return snapshot.indexFiles().stream()
-            .map(FileInfo::physicalName)
-            .sorted(String::compareTo)
-            .toArray(String[]::new);
-    }
-
-    @Override
-    public long fileLength(final String name) throws IOException {
-        ensureOpen();
-        return fileInfo(name).length();
+        super(blobContainer, snapshot);
     }
 
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), blobContainer.readBlobPreferredLength(),
+        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), context, blobContainer.readBlobPreferredLength(),
             BufferedIndexInput.BUFFER_SIZE);
-    }
-
-    @Override
-    public void close() {
-        isOpen = false;
     }
 
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "@" + snapshot.snapshot() + " lockFactory=" + lockFactory;
-    }
-
-    @Override
-    public Set<String> getPendingDeletions() {
-        throw unsupportedException();
-    }
-
-    @Override
-    public void sync(Collection<String> names) {
-        throw unsupportedException();
-    }
-
-    @Override
-    public void syncMetaData() {
-        throw unsupportedException();
-    }
-
-    @Override
-    public void deleteFile(String name) {
-        throw unsupportedException();
-    }
-
-    @Override
-    public IndexOutput createOutput(String name, IOContext context) {
-        throw unsupportedException();
-    }
-
-    @Override
-    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
-        throw unsupportedException();
-    }
-
-    @Override
-    public void rename(String source, String dest) {
-        throw unsupportedException();
-    }
-
-    private static UnsupportedOperationException unsupportedException() {
-        return new UnsupportedOperationException("Searchable snapshot directory does not support this operation");
     }
 
     public static Directory create(RepositoriesService repositories,
@@ -158,11 +79,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()));
         final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
 
-        Directory directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
+        final Directory directory;
         if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
             final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
-            directory = new CacheDirectory(directory, cache, cacheDir, snapshotId, indexId, shardPath.getShardId(),
+            directory = new CacheDirectory(snapshot, blobContainer, cache, cacheDir, snapshotId, indexId, shardPath.getShardId(),
                 currentTimeNanosSupplier);
+        } else {
+            directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
         }
         return new InMemoryNoOpCommitDirectory(directory);
     }

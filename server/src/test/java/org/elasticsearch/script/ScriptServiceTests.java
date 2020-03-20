@@ -450,6 +450,24 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(zero, holder.contextCache.get("baz").get().rate);
     }
 
+    public void testCompilationRateUnlimitedContextOnly() throws IOException {
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            buildScriptService(Settings.builder()
+                .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
+                .build());
+        });
+        assertEquals("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [unlimited]", illegal.getMessage());
+
+        // Should not throw.
+        buildScriptService(Settings.builder()
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("ingest").getKey(),
+                 ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("field").getKey(),
+                 ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
+            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY)
+            .build());
+    }
+
     public void testCacheHolderChangeSettings() {
         String fooCompilationRate = "77/5m";
         String barCompilationRate = "78/6m";
@@ -459,7 +477,7 @@ public class ScriptServiceTests extends ESTestCase {
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate)
             .build();
-        Set<String> contexts = Set.of("foo", "bar", "baz");
+        Set<String> contexts = Set.of("foo", "bar", "baz", "qux");
         ScriptService.CacheHolder holder = new ScriptService.CacheHolder(s, contexts, true);
 
         assertNotNull(holder.general);
@@ -470,16 +488,19 @@ public class ScriptServiceTests extends ESTestCase {
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY)
             .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("foo").getKey(), fooCompilationRate)
             .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("bar").getKey(), barCompilationRate)
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("qux").getKey(),
+                 ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
             .build()
         );
 
         assertNull(holder.general);
         assertNotNull(holder.contextCache);
-        assertEquals(3, holder.contextCache.size());
+        assertEquals(4, holder.contextCache.size());
         assertEquals(contexts, holder.contextCache.keySet());
 
         assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(fooCompilationRate), holder.contextCache.get("foo").get().rate);
         assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(barCompilationRate), holder.contextCache.get("bar").get().rate);
+        assertEquals(ScriptCache.UNLIMITED_COMPILATION_RATE, holder.contextCache.get("qux").get().rate);
         assertEquals(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getDefault(Settings.EMPTY),
             holder.contextCache.get("baz").get().rate);
 

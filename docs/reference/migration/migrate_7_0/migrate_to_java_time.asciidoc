@@ -134,7 +134,7 @@ yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
 --------------------------------------------------
 --
 
-`d` day::
+`d` (Day)::
 +
 --
 The same meaning in 7.0 but is less flexible.

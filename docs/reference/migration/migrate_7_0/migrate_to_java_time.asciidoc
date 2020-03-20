@@ -309,8 +309,8 @@ POST /_aliases
 // TEST[continued]
 
 ===== Update before upgrading to ES7.
-If your pipelines were using a joda style patterns, they also have to be updated. There is no need to create a new pipeline.
-Just update the already existing one.
+If your ingest pipelines contain joda-time date formats, you can update them
+using the <<put-pipeline-api,put ingest pipeline>> API.
 
 [source,console]
 --------------------------------------------------

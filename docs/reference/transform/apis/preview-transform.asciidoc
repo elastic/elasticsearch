@@ -118,7 +118,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
   representation of the documents that would be created in the destination index
   by the {transform}.
   
-`generated_dest_inded`::
+`generated_dest_index`::
   (object) Contains details about the destination index.
     `mappings`:::
     (object) The <<mapping,mappings>> for each document in the destination index. 

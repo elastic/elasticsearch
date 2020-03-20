@@ -49,7 +49,7 @@ or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant]
 
 [[java-time-migration-incompatible-date-formats]]
 ==== Incompatible date formats
-Custom date formats containing the following joda time literals should be
+Custom date formats containing the following joda-time literals should be
 changed before upgrading.
 
 `Y` (Year of era)::

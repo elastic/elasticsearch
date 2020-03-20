@@ -14,6 +14,7 @@ We advice to prepare for this migration in 6.8, but it will also work if you dec
 - In 7.x patterns without `8` on indices *created in 6.x* are considered joda-style.
 - Patterns with or without `8` on indices *created in 7.x*  are considered java.style
 
+[[java-time-migration-impacted-features]]
 ==== Impacted features
 The switch to java time only impacts custom <<date,`date`>> and
 <<date_nanos,`date_nanos`>> formats.

@@ -149,4 +149,11 @@ public class NodesStatsRequestBuilder
         return this;
     }
 
+    /**
+     * Should script context cache statistics be returned
+     */
+    public NodesStatsRequestBuilder setScriptContext(boolean scriptContext) {
+        request.scriptContext(scriptContext);
+        return this;
+    }
 }

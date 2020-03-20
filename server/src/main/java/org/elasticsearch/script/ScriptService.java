@@ -560,6 +560,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
+    public ScriptContextStats contextStats() {
+        return cacheHolder.get().contextStats();
+    }
+
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
@@ -655,6 +659,17 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 return general.stats();
             }
             return ScriptStats.sum(contextCache.values().stream().map(AtomicReference::get).map(ScriptCache::stats)::iterator);
+        }
+
+        ScriptContextStats contextStats() {
+            if (general != null) {
+                return new ScriptContextStats(general.stats());
+            }
+            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
+            for (String name: contexts) {
+                context.put(name, contextCache.get(name).get().stats());
+            }
+            return new ScriptContextStats(context);
         }
 
         /**

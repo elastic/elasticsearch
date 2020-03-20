@@ -67,7 +67,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
             entry("script", r -> r.script(true)),
             entry("discovery", r -> r.discovery(true)),
             entry("ingest", r -> r.ingest(true)),
-            entry("adaptive_selection", r -> r.adaptiveSelection(true)));
+            entry("adaptive_selection", r -> r.adaptiveSelection(true)),
+            entry("script_context", r-> r.scriptContext(true)));
 
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 

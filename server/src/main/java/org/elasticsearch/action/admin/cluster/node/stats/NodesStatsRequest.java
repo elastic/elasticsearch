@@ -276,6 +276,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean scriptContext() {
+        return Metric.SCRIPT_CONTEXT.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should scriptContext statistics be returned.
+     */
+    public NodesStatsRequest scriptContext(boolean scriptContext) {
+        addOrRemoveMetric(scriptContext, Metric.SCRIPT_CONTEXT.metricName());
+        return this;
+    }
+
     /**
      * Helper method for adding and removing metrics.
      * @param includeMetric Whether or not to include a metric.
@@ -327,7 +339,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SCRIPT("script"),
         DISCOVERY("discovery"),
         INGEST("ingest"),
-        ADAPTIVE_SELECTION("adaptiveSelection");
+        ADAPTIVE_SELECTION("adaptiveSelection"),
+        SCRIPT_CONTEXT("scriptContext");
 
         private String metricName;
 

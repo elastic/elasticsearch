@@ -19,18 +19,11 @@
 
 package org.elasticsearch.wildfly.transport;
 
-import javax.ws.rs.ApplicationPath;
-import javax.ws.rs.core.Application;
+import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 
-import java.util.Collections;
-import java.util.Set;
+import javax.ws.rs.ext.Provider;
 
-@ApplicationPath("/transport")
-public class TransportClientActivator extends Application {
-
-    @Override
-    public Set<Class<?>> getClasses() {
-        return Collections.singleton(TransportClientEmployeeResource.class);
-    }
+@Provider
+public class RestHighLevelJacksonJsonProvider extends ResteasyJackson2Provider {
 
 }

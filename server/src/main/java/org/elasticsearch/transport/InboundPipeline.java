@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
@@ -34,7 +35,7 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, AggregatedMessage> messageHandler;
-    private final BiConsumer<TcpChannel, AggregatedMessage> errorHandler;
+    private final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler;
 
     public InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
                            BiConsumer<TcpChannel, AggregatedMessage> messageHandler) {
@@ -92,7 +93,6 @@ public class InboundPipeline implements Releasable {
             }
         }
 
-
         return bytesConsumed;
     }
 
@@ -110,6 +110,10 @@ public class InboundPipeline implements Releasable {
                 try (Releasable toClose = aggregated.getContent()) {
                     messageHandler.accept(channel, aggregated);
                 }
+            } else if (fragment instanceof Exception) {
+                assert aggregator.isAggregating();
+                final Header header = aggregator.cancelAggregation();
+                errorHandler.accept(channel, new Tuple<>(header, (Exception) fragment));
             } else {
                 assert aggregator.isAggregating();
                 assert fragment instanceof ReleasableBytesReference;

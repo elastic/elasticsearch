@@ -50,6 +50,18 @@ public class InboundAggregator implements Releasable {
         }
     }
 
+    public Header cancelAggregation() {
+        if (currentHeader == null) {
+            throw new IllegalStateException("Aggregation cancelled, but no aggregation had begun");
+        } else {
+            final Header header = this.currentHeader;
+            Releasables.close(contentAggregation);
+            contentAggregation.clear();
+            currentHeader = null;
+            return header;
+        }
+    }
+
     public AggregatedMessage finishAggregation() {
         final ReleasableBytesReference[] releasableReferences = contentAggregation.toArray(new ReleasableBytesReference[0]);
         CompositeBytesReference aggregatedContent = new CompositeBytesReference(releasableReferences);

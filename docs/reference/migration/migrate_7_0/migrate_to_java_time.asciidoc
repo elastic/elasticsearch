@@ -184,7 +184,9 @@ The java-time literal `c` is interpreted as "localized day of week."
 Text forms EEEE and similar::
 +
 --
-Full text forms are depending on locale data provided with JDK and the implementation details of java vs joda. You should test carefully before upgrading these patterns.
+Support for full-text forms depends on the locale data provided with your Java
+Development Kit (JDK) and other implementation details. We recommend you
+test formats containing these patterns carefully before upgrading.
 --
 
 `z` time zone text::

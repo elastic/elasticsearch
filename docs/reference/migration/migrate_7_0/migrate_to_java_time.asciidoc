@@ -105,7 +105,7 @@ Failure to properly convert `x` (Week year) to `Y` could result in data loss.
 `Z` (Zone offset/id)::
 +
 --
-Replace with multiple `X`
+Replace with multiple `X`'s.
 
 `Z` has similar meaning in 7.0 with a notable difference that it expects different number of literals to parse different forms.
 

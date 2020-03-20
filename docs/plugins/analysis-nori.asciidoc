@@ -452,6 +452,8 @@ For example, ３．２천 means 3200.
 This filter does this kind of normalization and allows a search for 3200 to match ３．２천 in text,
 but can also be used to make range facets based on the normalized numbers and so on.
 
+[NOTE]
+====
 Notice that this analyzer uses a token composition scheme and relies on punctuation tokens
 being found in the token stream.
 Please make sure your `nori_tokenizer` has `discard_punctuation` set to false.
@@ -461,7 +463,7 @@ which is likely not the intended result.
 
 If you want to remove punctuation characters from your index that are not part of normalized numbers,
 add a `stop` token filter with the punctuation you wish to remove after `nori_number` in your analyzer chain.
-
+====
 Below are some examples of normalizations this filter supports.
 The input is untokenized text and the result is the single term attribute emitted for the input.
 

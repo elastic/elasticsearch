@@ -113,17 +113,16 @@ final class Debug {
             synchronized (Debug.class) {
                 log = OUTPUT_MANAGED.get(managedPrinter);
                 if (log == null) {
-                    log = new DebugLog(managedPrinter);
+                    log = new DebugLog(managedPrinter, info.debugBuffered());
                     OUTPUT_MANAGED.put(managedPrinter, log);
                 }
-                return log;
             }
         }
 
         String out = info.debugOut();
 
         // System.out/err can be changed so do some checks
-        if ("err".equals(out)) {
+        if (log == null && "err".equals(out)) {
             PrintStream sys = stderr();
 
             if (SYS_ERR == null) {
@@ -135,12 +134,12 @@ final class Debug {
                 ERR = null;
             }
             if (ERR == null) {
-                ERR = new DebugLog(new PrintWriter(new OutputStreamWriter(sys, StandardCharsets.UTF_8)));
+                ERR = new DebugLog(new PrintWriter(new OutputStreamWriter(sys, StandardCharsets.UTF_8)), info.debugBuffered());
             }
-            return ERR;
+            log = ERR;
         }
 
-        if ("out".equals(out)) {
+        if (log == null && "out".equals(out)) {
             PrintStream sys = stdout();
 
             if (SYS_OUT == null) {
@@ -154,25 +153,31 @@ final class Debug {
             }
 
             if (OUT == null) {
-                OUT = new DebugLog(new PrintWriter(new OutputStreamWriter(sys, StandardCharsets.UTF_8)));
+                OUT = new DebugLog(new PrintWriter(new OutputStreamWriter(sys, StandardCharsets.UTF_8)), info.debugBuffered());
             }
-            return OUT;
+            log = OUT;
         }
 
-        synchronized (Debug.class) {
-            log = OUTPUT_CACHE.get(out);
-            if (log == null) {
-                // must be local file
-                try {
-                    PrintWriter print = new PrintWriter(Files.newBufferedWriter(Paths.get("").resolve(out), StandardCharsets.UTF_8));
-                    log = new DebugLog(print);
-                    OUTPUT_CACHE.put(out, log);
-                    OUTPUT_REFS.put(out, Integer.valueOf(0));
-                } catch (Exception ex) {
-                    throw new JdbcException(ex, "Cannot open debug output [" + out + "]");
+        if (log == null) {
+            synchronized (Debug.class) {
+                log = OUTPUT_CACHE.get(out);
+                if (log == null) {
+                    // must be local file
+                    try {
+                        PrintWriter print = new PrintWriter(Files.newBufferedWriter(Paths.get("").resolve(out), StandardCharsets.UTF_8));
+                        log = new DebugLog(print, info.debugBuffered());
+                        OUTPUT_CACHE.put(out, log);
+                        OUTPUT_REFS.put(out, Integer.valueOf(0));
+                    } catch (Exception ex) {
+                        throw new JdbcException(ex, "Cannot open debug output [" + out + "]");
+                    }
                 }
+                OUTPUT_REFS.put(out, Integer.valueOf(OUTPUT_REFS.get(out).intValue() + 1));
             }
-            OUTPUT_REFS.put(out, Integer.valueOf(OUTPUT_REFS.get(out).intValue() + 1));
+        }
+
+        if (log != null) {
+            log.logSystemInfo();
         }
 
         return log;

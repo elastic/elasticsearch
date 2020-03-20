@@ -98,6 +98,11 @@ public class OperationRouting {
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
     }
 
+    public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
+        final IndexShardRoutingTable shard = clusterState.routingTable().shardRoutingTable(shardId);
+        return shard.activeInitializingShardsRandomIt();
+    }
+
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
     private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices,

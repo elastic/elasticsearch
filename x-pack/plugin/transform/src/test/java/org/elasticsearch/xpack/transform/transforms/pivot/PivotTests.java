@@ -186,6 +186,7 @@ public class PivotTests extends ESTestCase {
                     0,
                     0,
                     searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
+                    null,
                     null
                 );
 

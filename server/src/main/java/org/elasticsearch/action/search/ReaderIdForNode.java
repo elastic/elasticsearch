@@ -22,12 +22,12 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.internal.SearchContextId;
 
-class ScrollIdForNode {
+final class ReaderIdForNode {
     private final String node;
     private final SearchContextId contextId;
     private final String clusterAlias;
 
-    ScrollIdForNode(@Nullable String clusterAlias, String node, SearchContextId contextId) {
+    ReaderIdForNode(@Nullable String clusterAlias, String node, SearchContextId contextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
         this.contextId = contextId;
@@ -48,7 +48,7 @@ class ScrollIdForNode {
 
     @Override
     public String toString() {
-        return "ScrollIdForNode{" +
+        return "ReaderIdForNode{" +
             "node='" + node + '\'' +
             ", scrollId=" + contextId +
             ", clusterAlias='" + clusterAlias + '\'' +

@@ -19,33 +19,14 @@
 
 package org.elasticsearch.action.search;
 
-class ParsedScrollId {
+import org.elasticsearch.action.ActionType;
 
-    public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
+public class ClearReaderAction extends ActionType<ClearReaderResponse> {
 
-    public static final String QUERY_AND_FETCH_TYPE = "queryAndFetch";
+    public static final ClearReaderAction INSTANCE = new ClearReaderAction();
+    public static final String NAME = "indices:data/read/reader/clear";
 
-    private final String source;
-
-    private final String type;
-
-    private final ReaderIdForNode[] context;
-
-    ParsedScrollId(String source, String type, ReaderIdForNode[] context) {
-        this.source = source;
-        this.type = type;
-        this.context = context;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public ReaderIdForNode[] getContext() {
-        return context;
+    private ClearReaderAction() {
+        super(NAME, ClearReaderResponse::new);
     }
 }

@@ -115,7 +115,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int skippedShards = totalShards - successfulShards;
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
         return new SearchResponse(internalSearchResponse, null, totalShards,
-            successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
     }
 
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {

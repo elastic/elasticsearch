@@ -138,7 +138,7 @@ class MutableSearchResponse {
             }
             long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - task.getStartTimeNanos()).getMillis();
             resp = new SearchResponse(sections, null, totalShards, successfulShards,
-                skippedShards, tookInMillis, buildShardFailures(), clusters);
+                skippedShards, tookInMillis, buildShardFailures(), clusters, null);
         } else {
             resp = null;
         }

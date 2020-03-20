@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-
+// TODO: Rename this to ReaderId?
 public final class SearchContextId implements Writeable {
     private final String readerId;
     private final long id;

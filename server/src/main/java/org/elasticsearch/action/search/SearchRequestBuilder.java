@@ -521,6 +521,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Specifies the point in time reader contexts that this request should execute against
+     *
+     * @param readerId  the base64 string of the set of reader ids.
+     * @param keepAlive the extended keep alive for the readers used in this request
+     */
+    public SearchRequestBuilder setReader(@Nullable String readerId, @Nullable TimeValue keepAlive) {
+        sourceBuilder().reader(new SearchSourceBuilder.ReaderBuilder(readerId, keepAlive));
+        return this;
+    }
+
     @Override
     public String toString() {
         if (request.source() != null) {

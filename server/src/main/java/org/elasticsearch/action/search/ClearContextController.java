@@ -28,51 +28,56 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
-final class ClearScrollController implements Runnable {
+final class ClearContextController implements Runnable {
     private final DiscoveryNodes nodes;
     private final SearchTransportService searchTransportService;
     private final CountDown expectedOps;
-    private final ActionListener<ClearScrollResponse> listener;
+    private final ActionListener<? super ClearReaderResponse> listener;
     private final AtomicBoolean hasFailed = new AtomicBoolean(false);
     private final AtomicInteger freedSearchContexts = new AtomicInteger(0);
     private final Logger logger;
     private final Runnable runner;
 
-    ClearScrollController(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener, DiscoveryNodes nodes, Logger logger,
-                          SearchTransportService searchTransportService) {
+    ClearContextController(ClearScrollRequest clearScrollRequest, ActionListener<ClearScrollResponse> listener,
+                           DiscoveryNodes nodes, Logger logger, SearchTransportService searchTransportService) {
         this.nodes = nodes;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.listener = listener;
-        List<String> scrollIds = request.getScrollIds();
         final int expectedOps;
+        final List<String> scrollIds = clearScrollRequest.getScrollIds();
         if (scrollIds.size() == 1 && "_all".equals(scrollIds.get(0))) {
             expectedOps = nodes.getSize();
             runner = this::cleanAllScrolls;
         } else {
-            List<ScrollIdForNode> parsedScrollIds = new ArrayList<>();
-            for (String parsedScrollId : request.getScrollIds()) {
-                ScrollIdForNode[] context = parseScrollId(parsedScrollId).getContext();
-                for (ScrollIdForNode id : context) {
-                    parsedScrollIds.add(id);
-                }
+            List<ReaderIdForNode> contexts = new ArrayList<>();
+            for (String scrollId : scrollIds) {
+                contexts.addAll(Arrays.asList(parseScrollId(scrollId).getContext()));
             }
-            if (parsedScrollIds.isEmpty()) {
-                expectedOps = 0;
-                runner = () -> listener.onResponse(new ClearScrollResponse(true, 0));
-            } else {
-                expectedOps = parsedScrollIds.size();
-                runner = () -> cleanScrollIds(parsedScrollIds);
-            }
+            expectedOps = contexts.size();
+            runner = () -> cleanReaderIds(contexts);
         }
         this.expectedOps = new CountDown(expectedOps);
+    }
 
+    ClearContextController(ClearReaderRequest clearReaderRequest, ActionListener<ClearReaderResponse> listener,
+                           DiscoveryNodes nodes, Logger logger, SearchTransportService searchTransportService) {
+        this.nodes = nodes;
+        this.logger = logger;
+        this.searchTransportService = searchTransportService;
+        this.listener = listener;
+        final Collection<ReaderIdForNode> contexts =
+            TransportSearchHelper.decodeReaderIds(clearReaderRequest.getId()).values();
+        expectedOps = new CountDown(contexts.size());
+        runner = () -> cleanReaderIds(contexts);
     }
 
     @Override
@@ -101,10 +106,14 @@ final class ClearScrollController implements Runnable {
         }
     }
 
-    void cleanScrollIds(List<ScrollIdForNode> parsedScrollIds) {
-        SearchScrollAsyncAction.collectNodesAndRun(parsedScrollIds, nodes, searchTransportService, ActionListener.wrap(
+    void cleanReaderIds(Collection<ReaderIdForNode> readerIds) {
+        if (readerIds.isEmpty()) {
+            listener.onResponse(new ClearReaderResponse(true, 0));
+            return;
+        }
+        SearchScrollAsyncAction.collectNodesAndRun(readerIds, nodes, searchTransportService, ActionListener.wrap(
             lookup -> {
-                for (ScrollIdForNode target : parsedScrollIds) {
+                for (ReaderIdForNode target : readerIds) {
                     final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
                     if (node == null) {
                         onFreedContext(false);
@@ -127,7 +136,7 @@ final class ClearScrollController implements Runnable {
         }
         if (expectedOps.countDown()) {
             boolean succeeded = hasFailed.get() == false;
-            listener.onResponse(new ClearScrollResponse(succeeded, freedSearchContexts.get()));
+            listener.onResponse(new ClearReaderResponse(succeeded, freedSearchContexts.get()));
         }
     }
 
@@ -139,7 +148,7 @@ final class ClearScrollController implements Runnable {
          */
         hasFailed.set(true);
         if (expectedOps.countDown()) {
-            listener.onResponse(new ClearScrollResponse(false, freedSearchContexts.get()));
+            listener.onResponse(new ClearReaderResponse(false, freedSearchContexts.get()));
         }
     }
 }

@@ -137,7 +137,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits,
                     null, null, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
                 listener.onResponse(new MultiSearchResponse(
                     new MultiSearchResponse.Item[]{
                             new MultiSearchResponse.Item(null, new RuntimeException("boom")),

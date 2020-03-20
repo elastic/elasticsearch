@@ -149,7 +149,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         InternalSearchResponse response = new InternalSearchResponse(SearchHits.empty(),
             InternalAggregations.EMPTY, null, null, false, null, 1);
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards,
-            100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
     }
 
     private void assertCompletionListeners(AsyncSearchTask task,

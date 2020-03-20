@@ -19,33 +19,16 @@
 
 package org.elasticsearch.action.search;
 
-class ParsedScrollId {
+import org.elasticsearch.common.io.stream.StreamInput;
 
-    public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
+import java.io.IOException;
 
-    public static final String QUERY_AND_FETCH_TYPE = "queryAndFetch";
-
-    private final String source;
-
-    private final String type;
-
-    private final ReaderIdForNode[] context;
-
-    ParsedScrollId(String source, String type, ReaderIdForNode[] context) {
-        this.source = source;
-        this.type = type;
-        this.context = context;
+public class ClearReaderResponse extends ClearScrollResponse {
+    public ClearReaderResponse(boolean succeeded, int numFreed) {
+        super(succeeded, numFreed);
     }
 
-    public String getSource() {
-        return source;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public ReaderIdForNode[] getContext() {
-        return context;
+    public ClearReaderResponse(StreamInput in) throws IOException {
+        super(in);
     }
 }

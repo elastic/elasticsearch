@@ -304,7 +304,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             0,
             1L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            null
         );
     }
 

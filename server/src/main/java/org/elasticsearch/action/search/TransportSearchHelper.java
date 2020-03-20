@@ -21,7 +21,10 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -29,7 +32,10 @@ import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 final class TransportSearchHelper {
 
@@ -39,8 +45,8 @@ final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
-                                boolean includeContextUUID) throws IOException {
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
+        boolean includeContextUUID = version.onOrAfter(Version.V_7_7_0);
         try (RAMOutputStream out = new RAMOutputStream()) {
             if (includeContextUUID) {
                 out.writeString(INCLUDE_CONTEXT_UUID);
@@ -63,6 +69,8 @@ final class TransportSearchHelper {
             byte[] bytes = new byte[(int) out.getFilePointer()];
             out.writeTo(bytes, 0);
             return Base64.getUrlEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -80,7 +88,7 @@ final class TransportSearchHelper {
                 includeContextUUID = false;
                 type = firstChunk;
             }
-            ScrollIdForNode[] context = new ScrollIdForNode[in.readVInt()];
+            ReaderIdForNode[] context = new ReaderIdForNode[in.readVInt()];
             for (int i = 0; i < context.length; ++i) {
                 final String contextUUID = includeContextUUID ? in.readString() : "";
                 long id = in.readLong();
@@ -93,7 +101,7 @@ final class TransportSearchHelper {
                     clusterAlias = target.substring(0, index);
                     target = target.substring(index+1);
                 }
-                context[i] = new ScrollIdForNode(clusterAlias, target, new SearchContextId(contextUUID, id));
+                context[i] = new ReaderIdForNode(clusterAlias, target, new SearchContextId(contextUUID, id));
             }
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");
@@ -101,6 +109,65 @@ final class TransportSearchHelper {
             return new ParsedScrollId(scrollId, type, context);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
+        }
+    }
+
+    static String encodeReaderIds(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
+        try (RAMOutputStream out = new RAMOutputStream()) {
+            out.writeVInt(version.id);
+            out.writeVInt(searchPhaseResults.asList().size());
+            for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
+                SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
+                ShardId shardId = target.getShardId();
+                // shardId
+                out.writeString(shardId.getIndex().getName());
+                out.writeString(shardId.getIndex().getUUID());
+                out.writeVInt(shardId.getId());
+                // nodeId
+                if (target.getClusterAlias() != null) {
+                    out.writeByte((byte) 1);
+                    out.writeString(target.getClusterAlias());
+                } else {
+                    out.writeByte((byte) 0);
+                }
+                out.writeString(target.getNodeId());
+                // readerId
+                out.writeString(searchPhaseResult.getContextId().getReaderId());
+                out.writeLong(searchPhaseResult.getContextId().getId());
+            }
+            byte[] bytes = new byte[(int) out.getFilePointer()];
+            out.writeTo(bytes, 0);
+            return Base64.getUrlEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    static Map<ShardId, ReaderIdForNode> decodeReaderIds(String readerId) {
+        try {
+            final byte[] bytes = Base64.getUrlDecoder().decode(readerId);
+            final ByteArrayDataInput in = new ByteArrayDataInput(bytes);
+            Version.fromId(in.readVInt());
+            final int numOfContexts = in.readVInt();
+            final Map<ShardId, ReaderIdForNode> contexts = new HashMap<>();
+            for (int i = 0; i < numOfContexts; i++) {
+                final ShardId shardId = new ShardId(new Index(in.readString(), in.readString()), in.readVInt());
+                final String clusterAlias;
+                if (in.readByte() == 1) {
+                    clusterAlias = in.readString();
+                } else {
+                    clusterAlias = null;
+                }
+                final String nodeId = in.readString();
+                final SearchContextId contextId = new SearchContextId(in.readString(), in.readLong());
+                contexts.put(shardId, new ReaderIdForNode(clusterAlias, nodeId, contextId));
+            }
+            if (in.getPosition() != bytes.length) {
+                throw new IllegalArgumentException("Not all bytes were read");
+            }
+            return contexts;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Can't parse reader context ids", e);
         }
     }
 

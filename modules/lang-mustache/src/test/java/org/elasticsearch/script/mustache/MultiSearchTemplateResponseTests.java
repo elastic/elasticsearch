@@ -53,7 +53,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
             searchTemplateResponse.setResponse(searchResponse);
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
         }
@@ -82,7 +82,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
                 searchTemplateResponse.setResponse(searchResponse);
                 items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             } else {

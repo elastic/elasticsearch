@@ -269,6 +269,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
+        if (reader() != null && reader().getId() != null) {
+            if (indices.length > 0) {
+                validationException = addValidationError("[indices] cannot be used with reader contexts", validationException);
+            }
+        }
         return validationException;
     }
 
@@ -416,6 +421,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public SearchSourceBuilder.ReaderBuilder reader() {
+        if (source != null) {
+            return source.reader();
+        }
+        return null;
     }
 
     /**

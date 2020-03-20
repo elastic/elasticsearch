@@ -28,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -120,6 +121,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -316,33 +318,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void executeDfsPhase(ShardSearchRequest request, boolean keepStatesInContext,
                                 SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        rewriteShardRequest(request, ActionListener.wrap(
-            // fork the execution in the search thread pool and wraps the searcher
-            // to execute the query
-            context -> {
-                try {
-                    context.wrapSearcher().execute(() -> {
-                        final SearchPhaseResult result;
-                        try {
-                            result = executeDfsPhase(context, keepStatesInContext, task);
-                        } catch (Exception exc) {
-                            listener.onFailure(exc);
-                            return;
-                        }
-                        listener.onResponse(result);
-                    });
-                } catch (Exception exc) {
-                    // if the execution is rejected we need to close the searcher
-                    IOUtils.closeWhileHandlingException(context.searcher);
-                    listener.onFailure(exc);
-                }
-            }, listener::onFailure));
+        rewriteRequestAndAcquireReader(request, false, keepStatesInContext,
+            ActionListener.wrap(reader -> listener.onResponse(executeDfsPhase(reader, request, task)), listener::onFailure));
     }
 
-    private DfsSearchResult executeDfsPhase(SearchRewriteContext rewriteContext, boolean keepStatesInContext, SearchShardTask task)
-        throws IOException {
-        final ReaderContext reader = createAndPutReaderContext(rewriteContext, keepStatesInContext);
-        try (SearchContext context = createContext(reader, rewriteContext.request, task, true)) {
+    private DfsSearchResult executeDfsPhase(ReaderContext reader, ShardSearchRequest request, SearchShardTask task) throws IOException {
+        try (SearchContext context = createContext(reader, request, task, true)) {
             dfsPhase.execute(context);
             return context.dfsResult();
         } catch (Exception e) {
@@ -369,66 +350,32 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
-        rewriteShardRequest(request, ActionListener.wrap(
-            context -> {
-                try {
-                    ShardSearchRequest rewritten = context.request;
-                    if (rewritten.canReturnNullResponseIfMatchNoDocs()
-                            && canRewriteToMatchNone(rewritten.source())
-                            && rewritten.source().query() instanceof MatchNoneQueryBuilder) {
-                        assert request.scroll() == null : "must always create search context for scroll requests";
-                        onMatchNoDocs(context, listener);
-                    } else {
-                        // fork the execution in the search thread pool and wraps the searcher
-                        // to execute the query
-                        context.wrapSearcher().execute(() -> {
-                            final SearchPhaseResult result;
-                            try {
-                                result = executeQueryPhase(context, keepStatesInContext, task);
-                            } catch (Exception exc) {
-                                listener.onFailure(exc);
-                                return;
-                            }
-                            listener.onResponse(result);
-                        });
-                    }
-                } catch (Exception exc) {
-                    // if the execution is rejected we need to close the searcher
-                    IOUtils.closeWhileHandlingException(context.searcher);
-                    listener.onFailure(exc);
+        rewriteRequestAndAcquireReader(request, request.canReturnNullResponseIfMatchNoDocs(), keepStatesInContext,
+            ActionListener.wrap(reader -> {
+                if (reader == null) {
+                    listener.onResponse(QuerySearchResult.nullInstance());
+                } else {
+                    listener.onResponse(executeQueryPhase(reader, request, task));
                 }
             }, listener::onFailure));
-    }
-
-    private void onMatchNoDocs(SearchRewriteContext rewriteContext, ActionListener<SearchPhaseResult> listener) {
-        try {
-            rewriteContext.searcher.close();
-        } catch (Exception exc) {
-            listener.onFailure(exc);
-            return;
-        }
-        listener.onResponse(QuerySearchResult.nullInstance());
     }
 
     private <T> void runAsync(SearchContextId id, CheckedSupplier<T, IOException> executable, ActionListener<T> listener) {
         getExecutor(id).execute(ActionRunnable.supply(listener, executable::get));
     }
 
-    private SearchPhaseResult executeQueryPhase(SearchRewriteContext rewriteContext, boolean keepStatesInContext,
-                                                SearchShardTask task) throws Exception {
-        final ReaderContext reader = createAndPutReaderContext(rewriteContext, keepStatesInContext);
-        final ShardSearchRequest request = rewriteContext.request;
+    private SearchPhaseResult executeQueryPhase(ReaderContext reader, ShardSearchRequest request, SearchShardTask task) throws Exception {
         try (SearchContext context = createContext(reader, request, task, true)) {
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 loadOrExecuteQueryPhase(request, context);
-                if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
+                if (context.queryResult().hasSearchContext() == false && reader.singleSession()) {
                     freeReaderContext(reader.id());
                 }
                 afterQueryTime = executor.success();
             }
             if (request.numberOfShards() == 1) {
-                return executeFetchPhase(context, afterQueryTime);
+                return executeFetchPhase(reader, context, afterQueryTime);
             }
             return context.queryResult();
         } catch (Exception e) {
@@ -443,12 +390,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private QueryFetchSearchResult executeFetchPhase(SearchContext context, long afterQueryTime) {
+    private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)){
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
-            if (fetchPhaseShouldFreeContext(context)) {
-                freeReaderContext(context.id());
+            if (reader.singleSession()) {
+                freeReaderContext(reader.id());
             }
             executor.success();
         }
@@ -460,6 +407,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   ActionListener<ScrollQuerySearchResult> listener) {
         runAsync(request.contextId(), () -> {
             final LegacyReaderContext reader = (LegacyReaderContext) findReaderContext(request.contextId());
+            if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                final long keepAlive = request.scroll().keepAlive().millis();
+                checkKeepAliveLimit(keepAlive);
+                reader.keepAlive(keepAlive);
+            }
             try (SearchContext context = createContext(reader, reader.getShardSearchRequest(null), task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 reader.indexShard().getSearchOperationListener().validateSearchContext(context, request);
@@ -488,7 +440,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().getSearchOperationListener().validateSearchContext(context, request);
                 context.searcher().setAggregatedDfs(request.dfs());
                 queryPhase.execute(context);
-                if (context.queryResult().hasSearchContext() == false && context.scrollContext() == null) {
+                if (context.queryResult().hasSearchContext() == false && reader.singleSession()) {
                     // no hits, we can release the context since there will be no fetch phase
                     freeReaderContext(reader.id());
                 }
@@ -503,16 +455,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw e;
             }
         }, listener);
-    }
-
-    private boolean fetchPhaseShouldFreeContext(SearchContext context) {
-        if (context.scrollContext() == null) {
-            // simple search, no scroll
-            return true;
-        } else {
-            // scroll request, but the scroll was not extended
-            return context.scrollContext().scroll == null;
-        }
     }
 
     final Executor getExecutor(SearchContextId id) {
@@ -536,7 +478,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 processScroll(request, reader, context);
                 queryPhase.execute(context);
                 final long afterQueryTime = executor.success();
-                QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, afterQueryTime);
+                QueryFetchSearchResult fetchSearchResult = executeFetchPhase(reader, context, afterQueryTime);
                 return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
@@ -560,7 +502,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
                 try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, System.nanoTime())) {
                     fetchPhase.execute(context);
-                    if (fetchPhaseShouldFreeContext(context)) {
+                    if (reader.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
                     executor.success();
@@ -593,10 +535,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return reader;
     }
 
-    final ReaderContext createAndPutReaderContext(SearchRewriteContext rewriteContext, boolean keepStatesInContext) {
-        final ShardSearchRequest request = rewriteContext.request;
-        final SearchOperationListener searchOperationListener = rewriteContext.shard.getSearchOperationListener();
-        Engine.Searcher engineSearcher = rewriteContext.searcher;
+    final ReaderContext createAndPutReaderContext(ShardSearchRequest request, IndexShard shard,
+                                                  Engine.Searcher engineSearcher, boolean keepStatesInContext) {
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -609,17 +549,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
                 }
             }
-            if (keepStatesInContext || request.scroll() != null) {
-                readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), rewriteContext.shard, engineSearcher, request);
+            final long keepAlive;
+            if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                keepAlive = request.scroll().keepAlive().millis();
+                checkKeepAliveLimit(keepAlive);
+            } else if (request.keepAlive() != null) {
+                keepAlive = request.keepAlive().millis();
+                checkKeepAliveLimit(keepAlive);
             } else {
-                readerContext = new ReaderContext(idGenerator.incrementAndGet(), rewriteContext.shard, engineSearcher);
+                keepAlive = defaultKeepAlive;
             }
-            if (request.scroll() != null) {
-                readerContext.addOnClose(decreaseScrollContexts);
-                decreaseScrollContexts = null;
+            if (keepStatesInContext || request.scroll() != null) {
+                readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, request, keepAlive);
+                if (request.scroll() != null) {
+                    readerContext.addOnClose(decreaseScrollContexts);
+                    decreaseScrollContexts = null;
+                }
+            } else {
+                readerContext = new ReaderContext(
+                    idGenerator.incrementAndGet(), shard, engineSearcher, keepAlive, request.keepAlive() == null);
             }
             engineSearcher = null;
             final ReaderContext finalReaderContext = readerContext;
+            final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
             searchOperationListener.onNewReaderContext(finalReaderContext);
             if (finalReaderContext.scrollContext() != null) {
                 searchOperationListener.onNewScrollContext(finalReaderContext.scrollContext());
@@ -664,16 +616,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
 
-            // compute the context keep alive
-            long keepAlive = defaultKeepAlive;
-            if (request.scroll() != null && request.scroll().keepAlive() != null) {
-                keepAlive = request.scroll().keepAlive().millis();
-            }
-            contextScrollKeepAlive(reader, keepAlive);
             context.lowLevelCancellation(lowLevelCancellation);
             // Disable timeout while searching and mark the reader as accessed when releasing the context.
-            context.addReleasable(() -> reader.accessed(threadPool.relativeTimeInMillis()));
-            reader.accessed(-1L);
+            context.addReleasable(reader.markAsUsed());
             context.addReleasable(() -> reader.indexShard().getSearchOperationListener().onFreeSearchContext(context));
         } catch (Exception e) {
             context.close();
@@ -686,7 +631,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().getId());
         Engine.Searcher engineSearcher = indexShard.acquireSearcher("search");
-        try (ReaderContext readerContext = new ReaderContext(idGenerator.incrementAndGet(), indexShard, engineSearcher)) {
+        try (ReaderContext readerContext = new ReaderContext(idGenerator.incrementAndGet(), indexShard, engineSearcher, -1L, true)) {
             engineSearcher = null; // transfer ownership to readerContext
             return createSearchContext(readerContext, request, timeout);
         } finally {
@@ -750,14 +695,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void contextScrollKeepAlive(ReaderContext readerContext, long keepAlive) {
+    private void checkKeepAliveLimit(long keepAlive) {
         if (keepAlive > maxKeepAlive) {
             throw new IllegalArgumentException(
-                "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive) + ") is too large. " +
+                "Keep alive for request (" + TimeValue.timeValueMillis(keepAlive) + ") is too large. " +
                     "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive) + "). " +
                     "This limit can be set by changing the [" + MAX_KEEPALIVE_SETTING.getKey() + "] cluster level setting.");
         }
-        readerContext.keepAlive(keepAlive);
     }
 
     private void processFailure(ReaderContext context, Exception e) {
@@ -1008,10 +952,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();
-        // update the context keep alive based on the new scroll value
-        if (request.scroll() != null && request.scroll().keepAlive() != null) {
-            contextScrollKeepAlive(reader, request.scroll().keepAlive().millis());
-        }
     }
 
     /**
@@ -1029,17 +969,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     class Reaper implements Runnable {
         @Override
         public void run() {
-            final long time = threadPool.relativeTimeInMillis();
             for (ReaderContext context : activeReaders.values()) {
-                // Use the same value for both checks since lastAccessTime can
-                // be modified by another thread between checks!
-                final long lastAccessTime = context.lastAccessTime();
-                if (lastAccessTime == -1L) { // its being processed or timeout is disabled
-                    continue;
-                }
-                if ((time - lastAccessTime > context.keepAlive())) {
-                    logger.debug("freeing search context [{}], time [{}], lastAccessTime [{}], keepAlive [{}]", context.id(), time,
-                        lastAccessTime, context.keepAlive());
+                if (context.isKeepAliveLapsed()) {
+                    logger.debug("freeing search context [{}]", context.id());
                     freeReaderContext(context.id());
                 }
             }
@@ -1102,43 +1034,75 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * and then rewrites with a searcher when the shard is active.
      * The provided action listener is executed on the same thread or in a listener threadpool.
      */
-    private void rewriteShardRequest(ShardSearchRequest request, ActionListener<SearchRewriteContext> listener) {
-        IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-                // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> {
-                    try {
-                        // we can now acquire a searcher and rewrite the request with it
-                        SearchRewriteContext rewriteContext = acquireSearcherAndRewrite(request, shard);
-                        listener.onResponse(rewriteContext);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
-                }), listener::onFailure);
+    private void rewriteRequestAndAcquireReader(ShardSearchRequest request, boolean canReturnNullResponseIfMatchNoDocs,
+                                                boolean keepStatesInContext, ActionListener<ReaderContext> listener) {
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard shard = indexService.getShard(request.shardId().id());
+        final SearchContextId readerId = request.readerId();
+        final StepListener<Rewriteable> rewriteWithoutSearcher = new StepListener<>();
+        final StepListener<Boolean> waitShardSearchActive = new StepListener<>();
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
-    }
+        Rewriteable.rewriteAndFetch(request.getRewriteable(),
+            indicesService.getRewriteContext(request::nowInMillis), rewriteWithoutSearcher);
 
-    SearchRewriteContext acquireSearcherAndRewrite(ShardSearchRequest request, IndexShard shard) throws IOException {
-        // acquire the searcher for rewrite with no wrapping in order to avoid costly
-        // operations. We'll wrap the searcher at a later stage (when executing the query).
-        Engine.Searcher searcher = shard.acquireSearcherNoWrap("search");
-        boolean success = false;
-        try {
-            IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-            QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
-                request::nowInMillis, request.getClusterAlias());
-            Rewriteable.rewrite(request.getRewriteable(), context, true);
-            SearchRewriteContext rewrite = new SearchRewriteContext(request, shard, searcher, getExecutor(shard));
-            success = true;
-            return rewrite;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(searcher);
+        rewriteWithoutSearcher.whenComplete(r -> {
+            if (readerId != null) {
+                waitShardSearchActive.onResponse(true);
+            } else {
+                // now we need to check if there is a pending refresh and register
+                shard.awaitShardSearchActive(waitShardSearchActive::onResponse);
             }
-        }
+        }, listener::onFailure);
+
+        waitShardSearchActive.whenComplete(r -> {
+            final ReaderContext reader;
+            final Engine.Searcher searcher;
+            Releasable releasable;
+            if (readerId != null) {
+                reader = findReaderContext(readerId);
+                if (reader.id().equals(readerId) == false) {
+                    throw new SearchContextMissingException(readerId);
+                }
+                // NORELEASE
+                // TODO: We must validate the reader before using it for the search request
+                reader.incRef(); // must increase reference before using searchers
+                releasable = reader::decRef;
+                if (request.keepAlive() != null) {
+                    checkKeepAliveLimit(request.keepAlive().millis());
+                    reader.keepAlive(request.keepAlive().millis());
+                }
+                searcher = reader.engineSearcher();
+            } else {
+                reader = null;
+                // acquire the searcher for rewrite with no wrapping in order to avoid costly
+                // operations. We'll wrap the searcher at a later stage (when executing the query).
+                searcher = shard.acquireSearcherNoWrap("search");
+                releasable = searcher;
+            }
+            try {
+                final QueryShardContext queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
+                    request::nowInMillis, request.getClusterAlias());
+                Rewriteable.rewrite(request.getRewriteable(), queryShardContext, true);
+                if (reader != null) {
+                    getExecutor(shard).execute(() -> listener.onResponse(reader));
+                } else if (canReturnNullResponseIfMatchNoDocs
+                    && canRewriteToMatchNone(request.source()) && request.source().query() instanceof MatchNoneQueryBuilder) {
+                    ActionListener.completeWith(listener, () -> null);
+                } else {
+                    getExecutor(shard).execute(() -> {
+                        ActionListener.completeWith(listener, () -> {
+                            final Engine.Searcher wrappedSearcher = shard.wrapSearcher(searcher);
+                            return createAndPutReaderContext(request, shard, wrappedSearcher, keepStatesInContext);
+                        });
+                    });
+                    releasable = null;
+                }
+            } finally {
+                Releasables.close(releasable);
+            }
+        }, listener::onFailure);
     }
 
     /**
@@ -1177,37 +1141,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return PipelineTree.EMPTY;
         }
         return request.source().aggregations().buildPipelineTree();
-    }
-
-    static class SearchRewriteContext {
-        private final ShardSearchRequest request;
-        private final IndexShard shard;
-        private Engine.Searcher searcher;
-        private final Executor executor;
-
-        private boolean isWrapped;
-
-        private SearchRewriteContext(ShardSearchRequest request,
-                                     IndexShard shard,
-                                     Engine.Searcher searcher,
-                                     Executor executor) {
-            this.request = request;
-            this.shard = shard;
-            this.searcher = searcher;
-            this.executor = executor;
-        }
-
-        SearchRewriteContext wrapSearcher() {
-            assert isWrapped == false : "searcher already wrapped";
-            isWrapped = true;
-            searcher = shard.wrapSearcher(searcher);
-            return this;
-        }
-
-        void execute(Runnable runnable) {
-            assert isWrapped : "searcher is not wrapped";
-            executor.execute(runnable);
-        }
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {

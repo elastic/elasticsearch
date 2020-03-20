@@ -45,7 +45,7 @@ public class AsyncSearchResponseTests
         // add search response, minimal object is okay since the full randomization of parsing is tested in SearchResponseTests
         SearchResponse searchResponse = randomBoolean() ? null
                 : new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
-                        ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);
+                        ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null);
         org.elasticsearch.xpack.core.search.action.AsyncSearchResponse testResponse =
                 new org.elasticsearch.xpack.core.search.action.AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning,
                         startTimeMillis, expirationTimeMillis);

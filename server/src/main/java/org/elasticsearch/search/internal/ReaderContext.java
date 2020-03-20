@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Holds a reference to a point in time {@link Engine.Searcher} that will be used to construct {@link SearchContext}.
@@ -47,17 +49,26 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
     private final IndexShard indexShard;
     private final Engine.Searcher engineSearcher;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final boolean singleSession;
 
-    private volatile long keepAlive;
-    private volatile long lastAccessTime = -1L;
+    private final AtomicLong keepAlive;
+    private final AtomicLong lastAccessTime;
+    private final AtomicInteger accessors = new AtomicInteger();
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher) {
+    public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher, long keepAliveInMillis, boolean singleSession) {
         super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
         this.engineSearcher = engineSearcher;
+        this.singleSession = singleSession;
+        this.keepAlive = new AtomicLong(keepAliveInMillis);
+        this.lastAccessTime = new AtomicLong(nowInMillis());
+    }
+
+    private long nowInMillis() {
+        return indexShard.getThreadPool().relativeTimeInMillis();
     }
 
     @Override
@@ -94,20 +105,29 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
         return engineSearcher.source();
     }
 
-    public void accessed(long accessTime) {
-        this.lastAccessTime = accessTime;
-    }
-
-    public long lastAccessTime() {
-        return this.lastAccessTime;
-    }
-
-    public long keepAlive() {
-        return this.keepAlive;
-    }
-
     public void keepAlive(long keepAlive) {
-        this.keepAlive = keepAlive;
+        this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
+    }
+
+    /**
+     * Marks this reader as being used so its time to live should not be expired.
+     *
+     * @return a releasable to indicate the caller has stopped using this reader
+     */
+    public Releasable markAsUsed() {
+        accessors.incrementAndGet();
+        return Releasables.releaseOnce(() -> {
+            this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            accessors.decrementAndGet();
+        });
+    }
+
+    public boolean isKeepAliveLapsed() {
+        if (accessors.get() > 0) {
+            return false; // being used
+        }
+        final long elapsed = nowInMillis() - lastAccessTime.get();
+        return elapsed > keepAlive.get();
     }
 
     // BWC
@@ -133,5 +153,14 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
 
+    }
+
+    /**
+     * Returns {@code true} for readers that are intended to use in a single query. For readers that are intended
+     * to use in multiple queries (i.e., scroll or readers), we should not release them after the fetch phase
+     * or the query phase with empty results.
+     */
+    public boolean singleSession() {
+        return singleSession;
     }
 }

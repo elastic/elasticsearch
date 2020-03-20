@@ -50,11 +50,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
     public void testSendRequestsToNodes() throws InterruptedException {
 
         ParsedScrollId scrollId = getParsedScrollId(
-            new ScrollIdForNode(null, "node1", new SearchContextId(UUIDs.randomBase64UUID(), 1)),
-            new ScrollIdForNode(null, "node2", new SearchContextId(UUIDs.randomBase64UUID(), 2)),
-            new ScrollIdForNode(null, "node3", new SearchContextId(UUIDs.randomBase64UUID(), 17)),
-            new ScrollIdForNode(null, "node1", new SearchContextId(UUIDs.randomBase64UUID(), 0)),
-            new ScrollIdForNode(null, "node3", new SearchContextId(UUIDs.randomBase64UUID(), 0)));
+            new ReaderIdForNode(null, "node1", new SearchContextId(UUIDs.randomBase64UUID(), 1)),
+            new ReaderIdForNode(null, "node2", new SearchContextId(UUIDs.randomBase64UUID(), 2)),
+            new ReaderIdForNode(null, "node3", new SearchContextId(UUIDs.randomBase64UUID(), 17)),
+            new ReaderIdForNode(null, "node1", new SearchContextId(UUIDs.randomBase64UUID(), 0)),
+            new ReaderIdForNode(null, "node3", new SearchContextId(UUIDs.randomBase64UUID(), 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -108,7 +108,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(0, shardSearchFailures.length);
-        ScrollIdForNode[] context = scrollId.getContext();
+        ReaderIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
             assertNotNull(results.get(i));
             assertEquals(context[i].getContextId(), results.get(i).getContextId());
@@ -119,11 +119,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
     public void testFailNextPhase() throws InterruptedException {
 
         ParsedScrollId scrollId = getParsedScrollId(
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 1)),
-            new ScrollIdForNode(null, "node2", new SearchContextId("a", 2)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("b", 17)),
-            new ScrollIdForNode(null, "node1", new SearchContextId("c", 0)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("d", 0)));
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 1)),
+            new ReaderIdForNode(null, "node2", new SearchContextId("a", 2)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("b", 17)),
+            new ReaderIdForNode(null, "node1", new SearchContextId("c", 0)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("d", 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -199,7 +199,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(0, shardSearchFailures.length);
-        ScrollIdForNode[] context = scrollId.getContext();
+        ReaderIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
             assertNotNull(results.get(i));
             assertEquals(context[i].getContextId(), results.get(i).getContextId());
@@ -209,11 +209,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testNodeNotAvailable() throws InterruptedException {
         ParsedScrollId scrollId = getParsedScrollId(
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 1)),
-            new ScrollIdForNode(null, "node2", new SearchContextId("", 2)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("", 17)),
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 0)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("", 0)));
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 1)),
+            new ReaderIdForNode(null, "node2", new SearchContextId("", 2)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("", 17)),
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 0)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("", 0)));
         // node2 is not available
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -275,7 +275,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         // .reason() returns the full stack trace
         assertThat(shardSearchFailures[0].reason(), startsWith("java.lang.IllegalStateException: node [node2] is not available"));
 
-        ScrollIdForNode[] context = scrollId.getContext();
+        ReaderIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
             if (context[i].getNode().equals("node2")) {
                 assertNull(results.get(i));
@@ -289,11 +289,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testShardFailures() throws InterruptedException {
         ParsedScrollId scrollId = getParsedScrollId(
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 1)),
-            new ScrollIdForNode(null, "node2", new SearchContextId("", 2)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("",17)),
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 0)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("", 0)));
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 1)),
+            new ReaderIdForNode(null, "node2", new SearchContextId("", 2)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("",17)),
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 0)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("", 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -353,7 +353,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         assertEquals(1, shardSearchFailures.length);
         assertThat(shardSearchFailures[0].reason(), containsString("IllegalArgumentException: BOOM on shard"));
 
-        ScrollIdForNode[] context = scrollId.getContext();
+        ReaderIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
             if (context[i].getContextId().getId() == 17) {
                 assertNull(results.get(i));
@@ -367,11 +367,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testAllShardsFailed() throws InterruptedException {
         ParsedScrollId scrollId = getParsedScrollId(
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 1)),
-            new ScrollIdForNode(null, "node2", new SearchContextId("", 2)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("", 17)),
-            new ScrollIdForNode(null, "node1", new SearchContextId("", 0)),
-            new ScrollIdForNode(null, "node3", new SearchContextId("", 0)));
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 1)),
+            new ReaderIdForNode(null, "node2", new SearchContextId("", 2)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("", 17)),
+            new ReaderIdForNode(null, "node1", new SearchContextId("", 0)),
+            new ReaderIdForNode(null, "node3", new SearchContextId("", 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -433,7 +433,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         action.run();
         latch.await();
-        ScrollIdForNode[] context = scrollId.getContext();
+        ReaderIdForNode[] context = scrollId.getContext();
 
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(context.length, shardSearchFailures.length);
@@ -444,10 +444,10 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         }
     }
 
-    private static ParsedScrollId getParsedScrollId(ScrollIdForNode... idsForNodes) {
-        List<ScrollIdForNode> scrollIdForNodes = Arrays.asList(idsForNodes);
-        Collections.shuffle(scrollIdForNodes, random());
-        return new ParsedScrollId("", "test", scrollIdForNodes.toArray(new ScrollIdForNode[0]));
+    private static ParsedScrollId getParsedScrollId(ReaderIdForNode... idsForNodes) {
+        List<ReaderIdForNode> readerIdForNodes = Arrays.asList(idsForNodes);
+        Collections.shuffle(readerIdForNodes, random());
+        return new ParsedScrollId("", "test", readerIdForNodes.toArray(new ReaderIdForNode[0]));
     }
 
     private ActionListener<SearchResponse> dummyListener() {

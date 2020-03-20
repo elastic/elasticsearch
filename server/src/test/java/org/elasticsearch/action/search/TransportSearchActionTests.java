@@ -32,8 +32,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -140,7 +138,7 @@ public class TransportSearchActionTests extends ESTestCase {
         List<SearchShardIterator> expected = new ArrayList<>();
         String localClusterAlias = randomAlphaOfLengthBetween(5, 10);
         OriginalIndices localIndices = OriginalIndicesTests.randomOriginalIndices();
-        List<ShardIterator> localShardIterators = new ArrayList<>();
+        List<SearchShardIterator> localShardIterators = new ArrayList<>();
         List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
         int numShards = randomIntBetween(0, 10);
         for (int i = 0; i < numShards; i++) {
@@ -150,7 +148,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 boolean localIndex = randomBoolean();
                 if (localIndex) {
                     SearchShardIterator localIterator = createSearchShardIterator(i, index, localIndices, localClusterAlias);
-                    localShardIterators.add(new PlainShardIterator(localIterator.shardId(), localIterator.getShardRoutings()));
+                    localShardIterators.add(localIterator);
                     if (rarely()) {
                         String remoteClusterAlias = randomFrom(remoteClusters);
                         //simulate scenario where the local cluster is also registered as a remote one
@@ -187,11 +185,12 @@ public class TransportSearchActionTests extends ESTestCase {
             }
         }
 
+
         Collections.shuffle(localShardIterators, random());
         Collections.shuffle(remoteShardIterators, random());
 
-        GroupShardsIterator<SearchShardIterator> groupShardsIterator = TransportSearchAction.mergeShardsIterators(
-            new GroupShardsIterator<>(localShardIterators), localIndices, localClusterAlias, remoteShardIterators);
+        GroupShardsIterator<SearchShardIterator> groupShardsIterator =
+            TransportSearchAction.mergeShardsIterators(localShardIterators, remoteShardIterators);
         List<SearchShardIterator> result = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : groupShardsIterator) {
             result.add(searchShardIterator);
@@ -363,7 +362,7 @@ public class TransportSearchActionTests extends ESTestCase {
     private static SearchResponse emptySearchResponse() {
         InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
             new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
-        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
     }
 
     public void testCCSRemoteReduceMergeFails() throws Exception {

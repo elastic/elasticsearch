@@ -334,7 +334,7 @@ public class RollupResponseTranslator {
 
         // Shard failures are ignored atm, so returning an empty array is fine
         return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
-            took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
+            took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters(), null);
     }
 
     /**

@@ -94,7 +94,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testExecute() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
         assertFalse(condition.execute(ctx).met());
     }
@@ -104,7 +104,7 @@ public class ScriptConditionTests extends ESTestCase {
             "ctx.payload.hits.total.value > params.threshold", singletonMap("threshold", 1));
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
         assertFalse(executable.execute(ctx).met());
     }
@@ -118,7 +118,7 @@ public class ScriptConditionTests extends ESTestCase {
         ExecutableCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
         assertFalse(executable.execute(ctx).met());
@@ -183,7 +183,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptCondition condition = new ScriptCondition(
                 mockScript("null.foo"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
         assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
@@ -193,7 +193,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptCondition condition = new ScriptCondition(
             mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
         WatchExecutionContext ctx = mockExecutionContext("_name", ZonedDateTime.now(ZoneOffset.UTC),
             new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Thread.sleep(10);

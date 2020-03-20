@@ -30,6 +30,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
@@ -43,7 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ClearScrollControllerTests extends ESTestCase {
+public class ClearContextControllerTests extends ESTestCase {
 
     public void testClearAll() throws InterruptedException {
         DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -79,8 +80,8 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList("_all"));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener,
-            nodes, logger, searchTransportService);
+        ClearContextController controller = new ClearContextController(
+            clearScrollRequest, listener, nodes, logger, searchTransportService);
         controller.run();
         latch.await();
         assertEquals(3, nodesInvoked.size());
@@ -107,7 +108,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
         AtomicInteger numFreed = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array, randomBoolean());
+        String scrollId = TransportSearchHelper.buildScrollId(array, VersionUtils.randomVersion(random()));
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
@@ -144,7 +145,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener,
+        ClearContextController controller = new ClearContextController(clearScrollRequest, listener,
             nodes, logger, searchTransportService);
         controller.run();
         latch.await();
@@ -173,7 +174,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         AtomicInteger numFreed = new AtomicInteger(0);
         AtomicInteger numFailures = new AtomicInteger(0);
         AtomicInteger numConnectionFailures = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array, randomBoolean());
+        String scrollId = TransportSearchHelper.buildScrollId(array, VersionUtils.randomVersion(random()));
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -228,7 +229,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener,
+        ClearContextController controller = new ClearContextController(clearScrollRequest, listener,
             nodes, logger, searchTransportService);
         controller.run();
         latch.await();

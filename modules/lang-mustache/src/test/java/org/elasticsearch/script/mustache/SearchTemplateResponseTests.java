@@ -69,7 +69,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
 
         return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards,
-            skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
     }
 
     private static BytesReference createSource() {
@@ -171,7 +171,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
             new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null,
-            0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
 
         SearchTemplateResponse response = new SearchTemplateResponse();
         response.setResponse(searchResponse);

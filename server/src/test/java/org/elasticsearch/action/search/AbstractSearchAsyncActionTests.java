@@ -163,12 +163,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     public void testBuildSearchResponse() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(10);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
-        String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+            phaseResults, null, false, new AtomicLong());
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId, action.buildShardFailures());
-        assertEquals(scrollId, searchResponse.getScrollId());
+        SearchResponse searchResponse = action.buildSearchResponse(
+            internalSearchResponse, phaseResults.results, action.buildShardFailures());
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
@@ -177,14 +177,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     public void testBuildSearchResponseAllowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new ArraySearchPhaseResults<>(10), null, false, new AtomicLong());
+        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(10);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, queryResult, null, false, new AtomicLong());
         action.onShardFailure(0, new SearchShardTarget("node", new ShardId("index", "index-uuid", 0), null, OriginalIndices.NONE),
             new IllegalArgumentException());
-        String scrollId = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, scrollId, action.buildShardFailures());
-        assertEquals(scrollId, searchResponse.getScrollId());
+        SearchResponse searchResponse = action.buildSearchResponse(
+            internalSearchResponse, queryResult.results, action.buildShardFailures());
         assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
         assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
@@ -207,7 +206,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             action.onShardFailure(i, new SearchShardTarget(failureNodeId, failureShardId, failureClusterAlias, OriginalIndices.NONE),
                 new IllegalArgumentException());
         }
-        action.sendSearchResponse(InternalSearchResponse.empty(), randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10));
+        action.sendSearchResponse(InternalSearchResponse.empty(), phaseResults.results);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException)exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);

@@ -24,8 +24,10 @@ import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.SearchContextId;
 
 import java.util.List;
 import java.util.Objects;
@@ -42,6 +44,9 @@ public final class SearchShardIterator extends PlainShardIterator {
     private final String clusterAlias;
     private boolean skip = false;
 
+    private final SearchContextId readerId;
+    private final TimeValue readerKeepAlive;
+
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
@@ -52,9 +57,17 @@ public final class SearchShardIterator extends PlainShardIterator {
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
+        this(clusterAlias, shardId, shards, originalIndices, null, null);
+    }
+
+    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
+                               List<ShardRouting> shards, OriginalIndices originalIndices,
+                               SearchContextId readerId, TimeValue readerKeepAlive) {
         super(shardId, shards);
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
+        this.readerId = readerId;
+        this.readerKeepAlive = readerKeepAlive;
     }
 
     /**
@@ -78,6 +91,21 @@ public final class SearchShardIterator extends PlainShardIterator {
      */
     SearchShardTarget newSearchShardTarget(String nodeId) {
         return new SearchShardTarget(nodeId, shardId(), clusterAlias, originalIndices);
+    }
+
+    /**
+     * Returns a non-null value if this request should execute using a specific point-in-time reader;
+     * otherwise, using the most up to date point-in-time reader.
+     */
+    SearchContextId getReaderId() {
+        return readerId;
+    }
+
+    /**
+     * Returns a non-null to specify the time to live of the point-in-time reader that is used to execute this request.
+     */
+    TimeValue getReaderKeepAlive() {
+        return readerKeepAlive;
     }
 
     /**

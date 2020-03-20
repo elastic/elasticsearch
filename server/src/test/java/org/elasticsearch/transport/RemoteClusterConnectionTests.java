@@ -138,7 +138,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     InternalSearchResponse response = new InternalSearchResponse(searchHits,
                         InternalAggregations.EMPTY, null, null, false, null, 1);
                     SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY);
+                        SearchResponse.Clusters.EMPTY, null);
                     channel.sendResponse(searchResponse);
                 });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,

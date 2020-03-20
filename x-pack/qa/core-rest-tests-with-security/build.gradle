@@ -28,10 +28,6 @@ integTest {
 }
 
 testClusters.integTest {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.datastreams_feature_flag_registered', 'true'
-  }
-
   testDistribution = 'DEFAULT'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
@@ -47,5 +43,6 @@ testClusters.integTest {
 testClusters.integTest {
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.itv2_feature_flag_registered', 'true'
+    systemProperty 'es.datastreams_feature_flag_registered', 'true'
   }
 }

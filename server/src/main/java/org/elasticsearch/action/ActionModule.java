@@ -378,7 +378,6 @@ public class ActionModule extends AbstractModule {
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
     private static final boolean ITV2_FEATURE_FLAG_REGISTERED;
-    private static final boolean DATASTREAMS_FEATURE_FLAG_REGISTERED;
 
     static {
         final String property = System.getProperty("es.itv2_feature_flag_registered");
@@ -393,7 +392,11 @@ public class ActionModule extends AbstractModule {
             throw new IllegalArgumentException("expected es.itv2_feature_flag_registered to be unset, true, or false but was [" +
                 property + "]");
         }
+    }
 
+    private static final boolean DATASTREAMS_FEATURE_FLAG_REGISTERED;
+
+    static {
         final String property = System.getProperty("es.datastreams_feature_flag_registered");
         if (Build.CURRENT.isSnapshot() && property != null) {
             throw new IllegalArgumentException("es.datastreams_feature_flag_registered is only supported in non-snapshot builds");

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
@@ -22,12 +24,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
 
+    private static final Logger logger = LogManager.getLogger(CacheBufferedIndexInput.class);
     private static final int COPY_BUFFER_SIZE = 8192;
 
     private final CacheDirectory directory;
@@ -47,13 +49,13 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
 
     CacheBufferedIndexInput(CacheDirectory directory, FileInfo fileInfo, IOContext context, IndexInputStats stats) {
         this("CachedBufferedIndexInput(" + fileInfo.physicalName() + ")", directory, fileInfo, context, stats, 0L, fileInfo.length(),
-            false, null);
+            false, new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()));
         stats.incrementOpenCount();
     }
 
     private CacheBufferedIndexInput(String resourceDesc, CacheDirectory directory, FileInfo fileInfo, IOContext context,
                                     IndexInputStats stats, long offset, long length, boolean isClone,
-                                    @Nullable CacheFileReference cacheFileReference) {
+                                    CacheFileReference cacheFileReference) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context);
         this.directory = directory;
         this.offset = offset;
@@ -61,8 +63,7 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
         this.end = offset + length;
         this.closed = new AtomicBoolean(false);
         this.isClone = isClone;
-        this.cacheFileReference = Objects.requireNonNullElseGet(cacheFileReference,
-            () -> new CacheFileReference(fileInfo.physicalName(), fileInfo.length()));
+        this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
     }
@@ -223,15 +224,17 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
         return bytesCopied;
     }
 
-    private class CacheFileReference implements CacheFile.EvictionListener {
+    private static class CacheFileReference implements CacheFile.EvictionListener {
 
         private final long fileLength;
         private final CacheKey cacheKey;
+        private final CacheDirectory directory;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
 
-        private CacheFileReference(String fileName, long fileLength) {
+        private CacheFileReference(CacheDirectory directory, String fileName, long fileLength) {
             this.cacheKey = directory.createCacheKey(fileName);
             this.fileLength = fileLength;
+            this.directory = directory;
         }
 
         @Nullable

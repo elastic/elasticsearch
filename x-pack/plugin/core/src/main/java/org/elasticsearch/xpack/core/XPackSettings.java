@@ -65,8 +65,10 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
-            Setting.Property.NodeScope);
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
+        "xpack.ml.enabled",
+        "aarch64".equals(System.getProperty("os.arch")) ? false : true,
+        Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling rollup. Defaults to true. */
     public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,

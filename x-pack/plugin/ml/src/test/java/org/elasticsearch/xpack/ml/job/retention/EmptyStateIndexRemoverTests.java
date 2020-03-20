@@ -27,6 +27,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -76,7 +78,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
 
     public void testRemove_NoStateIndices() {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-        when(indicesStatsResponse.getIndices()).thenReturn(Map.of());
+        when(indicesStatsResponse.getIndices()).thenReturn(Collections.emptyMap());
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(any(), any(), any());
 
         remover.remove(listener, () -> false);
@@ -88,12 +90,12 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
 
     public void testRemove_NoEmptyStateIndices() {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-        doReturn(
-            Map.of(
-                ".ml-state-a", indexStats(".ml-state-a", 1),
-                ".ml-state-b", indexStats(".ml-state-b", 2),
-                ".ml-state-c", indexStats(".ml-state-c", 1),
-                ".ml-state-d", indexStats(".ml-state-d", 2))).when(indicesStatsResponse).getIndices();
+        Map<String, IndexStats> indexStatsMap = new HashMap<String, IndexStats>();
+        indexStatsMap.put(".ml-state-a", indexStats(".ml-state-a", 1));
+        indexStatsMap.put(".ml-state-b", indexStats(".ml-state-b", 2));
+        indexStatsMap.put(".ml-state-c", indexStats(".ml-state-c", 1));
+        indexStatsMap.put(".ml-state-d", indexStats(".ml-state-d", 2));
+        doReturn(indexStatsMap).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         remover.remove(listener, () -> false);
@@ -105,13 +107,13 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
 
     private void assertDeleteActionExecuted(boolean acknowledged) {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-        doReturn(
-            Map.of(
-                ".ml-state-a", indexStats(".ml-state-a", 1),
-                ".ml-state-b", indexStats(".ml-state-b", 0),
-                ".ml-state-c", indexStats(".ml-state-c", 2),
-                ".ml-state-d", indexStats(".ml-state-d", 0),
-                ".ml-state-e", indexStats(".ml-state-e", 0))).when(indicesStatsResponse).getIndices();
+        Map<String, IndexStats> indexStatsMap = new HashMap<String, IndexStats>();
+        indexStatsMap.put(".ml-state-a", indexStats(".ml-state-a", 1));
+        indexStatsMap.put(".ml-state-b", indexStats(".ml-state-b", 0));
+        indexStatsMap.put(".ml-state-c", indexStats(".ml-state-c", 2));
+        indexStatsMap.put(".ml-state-d", indexStats(".ml-state-d", 0));
+        indexStatsMap.put(".ml-state-e", indexStats(".ml-state-e", 0));
+        doReturn(indexStatsMap).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null);
@@ -142,7 +144,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
 
     public void testRemove_NoIndicesToRemove() {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-        doReturn(Map.of(".ml-state-a", indexStats(".ml-state-a", 0))).when(indicesStatsResponse).getIndices();
+        doReturn(Collections.singletonMap(".ml-state-a", indexStats(".ml-state-a", 0))).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-a" }, null, null, null, null);

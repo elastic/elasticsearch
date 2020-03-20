@@ -299,10 +299,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     public void testDeleteExpiredDataActionDeletesEmptyStateIndices() throws Exception {
         client().admin().indices().prepareCreate(".ml-state").get();
         client().admin().indices().prepareCreate(".ml-state-000001").get();
-        client().prepareIndex(".ml-state-000001").setSource("field_1", "value_1").get();
+        client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME).setSource("field_1", "value_1").get();
         client().admin().indices().prepareCreate(".ml-state-000003").get();
         client().admin().indices().prepareCreate(".ml-state-000005").get();
-        client().prepareIndex(".ml-state-000005").setSource("field_5", "value_5").get();
+        client().prepareIndex(".ml-state-000005", SINGLE_MAPPING_NAME).setSource("field_5", "value_5").get();
         client().admin().indices().prepareCreate(".ml-state-000007").addAlias(new Alias(".ml-state-write").isHidden(true)).get();
         refresh();
 

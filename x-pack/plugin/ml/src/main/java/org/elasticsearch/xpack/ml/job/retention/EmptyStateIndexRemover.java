@@ -14,6 +14,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -90,7 +91,10 @@ public class EmptyStateIndexRemover implements MlDataRemover {
         client.admin().indices().getIndex(
             getIndexRequest,
             ActionListener.wrap(
-                getIndexResponse -> listener.onResponse(Set.of(getIndexResponse.getIndices())),
+                getIndexResponse -> {
+                    Set<String> currentStateIndices = Arrays.stream(getIndexResponse.getIndices()).collect(toSet());
+                    listener.onResponse(currentStateIndices);
+                },
                 listener::onFailure
             )
         );

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import static java.util.stream.Collectors.toList;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;

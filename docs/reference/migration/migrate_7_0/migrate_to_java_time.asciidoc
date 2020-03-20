@@ -137,12 +137,26 @@ yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
 `d` (Day)::
 +
 --
-The same meaning in 7.0 but is less flexible.
+In java time, `d` is still interpreted as "day" but is less flexible.
 
-If your pattern was `YYYY-MM-dd` in 6.8 and you expect dates in form `2010-01-01` or `2010-01-1`
-You need to provide an alternative pattern for all of these `yyyy-MM-dd||yyyy-MM-d`.
-More then 2 digits are not allowed anymore. If you want to parse dates like `2010-01-00001` you need to create a pattern that expects a text literal `'000'` before `'d'`
-`yyyy-MM-'000'dd`
+For example, the joda-time date format `YYYY-MM-dd` accepts `2010-01-01` or
+`2010-01-1`.
+
+In java time, you must use the `||` delimiter to provide specify each format:
+
+[source,txt]
+--------------------------------------------------
+yyyy-MM-dd||yyyy-MM-d
+--------------------------------------------------
+
+In java time, `d` also does not accept more than 2 digits. To accept days with more
+than two digits, you must include a text literal in your java-time date format.
+For example, to parse `2010-01-00001`, you must use the following java-time date format: 
+
+[source,txt]
+--------------------------------------------------
+yyyy-MM-'000'dd
+--------------------------------------------------
 --
 
 

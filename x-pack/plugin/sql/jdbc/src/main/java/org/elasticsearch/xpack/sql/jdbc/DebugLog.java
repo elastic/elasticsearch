@@ -77,7 +77,7 @@ final class DebugLog {
                 System.getProperty("java.vm.version"));
         print.println();
         time = System.currentTimeMillis();
-        print.printf(Locale.ROOT, HEADER + "JVM default locale: %s",
+        print.printf(Locale.ROOT, HEADER + "JVM default timezone: %s",
                 time, time, time,
                 java.util.TimeZone.getDefault().toString());
         print.println();

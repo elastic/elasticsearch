@@ -157,13 +157,15 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<Response> listener) throws Exception {
+            listener.onResponse(new Response(getDataStreams(state, request)));
+        }
 
-            Map<String, DataStream> dataStreams = state.metaData().dataStreams();
+        static List<DataStream> getDataStreams(ClusterState clusterState, Request request) {
+            Map<String, DataStream> dataStreams = clusterState.metaData().dataStreams();
 
             // return all data streams if no name was specified
             if (request.names.length == 0) {
-                listener.onResponse(new Response(new ArrayList<>(dataStreams.values())));
-                return;
+                return new ArrayList<>(dataStreams.values());
             }
 
             final List<DataStream> results = new ArrayList<>();
@@ -178,8 +180,7 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
                     results.add(dataStreams.get(name));
                 }
             }
-
-            listener.onResponse(new Response(results));
+            return results;
         }
 
         @Override

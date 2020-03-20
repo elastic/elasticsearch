@@ -150,15 +150,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        if (currentState.metaData().dataStreams().containsKey(request.name)) {
-                            throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
-                        }
-
-                        MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(request.name,
-                            new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
-
-                        logger.info("adding data stream [{}]", request.name);
-                        return ClusterState.builder(currentState).metaData(builder).build();
+                        return createDataStream(currentState, request);
                     }
 
                     @Override
@@ -166,6 +158,18 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
                         listener.onResponse(new AcknowledgedResponse(true));
                     }
                 });
+        }
+
+        static ClusterState createDataStream(ClusterState currentState, Request request) {
+            if (currentState.metaData().dataStreams().containsKey(request.name)) {
+                throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
+            }
+
+            MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
+                new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
+
+            logger.info("adding data stream [{}]", request.name);
+            return ClusterState.builder(currentState).metaData(builder).build();
         }
 
         @Override

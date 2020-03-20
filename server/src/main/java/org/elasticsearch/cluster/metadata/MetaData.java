@@ -1132,13 +1132,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
-        public Builder put(String name, DataStream dataStream) {
-            Objects.requireNonNull(dataStream, "it is invalid to add a null data stream: " + name);
+        public Builder put(DataStream dataStream) {
+            Objects.requireNonNull(dataStream, "it is invalid to add a null data stream");
             Map<String, DataStream> existingDataStreams =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
                     .orElse(new HashMap<>());
-            existingDataStreams.put(name, dataStream);
+            existingDataStreams.put(dataStream.getName(), dataStream);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
         }

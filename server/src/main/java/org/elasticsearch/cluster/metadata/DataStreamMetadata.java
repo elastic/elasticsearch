@@ -94,7 +94,7 @@ public class DataStreamMetadata implements MetaData.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+        return Version.V_8_0_0;
     }
 
     @Override
@@ -114,6 +114,10 @@ public class DataStreamMetadata implements MetaData.Custom {
         }
         builder.endObject();
         return builder;
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     @Override
@@ -136,6 +140,20 @@ public class DataStreamMetadata implements MetaData.Custom {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public static class Builder {
+
+        private final Map<String, DataStream> dataStreams = new HashMap<>();
+
+        public Builder putDataStream(DataStream dataStream) {
+            dataStreams.put(dataStream.getName(), dataStream);
+            return this;
+        }
+
+        public DataStreamMetadata build() {
+            return new DataStreamMetadata(dataStreams);
+        }
     }
 
     static class DataStreamMetadataDiff implements NamedDiff<MetaData.Custom> {

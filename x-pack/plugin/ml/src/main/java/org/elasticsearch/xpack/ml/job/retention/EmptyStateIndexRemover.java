@@ -49,6 +49,10 @@ public class EmptyStateIndexRemover implements MlDataRemover {
                             ActionListener.wrap(
                                 currentStateIndices -> {
                                     Set<String> stateIndicesToRemove = Sets.difference(emptyStateIndices, currentStateIndices);
+                                    if (stateIndicesToRemove.isEmpty()) {
+                                        listener.onResponse(true);
+                                        return;
+                                    }
                                     executeDeleteEmptyStateIndices(stateIndicesToRemove, listener);
                                 },
                                 listener::onFailure

@@ -140,6 +140,22 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         assertDeleteActionExecuted(false);
     }
 
+    public void testRemove_NoIndicesToRemove() {
+        IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
+        doReturn(Map.of(".ml-state-a", indexStats(".ml-state-a", 0))).when(indicesStatsResponse).getIndices();
+        doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
+
+        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-a" }, null, null, null, null);
+        doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
+
+        remover.remove(listener, () -> false);
+
+        InOrder inOrder = inOrder(client, listener);
+        inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
+        inOrder.verify(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
+        inOrder.verify(listener).onResponse(true);
+    }
+
     @SuppressWarnings("unchecked")
     private static <Response> Answer<Response> withResponse(Response response) {
         return invocationOnMock -> {

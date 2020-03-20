@@ -28,6 +28,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -66,6 +68,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -377,7 +381,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
             try {
-                wildcardPattern = normalize(wildcardPattern);
+                wildcardPattern = normalizeWildcardPattern(wildcardPattern);
             } catch (IOException e) {
                 throw new IllegalStateException("The field  [" + name() +
                         "] hit an IOException normalizing the value [" + wildcardPattern+ "].");
@@ -547,6 +551,38 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             return value;
         }       
+        
+        private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
+        
+        String normalizeWildcardPattern(String value) throws IOException {
+            if (normalizer == null) {
+                return value;
+            }
+            // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
+            // is a char_filter that would otherwise remove them
+            Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
+            BytesRefBuilder sb = new BytesRefBuilder();
+            int last = 0;
+
+            while (wildcardMatcher.find()) {
+                if (wildcardMatcher.start() > 0) {
+                    String chunk = value.substring(last, wildcardMatcher.start());
+
+                    BytesRef normalized = normalizer.normalize(name(), chunk);
+                    sb.append(normalized);
+                }
+                // append the matched group - without normalizing
+                sb.append(new BytesRef(wildcardMatcher.group()));
+
+                last = wildcardMatcher.end();
+            }
+            if (last < value.length()) {
+                String chunk = value.substring(last);
+                BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
+                sb.append(normalized);
+            }
+            return sb.toString();
+        }
     }
      
     static class  WildcardBytesBinaryDVIndexFieldData extends BytesBinaryDVIndexFieldData{

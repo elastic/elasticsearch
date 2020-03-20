@@ -189,7 +189,7 @@ Development Kit (JDK) and other implementation details. We recommend you
 test formats containing these patterns carefully before upgrading.
 --
 
-`z` time zone text::
+`z` (Time zone text)::
 +
 --
 In 7.0 it will print 'Z' for Zulu given UTC timezone.

@@ -702,7 +702,8 @@ public class AuthenticationService {
                 if (anonymousUser.roles().length == 0) {
                     throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
                 }
-                User userWithMergedRoles = new User(user.principal(),
+                User userWithMergedRoles = new User(
+                    user.principal(),
                     mergeAnonymousRoles(user.roles()),
                     user.fullName(),
                     user.email(),

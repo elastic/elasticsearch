@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -180,7 +180,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             map.put("id", doc.id());
-            map.put("routing", doc.routing());
+            if (doc.routing() != null) {
+                map.put("routing", doc.routing());
+            }
 
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
                 return map;

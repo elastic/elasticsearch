@@ -201,13 +201,14 @@ class AsyncSearchIndexService {
      * Deletes the provided <code>searchId</code> from the index if present.
      */
     void deleteResponse(AsyncSearchId searchId,
+                        boolean failIfNotFound,
                         ActionListener<AcknowledgedResponse> listener) {
         DeleteRequest request = new DeleteRequest(INDEX).id(searchId.getDocId());
         createIndexIfNecessary(
             ActionListener.wrap(v -> client.delete(request,
                 ActionListener.wrap(
                     resp -> {
-                        if (resp.status() == RestStatus.NOT_FOUND) {
+                        if (resp.status() == RestStatus.NOT_FOUND && failIfNotFound) {
                             listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                         } else {
                             listener.onResponse(new AcknowledgedResponse(true));

@@ -165,17 +165,18 @@ public final class ELambda extends AExpression implements ILambda {
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
-        block.lastSource = true;
-        block.analyze(scriptRoot, lambdaScope);
-        captures = new ArrayList<>(lambdaScope.getCaptures());
+        AStatement.Input blockInput = new AStatement.Input();
+        blockInput.lastSource = true;
+        AStatement.Output blockOutput = block.analyze(scriptRoot, lambdaScope, blockInput);
 
-        if (block.methodEscape == false) {
+        if (blockOutput.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
 
         maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
         // prepend capture list to lambda's arguments
+        captures = new ArrayList<>(lambdaScope.getCaptures());
         this.typeParameters = new ArrayList<>(captures.size() + typeParameters.size());
         parameterNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {

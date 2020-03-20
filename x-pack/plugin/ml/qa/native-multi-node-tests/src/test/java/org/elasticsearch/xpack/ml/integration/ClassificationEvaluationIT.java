@@ -37,11 +37,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private static final String ANIMALS_DATA_INDEX = "test-evaluate-animals-index";
 
-    private static final String ANIMAL_NAME_FIELD = "animal_name";
+    private static final String ANIMAL_NAME_KEYWORD_FIELD = "animal_name_keyword";
     private static final String ANIMAL_NAME_PREDICTION_FIELD = "animal_name_prediction";
-    private static final String NO_LEGS_FIELD = "no_legs";
+    private static final String NO_LEGS_KEYWORD_FIELD = "no_legs_keyword";
+    private static final String NO_LEGS_INTEGER_FIELD = "no_legs_integer";
     private static final String NO_LEGS_PREDICTION_FIELD = "no_legs_prediction";
-    private static final String IS_PREDATOR_FIELD = "predator";
+    private static final String IS_PREDATOR_KEYWORD_FIELD = "predator_keyword";
+    private static final String IS_PREDATOR_BOOLEAN_FIELD = "predator_boolean";
     private static final String IS_PREDATOR_PREDICTION_FIELD = "predator_prediction";
 
     @Before
@@ -61,7 +63,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_DefaultMetrics() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, null));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, null));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
@@ -74,7 +76,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
                 new Classification(
-                    ANIMAL_NAME_FIELD,
+                    ANIMAL_NAME_KEYWORD_FIELD,
                     ANIMAL_NAME_PREDICTION_FIELD,
                     List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
@@ -91,7 +93,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_Accuracy_KeywordField() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Accuracy())));
+                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -110,10 +112,9 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(5.0 / 75));
     }
 
-    public void testEvaluate_Accuracy_IntegerField() {
+    private void evaluateAccuracy_IntegerField(String actualField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(NO_LEGS_FIELD, NO_LEGS_PREDICTION_FIELD, List.of(new Accuracy())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, NO_LEGS_PREDICTION_FIELD, List.of(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -132,10 +133,18 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(15.0 / 75));
     }
 
-    public void testEvaluate_Accuracy_BooleanField() {
+    public void testEvaluate_Accuracy_IntegerField() {
+        evaluateAccuracy_IntegerField(NO_LEGS_INTEGER_FIELD);
+    }
+
+    public void testEvaluate_Accuracy_IntegerField_MappingTypeMismatch() {
+        evaluateAccuracy_IntegerField(NO_LEGS_KEYWORD_FIELD);
+    }
+
+    private void evaluateAccuracy_BooleanField(String actualField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(IS_PREDATOR_FIELD, IS_PREDATOR_PREDICTION_FIELD, List.of(new Accuracy())));
+                ANIMALS_DATA_INDEX, new Classification(actualField, IS_PREDATOR_PREDICTION_FIELD, List.of(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -151,10 +160,18 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(45.0 / 75));
     }
 
-    public void testEvaluate_Precision() {
+    public void testEvaluate_Accuracy_BooleanField() {
+        evaluateAccuracy_BooleanField(IS_PREDATOR_BOOLEAN_FIELD);
+    }
+
+    public void testEvaluate_Accuracy_BooleanField_MappingTypeMismatch() {
+        evaluateAccuracy_BooleanField(IS_PREDATOR_KEYWORD_FIELD);
+    }
+
+    public void testEvaluate_Precision_KeywordField() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision())));
+                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -173,20 +190,78 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(precisionResult.getAvgPrecision(), equalTo(5.0 / 75));
     }
 
+    private void evaluatePrecision_IntegerField(String actualField) {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(actualField, NO_LEGS_PREDICTION_FIELD, List.of(new Precision())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
+        assertThat(
+            precisionResult.getClasses(),
+            equalTo(
+                List.of(
+                    new Precision.PerClassResult("1", 0.2),
+                    new Precision.PerClassResult("2", 0.2),
+                    new Precision.PerClassResult("3", 0.2),
+                    new Precision.PerClassResult("4", 0.2),
+                    new Precision.PerClassResult("5", 0.2))));
+        assertThat(precisionResult.getAvgPrecision(), equalTo(0.2));
+    }
+
+    public void testEvaluate_Precision_IntegerField() {
+        evaluatePrecision_IntegerField(NO_LEGS_INTEGER_FIELD);
+    }
+
+    public void testEvaluate_Precision_IntegerField_MappingTypeMismatch() {
+        evaluatePrecision_IntegerField(NO_LEGS_KEYWORD_FIELD);
+    }
+
+    private void evaluatePrecision_BooleanField(String actualField) {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(actualField, IS_PREDATOR_PREDICTION_FIELD, List.of(new Precision())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
+        assertThat(
+            precisionResult.getClasses(),
+            equalTo(
+                List.of(
+                    new Precision.PerClassResult("false", 0.5),
+                    new Precision.PerClassResult("true", 9.0 / 13))));
+        assertThat(precisionResult.getAvgPrecision(), equalTo(31.0 / 52));
+    }
+
+    public void testEvaluate_Precision_BooleanField() {
+        evaluatePrecision_BooleanField(IS_PREDATOR_BOOLEAN_FIELD);
+    }
+
+    public void testEvaluate_Precision_BooleanField_MappingTypeMismatch() {
+        evaluatePrecision_BooleanField(IS_PREDATOR_KEYWORD_FIELD);
+    }
+
     public void testEvaluate_Precision_CardinalityTooHigh() {
         indexDistinctAnimals(ANIMALS_DATA_INDEX, 1001);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision()))));
-        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
+                    ANIMALS_DATA_INDEX,
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Precision()))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
-    public void testEvaluate_Recall() {
+    public void testEvaluate_Recall_KeywordField() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall())));
+                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -205,21 +280,79 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(recallResult.getAvgRecall(), equalTo(5.0 / 75));
     }
 
+    private void evaluateRecall_IntegerField(String actualField) {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(actualField, NO_LEGS_INTEGER_FIELD, List.of(new Recall())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
+        assertThat(
+            recallResult.getClasses(),
+            equalTo(
+                List.of(
+                    new Recall.PerClassResult("1", 1.0),
+                    new Recall.PerClassResult("2", 1.0),
+                    new Recall.PerClassResult("3", 1.0),
+                    new Recall.PerClassResult("4", 1.0),
+                    new Recall.PerClassResult("5", 1.0))));
+        assertThat(recallResult.getAvgRecall(), equalTo(1.0));
+    }
+
+    public void testEvaluate_Recall_IntegerField() {
+        evaluateRecall_IntegerField(NO_LEGS_INTEGER_FIELD);
+    }
+
+    public void testEvaluate_Recall_IntegerField_MappingTypeMismatch() {
+        evaluateRecall_IntegerField(NO_LEGS_KEYWORD_FIELD);
+    }
+
+    private void evaluateRecall_BooleanField(String actualField) {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(actualField, IS_PREDATOR_PREDICTION_FIELD, List.of(new Recall())));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
+        assertThat(
+            recallResult.getClasses(),
+            equalTo(
+                List.of(
+                    new Recall.PerClassResult("true", 0.6),
+                    new Recall.PerClassResult("false", 0.6))));
+        assertThat(recallResult.getAvgRecall(), equalTo(0.6));
+    }
+
+    public void testEvaluate_Recall_BooleanField() {
+        evaluateRecall_BooleanField(IS_PREDATOR_BOOLEAN_FIELD);
+    }
+
+    public void testEvaluate_Recall_BooleanField_MappingTypeMismatch() {
+        evaluateRecall_BooleanField(IS_PREDATOR_KEYWORD_FIELD);
+    }
+
     public void testEvaluate_Recall_CardinalityTooHigh() {
         indexDistinctAnimals(ANIMALS_DATA_INDEX, 1001);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall()))));
-        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name] is too high"));
+                    ANIMALS_DATA_INDEX,
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new Recall()))));
+        assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
     private void evaluateWithMulticlassConfusionMatrix() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
-                new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new MulticlassConfusionMatrix())));
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new MulticlassConfusionMatrix())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -299,7 +432,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
-                new Classification(ANIMAL_NAME_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new MulticlassConfusionMatrix(3, null))));
+                new Classification(
+                    ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_FIELD, List.of(new MulticlassConfusionMatrix(3, null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -336,11 +470,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     private static void createAnimalsIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName)
             .setMapping(
-                ANIMAL_NAME_FIELD, "type=keyword",
+                ANIMAL_NAME_KEYWORD_FIELD, "type=keyword",
                 ANIMAL_NAME_PREDICTION_FIELD, "type=keyword",
-                NO_LEGS_FIELD, "type=integer",
+                NO_LEGS_KEYWORD_FIELD, "type=keyword",
+                NO_LEGS_INTEGER_FIELD, "type=integer",
                 NO_LEGS_PREDICTION_FIELD, "type=integer",
-                IS_PREDATOR_FIELD, "type=boolean",
+                IS_PREDATOR_KEYWORD_FIELD, "type=keyword",
+                IS_PREDATOR_BOOLEAN_FIELD, "type=boolean",
                 IS_PREDATOR_PREDICTION_FIELD, "type=boolean")
             .get();
     }
@@ -355,11 +491,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     bulkRequestBuilder.add(
                         new IndexRequest(indexName)
                             .source(
-                                ANIMAL_NAME_FIELD, animalNames.get(i),
+                                ANIMAL_NAME_KEYWORD_FIELD, animalNames.get(i),
                                 ANIMAL_NAME_PREDICTION_FIELD, animalNames.get((i + j) % animalNames.size()),
-                                NO_LEGS_FIELD, i + 1,
+                                NO_LEGS_KEYWORD_FIELD, String.valueOf(i + 1),
+                                NO_LEGS_INTEGER_FIELD, i + 1,
                                 NO_LEGS_PREDICTION_FIELD, j + 1,
-                                IS_PREDATOR_FIELD, i % 2 == 0,
+                                IS_PREDATOR_KEYWORD_FIELD, String.valueOf(i % 2 == 0),
+                                IS_PREDATOR_BOOLEAN_FIELD, i % 2 == 0,
                                 IS_PREDATOR_PREDICTION_FIELD, (i + j) % 2 == 0));
                 }
             }
@@ -375,7 +513,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < distinctAnimalCount; i++) {
             bulkRequestBuilder.add(
-                new IndexRequest(indexName).source(ANIMAL_NAME_FIELD, "animal_" + i, ANIMAL_NAME_PREDICTION_FIELD, randomAlphaOfLength(5)));
+                new IndexRequest(indexName)
+                    .source(ANIMAL_NAME_KEYWORD_FIELD, "animal_" + i, ANIMAL_NAME_PREDICTION_FIELD, randomAlphaOfLength(5)));
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         if (bulkResponse.hasFailures()) {

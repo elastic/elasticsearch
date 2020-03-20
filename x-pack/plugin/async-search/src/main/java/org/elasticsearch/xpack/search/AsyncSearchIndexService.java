@@ -38,9 +38,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -69,7 +69,7 @@ class AsyncSearchIndexService {
     public static Settings settings() {
         return Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
 

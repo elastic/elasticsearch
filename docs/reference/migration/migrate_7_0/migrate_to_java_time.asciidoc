@@ -215,7 +215,7 @@ test formats containing these patterns carefully before upgrading.
 `z` (Time zone text)::
 +
 --
-In 7.0 it will print 'Z' for Zulu given UTC timezone.
+In java time, `z` outputs 'Z' for Zulu when given a UTC timezone.
 --
 
 [[java-time-migration-test]]

@@ -19,8 +19,19 @@
 
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
+import static java.util.stream.Collectors.toList;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
@@ -58,19 +69,8 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.function.IntFunction;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.toList;
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -511,9 +511,7 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(
-                aggregationsList.stream().map(Supplier::get).collect(toList()),
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
+        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, aggregationsList);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size,
             reducedCompletionSuggestions);
@@ -521,6 +519,24 @@ public final class SearchPhaseController {
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
+    }
+
+    private InternalAggregations reduceAggs(
+        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        boolean performFinalReduce,
+        List<Supplier<InternalAggregations>> aggregationsList
+    ) {
+        /*
+         * Parse the aggregations, clearing the list as we go so bits backing
+         * the DelayedWriteable can be collected immediately.
+         */
+        List<InternalAggregations> toReduce = new ArrayList<>(aggregationsList.size());
+        for (int i = 0; i < aggregationsList.size(); i++) {
+            toReduce.add(aggregationsList.get(i).get());
+            aggregationsList.set(i, null);
+        }
+        return aggregationsList.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce,
+            performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
     }
 
     /*
@@ -671,10 +687,13 @@ public final class SearchPhaseController {
             if (querySearchResult.isNull() == false) {
                 if (index == bufferSize) {
                     if (hasAggs) {
+                        List<InternalAggregations> aggs = new ArrayList<>(aggsBuffer.length);
+                        for (int i = 0; i < aggsBuffer.length; i++) {
+                            aggs.add(aggsBuffer[i].get());
+                            aggsBuffer[i] = null; // null the buffer so it can be GCed now.
+                        }
                         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(
-                                Arrays.stream(aggsBuffer).map(Supplier::get).collect(toList()),
-                                aggReduceContextBuilder.forPartialReduction());
-                        Arrays.fill(aggsBuffer, null);
+                                aggs, aggReduceContextBuilder.forPartialReduction());
                         aggsBuffer[0] = () -> reducedAggs;
                     }
                     if (hasTopDocs) {

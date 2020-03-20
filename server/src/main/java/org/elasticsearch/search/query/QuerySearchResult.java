@@ -26,7 +26,6 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
@@ -204,11 +203,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
-    public Supplier<InternalAggregations> consumeAggs() {
+    public DelayableWriteable<InternalAggregations> consumeAggs() {
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
-        Supplier<InternalAggregations> aggs = aggregations;
+        DelayableWriteable<InternalAggregations> aggs = aggregations;
         aggregations = null;
         return aggs;
     }

@@ -5,6 +5,7 @@ With 7.0, {es} switched from joda time to java time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
+[discrete]
 [[java-time-convert-date-formats]]
 === Convert date formats
 
@@ -12,7 +13,7 @@ To upgrade to 7.0, you'll need to convert any joda-time date formats
 to their java-time equivalents.
 
 To help track this effort, you can prefix java-time date formats with an `8`
-prefix in {es} 6.8 and later versions.
+ in {es} 6.8 and later versions.
 
 For example, you can change the date format `YYYY-MM-dd` to `8yyyy-MM-dd` to
 indicate the date format uses java time.
@@ -45,7 +46,7 @@ Most custom date formats are compatible. However, several require
 an update.
 
 To see if your date format is impacted, use the <<migration-api-deprecation,deprecation info API>>
-or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant]
+or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant].
 
 [[java-time-migration-incompatible-date-formats]]
 ==== Incompatible date formats
@@ -64,7 +65,6 @@ In java time, `Y` is used for
 https://docs.oracle.com/javase/8/docs/api/java/time/temporal/WeekFields.html[week-based year].
 Using `Y` in place of `y` could result in off-by-one errors in year calculation.
 
-
 For pattern `YYYY-ww` and date `2019-01-01T00:00:00.000Z`  will give `2019-01`
 For pattern `YYYY-ww` and date `2018-12-31T00:00:00.000Z`  will give `2019-01` (counter intuitive) because there is >4 days of that week in 2019
 --
@@ -78,7 +78,7 @@ Replace with `u`.
 `yyyy-MM-dd` should become `uuuu-MM-dd`.
 
 In java time, `y` is used for year of era. `u` can contain non-positive
-values, while `y` cannot. `y` can also be associated with an era field.
+values while `y` cannot. `y` can also be associated with an era field.
 --
 
 
@@ -107,7 +107,7 @@ Failure to properly convert `x` (Week year) to `Y` could result in data loss.
 --
 Replace with multiple `X`'s.
 
-`Z` has s similar meaning in java time. However, java time expects different
+`Z` has a similar meaning in java time. However, java time expects different
 numbers of literals to parse different forms.
 
 Consider migrating to `X`, which gives you more control over how time is parsed.
@@ -298,7 +298,10 @@ PUT my_index_2
 --------------------------------------------------
 // TEST[continued]
 
-Next, reindex the data from `my_index_1` to `my_index_2`.
+Next, reindex data from the old index to the new index.
+
+The following <<docs-reindex,reindex>> API request reindexes data from
+`my_index_1` to `my_index_2`.
 
 [source,console]
 --------------------------------------------------
@@ -335,7 +338,7 @@ using the <<put-pipeline-api,put ingest pipeline>> API.
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/mypipeline
+PUT _ingest/pipeline/my_pipeline
 {
   "description": "Pipeline for routing data to specific index",
   "processors": [

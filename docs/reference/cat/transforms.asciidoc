@@ -102,14 +102,14 @@ The total number of invocations.
 
 `max_page_search_size`, `mpsz`:::
 (Default)
-The maximum page search size.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
 
 `page_total`, `pt`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 
 `pipeline`, `p`:::
 (Default)
-The {transform} pipeline.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 
 `processed_documents_exp_avg`, `pdea`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
@@ -136,7 +136,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 `transform_type`, `tt`:::
 (Default)
-Indicates whether it's a batch or continuous {transform}. 
+Indicates the type of {transform}: `batch` or `continuous`. 
 
 `version`, `v`:::
 (Default)
@@ -160,13 +160,26 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/transforms?v
+GET /_cat/transforms?v&format=json
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 
 [source,console-result]
 ----
-id                           create_time              version source_index                 dest_index          pipeline description transform_type frequency max_page_search_size   state
-ecommerce-customer-transform 2020-03-18T23:39:29.525Z 8.0.0   kibana_sample_data_ecommerce ecommerce-customers                      batch          1m        500                  STOPPED
+[
+  {
+    "id" : "ecommerce_transform",
+    "create_time" : "2020-03-20T20:31:25.077Z",
+    "version" : "7.7.0",
+    "source_index" : "kibana_sample_data_ecommerce",
+    "dest_index" : "kibana_sample_data_ecommerce_transform",
+    "pipeline" : null,
+    "description" : "Maximum priced ecommerce data by customer_id in Asia",
+    "transform_type" : "continuous",
+    "frequency" : "5m",
+    "max_page_search_size" : "500",
+    "state" : "STARTED"
+  }
+]
 ----
 // TESTRESPONSE[skip:kibana sample data]

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
@@ -18,6 +20,8 @@ import java.io.InputStream;
 import java.util.Objects;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
+
+    protected static final Logger logger = LogManager.getLogger(BaseSearchableSnapshotIndexInput.class);
 
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;

@@ -95,7 +95,12 @@ A possible workaround https://stackoverflow.com/questions/38354151/how-to-force-
 --
 Replace with `Y`.
 
-This is a big change. `x` means https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[zone-offset] in java.time
+In java time, `x` means https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[zone-offset]. 
+
+[WARNING]
+====
+Failure to properly convert `x` (Week year) to `Y` could result in data loss.
+====
 --
 
 `Z` Zone offset/id::

@@ -229,8 +229,8 @@ https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
 
 [[java-time-migrate-update-mappings]]
 ==== Update index mappings
-Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping
-and reindex your data to it.
+To update joda-time date formats in index mappings, you must create a new index
+with an updated mapping and reindex your data to it.
 You can however update your pipelines or templates. Remember to look for templates you use with tools outside ES.
 If you specified a custom date format there, then you need to update it too.
 

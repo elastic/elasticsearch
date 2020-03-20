@@ -294,7 +294,7 @@ POST _reindex
 --------------------------------------------------
 // TEST[continued]
 
-* If you were using aliases, update them to a new index
+If you use index aliases, update them to point to the new index.
 
 [source,console]
 --------------------------------------------------

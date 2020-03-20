@@ -414,7 +414,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         a.postCollection();
         @SuppressWarnings("unchecked")
         A internalAgg = (A) a.buildAggregation(0L);
-        InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
+        if (false == (a instanceof NonCollectingAggregator)) {
+            InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
+        }
         return internalAgg;
     }
 
@@ -485,7 +487,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.postCollection();
             InternalAggregation agg = a.buildAggregation(0L);
             aggs.add(agg);
-            InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
+
+            if (false == (a instanceof NonCollectingAggregator)) {
+                InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
+            }
         }
         if (aggs.isEmpty()) {
             return null;

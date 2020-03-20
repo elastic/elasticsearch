@@ -5,14 +5,29 @@ With 7.0, {es} switched from joda time to java time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
-Joda style indices are supported in 6.8, but indices created with joda-style patterns in 6.x are also allowed to be used in 7.0
-All new indices created in 7.x are expected to be using java-time patterns.
+[[java-time-convert-date-formats]]
+=== Convert date formats
 
-We advice to prepare for this migration in 6.8, but it will also work if you decide to perform it in version 7.x
+To upgrade to 7.0, you'll need to convert any joda-time date formats
+to their java-time equivalents.
 
-- In 6.8 you need to prefix your new java.style pattern with `8`. Patterns without `8` are considered joda style.
-- In 7.x patterns without `8` on indices *created in 6.x* are considered joda-style.
-- Patterns with or without `8` on indices *created in 7.x*  are considered java.style
+To help track this effort, you can prefix java-time date formats with an `8`
+prefix in {es} 6.8 and later versions.
+
+For example, you can change the date format `YYYY-MM-dd` to `8yyyy-MM-dd` to
+indicate the date format uses java time.
+
+{es} treats date formats starting with the `8` prefix differently depending on
+the version:
+
+*6.8*: Date formats with an `8` prefix are handled as java-time formats. Date
+formats without an `8` prefix are treated as joda-time formats. We recommend
+converting these joda-time formats to java-time _before_ upgrading to 7.x.
+
+*7.x and later*: For indices created in 6.x, date formats without an `8` prefix
+are treated as joda-time formats. For indices created in 7.x and later versions,
+all date formats are treated as java-time formats, regardless of whether it
+starts with an `8` prefix.
 
 [[java-time-migration-impacted-features]]
 ==== Impacted features

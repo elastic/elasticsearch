@@ -20,11 +20,11 @@
 
 package org.elasticsearch.client.asyncsearch;
 
-import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.Validatable;
 
 import java.util.Objects;
 
-public class DeleteAsyncSearchRequest extends TimedRequest {
+public class DeleteAsyncSearchRequest implements Validatable {
 
     private final String id;
 

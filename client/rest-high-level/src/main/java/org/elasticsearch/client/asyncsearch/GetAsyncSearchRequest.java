@@ -20,15 +20,20 @@
 
 package org.elasticsearch.client.asyncsearch;
 
-import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
+import java.util.Optional;
 
-public class GetAsyncSearchRequest extends TimedRequest {
+public class GetAsyncSearchRequest implements Validatable {
 
     private TimeValue waitForCompletion;
     private TimeValue keepAlive;
+
+    public static final long MIN_KEEPALIVE = TimeValue.timeValueMinutes(1).millis();
+
     private final String id;
 
     public GetAsyncSearchRequest(String id) {
@@ -53,6 +58,18 @@ public class GetAsyncSearchRequest extends TimedRequest {
 
     public void setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+    }
+
+    @Override
+    public Optional<ValidationException> validate() {
+        final ValidationException validationException = new ValidationException();
+        if (keepAlive != null && keepAlive.getMillis() < MIN_KEEPALIVE) {
+            validationException.addValidationError("keep_alive must be greater than 1 minute, got: " + keepAlive.toString());
+        }
+        if (validationException.validationErrors().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(validationException);
     }
 
     @Override

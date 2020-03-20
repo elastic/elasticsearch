@@ -1,5 +1,5 @@
 [role="xpack"]
-[[idp-saml-validate-authn-request]]
+[[idp-saml-validate]]
 === Validate a SAML authentication request
 ++++
 <titleabbrev>Validate a SAML authentication request</titleabbrev>
@@ -46,11 +46,7 @@ The following example submits an unsigned SAML authentication request for valida
 --------------------------------------------------------------------
 POST /_idp/saml/validate
 {
-  "authn_request_query": "SAMLRequest=fZFbb4MwDIX%2FSpR3IEA7aFSoqlWVKnXT1Mse9jKZENpokLA4VNu%2FH71NnTT11efYx%2F48nnw1NTlIi8rojIY%2Bo0RqYUqldx
-   ndbuZeSif5GKGpo5ZPO7fXK%2FnZSXSkb9TIz0pGO6u5AVTINTQSuRN8PX1a8shnvLXGGWFqSqaI0ro%2B6tFo7Bpp19IelJDb1TKje%2Bda5EGAbeh%2FqAI0
-   %2BMbugmNCAAIpmfWxSoM7rXp1i9p0pS9r6DXhC3P2K60cJYtZRt8hhCKsCmDDQTpiMEgfQpZUMknTMh4BKxLRyyyuejtiJxcaHWiX0YhFzGOxF442YchZwqOh
-   Hw%2FYGyWvV1z9cfQCh5%2Ba7S2V%2B1DgioLm%2Fx8%2BDm4H%2F%2F7guZ%2B0mL2YWolvMje2AXc%2F6FhRpVedrNxZ0KikdjTILwl%2F%2F5r%2FAA%3D%3D
-   &RelayState=SAwdVW" <1>
+  "authn_request_query":"SAMLRequest=fZFbb4MwDIX%2FSpR3IEA7aFSoqlWVKnXT1Mse9jKZENpokLA4VNu%2FH71NnTT11efYx%2F48nnw1NTlIi8rojIY%2Bo0RqYUqldxndbuZeSif5GKGpo5ZPO7fXK%2FnZSXSkb9TIz0pGO6u5AVTINTQSuRN8PX1a8shnvLXGGWFqSqaI0ro%2B6tFo7Bpp19IelJDb1TKje%2Bda5EGAbeh%2FqAI0%2BMbugmNCAAIpmfWxSoM7rXp1i9p0pS9r6DXhC3P2K60cJYtZRt8hhCKsCmDDQTpiMEgfQpZUMknTMh4BKxLRyyyuejtiJxcaHWiX0YhFzGOxF442YchZwqOhHw%2FYGyWvV1z9cfQCh5%2Ba7S2V%2B1DgioLm%2Fx8%2BDm4H%2F%2F7guZ%2B0mL2YWolvMje2AXc%2F6FhRpVedrNxZ0KikdjTILwl%2F%2F5r%2FAA%3D%3D&RelayState=SAwdVW" <1>
 }
 --------------------------------------------------------------------
 // TEST[skip:Do not enable identity provider for the docs cluster, at least not yet]

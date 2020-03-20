@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -49,8 +47,6 @@ import java.util.Objects;
  * a new request to the {@link BlobContainer} each time their internal buffer needs refilling.
  */
 public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInput {
-
-    private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexInput.class);
 
     private final long offset;
     private final long length;

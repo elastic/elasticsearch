@@ -50,7 +50,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     private static int counter = 0;
 
     @SuppressWarnings("unchecked")
-    private static synchronized void setupData(CommonEqlActionTestCase tc) throws Exception {
+    private static void setupData(CommonEqlActionTestCase tc) throws Exception {
         if (isSetUp) {
             return;
         }
@@ -87,7 +87,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         }
     }
 
-    private static synchronized void cleanupData(CommonEqlActionTestCase tc) throws Exception {
+    private static void cleanupData(CommonEqlActionTestCase tc) throws Exception {
         // Delete index after all tests ran
         if (isSetUp && (--counter == 0)) {
             deleteIndex(testIndexName);

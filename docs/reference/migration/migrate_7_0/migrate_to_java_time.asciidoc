@@ -58,7 +58,7 @@ changed before upgrading.
 Replace with `y`.
 
 *Example:*
-`YYYY-MM-dd` should become `yyyy-MM-dd`
+`YYYY-MM-dd` should become `yyyy-MM-dd`.
 
 In java time, `Y` is used for
 https://docs.oracle.com/javase/8/docs/api/java/time/temporal/WeekFields.html[week-based year].

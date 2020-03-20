@@ -20,18 +20,26 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public class AggregatedMessage {
 
     private final Header header;
     private final ReleasableBytesReference content;
-    private final Exception exception;
     private final boolean isPing;
+    private StreamInput streamInput;
 
-    public AggregatedMessage(Header header, ReleasableBytesReference content, boolean isPing) {
+    public AggregatedMessage(Header header, ReleasableBytesReference content) {
         this.header = header;
         this.content = content;
-        this.exception = null;
+        this.isPing = false;
+    }
+
+    public AggregatedMessage(Header header, boolean isPing) {
+        this.header = header;
+        this.content = null;
         this.isPing = isPing;
     }
 
@@ -43,11 +51,16 @@ public class AggregatedMessage {
         return content;
     }
 
-    public Exception getException() {
-        return exception;
-    }
-
     public boolean isPing() {
         return isPing;
+    }
+
+    public StreamInput openOrGetStreamInput() throws IOException {
+        assert isPing == false && content != null;
+        if (streamInput == null) {
+            streamInput = content.streamInput();
+            streamInput.setVersion(header.getVersion());
+        }
+        return streamInput;
     }
 }

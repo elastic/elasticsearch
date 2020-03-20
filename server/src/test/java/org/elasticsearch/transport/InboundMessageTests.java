@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -54,6 +54,48 @@ public class InboundMessageTests extends ESTestCase {
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             reference = request.serialize(streamOutput);
         }
+        // Check that the thread context is not deleted.
+        assertEquals("header_value", threadContext.getHeader("header"));
+
+        threadContext.stashContext();
+        threadContext.putHeader("header", "header_value2");
+
+        InboundMessage.Reader reader = new InboundMessage.Reader(version, registry, threadContext);
+        BytesReference sliced = reference.slice(6, reference.length() - 6);
+        InboundMessage.Request inboundMessage = (InboundMessage.Request) reader.deserialize(sliced);
+        // Check that deserialize does not overwrite current thread context.
+        assertEquals("header_value2", threadContext.getHeader("header"));
+        inboundMessage.getStoredContext().restore();
+        assertEquals("header_value", threadContext.getHeader("header"));
+        assertEquals(isHandshake, inboundMessage.isHandshake());
+        assertEquals(compress, inboundMessage.isCompress());
+        assertEquals(version, inboundMessage.getVersion());
+        assertEquals(action, inboundMessage.getActionName());
+        assertTrue(inboundMessage.isRequest());
+        assertFalse(inboundMessage.isResponse());
+        assertFalse(inboundMessage.isError());
+        assertEquals(value, new Message(inboundMessage.getStreamInput()).value);
+    }
+
+    public void testReadRequest2() throws IOException {
+        String value = randomAlphaOfLength(10);
+        TestRequest testRequest = new TestRequest(value);
+        String action = randomAlphaOfLength(10);
+        long requestId = randomLong();
+        boolean isHandshake = randomBoolean();
+        boolean compress = randomBoolean();
+        threadContext.putHeader("header", "header_value");
+        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, testRequest, version, action, requestId,
+            isHandshake, compress);
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        threadContext.writeTo(streamOutput);
+        testRequest.writeTo(streamOutput);
+        final ReleasableBytesReference reference = new ReleasableBytesReference(streamOutput.bytes(), () -> {});
+
+        final Header header = new Header(10, requestId, request.status, version);
+        final AggregatedMessage message = new AggregatedMessage(header, reference);
+
         // Check that the thread context is not deleted.
         assertEquals("header_value", threadContext.getHeader("header"));
 
@@ -148,35 +190,6 @@ public class InboundMessageTests extends ESTestCase {
         assertEquals("[error]", inboundMessage.getStreamInput().readException().getMessage());
     }
 
-    public void testEnsureVersionCompatibility() throws IOException {
-        testVersionIncompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-            Version.CURRENT), Version.CURRENT, randomBoolean());
-
-        final Version version = Version.fromString("7.0.0");
-        testVersionIncompatibility(Version.fromString("6.0.0"), version, true);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
-            testVersionIncompatibility(Version.fromString("6.0.0"), version, false));
-        assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        // For handshake we are compatible with N-2
-        testVersionIncompatibility(Version.fromString("5.6.0"), version, true);
-        ise = expectThrows(IllegalStateException.class, () ->
-            testVersionIncompatibility(Version.fromString("5.6.0"), version, false));
-        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            testVersionIncompatibility(Version.fromString("2.3.0"), version, true));
-        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            testVersionIncompatibility(Version.fromString("2.3.0"), version, false));
-        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-    }
-
     public void testThrowOnNotCompressed() throws Exception {
         OutboundMessage.Response request = new OutboundMessage.Response(
             threadContext, new Message(randomAlphaOfLength(10)), Version.CURRENT, randomLong(), false, false);
@@ -193,24 +206,6 @@ public class InboundMessageTests extends ESTestCase {
         BytesReference sliced = reference.slice(6, reference.length() - 6);
         final IllegalStateException iste = expectThrows(IllegalStateException.class, () -> reader.deserialize(sliced));
         assertThat(iste.getMessage(), Matchers.equalTo("stream marked as compressed, but is missing deflate header"));
-    }
-
-    private void testVersionIncompatibility(Version version, Version currentVersion, boolean isHandshake) throws IOException {
-        String value = randomAlphaOfLength(10);
-        Message message = new Message(value);
-        String action = randomAlphaOfLength(10);
-        long requestId = randomLong();
-        boolean compress = randomBoolean();
-        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, message, version, action, requestId,
-            isHandshake, compress);
-        BytesReference reference;
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-            reference = request.serialize(streamOutput);
-        }
-
-        BytesReference sliced = reference.slice(6, reference.length() - 6);
-        InboundMessage.Reader reader = new InboundMessage.Reader(currentVersion, registry, threadContext);
-        reader.deserialize(sliced);
     }
 
     private static final class Message extends TransportMessage {

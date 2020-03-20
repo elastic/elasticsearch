@@ -28,8 +28,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 
-import static org.elasticsearch.transport.InboundMessage.Reader.assertRemoteVersion;
-
 public final class TransportLogger {
 
     private static final Logger logger = LogManager.getLogger(TransportLogger.class);
@@ -99,7 +97,7 @@ public final class TransportLogger {
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 } else {
                     streamInput = InboundMessage.Reader.decompressingStream(status, streamInput);
-                    assertRemoteVersion(streamInput, version);
+                    InboundHandler.assertRemoteVersion(streamInput, version);
                 }
 
                 // TODO (jaymode) Need a better way to deal with this. In one aspect,

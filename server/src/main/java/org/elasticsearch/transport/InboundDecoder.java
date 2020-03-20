@@ -210,7 +210,7 @@ public class InboundDecoder implements Releasable {
         return decodingException != null;
     }
 
-    private static IllegalStateException ensureVersionCompatibility(Version remoteVersion, Version currentVersion, boolean isHandshake) {
+    static IllegalStateException ensureVersionCompatibility(Version remoteVersion, Version currentVersion, boolean isHandshake) {
         // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
         // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
         // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility

@@ -32,7 +32,7 @@ import java.util.function.BiConsumer;
 
 public class InboundPipeline implements Releasable {
 
-    private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, null, true);
+    private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, true);
 
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;

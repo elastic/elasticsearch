@@ -60,12 +60,12 @@ public class InboundHandlerTests extends ESTestCase {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
         TransportHandshaker handshaker = new TransportHandshaker(new ClusterName("cluster-name"), version, threadPool, (n, c, r, v) -> {
         }, (v, c, r, r_id) -> { });
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler("node", version, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
-        handler = new InboundHandler(threadPool, outboundHandler, reader, new NoneCircuitBreakerService(), handshaker, keepAlive);
+        final NoneCircuitBreakerService breaker = new NoneCircuitBreakerService();
+        handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, breaker, handshaker, keepAlive);
     }
 
     @After
@@ -133,7 +133,7 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, null, false);
+        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, null);
 //        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, requestContent, false);
         handler.inboundMessage(channel, requestMessage);
 
@@ -154,7 +154,7 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, version);
-        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, null, false);
+        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, null);
 //        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, responseContent, false);
         handler.inboundMessage(channel, responseMessage);
 

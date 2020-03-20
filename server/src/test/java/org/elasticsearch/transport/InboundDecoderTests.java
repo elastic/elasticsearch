@@ -27,6 +27,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -298,7 +299,7 @@ public class InboundDecoderTests extends ESTestCase {
         fragments.clear();
     }
 
-    public void testWillConsumeNetworkBytesBeforeFinishedWithDecodeError() throws IOException {
+    public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
@@ -325,5 +326,27 @@ public class InboundDecoderTests extends ESTestCase {
         final ReleasableBytesReference releasable2 = new ReleasableBytesReference(bytes2, releasable);
         bytesConsumed = decoder.handle(releasable2, fragments::add);
         assertEquals(remaining, bytesConsumed);
+    }
+
+    public void testEnsureVersionCompatibility() throws IOException {
+        IllegalStateException ise = InboundDecoder.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT), Version.CURRENT, randomBoolean());
+        assertNull(ise);
+
+        final Version version = Version.fromString("7.0.0");
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, true);
+        assertNull(ise);
+
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, false);
+        assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: ["
+            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
+
+        // For handshake we are compatible with N-2
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
+        assertNull(ise);
+
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false);
+        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: ["
+            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
     }
 }

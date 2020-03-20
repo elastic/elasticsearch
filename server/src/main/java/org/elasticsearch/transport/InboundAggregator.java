@@ -63,11 +63,10 @@ public class InboundAggregator implements Releasable {
     }
 
     public AggregatedMessage finishAggregation() {
-        final ReleasableBytesReference[] releasableReferences = contentAggregation.toArray(new ReleasableBytesReference[0]);
-        CompositeBytesReference aggregatedContent = new CompositeBytesReference(releasableReferences);
-        ReleasableBytesReference releasableAggregatedContent = new ReleasableBytesReference(aggregatedContent,
-            () -> Releasables.close(releasableReferences));
-        final AggregatedMessage aggregated = new AggregatedMessage(currentHeader, releasableAggregatedContent, false);
+        final ReleasableBytesReference[] references = contentAggregation.toArray(new ReleasableBytesReference[0]);
+        final CompositeBytesReference content = new CompositeBytesReference(references);
+        final ReleasableBytesReference releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
+        final AggregatedMessage aggregated = new AggregatedMessage(currentHeader, releasableContent);
         contentAggregation.clear();
         currentHeader = null;
         return aggregated;

@@ -1204,10 +1204,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.startObject(KEY_SETTINGS);
             if (context != MetaData.XContentContext.API) {
                 indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-            }
-            else {
-                indexMetaData.getSettings()
-                    .toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", params.param("flat_settings"))));
+            } else {
+                indexMetaData.getSettings().toXContent(builder, params);
             }
             builder.endObject();
 
@@ -1222,8 +1220,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     }
                 }
                 builder.endArray();
-            }
-            else {
+            } else {
                 builder.startObject(KEY_MAPPINGS);
                 MappingMetaData mmd = indexMetaData.mapping();
                 if (mmd != null) {
@@ -1255,8 +1252,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     builder.value(indexMetaData.primaryTerm(i));
                 }
                 builder.endArray();
-            }
-            else {
+            } else {
                 builder.startArray(KEY_ALIASES);
                 for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
                     builder.value(cursor.value);

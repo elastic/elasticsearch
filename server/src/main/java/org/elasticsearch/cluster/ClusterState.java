@@ -63,6 +63,7 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_API;
+import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_PARAM;
 
 /**
  * Represents the current state of the cluster.
@@ -89,6 +90,11 @@ import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_API;
 public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+    private static final Map<String, String> API_PARAMS;
+    static {
+        API_PARAMS = new HashMap<>();
+        API_PARAMS.put(CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
+    }
 
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
@@ -415,14 +421,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
 
-        Map<String, String> mapParams = new HashMap<>();
-        mapParams.put(MetaData.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
-        mapParams.put("flat_settings", params.param("flat_settings"));
-        mapParams.put("reduce_mappings", params.param("reduce_mappings"));
+        API_PARAMS.put("flat_settings", params.param("flat_settings"));
+        API_PARAMS.put("reduce_mappings", params.param("reduce_mappings"));
 
         // meta data
         if (metrics.contains(Metric.METADATA)) {
-            metaData.toXContent(builder, new ToXContent.MapParams(mapParams));
+            metaData.toXContent(builder, new ToXContent.MapParams(API_PARAMS));
         }
 
         // routing table

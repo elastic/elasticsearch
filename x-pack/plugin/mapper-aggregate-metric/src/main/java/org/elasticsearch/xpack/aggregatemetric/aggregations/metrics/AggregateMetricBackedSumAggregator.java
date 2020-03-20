@@ -78,10 +78,6 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
         }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
-
-        final SortedNumericDoubleValues counts = valuesSource.getAggregateMetricValues(ctx, Metric.value_count);
-
-
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -90,26 +86,21 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
                 compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount(); // For aggregate metric this should always equal to 1
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
 
-                    double aggregateSum = values.nextValue();
-                    kahanSummation.add(aggregateSum);
-
+                    for (int i = 0; i < valuesCount; i++) {
+                        double value = values.nextValue();
+                        kahanSummation.add(value);
+                    }
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
                 }
-
-                if (counts.advanceExact(doc)) {
-                    double valueCount = counts.nextValue();
-                }
-
             }
-
-
         };
     }
 

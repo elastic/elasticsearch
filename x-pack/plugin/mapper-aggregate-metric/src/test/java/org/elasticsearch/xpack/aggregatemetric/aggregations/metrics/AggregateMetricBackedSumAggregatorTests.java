@@ -12,20 +12,26 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static java.util.Collections.singleton;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
 
 public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase {
 
@@ -34,13 +40,13 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(Arrays.asList(
-                new NumericDocValuesField(FIELD_NAME + "._sum", Double.doubleToLongBits(10)),
-                new NumericDocValuesField(FIELD_NAME + "._value_count", Double.doubleToLongBits(2))
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
             ));
 
             iw.addDocument(Arrays.asList(
-                new NumericDocValuesField(FIELD_NAME + "._sum", Double.doubleToLongBits(50)),
-                new NumericDocValuesField(FIELD_NAME + "._value_count", Double.doubleToLongBits(5))
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
             ));
         }, sum -> {
             assertEquals(60, sum.getValue(), 0d);
@@ -48,27 +54,48 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
         });
     }
 
-    private AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType createDefaultFieldType() {
-        AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType fieldType =
-            new AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType();
-        fieldType.setName(FIELD_NAME);
+    public void testNoDocs() throws IOException {
+        testCase(new MatchAllDocsQuery(), iw -> {
+            // Intentionally not writing any docs
+        }, sum -> {
+            assertEquals(0L, sum.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        });
+    }
 
-        for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
-            AggregateDoubleMetricFieldMapper.Metric.value_count, AggregateDoubleMetricFieldMapper.Metric.sum)) {
+    public void testNoMatchingField() throws IOException {
+        testCase(new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
+        }, sum -> {
+            assertEquals(0L, sum.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        });
+    }
 
+    /**
+     * Create a default aggregate_metric_double field type containing sum and a value_count metrics.
+     *
+     * @param fieldName the name of the field
+     * @return the created field type
+     */
+    private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
+        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType();
+        fieldType.setName(fieldName);
+
+        for (Metric m : List.of(Metric.value_count, Metric.sum)) {
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
             fieldType.addMetricField(m, subfield);
         }
-
-        fieldType.setDefaultMetric(AggregateDoubleMetricFieldMapper.Metric.sum);
+        fieldType.setDefaultMetric(Metric.sum);
         return fieldType;
     }
+
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalSum> verify) throws IOException {
-        AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType fieldType = createDefaultFieldType();
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
@@ -85,8 +112,14 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-                verify.accept(agg);
+                Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+                verify.accept((V) aggregator.buildAggregation(0L));
+
+//                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+//                verify.accept(agg);
             }
         }
     }
@@ -103,7 +136,11 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(AggregateMetricsValuesSourceType.AGGREGATE_METRIC);
+        return List.of(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
+            AggregateMetricsValuesSourceType.AGGREGATE_METRIC);
     }
 
 }

@@ -40,8 +40,11 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -49,6 +52,7 @@ import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -657,7 +661,8 @@ public class AuthenticationService {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
+                final Authentication finalAuth = new Authentication(
+                    maybeMergeAnonymousRolesForUser(finalUser), authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -689,6 +694,44 @@ public class AuthenticationService {
 
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
+        }
+
+        private User maybeMergeAnonymousRolesForUser(User user) {
+            if (SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user)) {
+                return user;
+            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
+                if (anonymousUser.roles().length == 0) {
+                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+                }
+                User userWithMergedRoles = new User(user.principal(),
+                    mergeAnonymousRoles(user.roles()),
+                    user.fullName(),
+                    user.email(),
+                    user.metadata(),
+                    user.enabled()
+                );
+                if (user.isRunAs()) {
+                    final User authenticatedUserWithMergedRoles = new User(
+                        user.authenticatedUser().principal(),
+                        mergeAnonymousRoles(user.authenticatedUser().roles()),
+                        user.authenticatedUser().fullName(),
+                        user.authenticatedUser().email(),
+                        user.authenticatedUser().metadata(),
+                        user.authenticatedUser().enabled()
+                    );
+                    userWithMergedRoles = new User(userWithMergedRoles, authenticatedUserWithMergedRoles);
+                }
+                return userWithMergedRoles;
+            } else {
+                return user;
+            }
+        }
+
+        private String[] mergeAnonymousRoles(String[] existingRoles) {
+            String[] mergedRoles = new String[existingRoles.length + anonymousUser.roles().length];
+            System.arraycopy(existingRoles, 0, mergedRoles, 0, existingRoles.length);
+            System.arraycopy(anonymousUser.roles(), 0, mergedRoles, existingRoles.length, anonymousUser.roles().length);
+            return mergedRoles;
         }
     }
 

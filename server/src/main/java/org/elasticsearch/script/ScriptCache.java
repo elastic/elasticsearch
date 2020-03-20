@@ -40,53 +40,47 @@ public class ScriptCache {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
-    private Cache<CacheKey, Object> cache;
-    private final ScriptMetrics scriptMetrics = new ScriptMetrics();
+    private final Cache<CacheKey, Object> cache;
+    private final ScriptMetrics scriptMetrics;
 
     private final Object lock = new Object();
 
-    private Tuple<Integer, TimeValue> rate;
+    // Mutable fields
     private long lastInlineCompileTime;
     private double scriptsPerTimeWindow;
-    private double compilesAllowedPerNano;
 
-    // Cache settings
-    private int cacheSize;
-    private TimeValue cacheExpire;
+    // Cache settings or derived from settings
+    final int cacheSize;
+    final TimeValue cacheExpire;
+    final Tuple<Integer, TimeValue> rate;
+    private final double compilesAllowedPerNano;
 
-    public ScriptCache(
+    ScriptCache(
             int cacheMaxSize,
             TimeValue cacheExpire,
             Tuple<Integer, TimeValue> maxCompilationRate
     ) {
-        CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
-        if (cacheMaxSize >= 0) {
-            cacheBuilder.setMaximumWeight(cacheMaxSize);
-        }
-
-        if (cacheExpire.getNanos() != 0) {
-            cacheBuilder.setExpireAfterAccess(cacheExpire);
-        }
-
-        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
-        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
-
-        this.lastInlineCompileTime = System.nanoTime();
-
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;
-        this.setMaxCompilationRate(maxCompilationRate);
-    }
 
-    private Cache<CacheKey,Object> buildCache() {
         CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
-        if (cacheSize >= 0) {
-            cacheBuilder.setMaximumWeight(cacheSize);
+        if (this.cacheSize >= 0) {
+            cacheBuilder.setMaximumWeight(this.cacheSize);
         }
-        if (cacheExpire.getNanos() != 0) {
-            cacheBuilder.setExpireAfterAccess(cacheExpire);
+
+        if (this.cacheExpire.getNanos() != 0) {
+            cacheBuilder.setExpireAfterAccess(this.cacheExpire);
         }
-        return cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
+
+        logger.debug("using script cache with max_size [{}], expire [{}]", this.cacheSize, this.cacheExpire);
+        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
+
+        this.rate = maxCompilationRate;
+        this.scriptsPerTimeWindow = this.rate.v1();
+        this.compilesAllowedPerNano = ((double) rate.v1()) / rate.v2().nanos();
+
+        this.lastInlineCompileTime = System.nanoTime();
+        this.scriptMetrics = new ScriptMetrics();
     }
 
     <FactoryType> FactoryType compile(
@@ -182,22 +176,6 @@ public class ScriptCache {
                 rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
                 "this limit can be changed by the [script.max_compilations_rate] setting",
                 CircuitBreaker.Durability.TRANSIENT);
-        }
-    }
-
-    /**
-     * This configures the maximum script compilations per five minute window.
-     *
-     * @param newRate the new expected maximum number of compilations per five minute window
-     */
-    void setMaxCompilationRate(Tuple<Integer, TimeValue> newRate) {
-        synchronized (lock) {
-            this.rate = newRate;
-            // Reset the counter to allow new compilations
-            this.scriptsPerTimeWindow = rate.v1();
-            this.compilesAllowedPerNano = ((double) rate.v1()) / newRate.v2().nanos();
-
-            this.cache = buildCache();
         }
     }
 

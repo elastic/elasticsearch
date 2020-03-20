@@ -263,9 +263,9 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         @Override
         public Void visit(Rectangle r) {
             if (r.getMinLon() > r.getMaxLon()) {
-                Rectangle left = new Rectangle(r.getMaxX(), GeoUtils.MAX_LON, r.getMaxY(), r.getMinY());
+                Rectangle left = new Rectangle(r.getMinLon(), GeoUtils.MAX_LON, r.getMaxLat(), r.getMinLat());
                 addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(left)));
-                Rectangle right = new Rectangle(GeoUtils.MIN_LON, r.getMaxLon(), r.getMaxY(), r.getMinY());
+                Rectangle right = new Rectangle(GeoUtils.MIN_LON, r.getMaxLon(), r.getMaxLat(), r.getMinLat());
                 addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(right)));
 
             } else {

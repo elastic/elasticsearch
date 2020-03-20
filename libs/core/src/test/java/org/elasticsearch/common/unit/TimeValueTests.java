@@ -238,4 +238,13 @@ public class TimeValueTests extends ESTestCase {
         TimeValue secondValue = new TimeValue(firstValue.getSeconds(), TimeUnit.SECONDS);
         assertEquals(firstValue.hashCode(), secondValue.hashCode());
     }
+
+    public void testRejectsNegativeValues() {
+        final long negativeValue = randomLongBetween(Long.MIN_VALUE, -2);
+        final String negativeTimeValueString = Long.toString(negativeValue) + randomTimeUnit();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> TimeValue.parseTimeValue(negativeTimeValueString, "test-value"));
+        assertThat(ex.getMessage(),
+            equalTo("TimeValue does not support negative durations, but was given [" + negativeTimeValueString + "]"));
+    }
 }

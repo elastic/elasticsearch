@@ -386,7 +386,12 @@ public class TimeValue implements Comparable<TimeValue> {
     private static long parse(final String initialInput, final String normalized, final String suffix) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
-            return Long.parseLong(s);
+            final long value = Long.parseLong(s);
+            if (value < -1) {
+                // -1 is magic, but reject any other negative values
+                throw new IllegalArgumentException("TimeValue does not support negative durations, but was given [" + initialInput + "]");
+            }
+            return value;
         } catch (final NumberFormatException e) {
             try {
                 @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);

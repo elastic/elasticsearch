@@ -198,11 +198,12 @@ In 7.0 it will print 'Z' for Zulu given UTC timezone.
 
 [[java-time-migration-test]]
 ===== Test with your data
-All of the examples above should be tested with real data. It is likely that you do not need the flexibility joda was giving.
-If you expect your timezone to only be in one form - for instance `+01:00`  (XXX in java, ZZ in joda) -
-then there is no need to create a new java pattern with so many alternatives.
 
-Consider using this date debugging site for assistance https://esddd.herokuapp.com/
+We strongly recommend you test any date format changes using real data before
+deploying in production.
+
+For help with date debugging, consider using
+https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
 
 ==== Migrating affected mappings
 Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping

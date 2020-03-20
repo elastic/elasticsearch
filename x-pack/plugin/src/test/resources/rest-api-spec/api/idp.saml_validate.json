@@ -1,5 +1,5 @@
 {
-  "idp.validate_authn_request": {
+  "idp.saml_validate": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/idp-saml-validate.html"
     },

@@ -111,7 +111,7 @@ using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions [IntelliJ 2017.2][intellij] and
+We support development in IntelliJ versions IntelliJ 2019.2 and
 onwards. We would like to support Eclipse, but few of us use it and has fallen
 into [disrepair][eclipse].
 
@@ -123,40 +123,18 @@ You can access Elasticsearch with:
 
     curl -u elastic:password localhost:9200
 
-### Configuring IDEs And Running Tests
+### Importing the project into IntelliJ IDEA
 
-IntelliJ users can automatically configure their IDE: `./gradlew idea`
-then `File->New Project From Existing Sources`. Point to the root of
-the source directory, select
-`Import project from external model->Gradle`, enable
-`Use auto-import`. In order to run tests directly from
-IDEA 2017.2 and above, it is required to disable the IDEA run launcher in order to avoid
-`idea_rt.jar` causing "jar hell". This can be achieved by adding the
-`-Didea.no.launcher=true` [JVM
-option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties).
-Alternatively, `idea.no.launcher=true` can be set in the
-[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
-file which can be accessed under Help > Edit Custom Properties (this will require a
-restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations->...->Defaults->JUnit` and verify that the `Shorten command line` setting is set to
-`user-local default: none`. You may also need to [remove `ant-javafx.jar` from your
-classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
-reported as a source of jar hell.
+Elasticsearch builds using Java 13. Before importing into IntelliJ you will need
+to define an appropriate SDK. The convention is that **this SDK should be named
+"13"** so that the project import will detect it automatically. For more details
+on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 
-To run an instance of elasticsearch from the source code run `./gradlew run`
+You can import the Elasticsearch project into IntelliJ IDEA via:
 
-The Elasticsearch codebase makes heavy use of Java `assert`s and the
-test runner requires that assertions be enabled within the JVM. This
-can be accomplished by passing the flag `-ea` to the JVM on startup.
-
-You can enable these in IntelliJ by going to
-`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
-`-ea`.
-
-Some tests related to locale testing also require the flag
-`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
-IntelliJ like describe above to use
-`-Djava.locale.providers=SPI,COMPAT`.
+ - Select **File > Open**
+ - In the subsequent dialog navigate to the root `build.gradle` file
+ - In the subsequent dialog select **Open as Project**
 
 ### REST Endpoint Conventions
 
@@ -204,11 +182,7 @@ Please follow these formatting guidelines:
   part of a file. Please format such sections sympathetically with the rest
   of the code, while keeping lines to maximum length of 76 characters.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
-  the build to fail. This can be done automatically by your IDE:
-   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
-     There are two configuration options: `Class count to use import with
-     '*'` and `Names count to use static import with '*'`. Set their values
-     to 99999 or some other absurdly high value.
+  the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
   with the `// tag::NAME` and `// end::NAME` directives, but note that
   these are intended for use in documentation, so please make it clear what
@@ -379,26 +353,9 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-You may find it helpful to configure your IDE to automatically insert the
-appropriate license header depending on the part of the project to which you are
-contributing.
-
-#### IntelliJ: Copyright & Scope Profiles
-
-To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
-These may potentially be called `apache2` and `commercial`. These can be created in
-`Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
-their respective directories, two "Scopes" will need to be created. These can be created in
-`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
-the `shared` scope type. Create a scope, `apache2`, with
-the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
-the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
-The two scopes, together, should account for all the files in the project. To associate the scopes
-with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
-the associations `apache2/apache2` and `commercial/commercial`.
-
-Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
-the settings window and/or restart IntelliJ to see your changes take effect.
+> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> be automatically configured to add the correct license header to new source
+> files based on the source location.
 
 ### Creating A Distribution
 
@@ -411,7 +368,7 @@ cd elasticsearch/
 To build a darwin-tar distribution, run this command:
 
 ```sh
-./gradlew -p distribution/archives/darwin-tar assemble --parallel
+./gradlew -p distribution/archives/darwin-tar assemble
 ```
 
 You will find the distribution under:
@@ -421,8 +378,11 @@ To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
 
 ```sh
-./gradlew assemble --parallel
+./gradlew assemble
 ```
+
+> **NOTE:** Running the task above will fail if you don't have a available
+> Docker installation.
 
 The package distributions (Debian and RPM) can be found under:
 `./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
@@ -556,10 +516,6 @@ known as "transitive" dependencies".</dd>
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
-dependencies with this configuration are bundled into the jar produced by the
-build. Since IDEs do not understand this configuration we rig them to treat
-dependencies in this configuration as `compile` dependencies.</dd>
 <dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>

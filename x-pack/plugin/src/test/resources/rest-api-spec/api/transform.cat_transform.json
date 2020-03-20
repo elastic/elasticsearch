@@ -1,19 +1,19 @@
 {
   "transform.cat_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-transforms.html"
     },
     "stability":"stable",
     "url":{
       "paths":[
         {
-          "path":"/_cat/transform",
+          "path":"/_cat/transforms",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_cat/transform/{transform_id}",
+          "path":"/_cat/transforms/{transform_id}",
           "methods":[
             "GET"
           ],

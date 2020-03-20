@@ -89,6 +89,7 @@ public abstract class BaseSearchableSnapshotDirectory extends BaseDirectory {
     }
 
     private static UnsupportedOperationException unsupportedException() {
+        assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("Searchable snapshot directory does not support this operation");
     }
 

@@ -9,7 +9,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -81,47 +80,52 @@ final class TestUtils {
 
             @Override
             public Map<String, BlobMetaData> listBlobs() {
-                return Map.of(blobName, new PlainBlobMetaData(blobName, blobContent.length));
+                throw unsupportedException();
             }
 
             @Override
             public BlobPath path() {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public InputStream readBlob(String blobName) {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public DeleteResult delete() {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public Map<String, BlobContainer> children() {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
             }
 
             @Override
             public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
-                throw new UnsupportedOperationException();
+                throw unsupportedException();
+            }
+
+            private UnsupportedOperationException unsupportedException() {
+                assert false : "this operation is not supported and should have not be called";
+                return new UnsupportedOperationException("This operation is not supported");
             }
         };
     }

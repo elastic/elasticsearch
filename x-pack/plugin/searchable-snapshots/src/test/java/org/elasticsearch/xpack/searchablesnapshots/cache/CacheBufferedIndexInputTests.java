@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -18,14 +17,12 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 
-import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -98,22 +95,14 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
         }
 
         @Override
-        public InputStream readBlob(String name) throws IOException {
-            return new CountingInputStream(this, super.readBlob(name), getBlobLength(name), rangeSize);
-        }
-
-        @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
             return new CountingInputStream(this, super.readBlob(blobName, position, length), length, rangeSize);
         }
 
-        private long getBlobLength(String blobName) throws IOException {
-            for (Map.Entry<String, BlobMetaData> blob : listBlobs().entrySet()) {
-                if (blobName.equals(blob.getKey())) {
-                    return blob.getValue().length();
-                }
-            }
-            throw new FileNotFoundException(blobName);
+        @Override
+        public InputStream readBlob(String name) {
+            assert false : "this method should never be called";
+            throw new UnsupportedOperationException();
         }
     }
 

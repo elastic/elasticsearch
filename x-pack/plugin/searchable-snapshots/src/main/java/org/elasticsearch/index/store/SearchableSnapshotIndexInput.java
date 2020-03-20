@@ -59,14 +59,8 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
     private long sequentialReadSize;
     private static final long NO_SEQUENTIAL_READ_OPTIMIZATION = 0L;
 
-
-    SearchableSnapshotIndexInput(
-        BlobContainer blobContainer,
-        FileInfo fileInfo,
-        IOContext context,
-        long sequentialReadSize,
-        int bufferSize
-    ) {
+    SearchableSnapshotIndexInput(BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
+                                 long sequentialReadSize, int bufferSize) {
         this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, context, 0L, 0L, fileInfo.length(),
             sequentialReadSize, bufferSize);
     }

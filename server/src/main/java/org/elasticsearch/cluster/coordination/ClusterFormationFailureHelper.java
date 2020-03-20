@@ -208,8 +208,8 @@ public class ClusterFormationFailureHelper {
 
             if (nodeIds.size() == 1) {
                 if (nodeIds.contains(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)) {
-                    return "an election requires one or more nodes that have already participated as master-eligible nodes in the " +
-                        "cluster, but this node was not master-eligible the last time it joined the cluster";
+                    return "one or more nodes that have already participated as master-eligible nodes in the cluster but this node was " +
+                        "not master-eligible the last time it joined the cluster";
                 } else {
                     return "a node with id " + realNodeIds;
                 }

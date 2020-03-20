@@ -443,9 +443,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
             if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
                 List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
-                assertWarnings(filteredWarnings, expectedWarnings);
+                assertWarnings(stripXContentPosition, filteredWarnings, expectedWarnings);
             } else {
-                assertWarnings(actualWarnings, expectedWarnings);
+                assertWarnings(stripXContentPosition, actualWarnings, expectedWarnings);
             }
         } finally {
             resetDeprecationLogger();
@@ -458,10 +458,10 @@ public abstract class ESTestCase extends LuceneTestCase {
                              .collect(Collectors.toList());
     }
 
-    private void assertWarnings(List<String> actualWarnings, String[] expectedWarnings) {
+    private void assertWarnings(boolean stripXContentPosition, List<String> actualWarnings, String[] expectedWarnings) {
         assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
         final Set<String> actualWarningValues =
-                actualWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                actualWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, stripXContentPosition))
                     .collect(Collectors.toSet());
         for (String msg : expectedWarnings) {
             assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));

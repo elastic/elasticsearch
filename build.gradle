@@ -545,3 +545,15 @@ allprojects {
     }
   }
 }
+
+// TODO: remove this once 7.7 is released and the 7.x branch is 7.8
+subprojects {
+  pluginManager.withPlugin('elasticsearch.testclusters') {
+    testClusters.all {
+      if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
+        systemProperty 'es.itv2_feature_flag_registered', 'true'
+        systemProperty 'es.datastreams_feature_flag_registered', 'true'
+      }
+    }
+  }
+}

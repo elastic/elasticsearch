@@ -41,6 +41,9 @@ Infra/Packaging::
 Infra/Plugins::
 * Ensure only plugin REST tests are run for plugins {pull}53184[#53184] (issues: {issue}52114[#52114], {issue}53183[#53183])
 
+Machine Learning::
+* Fix a bug in the calculation of the minimum loss leaf values for classification {ml-pull}1032[#1032]
+
 Network::
 * Invoke response handler on failure to send {pull}53631[#53631]
 

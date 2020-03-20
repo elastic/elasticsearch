@@ -11,7 +11,6 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,8 +26,9 @@ final class MapUtils {
         featureImportanceMappingProperties.put("importance",
             Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
         Map<String, Object> featureImportanceMapping = new HashMap<>();
-        featureImportanceMapping.put("dynamic", true);
-        featureImportanceMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        // TODO sorted indices don't support nested types
+        //featureImportanceMapping.put("dynamic", true);
+        //featureImportanceMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
         featureImportanceMapping.put("properties", featureImportanceMappingProperties);
         FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(featureImportanceMapping);
     }

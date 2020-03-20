@@ -77,7 +77,8 @@ Replace with `u`.
 *Example:*
 `yyyy-MM-dd` should become `uuuu-MM-dd`.
 
-The difference is that year can contain non positive values, whereas `y` can not. Also year-of-era can also be associated with an era field.
+In java time, `y` is used for year of era. `u` can contain non-positive
+values, while `y` cannot. `y` can also be associated with an era field.
 --
 
 

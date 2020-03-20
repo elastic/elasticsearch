@@ -587,7 +587,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         CacheHolder(Settings settings, Collection<ScriptContext<?>> contexts, boolean compilationLimitsEnabled) {
             this.compilationLimitsEnabled = compilationLimitsEnabled;
-            this.contexts = Collections.unmodifiableSet(contexts);
+            this.contexts = Collections.unmodifiableSet(new HashSet<>(contexts));
             if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE)) {
                 this.general = null;
                 Map<String, AtomicReference<ScriptCache>> contextCache = new HashMap<>(this.contexts.size());

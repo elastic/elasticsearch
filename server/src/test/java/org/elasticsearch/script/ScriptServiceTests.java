@@ -41,9 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -405,7 +403,7 @@ public class ScriptServiceTests extends ESTestCase {
         boolean compilationLimitsEnabled = true;
         ScriptService.CacheHolder holder = new ScriptService.CacheHolder(
             Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate).build(),
-            Set.of(newContext("foo")),
+            Collections.unmodifiableSet(Collections.singleton(newContext("foo"))),
             compilationLimitsEnabled
         );
 
@@ -569,7 +567,7 @@ public class ScriptServiceTests extends ESTestCase {
             .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), generalExpire)
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
             .build(),
-            List.of(foo),
+            Arrays.asList(foo),
             true);
 
         assertNotNull(contextCache.contextCache);
@@ -587,7 +585,7 @@ public class ScriptServiceTests extends ESTestCase {
             .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), generalExpire)
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
             .build(),
-            List.of(foo),
+            Arrays.asList(foo),
             true);
 
         assertNotNull(contextCache.contextCache);
@@ -603,7 +601,7 @@ public class ScriptServiceTests extends ESTestCase {
             Settings.builder()
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
             .build(),
-            List.of(foo),
+            Arrays.asList(foo),
             true);
 
         assertNotNull(contextCache.contextCache);
@@ -619,7 +617,7 @@ public class ScriptServiceTests extends ESTestCase {
             Settings.builder()
                 .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
                 .build(),
-            List.of(foo, IngestScript.CONTEXT, IngestConditionalScript.CONTEXT),
+            Arrays.asList(foo, IngestScript.CONTEXT, IngestConditionalScript.CONTEXT),
             true);
         assertEquals(new Tuple<>(375, TimeValue.timeValueMinutes(5)),
                      contextCache.contextCache.get("ingest").get().rate);

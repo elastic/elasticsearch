@@ -91,7 +91,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-failures]
 `index_time`, `itime`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
 
-`index_total `, `it`:::
+`index_total`, `it`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
 
 `indexed_documents_exp_avg`, `idea`:::

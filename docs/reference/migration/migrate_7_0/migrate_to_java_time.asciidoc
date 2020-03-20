@@ -69,7 +69,7 @@ For pattern `YYYY-ww` and date `2019-01-01T00:00:00.000Z`  will give `2019-01`
 For pattern `YYYY-ww` and date `2018-12-31T00:00:00.000Z`  will give `2019-01` (counter intuitive) because there is >4 days of that week in 2019
 --
 
-`y` year::
+`y` (Year)::
 +
 --
 Replace with `u`.

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,32 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe;
+package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-import java.time.Instant;
-
-public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
+public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
-    protected MemoryUsage createTestInstance() {
-        return createRandom();
-    }
-
-    public static MemoryUsage createRandom() {
-        return new MemoryUsage(Instant.now(), randomNonNegativeLong());
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected MemoryUsage doParseInstance(XContentParser parser) throws IOException {
-        return MemoryUsage.PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    protected Request createTestInstance() {
+        return new Request(generateRandomStringArray(8, 8, false));
     }
 }

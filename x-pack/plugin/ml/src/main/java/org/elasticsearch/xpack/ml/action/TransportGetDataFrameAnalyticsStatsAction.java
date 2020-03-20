@@ -41,7 +41,12 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.R
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -103,7 +108,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 Stats stats = buildStats(
                     task.getParams().getId(),
                     statsHolder.getProgressTracker().report(),
-                    statsHolder.getMemoryUsage()
+                    statsHolder.getMemoryUsage(),
+                    statsHolder.getAnalysisStats()
                 );
                 listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
                     GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
@@ -194,7 +200,10 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.add(buildStoredProgressSearch(configId));
-        multiSearchRequest.add(buildMemoryUsageSearch(configId));
+        multiSearchRequest.add(buildStatsDocSearch(configId, MemoryUsage.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(configId, OutlierDetectionStats.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(configId, ClassificationStats.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(configId, RegressionStats.TYPE_VALUE));
 
         executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, ActionListener.wrap(
             multiSearchResponse -> {
@@ -215,7 +224,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 }
                 listener.onResponse(buildStats(configId,
                     retrievedStatsHolder.progress.get(),
-                    retrievedStatsHolder.memoryUsage
+                    retrievedStatsHolder.memoryUsage,
+                    retrievedStatsHolder.analysisStats
                 ));
             },
             e -> listener.onFailure(ExceptionsHelper.serverError("Error searching for stats", e))
@@ -230,15 +240,15 @@ public class TransportGetDataFrameAnalyticsStatsAction
         return searchRequest;
     }
 
-    private static SearchRequest buildMemoryUsageSearch(String configId) {
+    private static SearchRequest buildStatsDocSearch(String configId, String statsType) {
         SearchRequest searchRequest = new SearchRequest(MlStatsIndex.indexPattern());
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         searchRequest.source().size(1);
         QueryBuilder query = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(MemoryUsage.JOB_ID.getPreferredName(), configId))
-            .filter(QueryBuilders.termQuery(MemoryUsage.TYPE.getPreferredName(), MemoryUsage.TYPE_VALUE));
+            .filter(QueryBuilders.termQuery(Fields.JOB_ID.getPreferredName(), configId))
+            .filter(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), statsType));
         searchRequest.source().query(query);
-        searchRequest.source().sort(SortBuilders.fieldSort(MemoryUsage.TIMESTAMP.getPreferredName()).order(SortOrder.DESC)
+        searchRequest.source().sort(SortBuilders.fieldSort(Fields.TIMESTAMP.getPreferredName()).order(SortOrder.DESC)
             // We need this for the search not to fail when there are no mappings yet in the index
             .unmappedType("long"));
         return searchRequest;
@@ -250,6 +260,12 @@ public class TransportGetDataFrameAnalyticsStatsAction
             retrievedStatsHolder.progress = MlParserUtils.parse(hit, StoredProgress.PARSER);
         } else if (hitId.startsWith(MemoryUsage.documentIdPrefix(configId))) {
             retrievedStatsHolder.memoryUsage = MlParserUtils.parse(hit, MemoryUsage.LENIENT_PARSER);
+        } else if (hitId.startsWith(OutlierDetectionStats.documentIdPrefix(configId))) {
+            retrievedStatsHolder.analysisStats = MlParserUtils.parse(hit, OutlierDetectionStats.LENIENT_PARSER);
+        } else if (hitId.startsWith(ClassificationStats.documentIdPrefix(configId))) {
+            retrievedStatsHolder.analysisStats = MlParserUtils.parse(hit, ClassificationStats.LENIENT_PARSER);
+        } else if (hitId.startsWith(RegressionStats.documentIdPrefix(configId))) {
+            retrievedStatsHolder.analysisStats = MlParserUtils.parse(hit, RegressionStats.LENIENT_PARSER);
         } else {
             throw ExceptionsHelper.serverError("unexpected doc id [" + hitId + "]");
         }
@@ -257,7 +273,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
     private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(String concreteAnalyticsId,
                                                                        List<PhaseProgress> progress,
-                                                                       MemoryUsage memoryUsage) {
+                                                                       MemoryUsage memoryUsage,
+                                                                       AnalysisStats analysisStats) {
         ClusterState clusterState = clusterService.state();
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
@@ -279,6 +296,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             failureReason,
             progress,
             memoryUsage,
+            analysisStats,
             node,
             assignmentExplanation
         );
@@ -288,5 +306,6 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         private volatile StoredProgress progress = new StoredProgress(new ProgressTracker().report());
         private volatile MemoryUsage memoryUsage;
+        private volatile AnalysisStats analysisStats;
     }
 }

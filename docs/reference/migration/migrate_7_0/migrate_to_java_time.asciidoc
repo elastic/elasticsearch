@@ -136,7 +136,7 @@ yyyy-MM-dd'T'hh:mm:ssXXXXX
 ```
 
 
-If you expect all these combination to occur in your data you need to combine these patterns in 7.0
+The formats must then be delimited using `||`:
 [source,txt]
 --------------------------------------------------
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXXX||yyyy-MM-dd'T'hh:mm:ssXXXXX

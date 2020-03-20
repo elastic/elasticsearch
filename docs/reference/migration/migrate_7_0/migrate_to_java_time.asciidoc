@@ -82,7 +82,7 @@ values, while `y` cannot. `y` can also be associated with an era field.
 --
 
 
-`C` century of era::
+`C` (Century of era)::
 +
 --
 No longer supported in 7.0. There is no replacement, so you need to preprocess your input.

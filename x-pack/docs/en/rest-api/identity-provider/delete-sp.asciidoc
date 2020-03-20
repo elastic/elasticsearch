@@ -14,7 +14,7 @@ Removes a SAML service provider definition from this identity provider.
 [[idp-saml-delete-sp-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have a role that grants the `cluster:admin/idp/saml/sp` privilege.
+* To use this API, you must have a role that grants the `cluster:admin/idp/saml/sp/delete` privilege.
 
 [[idp-saml-delete-desc]]
 ==== {api-description-title}

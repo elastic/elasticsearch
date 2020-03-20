@@ -205,7 +205,8 @@ deploying in production.
 For help with date debugging, consider using
 https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
 
-==== Migrating affected mappings
+[[java-time-migrate-update-mappings]]
+==== Update index mappings
 Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping
 and reindex your data to it.
 You can however update your pipelines or templates. Remember to look for templates you use with tools outside ES.

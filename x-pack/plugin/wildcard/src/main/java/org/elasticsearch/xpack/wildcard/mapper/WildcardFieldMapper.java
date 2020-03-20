@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.wildcard.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -46,6 +48,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.Builder;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -64,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -100,6 +105,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, WildcardFieldMapper> {
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
+        private IndexAnalyzers indexAnalyzers;
+        private String normalizerName;
+        
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -164,10 +172,23 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldType fieldType() {
             return (WildcardFieldType) super.fieldType();
         }
+        
+        public Builder normalizer(IndexAnalyzers indexAnalyzers, String name) {
+            this.indexAnalyzers = indexAnalyzers;
+            this.normalizerName = name;
+            return builder;
+        }        
 
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
-            setupFieldType(context);            
+            setupFieldType(context);   
+            if (normalizerName != null) {
+                NamedAnalyzer normalizer = indexAnalyzers.getNormalizer(normalizerName);
+                if (normalizer == null) {
+                    throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                }
+                fieldType().setNormalizer(normalizer);
+            }            
             return new WildcardFieldMapper(
                     name, fieldType, defaultFieldType, ignoreAbove, 
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
@@ -188,6 +209,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
+                } else if (propName.equals("normalizer")) {
+                    if (propNode != null) {
+                        builder.normalizer(parserContext.getIndexAnalyzers(), propNode.toString());
+                    }
+                    iterator.remove();
                 }
             }            
             
@@ -198,6 +224,8 @@ public class WildcardFieldMapper extends FieldMapper {
      public static final char TOKEN_START_OR_END_CHAR = 0;    
     
      public static final class WildcardFieldType extends MappedFieldType {
+         
+        private NamedAnalyzer normalizer = null;
 
         public WildcardFieldType() {            
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -206,6 +234,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         protected WildcardFieldType(WildcardFieldType ref) {
             super(ref);
+            this.normalizer = ref.normalizer;
         }
 
         public WildcardFieldType clone() {
@@ -213,6 +242,29 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
         
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o) == false) {
+                return false;
+            }
+            WildcardFieldType other = (WildcardFieldType) o;
+            return Objects.equals(normalizer, other.normalizer);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hash(normalizer);
+        }       
+        
+        private NamedAnalyzer normalizer() {
+            return normalizer;
+        }
+
+        public void setNormalizer(NamedAnalyzer normalizer) {
+            checkIfFrozen();
+            this.normalizer = normalizer;
+        }                
                 
         // Holds parsed information about the wildcard pattern
         static class PatternStructure {
@@ -327,6 +379,12 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
+            try {
+                wildcardPattern = normalize(wildcardPattern);
+            } catch (IOException e) {
+                throw new IllegalStateException("The field  [" + name() +
+                        "] hit an IOException normalizing the value [" + wildcardPattern+ "].");
+            }
             PatternStructure patternStructure = new PatternStructure(wildcardPattern);            
             ArrayList<String> tokens = new ArrayList<>();
 
@@ -467,7 +525,31 @@ public class WildcardFieldMapper extends FieldMapper {
                         CircuitBreakerService breakerService, MapperService mapperService) {
                     return new WildcardBytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
                 }};
-        }        
+        }
+
+
+        String normalize(String value) throws IOException {
+            if (normalizer != null) {
+                try (TokenStream ts = normalizer.tokenStream(name(), value)) {
+                    final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+                    ts.reset();
+                    if (ts.incrementToken() == false) {
+                      throw new IllegalStateException("The normalization token stream is "
+                          + "expected to produce exactly 1 token, but got 0 for analyzer "
+                          + normalizer + " and input \"" + value + "\"");
+                    }
+                    final String newValue = termAtt.toString();
+                    if (ts.incrementToken()) {
+                      throw new IllegalStateException("The normalization token stream is "
+                          + "expected to produce exactly 1 token, but got 2+ for analyzer "
+                          + normalizer + " and input \"" + value + "\"");
+                    }
+                    ts.end();
+                    return newValue;
+                }
+            }
+            return value;
+        }       
     }
      
     static class  WildcardBytesBinaryDVIndexFieldData extends BytesBinaryDVIndexFieldData{
@@ -521,6 +603,11 @@ public class WildcardFieldMapper extends FieldMapper {
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
+        if (fieldType().normalizer() != null) {
+            builder.field("normalizer", fieldType().normalizer().name());
+        } else if (includeDefaults) {
+            builder.nullField("normalizer");
+        }        
     }
     
     @Override
@@ -544,10 +631,11 @@ public class WildcardFieldMapper extends FieldMapper {
     // For internal use by Lucene only - used to define ngram index
     final MappedFieldType ngramFieldType;
     
-    void createFields(String value, Document parseDoc, List<IndexableField>fields) {
+    void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
+        value = fieldType().normalize(value);
         String ngramValue = TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
         Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
         fields.add(ngramField);

@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -175,6 +178,21 @@ public class AnalyticsResultProcessor {
         if (memoryUsage != null) {
             statsHolder.setMemoryUsage(memoryUsage);
             indexStatsResult(memoryUsage, memoryUsage::documentId);
+        }
+        OutlierDetectionStats outlierDetectionStats = result.getOutlierDetectionStats();
+        if (outlierDetectionStats != null) {
+            statsHolder.setAnalysisStats(outlierDetectionStats);
+            indexStatsResult(outlierDetectionStats, outlierDetectionStats::documentId);
+        }
+        ClassificationStats classificationStats = result.getClassificationStats();
+        if (classificationStats != null) {
+            statsHolder.setAnalysisStats(classificationStats);
+            indexStatsResult(classificationStats, classificationStats::documentId);
+        }
+        RegressionStats regressionStats = result.getRegressionStats();
+        if (regressionStats != null) {
+            statsHolder.setAnalysisStats(regressionStats);
+            indexStatsResult(regressionStats, regressionStats::documentId);
         }
     }
 

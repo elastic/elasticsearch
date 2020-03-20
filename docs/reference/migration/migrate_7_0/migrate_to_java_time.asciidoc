@@ -119,7 +119,6 @@ If you expect all these combination to occur in your data you need to combine th
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXXX||yyyy-MM-dd'T'hh:mm:ssXXXXX
 --------------------------------------------------
 
-
 The same applies if you expect your pattern to occur without a colon:
 Pattern `YYYY-MM-dd'T'hh:mm:ssZ` accepting these dates:
 ```

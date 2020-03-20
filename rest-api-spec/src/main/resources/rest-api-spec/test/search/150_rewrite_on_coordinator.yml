@@ -1,4 +1,6 @@
 "Ensure that we fetch the document only once":
+  - skip:
+      features: allowed_warnings
   - do:
       indices.create:
           index: search_index
@@ -31,11 +33,13 @@
       indices.refresh: {}
 
   - do:
+      allowed_warnings:
+        - "Deprecated field [type] used, this field is unused and will be removed entirely"
       catch: /no such index/
       search:
         rest_total_hits_as_int: true
         index: "search_index"
-        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "_doc", "id": "1", "path": "followers"} } } }
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type" : "_doc", "id": "1", "path": "followers"} } } }
   - do:
       indices.create:
           index: lookup_index
@@ -55,10 +59,12 @@
       indices.refresh: {}
 
   - do:
+      allowed_warnings:
+        - "Deprecated field [type] used, this field is unused and will be removed entirely"
       search:
         rest_total_hits_as_int: true
         index: "search_index"
-        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "_doc", "id": "1", "path": "followers"} } } }
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type" : "_doc", "id": "1", "path": "followers"} } } }
 
   - match: { _shards.total: 5 }
   - match: { _shards.successful: 5 }

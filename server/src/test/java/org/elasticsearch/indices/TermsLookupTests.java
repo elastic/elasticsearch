@@ -22,6 +22,8 @@ package org.elasticsearch.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -103,6 +105,32 @@ public class TermsLookupTests extends ESTestCase {
                 assertNotSame(deserializedLookup, termsLookup);
             }
         }
+    }
+
+    public void testXContentParsingWithType() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"type\" : \"type\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+
+        TermsLookup tl = TermsLookup.parseTermsLookup(parser);
+        assertEquals("index", tl.index());
+        assertEquals("type", tl.type());
+        assertEquals("id", tl.id());
+        assertEquals("path", tl.path());
+        assertEquals("routing", tl.routing());
+
+        assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
+    }
+
+    public void testXContentParsing() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+
+        TermsLookup tl = TermsLookup.parseTermsLookup(parser);
+        assertEquals("index", tl.index());
+        assertNull(tl.type());
+        assertEquals("id", tl.id());
+        assertEquals("path", tl.path());
+        assertEquals("routing", tl.routing());
     }
 
     public static TermsLookup randomTermsLookup() {

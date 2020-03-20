@@ -3,6 +3,7 @@
   - skip:
       version: " - 6.99.99"
       reason: index.max_terms_count setting has been added in 7.0.0
+      features: allowed_warnings
   - do:
       indices.create:
           include_type_name: true
@@ -46,6 +47,8 @@
           body: {"query" : {"terms" : {"user" : ["u1", "u2", "u3"]}}}
 
   - do:
+      allowed_warnings:
+        - "Deprecated field [type] used, this field is unused and will be removed entirely"
       search:
           rest_total_hits_as_int: true
           index: test_index

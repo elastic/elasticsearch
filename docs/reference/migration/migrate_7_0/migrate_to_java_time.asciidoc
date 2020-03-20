@@ -1,19 +1,35 @@
-[[migrate_to_java_time]]
+[[migrate-to-java-time]]
 === Java time migration guide
 
-With 7.0, {es} switch to java time from joda time for date-related parsing,
+With 7.0, {es} switched from joda time to java time for date-related parsing,
 formatting, and calculations. This guide is designed to help you determine
 if your cluster is impacted and, if so, prepare for the upgrade.
 
-Joda style indices are supported in 6.8, but indices created with joda-style patterns in 6.x are also allowed to be used in 7.0
-All new indices created in 7.x are expected to be using java-time patterns.
+[[java-time-convert-date-formats]]
+=== Convert date formats
 
-We advice to prepare for this migration in 6.8, but it will also work if you decide to perform it in version 7.x
+To upgrade to 7.0, you'll need to convert any joda-time date formats
+to their java-time equivalents.
 
-- In 6.8 you need to prefix your new java.style pattern with `8`. Patterns without `8` are considered joda style.
-- In 7.x patterns without `8` on indices *created in 6.x* are considered joda-style.
-- Patterns with or without `8` on indices *created in 7.x*  are considered java.style
+To help track this effort, you can prefix java-time date formats with an `8`
+prefix in {es} 6.8 and later versions.
 
+For example, you can change the date format `YYYY-MM-dd` to `8yyyy-MM-dd` to
+indicate the date format uses java time.
+
+{es} treats date formats starting with the `8` prefix differently depending on
+the version:
+
+*6.8*: Date formats with an `8` prefix are handled as java-time formats. Date
+formats without an `8` prefix are treated as joda-time formats. We recommend
+converting these joda-time formats to java-time _before_ upgrading to 7.x.
+
+*7.x and later*: For indices created in 6.x, date formats without an `8` prefix
+are treated as joda-time formats. For indices created in 7.x and later versions,
+all date formats are treated as java-time formats, regardless of whether it
+starts with an `8` prefix.
+
+[[java-time-migration-impacted-features]]
 ==== Impacted features
 The switch to java time only impacts custom <<date,`date`>> and
 <<date_nanos,`date_nanos`>> formats.
@@ -25,14 +41,15 @@ These formats are commonly used in:
 * <<pipeline,Ingest pipelines>>
 
 If you don't use custom date formats, you can skip the rest of this guide.
-Most of the custom date formats are compatible, but with some there is a change of meaning or missing. More on that below.
+Most custom date formats are compatible. However, several require
+an update.
 
 To see if your date format is impacted, use the <<migration-api-deprecation,deprecation info API>>
 or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant]
 
-
-==== Incompatible formats
-Custom date formats containing the following joda time literals should be
+[[java-time-migration-incompatible-date-formats]]
+==== Incompatible date formats
+Custom date formats containing the following joda-time literals should be
 changed before upgrading.
 
 `Y` (Year of era)::
@@ -41,55 +58,60 @@ changed before upgrading.
 Replace with `y`.
 
 *Example:*
-`YYYY-MM-dd` should become `yyyy-MM-dd`
+`YYYY-MM-dd` should become `yyyy-MM-dd`.
 
 In java time, `Y` is used for
 https://docs.oracle.com/javase/8/docs/api/java/time/temporal/WeekFields.html[week-based year].
 Using `Y` in place of `y` could result in off-by-one errors in year calculation.
 
 
-The difference between year-of-era and week based year
 For pattern `YYYY-ww` and date `2019-01-01T00:00:00.000Z`  will give `2019-01`
 For pattern `YYYY-ww` and date `2018-12-31T00:00:00.000Z`  will give `2019-01` (counter intuitive) because there is >4 days of that week in 2019
 --
 
-`y` year::
+`y` (Year)::
 +
 --
 Replace with `u`.
 
 *Example:*
-`yyyy-MM-dd` should become `uuuu-MM-dd`
+`yyyy-MM-dd` should become `uuuu-MM-dd`.
 
-The difference is that year can contain non positive values, whereas `y` can not. Also year-of-era can also be associated with an era field.
+In java time, `y` is used for year of era. `u` can contain non-positive
+values, while `y` cannot. `y` can also be associated with an era field.
 --
 
 
-`C` century of era::
+`C` (Century of era)::
 +
 --
-No longer supported in 7.0. There is no replacement, so you need to preprocess your input.
-
-A possible workaround https://stackoverflow.com/questions/38354151/how-to-force-java-time-localdate-to-assume-19th-century-as-yy-year-pattern
+Century of era is not supported in java time.
+There is no replacement. Instead, we recommend you preprocess your input.
 --
 
-`x` week year::
+`x` (Week year)::
 +
 --
-Replace with `Y`
+Replace with `Y`.
 
-This is a big change. `x` means https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[zone-offset] in java.time
+In java time, `x` means https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[zone-offset]. 
+
+[WARNING]
+====
+Failure to properly convert `x` (Week year) to `Y` could result in data loss.
+====
 --
 
-`Z` Zone offset/id::
+`Z` (Zone offset/id)::
 +
 --
-Replace with multiple `X`
+Replace with multiple `X`'s.
 
-`Z` has similar meaning in 7.0 with a notable difference that it expects different number of literals to parse different forms.
+`Z` has s similar meaning in java time. However, java time expects different
+numbers of literals to parse different forms.
 
-Consider migrating to `X` which give you more control of how your time is parsed.
-For instance format `YYYY-MM-dd'T'hh:mm:ssZZ` allowed all the forms below:
+Consider migrating to `X`, which gives you more control over how time is parsed.
+For example, the joda-time format `YYYY-MM-dd'T'hh:mm:ssZZ` accepts the following dates:
 
 ```
 2010-01-01T01:02:03Z
@@ -98,7 +120,8 @@ For instance format `YYYY-MM-dd'T'hh:mm:ssZZ` allowed all the forms below:
 2010-01-01T01:02:03+01:02:03
 ```
 
-You cannot parse them all with one pattern in 7.0. You need to specify 3 separate patterns
+In java time, you cannot parse all these dates using a single format
+Instead, you must specify 3 separate formats:
 
 ```
 2010-01-01T01:02:03Z
@@ -113,83 +136,106 @@ yyyy-MM-dd'T'hh:mm:ssXXXXX
 ```
 
 
-If you expect all these combination to occur in your data you need to combine these patterns in 7.0
+The formats must then be delimited using `||`:
 [source,txt]
 --------------------------------------------------
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXXX||yyyy-MM-dd'T'hh:mm:ssXXXXX
 --------------------------------------------------
 
-
-The same applies if you expect your pattern to occur without a colon:
-Pattern `YYYY-MM-dd'T'hh:mm:ssZ` accepting these dates:
+The same applies if you expect your pattern to occur without a colon (`:`):
+For example, the `YYYY-MM-dd'T'hh:mm:ssZ` format accepts the following date forms:
 ```
 2010-01-01T01:02:03Z
 2010-01-01T01:02:03+01
 2010-01-01T01:02:03+0102
 2010-01-01T01:02:03+010203
 ```
-should be migrated to
+To accept all these forms in java time, you must use the `||` delimiter:
 [source,txt]
 --------------------------------------------------
 yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
 --------------------------------------------------
 --
 
-
-
-`d` day::
+`d` (Day)::
 +
 --
-The same meaning in 7.0 but is less flexible.
+In java time, `d` is still interpreted as "day" but is less flexible.
 
-If your pattern was `YYYY-MM-dd` in 6.8 and you expect dates in form `2010-01-01` or `2010-01-1`
-You need to provide an alternative pattern for all of these `yyyy-MM-dd||yyyy-MM-d`.
-More then 2 digits are not allowed anymore. If you want to parse dates like `2010-01-00001` you need to create a pattern that expects a text literal `'000'` before `'d'`
-`yyyy-MM-'000'dd`
+For example, the joda-time date format `YYYY-MM-dd` accepts `2010-01-01` or
+`2010-01-1`.
+
+In java time, you must use the `||` delimiter to provide specify each format:
+
+[source,txt]
+--------------------------------------------------
+yyyy-MM-dd||yyyy-MM-d
+--------------------------------------------------
+
+In java time, `d` also does not accept more than 2 digits. To accept days with more
+than two digits, you must include a text literal in your java-time date format.
+For example, to parse `2010-01-00001`, you must use the following java-time date format: 
+
+[source,txt]
+--------------------------------------------------
+yyyy-MM-'000'dd
+--------------------------------------------------
 --
 
-
-`e` name of day::
+`e` (Name of day)::
 +
 --
-The same meaning in 7.0. However it is less flexible in 7.0. It do not allow parsing short and full text forms.
+In java time, `e` is still interpreted as "name of day" but does not parse
+short- or full-text forms.
 
-If you used `EEE YYYY-MM` for a format and expected days in form:
-`Wed 2020-01` or `Wednesday 2020-01`
-then you have to use two combined patterns in 7.0
-`cccc yyyy-MM||ccc yyyy-MM`
+For example, the joda-time date format `EEE YYYY-MM` accepts both
+`Wed 2020-01` and `Wednesday 2020-01`.
 
-E vs c. E means day-of-week vs c is for localized day-of-week. The difference is that E won't behave correctly for full text forms like Wednesday
+To accept both of these dates in java time, you must specify each format using
+the `||` delimiter: 
+
+[source,txt]
+--------------------------------------------------
+cccc yyyy-MM||ccc yyyy-MM
+--------------------------------------------------
+
+The joda-time literal `E` is interpreted as "day of week."
+The java-time literal `c` is interpreted as "localized day of week."
+`E` does not accept full-text day formats, such as `Wednesday`.
 --
 
-Text forms EEEE and similar::
+`EEEE` and similar text forms::
 +
 --
-Full text forms are depending on locale data provided with JDK and the implementation details of java vs joda. You should test carefully before upgrading these patterns.
+Support for full-text forms depends on the locale data provided with your Java
+Development Kit (JDK) and other implementation details. We recommend you
+test formats containing these patterns carefully before upgrading.
 --
 
-`z` time zone text::
+`z` (Time zone text)::
 +
 --
-In 7.0 it will print 'Z' for Zulu given UTC timezone.
+In java time, `z` outputs 'Z' for Zulu when given a UTC timezone.
 --
 
-
+[[java-time-migration-test]]
 ===== Test with your data
-All of the examples above should be tested with real data. It is likely that you do not need the flexibility joda was giving.
-If you expect your timezone to only be in one form - for instance `+01:00`  (XXX in java, ZZ in joda) -
-then there is no need to create a new java pattern with so many alternatives.
 
-Consider using this date debugging site for assistance https://esddd.herokuapp.com/
+We strongly recommend you test any date format changes using real data before
+deploying in production.
 
-==== Migrating affected mappings
+For help with date debugging, consider using
+https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
+
+[[java-time-migrate-update-mappings]]
+==== Update index mappings
 Once an index is created with a mapping, it cannot change already existing fields. You need to create a new index with updated mapping
 and reindex your data to it.
 You can however update your pipelines or templates. Remember to look for templates you use with tools outside ES.
 If you specified a custom date format there, then you need to update it too.
 
-===== Example migration procedure
-Let's assume that you have an index with a date field and custom format
+The following `my_index_1` index contains a mapping for the `datetime` field, a
+`date` field with a custom joda-time date format.
 ////
 [source,console]
 --------------------------------------------------
@@ -230,7 +276,12 @@ GET my_index_1/_mapping
 --------------------------------------------------
 
 
-* Create my_index_2 with mappings changed with the format set to `8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`
+To change the date format for the `datetime` field, create a separate index
+containing an updated mapping and date format.
+
+For example, the following `my_index_2` index changes the `datetime` field's 
+date format to `8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`. The `8` prefix 
+indicates this date format uses java time.
 
 [source,console]
 --------------------------------------------------
@@ -248,7 +299,7 @@ PUT my_index_2
 --------------------------------------------------
 // TEST[continued]
 
-* Reindex the deprecated format index to new_index_1
+Next, reindex the data from `my_index_1` to `my_index_2`.
 
 [source,console]
 --------------------------------------------------
@@ -264,7 +315,7 @@ POST _reindex
 --------------------------------------------------
 // TEST[continued]
 
-* If you were using aliases, update them to a new index
+If you use index aliases, update them to point to the new index.
 
 [source,console]
 --------------------------------------------------
@@ -278,9 +329,10 @@ POST /_aliases
 --------------------------------------------------
 // TEST[continued]
 
-===== Update before upgrading to ES7.
-If your pipelines were using a joda style patterns, they also have to be updated. There is no need to create a new pipeline.
-Just update the already existing one.
+[[java-time-migration-update-ingest-pipelines]]
+===== Update ingest pipelines
+If your ingest pipelines contain joda-time date formats, you can update them
+using the <<put-pipeline-api,put ingest pipeline>> API.
 
 [source,console]
 --------------------------------------------------
@@ -307,8 +359,11 @@ PUT _ingest/pipeline/mypipeline
 --------------------------------------------------
 
 
-* upgrade template
-If your template was using joda date pattern it also should be updated before upgrading to ES7.
+[[java-time-migration-update-index-templates]]
+===== Update index templates
+
+If your index templates contain joda-time date formats, you can update them
+using the <<indices-templates,put index template>> API.
 
 [source,console]
 --------------------------------------------------
@@ -338,13 +393,16 @@ PUT _template/template_1
 }
 --------------------------------------------------
 
-
+////
 [source,console]
 --------------------------------------------------
 DELETE /_template/template_1
 --------------------------------------------------
 // TEST[continued]
-* Upgrade to 7.x
+////
 
-===== External templates
-Revisit other templates from elastic stack where you used a custom date pattern.
+[[java-time-migration-update-external-tools-templates]]
+===== Update external tools and templates
+Ensure you also update any date formats in templates or tools outside of {es}.
+This can include tools such as {beats-ref}/getting-started.html[{beats}] or
+{logstash-ref}/index.html[Logstash].

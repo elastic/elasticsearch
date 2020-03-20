@@ -110,8 +110,8 @@ Replace with multiple `X`'s.
 `Z` has s similar meaning in java time. However, java time expects different
 numbers of literals to parse different forms.
 
-Consider migrating to `X` which give you more control of how your time is parsed.
-For instance format `YYYY-MM-dd'T'hh:mm:ssZZ` allowed all the forms below:
+Consider migrating to `X`, which gives you more control over how time is parsed.
+For example, the joda-time format `YYYY-MM-dd'T'hh:mm:ssZZ` accepts the following dates:
 
 ```
 2010-01-01T01:02:03Z
